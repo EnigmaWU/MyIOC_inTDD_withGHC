@@ -23,12 +23,6 @@ TEST(UT_NameOfCategory, CaseNN_verifyBehivorX_byDoABC) {
   //===CLEANUP===
 }
 
-TEST(UT_InitialProject, verifyCompileLink_byDebugWithF5)
-{
-  IOC_Result_T result = IOC_helloAPI();
-  ASSERT_EQ(IOC_RESULT_SUCCESS, result);
-}
-
 //---------------------------------------------------------------------------------------------------------------------
 class UT_NameofCategoryFixture : public ::testing::Test {
  protected:
