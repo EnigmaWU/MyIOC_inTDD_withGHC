@@ -6,6 +6,8 @@
 # Definitions
 * Event Producer(a.k.a EvtPrduer) who generate/trigge events.
 * Event Consumer(a.k.a EvtCosmer) who process events.
+* Module Manager(a.k.a ModMgr) who is a manager role such as platform manager, call IOC's MGR_APIs with arguments by product requirements to initModule, or deinitModule before module exit.
+* Module User(a.k.a ModUsr) who is EvtPrduer or EvtCosmer call IOC's USR_APIs.
 
 # Specifications(a.k.a SPEC)
 * 【v1】Initial project framework.
