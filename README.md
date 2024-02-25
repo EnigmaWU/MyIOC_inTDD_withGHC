@@ -1,2 +1,14 @@
-# MyIOC_inTDD_withGHC
-A practice module named IOC(Inter-Object-Communication) and has functions as its name, in Test-Driven Development Dev-Approach, with GitHub Copilot Dev-Facilites.
+# About::MyIOC_inTDD_withGHC
+* A practice module named IOC(Inter-Object-Communication) and has functions as its name, in Test-Driven Development Dev-Approach, with GitHub Copilot Dev-Facilites.
+
+
+# Requirements
+* 【v1】
+  * a）
+  * b）
+  * c） 
+* 【v2】...
+  * a）...
+  * b）...
+  * c）...
+* 【v3】... 
