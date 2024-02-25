@@ -4,13 +4,17 @@
     * with GitHub Copilot(a.k.a GHC) Dev-Facilites.
 
 
-# Requirements
-* 【v1】
-  * a）
-  * b）
-  * c） 
+# Specifications(a.k.a SPEC)
+* 【v1】Initial project framework.
+  * a）Dirs: Include,Source,Test
+  * b）Build: Default TargetUsage=DiagASAN, depend on GTest, enable F5 debug.
+  * c）Manifests: LIB::libMyIOC.a, UTEXE::Test/*.cxx
+
 * 【v2】...
   * a）...
   * b）...
   * c）...
-* 【v3】... 
+
+* 【vN】Pending ideas...
+  * Doc/ScrnCapRecs, clang-format/-tidy
+  * ...

@@ -1,0 +1,26 @@
+{
+    "cmake.buildDirectory": "${workspaceFolder}/CMakeBuilt",
+
+    "cmake.debugConfig": {
+        "stopAtEntry": true,
+    },
+
+    "cmake.defaultVariants": {
+        "buildType": {
+            "default": "DiagASAN",
+            "description": "The build type.",
+            "choices": {
+                "DiagASAN": {
+                    "short": "DiagASAN",
+                    "long": "Diagnosis in AddressSanitizer",
+                    "buildType": "DiagASAN"
+                },
+                "DiagTSAN": {
+                    "short": "DiagTSAN",
+                    "long": "Diagnosis in ThreadSanitizer",
+                    "buildType": "DiagTSAN"
+                },
+            }
+        }
+    },
+}

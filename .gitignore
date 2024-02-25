@@ -50,3 +50,7 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+CMakeBuilt/*
+compile_commands.json
+.cache/*
