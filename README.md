@@ -3,6 +3,9 @@
   * in Test-Driven Development(a.k.a TDD) Dev-Approach
     * with GitHub Copilot(a.k.a GHC) Dev-Facilites.
 
+# Definitions
+* Event Producer(a.k.a EvtPrduer) who generate/trigge events.
+* Event Consumer(a.k.a EvtCosmer) who process events.
 
 # Specifications(a.k.a SPEC)
 * 【v1】Initial project framework.
