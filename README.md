@@ -22,7 +22,7 @@
 
 * 【v2】IOC_Event: postEVT,subEVT/cbEVT,waitEVT
   * a）Scope: inter-thread, connectless mode(a.k.a ConlesMode);
-  * b）Option: ASync\<DFT\>/Sync, MayBlock/NonBlock/Timeout;
+  * b）Option: ASync\<DFT\>/Sync, MayBlock/NonBlock\<DFT>\/Timeout;
     * Perf: Sync>>ASync, NonBlock>>MayBlock
   * c）Abilities:
     * i)Support 1:1/1:N/N:1/N:M post event in ConlesMode;
