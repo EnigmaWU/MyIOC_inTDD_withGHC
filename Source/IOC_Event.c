@@ -19,7 +19,11 @@ static IOC_Result_T __IOC_unsubEVT_inConlesMode(
 static IOC_Result_T __IOC_postEVT_inConlesMode(
     /*ARG_IN*/ const IOC_EvtDesc_pT pEvtDesc,
     /*ARG_IN_OPTIONAL*/ const IOC_Options_pT pOptions) {
-  return _mConlesModeSubEvtArgs.CbProcEvt_F(pEvtDesc, _mConlesModeSubEvtArgs.pCbPrivData);
+  if (_mConlesModeSubEvtArgs.CbProcEvt_F) {
+    return _mConlesModeSubEvtArgs.CbProcEvt_F(pEvtDesc, _mConlesModeSubEvtArgs.pCbPrivData);
+  } else {
+    return IOC_RESULT_NO_EVTCOSMER;
+  }
 }
 //===>END: IOC Event in Conles Mode
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
