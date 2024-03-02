@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <sys/errno.h>
 
 #ifndef __IOC_TYPES_H__
 #define __IOC_TYPES_H__
@@ -8,18 +9,22 @@ extern "C" {
 
 typedef unsigned long ULONG_T;
 
-typedef enum 
-{
-    IOC_RESULT_SUCCESS = 0,
-    IOC_RESULT_FAILURE = -1,
+typedef enum {
+  IOC_RESULT_SUCCESS = 0,
+  IOC_RESULT_FAILURE = -1,
 
-    IOC_RESULT_NOT_IMPLEMENTED = -2,
-    IOC_RESULT_NOT_SUPPORT = -3,
+  // POSIX's Result (errno.h)
+  IOC_RESULT_POSIX_ENOMEM = -ENOMEM,
 
+  // IOC's Result
+  IOC_RESULT_NOT_IMPLEMENTED = -500,
+  IOC_RESULT_NOT_SUPPORT = -501,
+
+  IOC_RESULT_BUG = -999,
 } IOC_Result_T;
 
 typedef uint64_t IOC_LinkID_T;
-
+#define IOC_CONLES_MODE_AUTO_LINK_ID 0
 
 typedef enum {
   IOC_OPTID_TIMEOUT = 1 << 0,    // set this IDs and Payload.TimeoutUS>=0, to set timeout for execCMD,waitCMD,sendDAT,recvDAT,...
@@ -67,12 +72,13 @@ typedef struct
     //TOOD(@W): +More...
 } IOC_EvtDesc_T, *IOC_EvtDesc_pT;
 
+#define IOC_calcArrayElmtCnt(array) (sizeof(array) / sizeof(array[0]))
 typedef IOC_Result_T (*IOC_CbProcEvt_F)(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv);
 typedef struct 
 {
     IOC_CbProcEvt_F CbProcEvt_F;
     void *pCbPriv;
-    ULONG_T EvtNum;
+    ULONG_T EvtNum;  // number of EvtIDs, IOC_calcArrayElmtCnt(SubEvtIDs)
     IOC_EvtID_T *pEvtIDs;
 } IOC_SubEvtArgs_T, *IOC_SubEvtArgs_pT;
 

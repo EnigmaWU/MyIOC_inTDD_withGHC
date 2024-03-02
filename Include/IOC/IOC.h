@@ -13,13 +13,13 @@ IOC_Result_T IOC_postEVT(
     /*ARG_IN*/const IOC_EvtDesc_pT pEvtDesc,
     /*ARG_IN_OPTIONAL*/IOC_Options_pT);
 
-#define IOC_postEVT_inConlesMode(pEvtDesc, pOption) PLT_IOC_postEVT(IOC_CONLES_MODE_AUTO_LINK_ID, pEvtDesc, pOption)
+#define IOC_postEVT_inConlesMode(pEvtDesc, pOption) IOC_postEVT(IOC_CONLES_MODE_AUTO_LINK_ID, pEvtDesc, pOption)
 
 IOC_Result_T IOC_subEVT(
     /*ARG_IN*/IOC_LinkID_T LinkID, 
     /*ARG_IN*/const IOC_SubEvtArgs_pT pSubEvtArgs);
 
-#define IOC_subEVT_inConlesMode(pSubEvtArgs) PLT_IOC_subEVT(IOC_CONLES_MODE_AUTO_LINK_ID, pSubEvtArgs)
+#define IOC_subEVT_inConlesMode(pSubEvtArgs) IOC_subEVT(IOC_CONLES_MODE_AUTO_LINK_ID, pSubEvtArgs)
 
 IOC_Result_T IOC_unsubEVT(
     /*ARG_IN*/ IOC_LinkID_T LinkID,
