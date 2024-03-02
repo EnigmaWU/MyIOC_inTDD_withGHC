@@ -20,3 +20,24 @@ TEST(UT_ConlesEventMisuse, Case01_verifyNoEvtCosmer_byNotSubEvtButPostEvtDirectl
 
   //===CLEANUP===
 }
+
+/**
+ * @[Name]: verifyNoEvtCosmer_byUnsubEvtFakeUnsubArgs
+ * @[Purpose]: accord [SPECv2-z.1], verify the behavior of no event consumer then unsubEVT directly will return NO_EVTCOSMER.
+ * @[Steps]:
+ *   1. ObjA call unsubEVT with FakeUnsubArgs directly.
+ * @[Expect]: unsubEVT will return IOC_RESULT_NO_EVTCOSMER.
+ * @[Notes]:
+ */
+TEST(UT_ConlesEventMisuse, Case02_verifyNoEvtCosmer_byUnsubEvtFakeUnsubArgs) {
+  //===SETUP===
+
+  //===BEHAVIOR===
+  IOC_UnsubEvtArgs_T ObjA_UnsubEvtArgs = {.CbProcEvt_F = NULL, .pCbPriv = NULL};
+  IOC_Result_T Result = IOC_unsubEVT_inConlesMode(&ObjA_UnsubEvtArgs);
+
+  //===VERIFY===
+  ASSERT_EQ(IOC_RESULT_NO_EVTCOSMER, Result);  // KeyVerifyPoint
+
+  //===CLEANUP===
+}
