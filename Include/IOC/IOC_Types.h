@@ -19,6 +19,7 @@ typedef enum {
   // IOC's Result
   IOC_RESULT_NOT_IMPLEMENTED = -500,
   IOC_RESULT_NOT_SUPPORT = -501,
+  IOC_RESULT_NO_EVTCOSMER = -502,
 
   IOC_RESULT_BUG = -999,
 } IOC_Result_T;
