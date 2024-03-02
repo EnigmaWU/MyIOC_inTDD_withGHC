@@ -28,6 +28,10 @@
     * i)Support 1:1/1:N/N:1/N:M post event in ConlesMode;
     * ii)Support customize event ID, payload data;
     * iii)Support postEVT in cbEVT;
+  * z) IF...THEN...
+    * 1)IF no ObjXYZ subEVT, THEN return NO_EVTCOSMER when postEVT, return NO_SUCH_EVTCOSMER when unsbuEVT.
+    * 2)IF too many subEVT, THEN return TOO_MANY_EVTCOSMER.
+    * 3)IF subEVT MAX EvtCosmer and unsubEVT all, THEN this is a repeatable progress as robustness.
 
 * 【vN】Pending ideas...
   * Doc/ScrnCapRecs, clang-format/-tidy

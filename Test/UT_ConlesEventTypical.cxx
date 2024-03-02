@@ -2,7 +2,7 @@
 
 /**
  * @[Name]: verifyPostEvt1v1_byOneObjPostEvtAndAnotherObjCbProcEvt
- * @[Purpose]: accord SPECv2-c) support 1:1 post event in ConlesMode, use this case to verify the 1:1 behavior.
+ * @[Purpose]: accord [SPECv2-c.i] support 1:1 post event in ConlesMode, use this case to verify the 1:1 behavior.
  * @[Steps]:
  *   1. ObjA call subEVT(TEST_KEEPALIVE) with _Case01_CbProcEvt1v1.
  *   2. ObjB call postEVT(TEST_KEEPALIVE) with $_Case01_KeepAliveEvtCnt times.
