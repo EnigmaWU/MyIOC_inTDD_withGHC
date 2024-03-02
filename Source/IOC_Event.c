@@ -13,7 +13,11 @@ static IOC_Result_T __IOC_subEVT_inConlesMode(
 
 static IOC_Result_T __IOC_unsubEVT_inConlesMode(
     /*ARG_IN*/ const IOC_UnsubEvtArgs_pT pUnsubEvtArgs) {
-  return IOC_RESULT_SUCCESS;
+  if (_mConlesModeSubEvtArgs.CbProcEvt_F && (pUnsubEvtArgs->CbProcEvt_F == _mConlesModeSubEvtArgs.CbProcEvt_F)) {
+    memset(&_mConlesModeSubEvtArgs, 0, sizeof(IOC_SubEvtArgs_T));
+    return IOC_RESULT_SUCCESS;
+  }
+  return IOC_RESULT_NO_EVTCOSMER;
 }
 
 static IOC_Result_T __IOC_postEVT_inConlesMode(
