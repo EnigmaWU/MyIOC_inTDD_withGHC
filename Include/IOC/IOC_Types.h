@@ -77,7 +77,7 @@ typedef IOC_Result_T (*IOC_CbProcEvt_F)(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv);
 typedef struct 
 {
     IOC_CbProcEvt_F CbProcEvt_F;
-    void *pCbPriv;
+    void *pCbPrivData;  // Callback private context data
     ULONG_T EvtNum;  // number of EvtIDs, IOC_calcArrayElmtCnt(SubEvtIDs)
     IOC_EvtID_T *pEvtIDs;
 } IOC_SubEvtArgs_T, *IOC_SubEvtArgs_pT;
