@@ -41,3 +41,35 @@ TEST(UT_ConlesEventMisuse, Case02_verifyNoEvtCosmer_byUnsubEvtWithFakeUnsubArgs)
 
   //===CLEANUP===
 }
+
+/**
+ * @[Name]: verifyNoEvtCosmer_bySubEvtOnceThenUnsubEvtTwice
+ * @[Purpose]: accord [SPECv2-z.1], verify the behavior of subEVT once then unsubEVT twice will return NO_EVTCOSMER.
+ * @[Steps]:
+ *   1. ObjA call subEVT with FakeSubArgs once.
+ *   2. ObjA call unsubEVT once.
+ *   3. ObjA call unsubEVT again.
+ * @[Expect]: unsubEVT will return IOC_RESULT_NO_EVTCOSMER at the second time.
+ * @[Notes]:
+ */
+TEST(UT_ConlesEventMisuse, Case03_verifyNoEvtCosmer_bySubEvtOnceThenUnsubEvtTwice) {
+#define _Case03_FakeCbProcEvt_F ((IOC_CbProcEvt_F)0x20040301UL)
+#define _Case03_FakeCbPrivData ((void *)0x20040302UL)
+  //===SETUP===
+  IOC_SubEvtArgs_T ObjA_SubEvtArgs = {
+      .CbProcEvt_F = _Case03_FakeCbProcEvt_F, .pCbPrivData = _Case03_FakeCbPrivData, .EvtNum = 0, .pEvtIDs = NULL};
+  IOC_Result_T Result = IOC_subEVT_inConlesMode(&ObjA_SubEvtArgs);
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+
+  IOC_UnsubEvtArgs_T ObjA_UnsubEvtArgs = {.CbProcEvt_F = _Case03_FakeCbProcEvt_F, .pCbPriv = _Case03_FakeCbPrivData};
+  Result = IOC_unsubEVT_inConlesMode(&ObjA_UnsubEvtArgs);
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+
+  //===BEHAVIOR===
+  Result = IOC_unsubEVT_inConlesMode(&ObjA_UnsubEvtArgs);
+
+  //===VERIFY===
+  ASSERT_EQ(IOC_RESULT_NO_EVTCOSMER, Result);  // KeyVerifyPoint
+
+  //===CLEANUP===
+}
