@@ -99,6 +99,19 @@ IOC_Result_T IOC_unsubEVT(
 }
 
 IOC_Result_T IOC_getCapabilty(
-    /*ARG_INOUT*/ IOC_CapabiltyDescription_pT) {
-  return IOC_RESULT_NOT_IMPLEMENTED;
+    /*ARG_INOUT*/ IOC_CapabiltyDescription_pT pCapDesc) {
+  IOC_Result_T Result = IOC_RESULT_BUG;
+
+  switch (pCapDesc->CapID) {
+    case IOC_CAPID_CONLES_MODE_EVENT: {
+      pCapDesc->ConlesModeEvent.MaxEvtCosmer = _IOC_CONLES_MODE_MAX_EVTCOSMER_NUNBER;
+      Result = IOC_RESULT_SUCCESS;
+    } break;
+
+    default:
+      Result = IOC_RESULT_NOT_SUPPORT;
+      break;
+  }
+
+  return Result;
 }
