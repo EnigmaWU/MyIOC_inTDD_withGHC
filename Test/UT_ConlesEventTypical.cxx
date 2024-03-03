@@ -1,3 +1,5 @@
+#include <_types/_uint16_t.h>
+
 #include "_UT_IOC_Common.h"
 
 /**
@@ -206,4 +208,85 @@ TEST(UT_ConlesEventTypical, Case02_verifyPostEvt1vN_byOneObjPostEvt_R1TwoObjCbPr
   IOC_UnsubEvtArgs_T ObjF_UnsubEvtArgs = {.CbProcEvt_F = _Case02_CbProcEvt_1vN, .pCbPriv = &ObjF_CbPrivData};
   Result = IOC_unsubEVT_inConlesMode(&ObjF_UnsubEvtArgs);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+}
+
+// Design a new case to replace UT_ConlesEventTypical, Case02_verifyPostEvt1vN
+//   use getCapabilty to get the max EvtCosmer number assign to N, then use the N to verify the 1:N behavior.
+//   and each EvtCosmer will callbacked step-by-step x1024 KeepAliveCnt times.
+
+/**
+ * @[Name]: verifyPostEvt1vN_byOneObjPostEvt_MaxConlesModeEvtCosmerCbProcEvt
+ * @[Purpose]: accord [SPECv2-c.i] support 1:N post event in ConlesMode, use this case to verify the 1:N behavior.
+ * @[Steps]:
+ *   1. Get the max EvtCosmer number by IOC_getCapabilty(CAPID=CONLES_MODE_EVENT).
+ */
+
+typedef struct {
+  uint32_t KeepAliveEvtCnt;
+} _Case03_CbPrivData_T;
+
+static IOC_CbProcEvt_F _Case03_CbProcEvt1vN = _Case02_CbProcEvt_1vN;
+
+TEST(UT_ConlesEventTypical, Case03_verifyPostEvt1vN_byOneObjPostEvt_MaxConlesModeEvtCosmerCbProcEvt) {
+  //===SETUP===
+  IOC_CapabiltyDescription_T CapDesc = {.CapID = IOC_CAPID_CONLES_MODE_EVENT};
+  IOC_Result_T Result = IOC_getCapabilty(&CapDesc);
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+
+  uint16_t MaxEvtCosmerNum = CapDesc.ConlesModeEvent.MaxEvtCosmer;
+
+  _Case03_CbPrivData_T *pObjS_CbPrivData = (_Case03_CbPrivData_T *)malloc(MaxEvtCosmerNum * sizeof(_Case03_CbPrivData_T));
+  ASSERT_NE(nullptr, pObjS_CbPrivData);  // CheckPoint
+
+#define _Case03_KeepAliveEvtCnt 1024
+  //===BEHAVIOR===
+  // subEVT one-by-one incresely, then postEVT round-by-round.
+  for (uint16_t i = 0; i < MaxEvtCosmerNum; i++) {
+    pObjS_CbPrivData[i].KeepAliveEvtCnt = 0;
+    IOC_EvtID_T ObjS_SubEvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
+    IOC_SubEvtArgs_T ObjS_SubEvtArgs = {
+        .CbProcEvt_F = _Case03_CbProcEvt1vN,
+        .pCbPrivData = &pObjS_CbPrivData[i],
+        .EvtNum = IOC_calcArrayElmtCnt(ObjS_SubEvtIDs),
+        .pEvtIDs = ObjS_SubEvtIDs,
+    };
+    Result = IOC_subEVT_inConlesMode(&ObjS_SubEvtArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+
+    for (uint32_t j = 0; j < _Case03_KeepAliveEvtCnt; j++) {
+      IOC_EvtDesc_T ObjA_EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
+      Result = IOC_postEVT_inConlesMode(&ObjA_EvtDesc, NULL);
+      ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+    }
+  }
+
+  // postEVT round-by-round, then unsubEVT one-by-one reversely.
+  for (uint16_t i = MaxEvtCosmerNum - 1; i >= 0; i--) {
+    for (uint32_t j = 0; j < _Case03_KeepAliveEvtCnt; j++) {
+      IOC_EvtDesc_T ObjA_EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
+      Result = IOC_postEVT_inConlesMode(&ObjA_EvtDesc, NULL);
+      ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+    }
+
+    IOC_UnsubEvtArgs_T ObjS_UnsubEvtArgs = {.CbProcEvt_F = _Case03_CbProcEvt1vN, .pCbPriv = &pObjS_CbPrivData[i]};
+    Result = IOC_unsubEVT_inConlesMode(&ObjS_UnsubEvtArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+  }
+
+  //===VERIFY===
+  /**
+   * @brief askCopilotChat why assert '_Case03_KeepAliveEvtCnt * 2 * (MaxEvtCosmerNum - i)'
+    The multiplication by 2 could be due to the way the "keep alive" events are generated or counted in the system under test.
+    For example, each event might be counted twice for some reason, or each event might generate two sub-events.
+
+    The multiplication by (MaxEvtCosmerNum - i) suggests that the expected number of "keep alive" events decreases linearly for
+   each event consumer as i increases. This could be due to the way the events are distributed among the consumers, or it could
+   be a property of the specific test case.
+   **/
+  for (uint16_t i = 0; i < MaxEvtCosmerNum; i++) {
+    ASSERT_EQ(_Case03_KeepAliveEvtCnt * 2 * (MaxEvtCosmerNum - i), pObjS_CbPrivData[i].KeepAliveEvtCnt);  // KeyVerifyPoint
+  }
+
+  //===CLEANUP===
+  free(pObjS_CbPrivData);
 }
