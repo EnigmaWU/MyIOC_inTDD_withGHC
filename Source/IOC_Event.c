@@ -3,28 +3,55 @@
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //===>BEGIN: IOC Event in Conles Mode
-static IOC_SubEvtArgs_T _mConlesModeSubEvtArgs;
+#define _IOC_CONLES_MODE_MAX_EVTCOSMER_NUNBER 16
+static IOC_SubEvtArgs_T _mConlesModeSubEvtArgs[_IOC_CONLES_MODE_MAX_EVTCOSMER_NUNBER] = {};
 
 static IOC_Result_T __IOC_subEVT_inConlesMode(
     /*ARG_IN*/ const IOC_SubEvtArgs_pT pSubEvtArgs) {
-  memcpy(&_mConlesModeSubEvtArgs, pSubEvtArgs, sizeof(IOC_SubEvtArgs_T));
-  return IOC_RESULT_SUCCESS;
+  IOC_SubEvtArgs_pT pSavedSubEvtArgs = &_mConlesModeSubEvtArgs[0];
+
+  for (int i = 0; i < _IOC_CONLES_MODE_MAX_EVTCOSMER_NUNBER; i++) {
+    if (pSavedSubEvtArgs->CbProcEvt_F == NULL) {
+      memcpy(pSavedSubEvtArgs, pSubEvtArgs, sizeof(IOC_SubEvtArgs_T));
+      return IOC_RESULT_SUCCESS;
+    }
+    pSavedSubEvtArgs++;
+  }
+
+  return IOC_RESULT_TOO_MANY_EVTCOSMER;
 }
 
 static IOC_Result_T __IOC_unsubEVT_inConlesMode(
     /*ARG_IN*/ const IOC_UnsubEvtArgs_pT pUnsubEvtArgs) {
-  if (_mConlesModeSubEvtArgs.CbProcEvt_F && (pUnsubEvtArgs->CbProcEvt_F == _mConlesModeSubEvtArgs.CbProcEvt_F)) {
-    memset(&_mConlesModeSubEvtArgs, 0, sizeof(IOC_SubEvtArgs_T));
-    return IOC_RESULT_SUCCESS;
+  IOC_SubEvtArgs_pT pSavedSubEvtArgs = &_mConlesModeSubEvtArgs[0];
+
+  for (int i = 0; i < _IOC_CONLES_MODE_MAX_EVTCOSMER_NUNBER; i++) {
+    if (pSavedSubEvtArgs->CbProcEvt_F && (pSavedSubEvtArgs->CbProcEvt_F == pUnsubEvtArgs->CbProcEvt_F)) {
+      memset(pSavedSubEvtArgs, 0, sizeof(IOC_SubEvtArgs_T));
+      return IOC_RESULT_SUCCESS;
+    }
+    pSavedSubEvtArgs++;
   }
+
   return IOC_RESULT_NO_EVTCOSMER;
 }
 
 static IOC_Result_T __IOC_postEVT_inConlesMode(
     /*ARG_IN*/ const IOC_EvtDesc_pT pEvtDesc,
     /*ARG_IN_OPTIONAL*/ const IOC_Options_pT pOptions) {
-  if (_mConlesModeSubEvtArgs.CbProcEvt_F) {
-    return _mConlesModeSubEvtArgs.CbProcEvt_F(pEvtDesc, _mConlesModeSubEvtArgs.pCbPrivData);
+  ULONG_T CbProcEvtCnt = 0;
+  IOC_SubEvtArgs_pT pSavedSubEvtArgs = &_mConlesModeSubEvtArgs[0];
+
+  for (int i = 0; i < _IOC_CONLES_MODE_MAX_EVTCOSMER_NUNBER; i++) {
+    if (pSavedSubEvtArgs->CbProcEvt_F) {
+      pSavedSubEvtArgs->CbProcEvt_F(pEvtDesc, pSavedSubEvtArgs->pCbPrivData);
+      CbProcEvtCnt++;
+    }
+    pSavedSubEvtArgs++;
+  }
+
+  if (CbProcEvtCnt > 0) {
+    return IOC_RESULT_SUCCESS;
   } else {
     return IOC_RESULT_NO_EVTCOSMER;
   }

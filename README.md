@@ -30,7 +30,7 @@
     * iii)Support postEVT in cbEVT;
   * z) IF...THEN...
     * 1)IF no ObjXYZ subEVT, THEN return NO_EVTCOSMER when postEVT, return NO_EVTCOSMER when unsbuEVT.
-    * 2)IF too many subEVT, THEN return TOO_MANY_EVTCOSMER.
+    * 2)IF too many subEVT, THEN return TOO_MANY_EVTCOSMER. IF subEVT twice or more, THEN return CONFLICT_EVTCOSMER.
     * 3)IF subEVT MAX EvtCosmer and unsubEVT all, THEN this is a repeatable progress as robustness. ALSO multiply thread subEVT&unsubEVT still works as robustness.
 
 * 【vN】Pending ideas...
