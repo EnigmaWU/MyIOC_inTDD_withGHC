@@ -68,9 +68,11 @@ TEST(UT_ConlesEventTypical, Case01_verifyPostEvt1v1_byOneObjPostEvtAndAnotherObj
  * @[Steps]:
  *   1. ObjB/C call subEVT(TEST_KEEPALIVE) with _Case02_CbProcEvt1vN.
  *   2. ObjA call postEVT(TEST_KEEPALIVE) with $_Case02_KeepAliveEvtCntR1 times.
- *   3. ObjD/E/F subEVT(TEST_KEEPALIVE) with _Case02_CbProcEvt1vN.
- *   4. ObjA call postEVT(TEST_KEEPALIVE) with $_Case02_KeepAliveEvtCntR2 times.
- * @[Expect]: ObjB/C's _Case02_CbProcEvt1vN is callbacked $_Case02_KeepAliveEvtCntR1+$_Case02_KeepAliveEvtCntR2 times.
+ *   3. ObjC call unsubEVT(TEST_KEEPALIVE).
+ *   4. ObjD/E/F subEVT(TEST_KEEPALIVE) with _Case02_CbProcEvt1vN.
+ *   5. ObjA call postEVT(TEST_KEEPALIVE) with $_Case02_KeepAliveEvtCntR2 times.
+ * @[Expect]: ObjB's _Case02_CbProcEvt1vN is callbacked $_Case02_KeepAliveEvtCntR1+$_Case02_KeepAliveEvtCntR2 times.
+ *        ObjC's _Case02_CbProcEvt1vN is callbacked $_Case02_KeepAliveEvtCntR1 times.
  *        ObjD/E/F's _Case02_CbProcEvt1vN is callbacked $_Case02_KeepAliveEvtCntR2 times.
  * @[Notes]:
  *      1. R1 means Round 1, R2 means Round 2.
@@ -131,6 +133,11 @@ TEST(UT_ConlesEventTypical, Case02_verifyPostEvt1vN_byOneObjPostEvt_R1TwoObjCbPr
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
   }
 
+  //===CLEANUP===
+  IOC_UnsubEvtArgs_T ObjC_UnsubEvtArgs = {.CbProcEvt_F = _Case02_CbProcEvt_1vN, .pCbPriv = &ObjC_CbPrivData};
+  Result = IOC_unsubEVT_inConlesMode(&ObjC_UnsubEvtArgs);
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+
   //===SETUP===
   _Case02_CbPrivData_T ObjD_CbPrivData = {.KeepAliveEvtCnt = 0};
   IOC_EvtID_T ObjD_SubEvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
@@ -178,7 +185,7 @@ TEST(UT_ConlesEventTypical, Case02_verifyPostEvt1vN_byOneObjPostEvt_R1TwoObjCbPr
 
   //===VERIFY===
   ASSERT_EQ(_Case02_KeepAliveEvtCntR1 + _Case02_KeepAliveEvtCntR2, ObjB_CbPrivData.KeepAliveEvtCnt);  // KeyVerifyPoint
-  ASSERT_EQ(_Case02_KeepAliveEvtCntR1 + _Case02_KeepAliveEvtCntR2, ObjC_CbPrivData.KeepAliveEvtCnt);  // KeyVerifyPoint
+  ASSERT_EQ(_Case02_KeepAliveEvtCntR1, ObjC_CbPrivData.KeepAliveEvtCnt);                              // KeyVerifyPoint
   ASSERT_EQ(_Case02_KeepAliveEvtCntR2, ObjD_CbPrivData.KeepAliveEvtCnt);                              // KeyVerifyPoint
   ASSERT_EQ(_Case02_KeepAliveEvtCntR2, ObjE_CbPrivData.KeepAliveEvtCnt);                              // KeyVerifyPoint
   ASSERT_EQ(_Case02_KeepAliveEvtCntR2, ObjF_CbPrivData.KeepAliveEvtCnt);                              // KeyVerifyPoint
@@ -186,10 +193,6 @@ TEST(UT_ConlesEventTypical, Case02_verifyPostEvt1vN_byOneObjPostEvt_R1TwoObjCbPr
   //===CLEANUP===
   IOC_UnsubEvtArgs_T ObjB_UnsubEvtArgs = {.CbProcEvt_F = _Case02_CbProcEvt_1vN, .pCbPriv = &ObjB_CbPrivData};
   Result = IOC_unsubEVT_inConlesMode(&ObjB_UnsubEvtArgs);
-  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
-
-  IOC_UnsubEvtArgs_T ObjC_UnsubEvtArgs = {.CbProcEvt_F = _Case02_CbProcEvt_1vN, .pCbPriv = &ObjC_CbPrivData};
-  Result = IOC_unsubEVT_inConlesMode(&ObjC_UnsubEvtArgs);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
 
   IOC_UnsubEvtArgs_T ObjD_UnsubEvtArgs = {.CbProcEvt_F = _Case02_CbProcEvt_1vN, .pCbPriv = &ObjD_CbPrivData};
