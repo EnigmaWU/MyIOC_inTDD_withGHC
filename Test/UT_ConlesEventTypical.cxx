@@ -261,14 +261,15 @@ TEST(UT_ConlesEventTypical, Case03_verifyPostEvt1vN_byOneObjPostEvt_MaxConlesMod
   }
 
   // postEVT round-by-round, then unsubEVT one-by-one reversely.
-  for (uint16_t i = MaxEvtCosmerNum - 1; i >= 0; i--) {
+  for (uint16_t i = 0; i < MaxEvtCosmerNum; i++) {
     for (uint32_t j = 0; j < _Case03_KeepAliveEvtCnt; j++) {
       IOC_EvtDesc_T ObjA_EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
       Result = IOC_postEVT_inConlesMode(&ObjA_EvtDesc, NULL);
-      ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+      ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "i= " << i << " j=" << j;  // CheckPoint
     }
 
-    IOC_UnsubEvtArgs_T ObjS_UnsubEvtArgs = {.CbProcEvt_F = _Case03_CbProcEvt1vN, .pCbPriv = &pObjS_CbPrivData[i]};
+    IOC_UnsubEvtArgs_T ObjS_UnsubEvtArgs = {.CbProcEvt_F = _Case03_CbProcEvt1vN,
+                                            .pCbPriv = &pObjS_CbPrivData[MaxEvtCosmerNum - 1 - i] /*reverse*/};
     Result = IOC_unsubEVT_inConlesMode(&ObjS_UnsubEvtArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
   }
@@ -284,7 +285,8 @@ TEST(UT_ConlesEventTypical, Case03_verifyPostEvt1vN_byOneObjPostEvt_MaxConlesMod
    be a property of the specific test case.
    **/
   for (uint16_t i = 0; i < MaxEvtCosmerNum; i++) {
-    ASSERT_EQ(_Case03_KeepAliveEvtCnt * 2 * (MaxEvtCosmerNum - i), pObjS_CbPrivData[i].KeepAliveEvtCnt);  // KeyVerifyPoint
+    ASSERT_EQ(_Case03_KeepAliveEvtCnt * 2 * (MaxEvtCosmerNum - i), pObjS_CbPrivData[i].KeepAliveEvtCnt)
+        << "MaxEvtCosmrNum= " << MaxEvtCosmerNum << " i=" << i;  // KeyVerifyPoint
   }
 
   //===CLEANUP===
