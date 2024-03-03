@@ -86,7 +86,10 @@ typedef struct
 
 typedef struct {
     IOC_CbProcEvt_F CbProcEvt_F;
-    void *pCbPriv;
+    union {
+      void *pCbPrivData;
+      void *pCbPriv;  // Deprecated
+    };
 } IOC_UnsubEvtArgs_T, *IOC_UnsubEvtArgs_pT;
 
 #include "IOC_Types_EvtID.h"
