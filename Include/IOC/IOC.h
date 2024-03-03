@@ -27,6 +27,8 @@ IOC_Result_T IOC_unsubEVT(
 
 #define IOC_unsubEVT_inConlesMode(pUnsubEvtArgs) IOC_unsubEVT(IOC_CONLES_MODE_AUTO_LINK_ID, pUnsubEvtArgs)
 
+IOC_Result_T IOC_getCapabilty(
+    /*ARG_INOUT*/ IOC_CapabiltyDescription_pT);
 #ifdef __cplusplus
 }
 #endif

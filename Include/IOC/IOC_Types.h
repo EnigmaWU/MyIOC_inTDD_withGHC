@@ -95,6 +95,27 @@ typedef struct {
 
 #include "IOC_Types_EvtID.h"
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//===>Capabilty
+
+// RefAPI: IOC_getCapabilty
+typedef enum {
+  IOC_CAPID_CONLES_MODE_EVENT = 1,  // RefDT: IOC_ConlesModeEventCapabilty_T
+  // TODO(@W): +More...
+} IOC_CapabiltyID_T;
+
+typedef struct {
+    uint16_t MaxEvtCosmer;  // How many EvtCosmer can be subEVT in ConlesMode.
+} IOC_ConlesModeEventCapabilty_T, *IOC_ConlesModeEventCapabilty_pT;
+
+typedef struct {
+    IOC_CapabiltyID_T CapID;
+    union {
+      ULONG_T RZVD[8];  // reserve for MAX payload size.
+      IOC_ConlesModeEventCapabilty_T ConlesModeEvent;
+    };
+} IOC_CapabiltyDescription_T, *IOC_CapabiltyDescription_pT;
+
 #ifdef __cplusplus
 }
 #endif

@@ -7,6 +7,7 @@
 //[FreelyDrafts]: Any natural or intuitive idea, first write down here freely and causally as quickly as possible,
 //  then refine it, rethink it, refactor it to a category from one a main aspect or category.
 //[Typical]: a typical case, such as IOC's basic typical usage or call flow examples.
+//[Capabilty]: a capability case, such as max EvtCosmer may call subEVT success in ConlesMode.
 //[Demo]: a demo case, used to demo a complete feature of a product model or series.
 //[Boundary]: a boundary case, used to verify API's argument boundary.
 //[State]: a state case, used to verify FSM of IOC's Objects, such as FSM_ofConlesEVT.

@@ -97,3 +97,8 @@ IOC_Result_T IOC_unsubEVT(
     return IOC_RESULT_NOT_IMPLEMENTED;
   }
 }
+
+IOC_Result_T IOC_getCapabilty(
+    /*ARG_INOUT*/ IOC_CapabiltyDescription_pT) {
+  return IOC_RESULT_NOT_IMPLEMENTED;
+}
