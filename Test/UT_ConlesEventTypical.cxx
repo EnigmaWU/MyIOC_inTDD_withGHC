@@ -219,6 +219,16 @@ TEST(UT_ConlesEventTypical, Case02_verifyPostEvt1vN_byOneObjPostEvt_R1TwoObjCbPr
  * @[Purpose]: accord [SPECv2-c.i] support 1:N post event in ConlesMode, use this case to verify the 1:N behavior.
  * @[Steps]:
  *   1. Get the max EvtCosmer number by IOC_getCapabilty(CAPID=CONLES_MODE_EVENT).
+ *   2. First for each EvtCosmer loop:
+ *        |-> call subEVT(TEST_KEEPALIVE) with _Case03_CbProcEvt1vN.
+ *        |-> then call postEVT(TEST_KEEPALIVE) with $_Case03_KeepAliveEvtCnt times.
+ *   3. Second for each EvtCosmer loop:
+ *        |-> call postEVT(TEST_KEEPALIVE) with $_Case03_KeepAliveEvtCnt times.
+ *        |-> then call unsubEVT(TEST_KEEPALIVE).
+ * @[Expect]: each EvtCosmer's _Case03_CbProcEvt1vN is callbacked different times,
+ *        the first EvtCosmer is callbacked $_Case03_KeepAliveEvtCnt * 2 * MaxEvtCosmer times,
+ *        the last EvtCosmer is callbacked $_Case03_KeepAliveEvtCnt * 2 times.
+ * @[Notes]:
  */
 
 typedef struct {
