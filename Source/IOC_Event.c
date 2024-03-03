@@ -11,6 +11,11 @@ static IOC_Result_T __IOC_subEVT_inConlesMode(
   IOC_SubEvtArgs_pT pSavedSubEvtArgs = &_mConlesModeSubEvtArgs[0];
 
   for (int i = 0; i < _IOC_CONLES_MODE_MAX_EVTCOSMER_NUNBER; i++) {
+    if (pSavedSubEvtArgs->CbProcEvt_F == pSubEvtArgs->CbProcEvt_F &&
+        pSavedSubEvtArgs->pCbPrivData == pSubEvtArgs->pCbPrivData) {
+      return IOC_RESULT_CONFLICT_EVTCOSMER;
+    }
+
     if (pSavedSubEvtArgs->CbProcEvt_F == NULL) {
       memcpy(pSavedSubEvtArgs, pSubEvtArgs, sizeof(IOC_SubEvtArgs_T));
       return IOC_RESULT_SUCCESS;
