@@ -215,7 +215,7 @@ TEST(UT_ConlesEventTypical, Case02_verifyPostEvt1vN_byOneObjPostEvt_R1TwoObjCbPr
 //   and each EvtCosmer will callbacked step-by-step x1024 KeepAliveCnt times.
 
 /**
- * @[Name]: verifyPostEvt1vN_byOneObjPostEvt_MaxConlesModeEvtCosmerCbProcEvt
+ * @[Name]: verifyPostEvt1vN_byOneObjPostEvt_Min2MaxEvtCosmerCbProcEvt
  * @[Purpose]: accord [SPECv2-c.i] support 1:N post event in ConlesMode, use this case to verify the 1:N behavior.
  * @[Steps]:
  *   1. Get the max EvtCosmer number by IOC_getCapabilty(CAPID=CONLES_MODE_EVENT).
@@ -237,7 +237,7 @@ typedef struct {
 
 static IOC_CbProcEvt_F _Case03_CbProcEvt1vN = _Case02_CbProcEvt_1vN;
 
-TEST(UT_ConlesEventTypical, Case03_verifyPostEvt1vN_byOneObjPostEvt_MaxConlesModeEvtCosmerCbProcEvt) {
+TEST(UT_ConlesEventTypical, Case03_verifyPostEvt1vN_byOneObjPostEvt_Min2MaxEvtCosmerCbProcEvt) {
   //===SETUP===
   IOC_CapabiltyDescription_T CapDesc = {.CapID = IOC_CAPID_CONLES_MODE_EVENT};
   IOC_Result_T Result = IOC_getCapabilty(&CapDesc);
