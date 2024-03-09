@@ -1,10 +1,12 @@
 #include <IOC/IOC.h>
+#include <pthread.h>
 #include <string.h>
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //===>BEGIN: IOC Event in Conles Mode
 #define _IOC_CONLES_MODE_MAX_EVTCOSMER_NUNBER 16
 static IOC_SubEvtArgs_T _mConlesModeSubEvtArgs[_IOC_CONLES_MODE_MAX_EVTCOSMER_NUNBER] = {};
+static pthread_mutex_t _mConlesModeSubEvtArgsMutex = PTHREAD_MUTEX_INITIALIZER;
 
 static IOC_Result_T __IOC_subEVT_inConlesMode(
     /*ARG_IN*/ const IOC_SubEvtArgs_pT pSubEvtArgs) {
@@ -48,6 +50,7 @@ static IOC_Result_T __IOC_postEVT_inConlesMode(
   ULONG_T CbProcEvtCnt = 0;
   IOC_SubEvtArgs_pT pSavedSubEvtArgs = &_mConlesModeSubEvtArgs[0];
 
+  pthread_mutex_lock(&_mConlesModeSubEvtArgsMutex);
   for (int i = 0; i < _IOC_CONLES_MODE_MAX_EVTCOSMER_NUNBER; i++) {
     if (pSavedSubEvtArgs->CbProcEvt_F) {
       pSavedSubEvtArgs->CbProcEvt_F(pEvtDesc, pSavedSubEvtArgs->pCbPrivData);
@@ -55,6 +58,7 @@ static IOC_Result_T __IOC_postEVT_inConlesMode(
     }
     pSavedSubEvtArgs++;
   }
+  pthread_mutex_unlock(&_mConlesModeSubEvtArgsMutex);
 
   if (CbProcEvtCnt > 0) {
     return IOC_RESULT_SUCCESS;

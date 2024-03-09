@@ -324,12 +324,16 @@ TEST(UT_ConlesEventTypical, Case03_verifyPostEvt1vN_byOneObjPostEvt_Min2MaxEvtCo
 
 typedef _Case02_CbPrivData_T _Case04_CbPrivData_T;
 
+static IOC_Result_T _Case04_CbProcEvt_Nv1(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
+  return _Case02_CbProcEvt_1vN(pEvtDesc, pCbPriv);
+}
+
 TEST(UT_ConlesEventTypical, Case04_verifyPostEvtNv1_byNxEvtPrduerPostEvtAnd1xEvtCosmerCbProcEvt) {
   //===SETUP===
   _Case04_CbPrivData_T ObjA_CbPrivData = {.KeepAliveEvtCnt = 0};
   IOC_EvtID_T ObjA_SubEvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
   IOC_SubEvtArgs_T ObjA_SubEvtArgs = {
-      .CbProcEvt_F = _Case02_CbProcEvt_1vN,
+      .CbProcEvt_F = _Case04_CbProcEvt_Nv1,
       .pCbPrivData = &ObjA_CbPrivData,
       .EvtNum = IOC_calcArrayElmtCnt(ObjA_SubEvtIDs),
       .pEvtIDs = ObjA_SubEvtIDs,
@@ -338,10 +342,12 @@ TEST(UT_ConlesEventTypical, Case04_verifyPostEvtNv1_byNxEvtPrduerPostEvtAnd1xEvt
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
 
 #define _Case04_EvtPrduerNum 8
+#define _Case04_KeepAliveEvtCnt _Case03_KeepAliveEvtCnt
+
   std::thread EvtPrduerThreads[_Case04_EvtPrduerNum];
   for (uint32_t i = 0; i < _Case04_EvtPrduerNum; i++) {
     EvtPrduerThreads[i] = std::thread([i]() {
-      for (uint32_t j = 0; j < _Case03_KeepAliveEvtCnt; j++) {
+      for (uint32_t j = 0; j < _Case04_KeepAliveEvtCnt; j++) {
         IOC_EvtDesc_T ObjB_EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
         IOC_Result_T Result = IOC_postEVT_inConlesMode(&ObjB_EvtDesc, NULL);
         ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
@@ -354,10 +360,10 @@ TEST(UT_ConlesEventTypical, Case04_verifyPostEvtNv1_byNxEvtPrduerPostEvtAnd1xEvt
   }
 
   //===VERIFY===
-  ASSERT_EQ(_Case03_KeepAliveEvtCnt * _Case04_EvtPrduerNum, ObjA_CbPrivData.KeepAliveEvtCnt);  // KeyVerifyPoint
+  ASSERT_EQ(_Case04_KeepAliveEvtCnt * _Case04_EvtPrduerNum, ObjA_CbPrivData.KeepAliveEvtCnt);  // KeyVerifyPoint
 
   //===CLEANUP===
-  IOC_UnsubEvtArgs_T ObjA_UnsubEvtArgs = {.CbProcEvt_F = _Case02_CbProcEvt_1vN, .pCbPriv = &ObjA_CbPrivData};
+  IOC_UnsubEvtArgs_T ObjA_UnsubEvtArgs = {.CbProcEvt_F = _Case04_CbProcEvt_Nv1, .pCbPriv = &ObjA_CbPrivData};
   Result = IOC_unsubEVT_inConlesMode(&ObjA_UnsubEvtArgs);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
 }
