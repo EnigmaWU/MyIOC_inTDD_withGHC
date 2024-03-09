@@ -367,3 +367,101 @@ TEST(UT_ConlesEventTypical, Case04_verifyPostEvtNv1_byNxEvtPrduerPostEvtAnd1xEvt
   Result = IOC_unsubEVT_inConlesMode(&ObjA_UnsubEvtArgs);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
 }
+
+// Design a test case to verify SPECv2-c.i N:M postEVT and subEVT/cbEVT in ConlesMode.
+// Define $_Case05_EvtPrduerNum as N, $_Case05_EvtCosmerNum as M.
+//  then use the foreach N EvtPrduer in a thread to postEVT(EVTID=TEST_KEEPALIVE) _Case05_KeepAliveEvtCnt times.
+//  and use the foreach M EvtCosmer to subEVT(EVTID=TEST_KEEPALIVE) with _Case05_CbProcEvtNvM.
+//  and lastly expect each EvtCosmer will be callbacked N * $_Case05_KeepAliveEvtCnt times.
+
+/**
+ * @[Name]: verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvtCosmerCbProcEvt
+ * @[Purpose]: accord [SPECv2-c.i] support N:M post event in ConlesMode, use this case to verify the N:M behavior.
+ * @[Steps]:
+ *   1. Define $_Case05_EvtPrduerNum as N, $_Case05_EvtCosmerNum as M.
+ *   2. Create M EvtCosmer to subEVT(TEST_KEEPALIVE) with _Case05_CbProcEvtNvM.
+ *   3. Create N threads to postEVT(TEST_KEEPALIVE) with $_Case05_KeepAliveEvtCnt times.
+ *   4. Check each EvtCosmer is callbacked N * $_Case05_KeepAliveEvtCnt times.
+ * @[Expect]: Step 4 is passed.
+ * @[Notes]:
+ */
+
+typedef struct {
+  uint32_t KeepAliveEvtCnt;
+} _Case05_CbPrivData_T;
+
+static IOC_Result_T _Case05_CbProcEvt_NvM(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
+  _Case05_CbPrivData_T *pCbPrivData = (_Case05_CbPrivData_T *)pCbPriv;
+
+  switch (pEvtDesc->EvtID) {
+    case IOC_EVTID_TEST_KEEPALIVE: {
+      pCbPrivData->KeepAliveEvtCnt++;
+    } break;
+    default: {
+      EXPECT_TRUE(false) << "BUG: unexpected EvtID=" << pEvtDesc->EvtID;
+    }
+      return IOC_RESULT_BUG;
+  }
+
+  return IOC_RESULT_SUCCESS;
+}
+
+TEST(UT_ConlesEventTypical, Case05_verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvtCosmerCbProcEvt) {
+  //===SETUP===
+  IOC_CapabiltyDescription_T CapDesc = {.CapID = IOC_CAPID_CONLES_MODE_EVENT};
+  IOC_Result_T Result = IOC_getCapabilty(&CapDesc);
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+
+  uint16_t MaxEvtCosmerNum = CapDesc.ConlesModeEvent.MaxEvtCosmer;
+
+#define _Case05_EvtPrduerNum 8
+#define _Case05_KeepAliveEvtCnt _Case03_KeepAliveEvtCnt
+
+  // std::thread EvtCosmerThreads[MaxEvtCosmerNum];
+  _Case05_CbPrivData_T *pObjS_CbPrivData = (_Case05_CbPrivData_T *)malloc(MaxEvtCosmerNum * sizeof(_Case05_CbPrivData_T));
+  ASSERT_NE(nullptr, pObjS_CbPrivData);  // CheckPoint
+
+  for (uint16_t i = 0; i < MaxEvtCosmerNum; i++) {
+    pObjS_CbPrivData[i].KeepAliveEvtCnt = 0;
+    IOC_EvtID_T ObjS_SubEvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
+    IOC_SubEvtArgs_T ObjS_SubEvtArgs = {
+        .CbProcEvt_F = _Case05_CbProcEvt_NvM,
+        .pCbPrivData = &pObjS_CbPrivData[i],
+        .EvtNum = IOC_calcArrayElmtCnt(ObjS_SubEvtIDs),
+        .pEvtIDs = ObjS_SubEvtIDs,
+    };
+    Result = IOC_subEVT_inConlesMode(&ObjS_SubEvtArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+  }
+
+  //===BEHAVIOR===
+  std::thread EvtPrduerThreads[_Case05_EvtPrduerNum];
+  for (uint32_t i = 0; i < _Case05_EvtPrduerNum; i++) {
+    EvtPrduerThreads[i] = std::thread([i]() {
+      for (uint32_t j = 0; j < _Case05_KeepAliveEvtCnt; j++) {
+        IOC_EvtDesc_T ObjB_EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
+        IOC_Result_T Result = IOC_postEVT_inConlesMode(&ObjB_EvtDesc, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+      }
+    });
+  }
+
+  for (uint32_t i = 0; i < _Case05_EvtPrduerNum; i++) {
+    EvtPrduerThreads[i].join();
+  }
+
+  //===VERIFY===
+  for (uint16_t i = 0; i < MaxEvtCosmerNum; i++) {
+    ASSERT_EQ(_Case05_KeepAliveEvtCnt * _Case05_EvtPrduerNum, pObjS_CbPrivData[i].KeepAliveEvtCnt)  // KeyVerifyPoint
+        << "MaxEvtCosmrNum= " << MaxEvtCosmerNum << " i=" << i;
+  }
+
+  //===CLEANUP===
+  for (uint16_t i = 0; i < MaxEvtCosmerNum; i++) {
+    IOC_UnsubEvtArgs_T ObjS_UnsubEvtArgs = {.CbProcEvt_F = _Case05_CbProcEvt_NvM, .pCbPriv = &pObjS_CbPrivData[i]};
+    Result = IOC_unsubEVT_inConlesMode(&ObjS_UnsubEvtArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+  }
+
+  free(pObjS_CbPrivData);
+}

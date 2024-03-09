@@ -25,7 +25,7 @@
   * b）Option: ASync\<DFT\>/Sync, MayBlock/NonBlock\<DFT>\/Timeout;
     * Perf: Sync>>ASync, NonBlock>>MayBlock
   * c）Abilities:
-    * i)Support ~~1:1/1:N/N:1~~/N:M post event in ConlesMode;
+    * i)Support ~~1:1/1:N/N:1/N:M~~ post event in ConlesMode;
     * ii)Support ~~customize event ID~~ payload data;
     * iii)Support postEVT in cbEVT;
   * z) IF...THEN...
