@@ -20,12 +20,12 @@
   * b）Build: Default TargetUsage=DiagASAN, depend on GTest, enable F5 debug.
   * c）Manifests: LIB::libMyIOC.a, UTEXE::Test/*.cxx
 
-* 【v2】IOC_Event: postEVT,subEVT/cbEVT,waitEVT
+* 【v2】IOC_Event: ~~postEVT,subEVT/cbEVT~~,waitEVT
   * a）Scope: inter-thread, connectless mode(a.k.a ConlesMode);
   * b）Option: ASync\<DFT\>/Sync, MayBlock/NonBlock\<DFT>\/Timeout;
     * Perf: Sync>>ASync, NonBlock>>MayBlock
   * c）Abilities:
-    * i)Support ~~1:1/1:N~~/N:1/N:M post event in ConlesMode;
+    * i)Support ~~1:1/1:N/N:1~~/N:M post event in ConlesMode;
     * ii)Support ~~customize event ID~~ payload data;
     * iii)Support postEVT in cbEVT;
   * z) IF...THEN...
