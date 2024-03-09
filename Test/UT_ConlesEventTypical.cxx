@@ -1,5 +1,7 @@
 #include <_types/_uint16_t.h>
 
+#include <thread>
+
 #include "_UT_IOC_Common.h"
 
 /**
@@ -301,4 +303,61 @@ TEST(UT_ConlesEventTypical, Case03_verifyPostEvt1vN_byOneObjPostEvt_Min2MaxEvtCo
 
   //===CLEANUP===
   free(pObjS_CbPrivData);
+}
+
+// Design a test case to verify SPECv2-c.i N:1 post event in ConlesMode.
+// Define one EvtCosmer to subEVT(EVTID=TEST_KEEPALIVE) with _Case04_CbProcEvtNv1.
+//  and lastly expect the EvtCosmer will be callbacked N * $_Case04_KeepAliveEvtCnt times.
+// Define $_Case04_EvtPrduerNum as N,
+//  then use the foreach N EvtPrduer in a thread to postEVT(EVTID=TEST_KEEPALIVE) _Case04_KeepAliveEvtCnt times.
+
+/**
+ * @[Name]: verifyPostEvtNv1_byNxEvtPrduerPostEvtAnd1xEvtCosmerCbProcEvt
+ * @[Purpose]: accord [SPECv2-c.i] support N:1 post event in ConlesMode, use this case to verify the N:1 behavior.
+ * @[Steps]:
+ *   1. ObjA call subEVT(TEST_KEEPALIVE) with _Case04_CbProcEvtNv1.
+ *   2. Define $_Case04_EvtPrduerNum as N, create N threads to postEVT(TEST_KEEPALIVE) with $_Case04_KeepAliveEvtCnt times.
+ *   3. ObjA check the _Case04_CbProcEvtNv1 is callbacked $_Case04_EvtPrduerNum * $_Case04_KeepAliveEvtCnt times.
+ * @[Expect]: Step 3 is passed.
+ * @[Notes]:
+ */
+
+typedef _Case02_CbPrivData_T _Case04_CbPrivData_T;
+
+TEST(UT_ConlesEventTypical, Case04_verifyPostEvtNv1_byNxEvtPrduerPostEvtAnd1xEvtCosmerCbProcEvt) {
+  //===SETUP===
+  _Case04_CbPrivData_T ObjA_CbPrivData = {.KeepAliveEvtCnt = 0};
+  IOC_EvtID_T ObjA_SubEvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
+  IOC_SubEvtArgs_T ObjA_SubEvtArgs = {
+      .CbProcEvt_F = _Case02_CbProcEvt_1vN,
+      .pCbPrivData = &ObjA_CbPrivData,
+      .EvtNum = IOC_calcArrayElmtCnt(ObjA_SubEvtIDs),
+      .pEvtIDs = ObjA_SubEvtIDs,
+  };
+  IOC_Result_T Result = IOC_subEVT_inConlesMode(&ObjA_SubEvtArgs);
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+
+#define _Case04_EvtPrduerNum 8
+  std::thread EvtPrduerThreads[_Case04_EvtPrduerNum];
+  for (uint32_t i = 0; i < _Case04_EvtPrduerNum; i++) {
+    EvtPrduerThreads[i] = std::thread([i]() {
+      for (uint32_t j = 0; j < _Case03_KeepAliveEvtCnt; j++) {
+        IOC_EvtDesc_T ObjB_EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
+        IOC_Result_T Result = IOC_postEVT_inConlesMode(&ObjB_EvtDesc, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+      }
+    });
+  }
+
+  for (uint32_t i = 0; i < _Case04_EvtPrduerNum; i++) {
+    EvtPrduerThreads[i].join();
+  }
+
+  //===VERIFY===
+  ASSERT_EQ(_Case03_KeepAliveEvtCnt * _Case04_EvtPrduerNum, ObjA_CbPrivData.KeepAliveEvtCnt);  // KeyVerifyPoint
+
+  //===CLEANUP===
+  IOC_UnsubEvtArgs_T ObjA_UnsubEvtArgs = {.CbProcEvt_F = _Case02_CbProcEvt_1vN, .pCbPriv = &ObjA_CbPrivData};
+  Result = IOC_unsubEVT_inConlesMode(&ObjA_UnsubEvtArgs);
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
 }
