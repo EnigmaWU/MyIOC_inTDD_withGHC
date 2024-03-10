@@ -6,7 +6,8 @@
  * @[Name]: ${verifyBehivorX_byDoABC}
  * @[Purpose]: ${what to verify}
  * @[Steps]: ${how to do}
- *   1. ...
+ *   1) ...
+ *   2) ...
  * @[Expect]: ${how to verify}
  * @[Notes]:
  */
