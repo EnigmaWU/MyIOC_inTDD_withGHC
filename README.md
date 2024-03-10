@@ -33,6 +33,8 @@
     * 2)~~IF too many subEVT, THEN return TOO_MANY_EVTCOSMER. IF subEVT twice or more, THEN return CONFLICT_EVTCOSMER.~~
     * 3)IF subEVT MAX EvtCosmer and unsubEVT all, THEN this is a repeatable progress as robustness. ALSO multiply thread subEVT&unsubEVT still works as robustness.
     * 4)~~IF EvtPrduer postEVT(TEST_HELLO_A or TEST_HELLO_B) alternatively, ObjA as EvtCosmer subEVT(TEST_HELLO_A), ObjB as EvtCosmer subEVT(TEST_HELLO_B), THEN ObjA's CbProcEvt will callbacked only with TEST_HELLO_A, ObjB is same exactly with ObjA.~~
+    * 5)IF ObjA postEVT(TEST_SLEEP_10MS) every 10ms, postEVT(TEST_SLEEP_100MS) every 100ms in a single thread; ObjB subEVT(TEST_SLEEP_10MS) and do sleep 10ms in its CbProcEvt, ObjC subEVT(TEST_SLEEP_100MS) and do sleep 100ms in its CbProcEvt; THEN ObjA will(capable) post 100xTEST_SLEEP_10MS and 10xTEST_SLEE_100MS evnery second.
+    * 6)IF ObjA postEVT(TEST_SLEEP_10MS) evnery 10ms, ObjB subEVT(TEST_SLEEP_10MS) but do sleep 999ms in its CbProcEvt, THEN ObjA postEVT with ASync/NonBlock by default, but may postEVT in Sync or MayBlock or Timeout.
 
 * 【vN】Pending ideas...
   * Doc/ScrnCapRecs, clang-format/-tidy
