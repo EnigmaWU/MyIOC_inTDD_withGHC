@@ -1,5 +1,6 @@
 #include <IOC/IOC.h>
 #include <pthread.h>
+#include <stdlib.h>
 #include <string.h>
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -19,7 +20,14 @@ static IOC_Result_T __IOC_subEVT_inConlesMode(
     }
 
     if (pSavedSubEvtArgs->CbProcEvt_F == NULL) {
-      memcpy(pSavedSubEvtArgs, pSubEvtArgs, sizeof(IOC_SubEvtArgs_T));
+      pSavedSubEvtArgs->CbProcEvt_F = pSubEvtArgs->CbProcEvt_F;
+      pSavedSubEvtArgs->pCbPrivData = pSubEvtArgs->pCbPrivData;
+
+      pSavedSubEvtArgs->EvtNum = pSubEvtArgs->EvtNum;
+      size_t EvtIDsSize = pSubEvtArgs->EvtNum * sizeof(IOC_EvtID_T);
+      pSavedSubEvtArgs->pEvtIDs = malloc(EvtIDsSize);
+      memcpy(pSavedSubEvtArgs->pEvtIDs, pSubEvtArgs->pEvtIDs, EvtIDsSize);
+
       return IOC_RESULT_SUCCESS;
     }
     pSavedSubEvtArgs++;
@@ -53,8 +61,12 @@ static IOC_Result_T __IOC_postEVT_inConlesMode(
   pthread_mutex_lock(&_mConlesModeSubEvtArgsMutex);
   for (int i = 0; i < _IOC_CONLES_MODE_MAX_EVTCOSMER_NUNBER; i++) {
     if (pSavedSubEvtArgs->CbProcEvt_F) {
-      pSavedSubEvtArgs->CbProcEvt_F(pEvtDesc, pSavedSubEvtArgs->pCbPrivData);
-      CbProcEvtCnt++;
+      for (int j = 0; j < pSavedSubEvtArgs->EvtNum; j++) {
+        if (pEvtDesc->EvtID == pSavedSubEvtArgs->pEvtIDs[j]) {
+          pSavedSubEvtArgs->CbProcEvt_F(pEvtDesc, pSavedSubEvtArgs->pCbPrivData);
+          CbProcEvtCnt++;
+        }
+      }
     }
     pSavedSubEvtArgs++;
   }

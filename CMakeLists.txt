@@ -13,7 +13,7 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 option(CONFIG_BUILD_UNIT_TESTING "Build unit test" ON)
 
 if(CMAKE_BUILD_TYPE STREQUAL "DiagASAN")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -fsanitize=address -fno-omit-frame-pointer -Wno-deprecated-declarations")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -fsanitize=address -fsanitize=leak -fno-omit-frame-pointer -Wno-deprecated-declarations")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_C_FLAGS}")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
 elseif(CMAKE_BUILD_TYPE STREQUAL "DiagTSAN")

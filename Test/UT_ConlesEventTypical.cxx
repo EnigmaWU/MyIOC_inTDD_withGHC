@@ -476,8 +476,9 @@ TEST(UT_ConlesEventTypical, Case05_verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvt
 /**
  * @[Name]: verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvtCosmerCbProcEvtInCrossOddEvenEvtID
  * @[Purpose]: based on Case05 to verify SPECv2-c.i N:M postEVT and subEVT/cbEVT different EvtID in ConlesMode,
- *    which means some N postEVT of specific EvtID to some M who subEVT specific EvtID will be callbacked,
- *    but will not be callbacked by other M who subEVT other EvtID.
+ *      which means some N postEVT of specific EvtID to some M who subEVT specific EvtID will be callbacked,
+ *      but will not be callbacked by other M who subEVT other EvtID.
+ *    Also verify the N:M behavior of SPECv2-z.4.
  * @[Steps]:
  *  1) Define $_Case06_EvtPrduerNum as N, $_Case06_EvtCosmerNum as M.
  *      |-> If CAP::CONLES_MODE_EVENT.MaxEvtCosmer is less M, then use the MaxEvtCosmer as M.
