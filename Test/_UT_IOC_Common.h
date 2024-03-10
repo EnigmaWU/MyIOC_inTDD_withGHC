@@ -12,7 +12,8 @@
 //[Boundary]: a boundary case, used to verify API's argument boundary.
 //[State]: a state case, used to verify FSM of IOC's Objects, such as FSM_ofConlesEVT.
 //[Performance]: such as how many times of API can be called in 1 second, or each API's time consumption.
-//[Concurrency]: such as many threads call IOC's API at the same time.
+//[Concurrency]: such as many threads call IOC's API at the same time and always related to:
+//       ASync/Sync, MayBlock/NonBlock/Timeout, Burst/RaceCondition/Priority/Parallel/Serial/DeadLock/Starvation/...
 //[Robust]: such as repeatly reach IOC's max capacity, let its buffer full then empty.
 //[Fault]: such as one process crash or kill by OS, then it auto restarted.
 //[Misuse]: such as call API in wrong order, or call API with wrong arguments.
