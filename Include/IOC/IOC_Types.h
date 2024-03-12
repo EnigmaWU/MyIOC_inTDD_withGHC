@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <sys/errno.h>
+#include <sys/time.h>
 
 #ifndef __IOC_TYPES_H__
 #define __IOC_TYPES_H__
