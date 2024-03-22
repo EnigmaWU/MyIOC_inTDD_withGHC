@@ -27,6 +27,18 @@ typedef enum {
   IOC_RESULT_BUG = -999,
 } IOC_Result_T;
 
+/**
+ * @brief LinkID is a unique ID to identify a link between two objects in communication.
+ *
+ *---------------------------------------------------------------------------------------------------------------------
+ * Design::FSM::ConlesEvent
+ *    {TSF-0}<ACT:_initCRuntimeSuccess>  -> [STATE:LinkStateReady]
+ *    {TSF-1}[STATE:LinkStateReady]  ->  <ACT:subEvt/unsubEvt>   -> [STATE:LinkStateReady]
+ *    {TSF-2}[STATE:LinkStateReady]  ->  <ACT:postEvt>    -> [STATE:LinkStateReady]
+ *              |-> <EVT:enterCbProcEvt_F>  ->  [STATE:LinkStateBusy]
+ *    {TSF-3}[STATE:LinkStateBusy]
+ *              |-> <EVT:leaveCbProcEvt_F>  ->  [STATE:LinkStateReady]
+ */
 typedef uint64_t IOC_LinkID_T;
 #define IOC_CONLES_MODE_AUTO_LINK_ID 0
 
