@@ -75,6 +75,18 @@
 * {TSF-3}[STATE:LinkStateBusy]
   * |-> <EVT:leaveCbProcEvt_F>  ->  [STATE:LinkStateReady]
 
+```mermaid
+stateDiagram-v2
+    [*] --> LinkStateReady: _initCRuntimeSuccess
+    state LinkStateReady {
+        [*] --> LinkStateReady: subEvt/unsubEvt
+        LinkStateReady --> LinkStateReady: postEvt
+        LinkStateReady --> LinkStateBusy: enterCbProcEvt_F
+    }
+    state LinkStateBusy {
+        LinkStateBusy --> LinkStateReady: leaveCbProcEvt_F
+    }
+```
 
 # Specifications(a.k.a SPEC)
 
