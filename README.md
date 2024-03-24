@@ -67,7 +67,7 @@
 ### EVT::FSM::Conles
 * {TSF-0}<ACT:_initCRuntimeSuccess>  -> [STATE:LinkStateReady]
 ---
-* {TSF-1}[STATE:LinkStateReady/Busy]  ->  <ACT:subEvt/unsubEvt>   -> [STATE:LinkStateReady/Busy]
+* {TSF-1}[STATE:LinkStateReady]  ->  <ACT:subEvt/unsubEvt>   -> [STATE:LinkStateReady]
 ---
 * {TSF-2}[STATE:LinkStateReady/Busy]  ->  <ACT:postEvt>    -> [STATE:LinkStateReady/Busy]
   * |-> <EVT:enterCbProcEvt_F>  ->  [STATE:LinkStateBusy]
@@ -88,9 +88,9 @@ stateDiagram-v2
   }
   state LinkStateBusy
   {
-    [*] --> LinkStateBusyIdle
-    LinkStateBusyIdle --> LinkStateBusyLock: enter[sub/unsub/post]Evt
-    LinkStateBusyLock --> LinkStateBusyIdle: leave[sub/unsub/post]Evt
+    [*] --> LinkStateBusyProcing
+    LinkStateBusyProcing --> LinkStateBusyPosting: enter[post]Evt
+    LinkStateBusyPosting --> LinkStateBusyProcing: leave[post]Evt
   }
   
 ```
