@@ -26,10 +26,10 @@
 typedef struct {
   uint32_t TestSleep9msEvtCnt;
   uint32_t TestSleep99msEvtCnt;
-} _Case01_CbPrivData_T;
+} _Case01_PrivData_T;
 
 static IOC_Result_T _Case01_CbProcEvt_doSleepByEvtID(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
-  _Case01_CbPrivData_T *pCbPrivData = (_Case01_CbPrivData_T *)pCbPriv;
+  _Case01_PrivData_T *pCbPrivData = (_Case01_PrivData_T *)pCbPriv;
 
   switch (pEvtDesc->EvtID) {
     case IOC_EVTID_TEST_SLEEP_9MS: {
@@ -55,60 +55,70 @@ uint32_t IOC_deltaTimevalInMS(const struct timeval *pFromTV, const struct timeva
 
 TEST(UT_ConlesEventConcurrency, Case01_verifyASync_byPostTestSleep9ms99msEvtEvery10msByEvtPrducerInSingleThread) {
   //===SETUP===
-  _Case01_CbPrivData_T ObjB_CbProcedPrivData = {.TestSleep9msEvtCnt = 0, .TestSleep99msEvtCnt = 0};
-  IOC_EvtID_T ObjB_SubEvtIDs[] = {IOC_EVTID_TEST_SLEEP_9MS};
+  _Case01_PrivData_T ObjB_CbProcedPrivData = {
+      .TestSleep9msEvtCnt  = 0,
+      .TestSleep99msEvtCnt = 0,
+  };
+  IOC_EvtID_T ObjB_SubEvtIDs[] = {
+      IOC_EVTID_TEST_SLEEP_9MS,
+  };
   IOC_SubEvtArgs_T ObjB_SubEvtArgs = {
       .CbProcEvt_F = _Case01_CbProcEvt_doSleepByEvtID,
       .pCbPrivData = &ObjB_CbProcedPrivData,
-      .EvtNum = IOC_calcArrayElmtCnt(ObjB_SubEvtIDs),
-      .pEvtIDs = ObjB_SubEvtIDs,
+      .EvtNum      = IOC_calcArrayElmtCnt(ObjB_SubEvtIDs),
+      .pEvtIDs     = ObjB_SubEvtIDs,
   };
   IOC_Result_T Result = IOC_subEVT_inConlesMode(&ObjB_SubEvtArgs);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
 
-  _Case01_CbPrivData_T ObjC_CbPrivData = {.TestSleep9msEvtCnt = 0, .TestSleep99msEvtCnt = 0};
-  IOC_EvtID_T ObjC_SubEvtIDs[] = {IOC_EVTID_TEST_SLEEP_99MS};
+  _Case01_PrivData_T ObjC_CbProcedPrivData = {
+      .TestSleep9msEvtCnt  = 0,
+      .TestSleep99msEvtCnt = 0,
+  };
+  IOC_EvtID_T ObjC_SubEvtIDs[] = {
+      IOC_EVTID_TEST_SLEEP_99MS,
+  };
   IOC_SubEvtArgs_T ObjC_SubEvtArgs = {
       .CbProcEvt_F = _Case01_CbProcEvt_doSleepByEvtID,
-      .pCbPrivData = &ObjC_CbPrivData,
-      .EvtNum = IOC_calcArrayElmtCnt(ObjC_SubEvtIDs),
-      .pEvtIDs = ObjC_SubEvtIDs,
+      .pCbPrivData = &ObjC_CbProcedPrivData,
+      .EvtNum      = IOC_calcArrayElmtCnt(ObjC_SubEvtIDs),
+      .pEvtIDs     = ObjC_SubEvtIDs,
   };
   Result = IOC_subEVT_inConlesMode(&ObjC_SubEvtArgs);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
 
   //===BEHAVIOR===
-  _Case01_CbPrivData_T ObjA_PostedPrivData = {.TestSleep9msEvtCnt = 0, .TestSleep99msEvtCnt = 0};
+  _Case01_PrivData_T ObjA_PostedPrivData = {.TestSleep9msEvtCnt = 0, .TestSleep99msEvtCnt = 0};
   struct timeval StartLoopTime, EndLoopTime;
 
   gettimeofday(&StartLoopTime, NULL);
   for (uint32_t i = 0; i < 100; i++) {
     // check every postEVT cost time less than 1ms
     struct timeval StartPost9msTime, EndPost9msTime;
-    IOC_EvtDesc_T ObjA_EvtDesc = {.EvtID = IOC_EVTID_TEST_SLEEP_9MS};
+    IOC_EvtDesc_T ObjA_EvtDescTestSleep9ms = {.EvtID = IOC_EVTID_TEST_SLEEP_9MS};
 
     gettimeofday(&StartPost9msTime, NULL);
-    Result = IOC_postEVT_inConlesMode(&ObjA_EvtDesc, NULL);
+    Result = IOC_postEVT_inConlesMode(&ObjA_EvtDescTestSleep9ms, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
     gettimeofday(&EndPost9msTime, NULL);
 
     uint32_t Post9msCostTime = IOC_deltaTimevalInMS(&StartPost9msTime, &EndPost9msTime);
     ASSERT_LE(Post9msCostTime, 1)  // KeyVerifyPoint
-        << "Post9msCostTime= " << Post9msCostTime;
+        << "Post9msCostTime = " << Post9msCostTime;
 
     ObjA_PostedPrivData.TestSleep9msEvtCnt++;
 
     if (i % 10 == 0) {
       // check every postEVT cost time less than 1ms
-      struct timeval StartPost99msTime, EndPost99msTime;
-      IOC_EvtDesc_T ObjA_EvtDesc = {.EvtID = IOC_EVTID_TEST_SLEEP_99MS};
+      struct timeval StartPost99msTick, EndPost99msTick;
+      IOC_EvtDesc_T ObjA_EvtDescTestSleep99ms = {.EvtID = IOC_EVTID_TEST_SLEEP_99MS};
 
-      gettimeofday(&StartPost99msTime, NULL);
-      Result = IOC_postEVT_inConlesMode(&ObjA_EvtDesc, NULL);
+      gettimeofday(&StartPost99msTick, NULL);
+      Result = IOC_postEVT_inConlesMode(&ObjA_EvtDescTestSleep99ms, NULL);
       ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
-      gettimeofday(&EndPost99msTime, NULL);
+      gettimeofday(&EndPost99msTick, NULL);
 
-      uint32_t Post99msCostTime = IOC_deltaTimevalInMS(&StartPost99msTime, &EndPost99msTime);
+      uint32_t Post99msCostTime = IOC_deltaTimevalInMS(&StartPost99msTick, &EndPost99msTick);
       ASSERT_LE(Post99msCostTime, 1)  // KeyVerifyPoint
           << "Post99msCostTime= " << Post99msCostTime;
 
@@ -118,6 +128,8 @@ TEST(UT_ConlesEventConcurrency, Case01_verifyASync_byPostTestSleep9ms99msEvtEver
     usleep(8000);  // 8ms~10ms, not exactly 10ms
   }
   gettimeofday(&EndLoopTime, NULL);
+
+  sleep(1);
 
   //===VERIFY===
   ASSERT_EQ(100, ObjA_PostedPrivData.TestSleep9msEvtCnt)  // KeyVerifyPoint
@@ -132,15 +144,15 @@ TEST(UT_ConlesEventConcurrency, Case01_verifyASync_byPostTestSleep9ms99msEvtEver
 
   ASSERT_EQ(100, ObjB_CbProcedPrivData.TestSleep9msEvtCnt)  // KeyVerifyPoint
       << "ObjB_CbPrivData.TestSleep9msEvtCnt= " << ObjB_CbProcedPrivData.TestSleep9msEvtCnt;
-  ASSERT_EQ(10, ObjC_CbPrivData.TestSleep99msEvtCnt)  // KeyVerifyPoint
-      << "ObjC_CbPrivData.TestSleep99msEvtCnt= " << ObjC_CbPrivData.TestSleep99msEvtCnt;
+  ASSERT_EQ(10, ObjC_CbProcedPrivData.TestSleep99msEvtCnt)  // KeyVerifyPoint
+      << "ObjC_CbPrivData.TestSleep99msEvtCnt= " << ObjC_CbProcedPrivData.TestSleep99msEvtCnt;
 
   //===CLEANUP===
   IOC_UnsubEvtArgs_T ObjB_UnsubEvtArgs = {.CbProcEvt_F = _Case01_CbProcEvt_doSleepByEvtID, .pCbPriv = &ObjB_CbProcedPrivData};
   Result = IOC_unsubEVT_inConlesMode(&ObjB_UnsubEvtArgs);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
 
-  IOC_UnsubEvtArgs_T ObjC_UnsubEvtArgs = {.CbProcEvt_F = _Case01_CbProcEvt_doSleepByEvtID, .pCbPriv = &ObjC_CbPrivData};
+  IOC_UnsubEvtArgs_T ObjC_UnsubEvtArgs = {.CbProcEvt_F = _Case01_CbProcEvt_doSleepByEvtID, .pCbPriv = &ObjC_CbProcedPrivData};
   Result = IOC_unsubEVT_inConlesMode(&ObjC_UnsubEvtArgs);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
 }

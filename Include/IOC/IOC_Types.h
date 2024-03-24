@@ -41,6 +41,7 @@ typedef enum {
  */
 typedef uint64_t IOC_LinkID_T;
 #define IOC_CONLES_MODE_AUTO_LINK_ID 0
+// TODO: IOC_CONLES_MODE_AUTO_LINK_ID_0<DFT>/_1/_2/...
 
 typedef enum {
   IOC_OPTID_TIMEOUT = 1 << 0,    // set this IDs and Payload.TimeoutUS>=0, to set timeout for execCMD,waitCMD,sendDAT,recvDAT,...
