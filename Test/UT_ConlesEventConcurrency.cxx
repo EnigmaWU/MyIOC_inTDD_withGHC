@@ -142,17 +142,32 @@ TEST(UT_ConlesEventConcurrency, Case01_verifyASync_byPostTestSleep9ms99msEvtEver
   ASSERT_LE(TotalLoopSleepTime, 1000)  // KeyVerifyPoint
       << "TotalSleepTime= " << TotalLoopSleepTime;
 
+  // ObjB's TestSleep9msEvtCnt is 100
   ASSERT_EQ(100, ObjB_CbProcedPrivData.TestSleep9msEvtCnt)  // KeyVerifyPoint
       << "ObjB_CbPrivData.TestSleep9msEvtCnt= " << ObjB_CbProcedPrivData.TestSleep9msEvtCnt;
+  // ObjB's TestSleep99msEvtCnt is 0
+  ASSERT_EQ(0, ObjB_CbProcedPrivData.TestSleep99msEvtCnt)  // KeyVerifyPoint
+      << "ObjB_CbPrivData.TestSleep99msEvtCnt= " << ObjB_CbProcedPrivData.TestSleep99msEvtCnt;
+
+  // ObjC's TestSleep99msEvtCnt is 10
   ASSERT_EQ(10, ObjC_CbProcedPrivData.TestSleep99msEvtCnt)  // KeyVerifyPoint
       << "ObjC_CbPrivData.TestSleep99msEvtCnt= " << ObjC_CbProcedPrivData.TestSleep99msEvtCnt;
+  // ObjC's TestSleep9msEvtCnt is 0
+  ASSERT_EQ(0, ObjC_CbProcedPrivData.TestSleep9msEvtCnt)  // KeyVerifyPoint
+      << "ObjC_CbPrivData.TestSleep9msEvtCnt= " << ObjC_CbProcedPrivData.TestSleep9msEvtCnt;
 
   //===CLEANUP===
-  IOC_UnsubEvtArgs_T ObjB_UnsubEvtArgs = {.CbProcEvt_F = _Case01_CbProcEvt_doSleepByEvtID, .pCbPriv = &ObjB_CbProcedPrivData};
+  IOC_UnsubEvtArgs_T ObjB_UnsubEvtArgs = {
+      .CbProcEvt_F = _Case01_CbProcEvt_doSleepByEvtID,
+      .pCbPriv     = &ObjB_CbProcedPrivData,
+  };
   Result = IOC_unsubEVT_inConlesMode(&ObjB_UnsubEvtArgs);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
 
-  IOC_UnsubEvtArgs_T ObjC_UnsubEvtArgs = {.CbProcEvt_F = _Case01_CbProcEvt_doSleepByEvtID, .pCbPriv = &ObjC_CbProcedPrivData};
+  IOC_UnsubEvtArgs_T ObjC_UnsubEvtArgs = {
+      .CbProcEvt_F = _Case01_CbProcEvt_doSleepByEvtID,
+      .pCbPriv     = &ObjC_CbProcedPrivData,
+  };
   Result = IOC_unsubEVT_inConlesMode(&ObjC_UnsubEvtArgs);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
 }
