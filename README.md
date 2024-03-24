@@ -89,8 +89,8 @@ stateDiagram-v2
   state LinkStateBusy
   {
     [*] --> LinkStateBusyProcing
-    LinkStateBusyProcing --> LinkStateBusyPosting: enter[post]Evt
-    LinkStateBusyPosting --> LinkStateBusyProcing: leave[post]Evt
+    LinkStateBusyProcing --> LinkStateBusyProcingPosting: enter[post]Evt
+    LinkStateBusyProcingPosting --> LinkStateBusyProcing: leave[post]Evt
   }
   
 ```
