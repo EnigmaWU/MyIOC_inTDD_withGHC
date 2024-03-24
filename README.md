@@ -86,6 +86,12 @@ stateDiagram-v2
     LinkStateReadyIdle --> LinkStateReadyLock: enter[sub/unsub/post]Evt
     LinkStateReadyLock --> LinkStateReadyIdle: leave[sub/unsub/post]Evt
   }
+  state LinkStateBusy
+  {
+    [*] --> LinkStateBusyIdle
+    LinkStateBusyIdle --> LinkStateBusyLock: enter[sub/unsub/post]Evt
+    LinkStateBusyLock --> LinkStateBusyIdle: leave[sub/unsub/post]Evt
+  }
   
 ```
 
