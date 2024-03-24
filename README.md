@@ -80,6 +80,8 @@ stateDiagram-v2
   [*] --> LinkStateReady: _initCRuntimeSuccess
   LinkStateReady --> LinkStateBusy: enterCbProcEvt_F
   LinkStateBusy --> LinkStateReady: leaveCbProcEvt_F
+  LinkStateReady --> LinkStateReadyLock: enter[sub/unsub/post]Evt
+  LinkStateReadyLock --> LinkStateReady: leave[sub/unsub/post]Evt
 ```
 
 # Specifications(a.k.a SPEC)
