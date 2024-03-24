@@ -78,8 +78,7 @@
 ```mermaid
 stateDiagram-v2
   [*] --> LinkStateReady: _initCRuntimeSuccess
-  LinkStateReady: subEvt/unsubEvt
-  LinkStateReady: postEvt
+  LinkStateReady -> LinkStateReady: subEvt/unsubEvt/postEvt
   LinkStateReady --> LinkStateBusy: enterCbProcEvt_F
   LinkStateBusy --> LinkStateReady: leaveCbProcEvt_F
 ```
