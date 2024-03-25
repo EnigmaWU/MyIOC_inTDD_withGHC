@@ -29,19 +29,29 @@ typedef enum {
 
 /**
  * @brief LinkID is a unique ID to identify a link between two objects in communication.
- *
  *---------------------------------------------------------------------------------------------------------------------
- * Design::FSM::ConlesEvent
- *    {TSF-0}<ACT:_initCRuntimeSuccess>  -> [STATE:LinkStateReady]
- *    {TSF-1}[STATE:LinkStateReady]  ->  <ACT:subEvt/unsubEvt>   -> [STATE:LinkStateReady]
- *    {TSF-2}[STATE:LinkStateReady]  ->  <ACT:postEvt>    -> [STATE:LinkStateReady]
- *              |-> <EVT:enterCbProcEvt_F>  ->  [STATE:LinkStateBusy]
- *    {TSF-3}[STATE:LinkStateBusy]
- *              |-> <EVT:leaveCbProcEvt_F>  ->  [STATE:LinkStateReady]
+ * Design::FSM
+ *    RefReadme::MSG::EVT::FSM::Conles/Conet
+ *    RefType::IOC_LinkState_T
  */
 typedef uint64_t IOC_LinkID_T;
 #define IOC_CONLES_MODE_AUTO_LINK_ID 0
 // TODO: IOC_CONLES_MODE_AUTO_LINK_ID_0<DFT>/_1/_2/...
+
+// RefReadme::MSG::EVT::FSM::Conles/Conet
+typedef enum {
+  IOC_LinkStateReady = 0,  // Link is ready to use.
+  IOC_LinkStateBusy  = 1,  // Link is busy, can't be used.
+  // IOC_LinkStateError = 2,  // Link is error, can't be used.
+} IOC_LinkState_T;
+
+typedef enum {
+  IOC_LinkSubState_ReadyIdle   = 0,  // Link is ready to use.
+  IOC_LinkSubState_ReadyLocked = 1,  // Link is ready but locked.
+
+  IOC_LinkSubState_BusyProcing        = 0,  //  Link is busy of processing.
+  IOC_LinkSubState_BusyProcingPosting = 1,  //  Link is busy of processing&posting.
+} IOC_LinkSubState_T;
 
 typedef enum {
   IOC_OPTID_TIMEOUT = 1 << 0,    // set this IDs and Payload.TimeoutUS>=0, to set timeout for execCMD,waitCMD,sendDAT,recvDAT,...
