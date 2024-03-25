@@ -1,5 +1,6 @@
 #include <IOC/IOC.h>
 #include <pthread.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -131,29 +132,38 @@ static IOC_Result_T __IOC_postEVT_inConlesMode(
   ULONG_T CbProcEvtCnt = 0;
   IOC_SubEvtArgs_pT pSavedSubEvtArgs = &_mConlesModeSubEvtArgs[0];
 
+  // IsSyncMode<DFT=FALSE> parsed from pOptions is not NULL
+  bool IsSyncMode = false;
+  if (pOptions != NULL) {
+    IsSyncMode = (pOptions->IDs & IOC_OPTID_SYNC_MODE) ? true : false;
+  }
+
   pthread_mutex_lock(&_mConlesModeSubEvtArgsMutex);
   for (int i = 0; i < _IOC_CONLES_MODE_MAX_EVTCOSMER_NUNBER; i++) {
     if (pSavedSubEvtArgs->CbProcEvt_F) {
       for (int j = 0; j < pSavedSubEvtArgs->EvtNum; j++) {
         if (pEvtDesc->EvtID == pSavedSubEvtArgs->pEvtIDs[j]) {
-          ULONG_T MaxEvtNum = _IOC_CONLES_MODE_MAX_QUEUING_EVTDESC_NUMBER;
-          // Queuing the pEvtDesc
-          _IOC_ConlesModeQueuingEvtDesc_pT pQueuingEvtDesc = &_mConlesModeQueuingEvtDesc[i];
+          if (IsSyncMode) {
+            pSavedSubEvtArgs->CbProcEvt_F(pEvtDesc, pSavedSubEvtArgs->pCbPrivData);
+          } else {
+            ULONG_T MaxEvtNum = _IOC_CONLES_MODE_MAX_QUEUING_EVTDESC_NUMBER;
+            // Queuing the pEvtDesc
+            _IOC_ConlesModeQueuingEvtDesc_pT pQueuingEvtDesc = &_mConlesModeQueuingEvtDesc[i];
 
-          pthread_mutex_lock(&pQueuingEvtDesc->Mutex);
-          ULONG_T QueuedEvtNum                                       = pQueuingEvtDesc->QueuedEvtNum;
-          pQueuingEvtDesc->pQueuedEvtDescs[QueuedEvtNum % MaxEvtNum] = malloc(sizeof(IOC_EvtDesc_T));
-          memcpy(pQueuingEvtDesc->pQueuedEvtDescs[QueuedEvtNum % MaxEvtNum], pEvtDesc, sizeof(IOC_EvtDesc_T));
-          pQueuingEvtDesc->QueuedEvtNum++;
-          pthread_mutex_unlock(&pQueuingEvtDesc->Mutex);
+            pthread_mutex_lock(&pQueuingEvtDesc->Mutex);
+            ULONG_T QueuedEvtNum                                       = pQueuingEvtDesc->QueuedEvtNum;
+            pQueuingEvtDesc->pQueuedEvtDescs[QueuedEvtNum % MaxEvtNum] = malloc(sizeof(IOC_EvtDesc_T));
+            memcpy(pQueuingEvtDesc->pQueuedEvtDescs[QueuedEvtNum % MaxEvtNum], pEvtDesc, sizeof(IOC_EvtDesc_T));
+            pQueuingEvtDesc->QueuedEvtNum++;
+            pthread_mutex_unlock(&pQueuingEvtDesc->Mutex);
 
-          __IOC_wakeupEvtCbTrhead_inConlesMode();
-
+            __IOC_wakeupEvtCbTrhead_inConlesMode();
+          }
           CbProcEvtCnt++;
         }
       }
+      pSavedSubEvtArgs++;
     }
-    pSavedSubEvtArgs++;
   }
   pthread_mutex_unlock(&_mConlesModeSubEvtArgsMutex);
 
