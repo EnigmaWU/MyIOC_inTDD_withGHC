@@ -17,6 +17,7 @@
 //[Robust]: such as repeatly reach IOC's max capacity, let its buffer full then empty.
 //[Fault]: such as one process crash or kill by OS, then it auto restarted.
 //[Misuse]: such as call API in wrong order, or call API with wrong arguments.
+//[Compatibility]: such as call API in different version of IOC, or call API in different OS.
 //[Others]: any other cases, not have clear category, but still has value to verify.
 //===>RefMore: TEMPLATE OF UT CASE in UT_FreelyDrafts.cxx
 
