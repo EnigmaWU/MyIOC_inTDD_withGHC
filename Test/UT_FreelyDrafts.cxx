@@ -6,8 +6,10 @@
  * @[Name]: ${verifyBehivorX_byDoABC}
  * @[Purpose]: ${what to verify}
  * @[Steps]: ${how to do}
- *   1) ...
- *   2) ...
+ *   1) do ..., with ..., as SETUP
+ *   2) do ..., with ..., as BEHAVIOR
+ *   3) do ..., with ..., as VERIFY
+ *   4) do ..., with ..., as CLEANUP
  * @[Expect]: ${how to verify}
  * @[Notes]:
  */
