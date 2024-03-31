@@ -4,7 +4,7 @@
 //===TEMPLATE OF UT CASE===
 /**
  * @[Name]: ${verifyBehivorX_byDoABC}
- * @[Purpose]: ${what to verify}
+ * @[Purpose]: ${accord what, and why to verify in this way}
  * @[Steps]: ${how to do}
  *   1) do ..., with ..., as SETUP
  *   2) do ..., with ..., as BEHAVIOR
