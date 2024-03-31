@@ -1,7 +1,3 @@
-#include <_types/_uint16_t.h>
-
-#include <thread>
-
 #include "_UT_IOC_Common.h"
 
 /**
