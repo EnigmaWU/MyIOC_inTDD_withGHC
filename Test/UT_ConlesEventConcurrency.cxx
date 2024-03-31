@@ -1,5 +1,3 @@
-#include <sys/_types/_timeval.h>
-
 #include "_UT_IOC_Common.h"
 //===>RefMore: TEMPLATE OF UT CASE in UT_FreelyDrafts.cxx
 //===>RefMore: ConsoleEventTypical UT_ConlesEventTypical.cxx
