@@ -134,5 +134,5 @@ stateDiagram-v2
   * IOC_Command: execCMD,subCMD/cbCMD,waitCMD/ackCMD
   * IOC_Data: sendDAT,recvDAT
   * Notes: In order to ..., as a ..., I want to ...
-  * UserStory = As a「X=Who」，I want 「Y=What」，So that 「Z=Why」
+  * UserStory = As a「X=Who/Role」，I want 「Y=What/Func」，So that 「Z=Why/Value」
   * ...
