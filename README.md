@@ -4,7 +4,7 @@
   * in Test-Driven Development(a.k.a TDD) as Dev-Approach
     * with GitHub Copilot(a.k.a GHC) as Dev-Facilites.
 
-# Definitions
+# Definitions（Glossaries）
 
 ## ModMgr vs ModUsr（EvtPrduer or EvtCosmer）
 
