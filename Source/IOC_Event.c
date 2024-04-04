@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/_pthread/_pthread_mutex_t.h>
 #include <sys/_types/_null.h>
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -123,6 +124,7 @@ static IOC_Result_T __IOC_unsubEVT_inConlesMode(
     /*ARG_IN*/ const IOC_UnsubEvtArgs_pT pUnsubEvtArgs) {
   IOC_SubEvtArgs_pT pSavedSubEvtArgs = &_mConlesModeSubEvtArgs[0];
 
+  pthread_mutex_lock(&_mConlesModeSubEvtArgsMutex);
   for (int i = 0; i < _IOC_CONLES_MODE_MAX_EVTCOSMER_NUNBER; i++) {
     if (pSavedSubEvtArgs->CbProcEvt_F && (pSavedSubEvtArgs->CbProcEvt_F == pUnsubEvtArgs->CbProcEvt_F) &&
         (pSavedSubEvtArgs->pCbPrivData == pUnsubEvtArgs->pCbPrivData)) {
@@ -140,10 +142,12 @@ static IOC_Result_T __IOC_unsubEVT_inConlesMode(
       pQueuingEvtDesc->QueuedEvtNum = 0;
       pQueuingEvtDesc->ProcedEvtNum = 0;
 
+      pthread_mutex_unlock(&_mConlesModeSubEvtArgsMutex);
       return IOC_RESULT_SUCCESS;
     }
     pSavedSubEvtArgs++;
   }
+  pthread_mutex_unlock(&_mConlesModeSubEvtArgsMutex);
 
   return IOC_RESULT_NO_EVTCOSMER;
 }
