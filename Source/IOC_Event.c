@@ -218,6 +218,11 @@ static IOC_Result_T __IOC_postEVT_inConlesMode(
 static void __IOC_forceProcEVT_inConlesMode() {
   pthread_mutex_lock(&_mConlesModeSubEvtArgsMutex);
   for (int i = 0; i < _IOC_CONLES_MODE_MAX_EVTCOSMER_NUNBER; i++) {
+    IOC_SubEvtArgs_pT pSubEvtArgs = &_mConlesModeSubEvtArgs[i];
+    if (!pSubEvtArgs->CbProcEvt_F) {
+      continue;
+    }
+
     _IOC_ConlesModeQueuingEvtDesc_pT pQueuingEvtDesc = &_mConlesModeQueuingEvtDesc[i];
     while (pQueuingEvtDesc->ProcedEvtNum < pQueuingEvtDesc->QueuedEvtNum) {
       ULONG_T NextProcEvtIdx  = pQueuingEvtDesc->ProcedEvtNum % _IOC_CONLES_MODE_MAX_QUEUING_EVTDESC_NUMBER;
@@ -227,15 +232,15 @@ static void __IOC_forceProcEVT_inConlesMode() {
       pQueuingEvtDesc->pQueuedEvtDescs[NextProcEvtIdx] = NULL;
       pQueuingEvtDesc->ProcedEvtNum++;
 
-      for (int j = 0; j < _IOC_CONLES_MODE_MAX_EVTCOSMER_NUNBER; j++) {
-        IOC_SubEvtArgs_pT pSubEvtArgs = &_mConlesModeSubEvtArgs[j];
-        if (pSubEvtArgs->CbProcEvt_F) {
-          for (int k = 0; k < pSubEvtArgs->EvtNum; k++) {
-            // if (pEvtDesc->EvtID == pSubEvtArgs->pEvtIDs[k])
-            { pSubEvtArgs->CbProcEvt_F(pEvtDesc, pSubEvtArgs->pCbPrivData); }
-          }
-        }
+      //-------------------------------------------------------------------------------------------------------------
+      // BEGIN: callback process event function
+      for (int j = 0; j < pSubEvtArgs->EvtNum; j++) {  // forEach EvtCosmer's subedEvtID
+        // if (pEvtDesc->EvtID == pSubEvtArgs->pEvtIDs[j])
+        { pSubEvtArgs->CbProcEvt_F(pEvtDesc, pSubEvtArgs->pCbPrivData); }
       }
+      // END: callback process event function
+      //-------------------------------------------------------------------------------------------------------------
+
       free(pEvtDesc);
     }
   }
