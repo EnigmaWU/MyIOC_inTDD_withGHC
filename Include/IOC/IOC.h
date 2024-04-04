@@ -27,8 +27,19 @@ IOC_Result_T IOC_unsubEVT(
 
 #define IOC_unsubEVT_inConlesMode(pUnsubEvtArgs) IOC_unsubEVT(IOC_CONLES_MODE_AUTO_LINK_ID, pUnsubEvtArgs)
 
+void IOC_forceProcEVT(void);
+// TODO: add IOC_forceProcEVT_byLinkID
+
 IOC_Result_T IOC_getCapabilty(
     /*ARG_INOUT*/ IOC_CapabiltyDescription_pT);
+
+//===>Helper APIs
+#define IOC_BugAbort()                                   \
+  do {                                                   \
+    fprintf(stderr, "BUG: %s:%d\n", __FILE__, __LINE__); \
+    abort();                                             \
+  } while (0)
+
 #ifdef __cplusplus
 }
 #endif

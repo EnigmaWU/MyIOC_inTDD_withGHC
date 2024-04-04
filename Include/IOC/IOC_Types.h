@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdio.h>
 #include <sys/errno.h>
 #include <sys/time.h>
 
@@ -18,11 +19,12 @@ typedef enum {
   IOC_RESULT_POSIX_ENOMEM = -ENOMEM,
 
   // IOC's Result
-  IOC_RESULT_NOT_IMPLEMENTED = -500,
-  IOC_RESULT_NOT_SUPPORT = -501,
-  IOC_RESULT_NO_EVTCOSMER = -502,
-  IOC_RESULT_TOO_MANY_EVTCOSMER = -503,
-  IOC_RESULT_CONFLICT_EVTCOSMER = -504,
+  IOC_RESULT_NOT_IMPLEMENTED          = -500,
+  IOC_RESULT_NOT_SUPPORT              = -501,
+  IOC_RESULT_NO_EVTCOSMER             = -502,
+  IOC_RESULT_TOO_MANY_EVTCOSMER       = -503,
+  IOC_RESULT_CONFLICT_EVTCOSMER       = -504,
+  IOC_RESULT_TOO_MANY_QUEUING_EVTDESC = -505,
 
   IOC_RESULT_BUG = -999,
 } IOC_Result_T;

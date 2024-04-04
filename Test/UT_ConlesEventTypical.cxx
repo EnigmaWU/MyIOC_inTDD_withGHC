@@ -6,6 +6,7 @@
  * @[Steps]:
  *   1. ObjA call subEVT(TEST_KEEPALIVE) with _Case01_CbProcEvt1v1.
  *   2. ObjB call postEVT(TEST_KEEPALIVE) with $_Case01_KeepAliveEvtCnt times.
+ *        |-> call flushEVT() to ensure all events are processed.
  *   3. ObjA check the _Case01_CbProcEvt_1v1 is callbacked $_Case01_KeepAliveEvtCnt times.
  *        |-> Use _Case01_CbPrivData.KeepAliveEvtCnt to count the times in _Case01_CbProcEvt1v1.
  * @[Expect]: ObjA's _Case01_CbProcEvt_1v1 is callbacked $_Case01_KeepAliveEvtCnt times.
@@ -50,8 +51,17 @@ TEST(UT_ConlesEventTypical, Case01_verifyPostEvt1v1_byOneObjPostEvtAndAnotherObj
   for (uint32_t i = 0; i < _Case01_KeepAliveEvtCnt; i++) {
     IOC_EvtDesc_T ObjB_EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
     Result = IOC_postEVT_inConlesMode(&ObjB_EvtDesc, NULL);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+    // Result is IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_QUEUING_EVTDESC
+    ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC)  // CheckPoint
+        << "i= " << i << " Result= " << Result;
+
+    if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
+      i--;           // retry
+      usleep(1000);  // 1ms
+    }
   }
+
+  IOC_forceProcEVT();
 
   //===VERIFY===
   ASSERT_EQ(_Case01_KeepAliveEvtCnt, ObjA_CbPrivData.KeepAliveEvtCnt);  // KeyVerifyPoint
@@ -130,8 +140,17 @@ TEST(UT_ConlesEventTypical, Case02_verifyPostEvt1vN_byOneObjPostEvt_R1TwoObjCbPr
   for (uint32_t i = 0; i < _Case02_KeepAliveEvtCntR1; i++) {
     IOC_EvtDesc_T ObjA_EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
     Result = IOC_postEVT_inConlesMode(&ObjA_EvtDesc, NULL);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+    // Result is IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_QUEUING_EVTDESC
+    ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC)  // CheckPoint
+        << "i= " << i << " Result= " << Result;
+
+    if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
+      i--;           // retry
+      usleep(1000);  // 1ms
+    }
   }
+
+  IOC_forceProcEVT();
 
   //===CLEANUP===
   IOC_UnsubEvtArgs_T ObjC_UnsubEvtArgs = {.CbProcEvt_F = _Case02_CbProcEvt_1vN, .pCbPriv = &ObjC_CbPrivData};
@@ -180,8 +199,17 @@ TEST(UT_ConlesEventTypical, Case02_verifyPostEvt1vN_byOneObjPostEvt_R1TwoObjCbPr
   for (uint32_t i = 0; i < _Case02_KeepAliveEvtCntR2; i++) {
     IOC_EvtDesc_T ObjA_EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
     Result = IOC_postEVT_inConlesMode(&ObjA_EvtDesc, NULL);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+    // Result is IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_QUEUING_EVTDESC
+    ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC)  // CheckPoint
+        << "i= " << i << " Result= " << Result;
+
+    if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
+      i--;           // retry
+      usleep(1000);  // 1ms
+    }
   }
+
+  IOC_forceProcEVT();
 
   //===VERIFY===
   ASSERT_EQ(_Case02_KeepAliveEvtCntR1 + _Case02_KeepAliveEvtCntR2, ObjB_CbPrivData.KeepAliveEvtCnt);  // KeyVerifyPoint
@@ -264,7 +292,14 @@ TEST(UT_ConlesEventTypical, Case03_verifyPostEvt1vN_byOneObjPostEvt_Min2MaxEvtCo
     for (uint32_t j = 0; j < _Case03_KeepAliveEvtCnt; j++) {
       IOC_EvtDesc_T ObjA_EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
       Result = IOC_postEVT_inConlesMode(&ObjA_EvtDesc, NULL);
-      ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+      // Result is IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_QUEUING_EVTDESC
+      ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC)  // CheckPoint
+          << "i= " << i << " j=" << j;
+
+      if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
+        j--;           // retry
+        usleep(1000);  // 1ms
+      }
     }
   }
 
@@ -273,7 +308,14 @@ TEST(UT_ConlesEventTypical, Case03_verifyPostEvt1vN_byOneObjPostEvt_Min2MaxEvtCo
     for (uint32_t j = 0; j < _Case03_KeepAliveEvtCnt; j++) {
       IOC_EvtDesc_T ObjA_EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
       Result = IOC_postEVT_inConlesMode(&ObjA_EvtDesc, NULL);
-      ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "i= " << i << " j=" << j;  // CheckPoint
+      // Result is IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_QUEUING_EVTDESC
+      ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC)  // CheckPoint
+          << "i= " << i << " j=" << j;
+
+      if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
+        j--;           // retry
+        usleep(1000);  // 1ms
+      }
     }
 
     IOC_UnsubEvtArgs_T ObjS_UnsubEvtArgs = {.CbProcEvt_F = _Case03_CbProcEvt1vN,
@@ -281,6 +323,8 @@ TEST(UT_ConlesEventTypical, Case03_verifyPostEvt1vN_byOneObjPostEvt_Min2MaxEvtCo
     Result = IOC_unsubEVT_inConlesMode(&ObjS_UnsubEvtArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
   }
+
+  IOC_forceProcEVT();
 
   //===VERIFY===
   /**
@@ -346,7 +390,14 @@ TEST(UT_ConlesEventTypical, Case04_verifyPostEvtNv1_byNxEvtPrduerPostEvtAnd1xEvt
       for (uint32_t j = 0; j < _Case04_KeepAliveEvtCnt; j++) {
         IOC_EvtDesc_T ObjB_EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
         IOC_Result_T Result = IOC_postEVT_inConlesMode(&ObjB_EvtDesc, NULL);
-        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+        // Result is IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_QUEUING_EVTDESC
+        ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC)  // CheckPoint
+            << "i= " << i << " j=" << j;
+
+        if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
+          j--;           // retry
+          usleep(1000);  // 1ms
+        }
       }
     });
   }
@@ -354,6 +405,8 @@ TEST(UT_ConlesEventTypical, Case04_verifyPostEvtNv1_byNxEvtPrduerPostEvtAnd1xEvt
   for (uint32_t i = 0; i < _Case04_EvtPrduerNum; i++) {
     EvtPrduerThreads[i].join();
   }
+
+  IOC_forceProcEVT();
 
   //===VERIFY===
   ASSERT_EQ(_Case04_KeepAliveEvtCnt * _Case04_EvtPrduerNum, ObjA_CbPrivData.KeepAliveEvtCnt);  // KeyVerifyPoint
@@ -437,7 +490,14 @@ TEST(UT_ConlesEventTypical, Case05_verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvt
       for (uint32_t j = 0; j < _Case05_KeepAliveEvtCnt; j++) {
         IOC_EvtDesc_T ObjB_EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
         IOC_Result_T Result = IOC_postEVT_inConlesMode(&ObjB_EvtDesc, NULL);
-        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+        // Result is IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_QUEUING_EVTDESC
+        ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC)  // CheckPoint
+            << "i= " << i << " j=" << j;
+
+        if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
+          j--;           // retry
+          usleep(1000);  // 1ms
+        }
       }
     });
   }
@@ -445,6 +505,8 @@ TEST(UT_ConlesEventTypical, Case05_verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvt
   for (uint32_t i = 0; i < _Case05_EvtPrduerNum; i++) {
     EvtPrduerThreads[i].join();
   }
+
+  IOC_forceProcEVT();
 
   //===VERIFY===
   for (uint16_t i = 0; i < MaxEvtCosmerNum; i++) {
@@ -583,7 +645,14 @@ TEST(UT_ConlesEventTypical, Case06_verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvt
       for (uint32_t j = 0; j < _Case06_KeepAliveCnt; j++) {
         IOC_EvtDesc_T ObjB_EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
         IOC_Result_T Result = IOC_postEVT_inConlesMode(&ObjB_EvtDesc, NULL);
-        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+        // Result is IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_QUEUING_EVTDESC
+        ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC)  // CheckPoint
+            << "i= " << i << " j=" << j;
+
+        if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
+          j--;           // retry
+          usleep(1000);  // 1ms
+        }
       }
     });
   }
@@ -595,13 +664,27 @@ TEST(UT_ConlesEventTypical, Case06_verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvt
         for (uint32_t j = 0; j < _Case06_HelloFromEvenToOddCnt; j++) {
           IOC_EvtDesc_T ObjB_EvtDesc = {.EvtID = IOC_EVTID_TEST_HELLO_FROM_EVEN_TO_ODD};
           IOC_Result_T Result = IOC_postEVT_inConlesMode(&ObjB_EvtDesc, NULL);
-          ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+          // Result is IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_QUEUING_EVTDESC
+          ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC)  // CheckPoint
+              << "i= " << i << " j=" << j;
+
+          if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
+            j--;           // retry
+            usleep(1000);  // 1ms
+          }
         }
       } else {
         for (uint32_t j = 0; j < _Case06_HelloFromOddToEvenCnt; j++) {
           IOC_EvtDesc_T ObjB_EvtDesc = {.EvtID = IOC_EVTID_TEST_HELLO_FROM_ODD_TO_EVEN};
           IOC_Result_T Result = IOC_postEVT_inConlesMode(&ObjB_EvtDesc, NULL);
-          ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+          // Result is IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_QUEUING_EVTDESC
+          ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC)  // CheckPoint
+              << "i= " << i << " j=" << j;
+
+          if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
+            j--;           // retry
+            usleep(1000);  // 1ms
+          }
         }
       }
     });
@@ -611,6 +694,8 @@ TEST(UT_ConlesEventTypical, Case06_verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvt
     EvtPrduerPostKeepAliveEvtThreads[i].join();
     EvtPrduerPostHelloFromEvenOrOddEvtThreads[i].join();
   }
+
+  IOC_forceProcEVT();
 
   //===VERIFY===
   for (uint16_t i = 0; i < _Case06_EvtCosmerNum; i++) {
