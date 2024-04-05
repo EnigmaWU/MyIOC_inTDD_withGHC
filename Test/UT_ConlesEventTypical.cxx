@@ -319,13 +319,13 @@ TEST(UT_ConlesEventTypical, Case03_verifyPostEvt1vN_byOneObjPostEvt_Min2MaxEvtCo
       }
     }
 
+    IOC_forceProcEVT();
+
     IOC_UnsubEvtArgs_T ObjS_UnsubEvtArgs = {.CbProcEvt_F = _Case03_CbProcEvt1vN,
                                             .pCbPriv = &pObjS_CbPrivData[MaxEvtCosmerNum - 1 - i] /*reverse*/};
     Result = IOC_unsubEVT_inConlesMode(&ObjS_UnsubEvtArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
   }
-
-  IOC_forceProcEVT();
 
   //===VERIFY===
   /**
