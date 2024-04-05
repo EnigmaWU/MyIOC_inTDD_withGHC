@@ -545,7 +545,7 @@ TEST(UT_ConlesEventTypical, Case05_verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvt
  *    2.1) Foreach M EvtCosmer, if M is odd then subEVT(TEST_HELLO_FROM_EVEN_TO_ODD), else subEVT(TEST_HELLO_FROM_ODD_TO_EVEN).
  *  3) Create N EvtPrduer, foreach N start a thread to postEVT(TEST_KEEPALIVE) of $_Case06_KeepAliveCnt.
  *    3.1) Foreach N EvtPrduer start a thread, if N is odd then postEVT(TEST_HELLO_FROM_ODD_TO_EVEN) of
- $_Case06_HelloFromOddToEvenCnt, else postEVT(TEST_HELLO_FROM_EVEN_TO_ODD) of $_Case06_HelloFromEvenToOddCnt.
+ $           _Case06_HelloFromOddToEvenCnt, else postEVT(TEST_HELLO_FROM_EVEN_TO_ODD) of $_Case06_HelloFromEvenToOddCnt.
  *  4) Check each EvtCosmer's KeepAliveCnt is callbacked $_Case06_KeepAliveCnt * $_Case06_EvtPrduerNum times,
  *    and if EvtCosmer is odd then HelloFromEvenToOddCnt is callbacked
           ($_Case06_HelloFromEvenToOddCnt*($_Case06_EvtPrduerNum/2)) while HelloFromOddToEvenCnt is ZERO,
@@ -606,35 +606,38 @@ TEST(UT_ConlesEventTypical, Case06_verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvt
 #define _Case06_HelloFromEvenToOddCnt 1024
 #define _Case06_HelloFromOddToEvenCnt 1024
 
-  _Case06_CbPrivData_T *pObjS_CbPrivData = (_Case06_CbPrivData_T *)malloc(_Case06_EvtCosmerNum * sizeof(_Case06_CbPrivData_T));
-  ASSERT_NE(nullptr, pObjS_CbPrivData);  // CheckPoint
+  _Case06_CbPrivData_T *pCosmerObjs_CbPrivData =
+      (_Case06_CbPrivData_T *)malloc(_Case06_EvtCosmerNum * sizeof(_Case06_CbPrivData_T));
+  ASSERT_NE(nullptr, pCosmerObjs_CbPrivData);  // CheckPoint
 
   for (uint16_t i = 0; i < _Case06_EvtCosmerNum; i++) {
-    pObjS_CbPrivData[i].IsOdd = (i % 2 == 1);
-    pObjS_CbPrivData[i].IsEven = (i % 2 == 0);
-    pObjS_CbPrivData[i].KeepAliveCnt = 0;
-    pObjS_CbPrivData[i].HelloFromEvenToOddCnt = 0;
-    pObjS_CbPrivData[i].HelloFromOddToEvenCnt = 0;
+    pCosmerObjs_CbPrivData[i].IsOdd                 = (i % 2 == 1);
+    pCosmerObjs_CbPrivData[i].IsEven                = (i % 2 == 0);
+    pCosmerObjs_CbPrivData[i].KeepAliveCnt          = 0;
+    pCosmerObjs_CbPrivData[i].HelloFromEvenToOddCnt = 0;
+    pCosmerObjs_CbPrivData[i].HelloFromOddToEvenCnt = 0;
 
-    if (pObjS_CbPrivData[i].IsOdd) {
-      IOC_EvtID_T ObjS_SubEvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE, IOC_EVTID_TEST_HELLO_FROM_EVEN_TO_ODD};
-      IOC_SubEvtArgs_T ObjS_SubEvtArgs = {
+    if (pCosmerObjs_CbPrivData[i].IsOdd) {
+      IOC_EvtID_T OddCosmerObj_SubEvtIDs[]     = {IOC_EVTID_TEST_KEEPALIVE, IOC_EVTID_TEST_HELLO_FROM_EVEN_TO_ODD,
+                                                  IOC_EVTID_TEST_SLEEP_9MS};
+      IOC_SubEvtArgs_T OddCosmerObj_SubEvtArgs = {
           .CbProcEvt_F = _Case06_CbProcEvt_NvM,
-          .pCbPrivData = &pObjS_CbPrivData[i],
-          .EvtNum = IOC_calcArrayElmtCnt(ObjS_SubEvtIDs),
-          .pEvtIDs = ObjS_SubEvtIDs,
+          .pCbPrivData = &pCosmerObjs_CbPrivData[i],
+          .EvtNum      = IOC_calcArrayElmtCnt(OddCosmerObj_SubEvtIDs),
+          .pEvtIDs     = OddCosmerObj_SubEvtIDs,
       };
-      Result = IOC_subEVT_inConlesMode(&ObjS_SubEvtArgs);
+      Result = IOC_subEVT_inConlesMode(&OddCosmerObj_SubEvtArgs);
       ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
     } else {
-      IOC_EvtID_T ObjS_SubEvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE, IOC_EVTID_TEST_HELLO_FROM_ODD_TO_EVEN};
-      IOC_SubEvtArgs_T ObjS_SubEvtArgs = {
+      IOC_EvtID_T EvenCosmerObj_SubEvtIDs[]     = {IOC_EVTID_TEST_KEEPALIVE, IOC_EVTID_TEST_HELLO_FROM_ODD_TO_EVEN,
+                                                   IOC_EVTID_TEST_SLEEP_99MS};
+      IOC_SubEvtArgs_T EvenCosmerObj_SubEvtArgs = {
           .CbProcEvt_F = _Case06_CbProcEvt_NvM,
-          .pCbPrivData = &pObjS_CbPrivData[i],
-          .EvtNum = IOC_calcArrayElmtCnt(ObjS_SubEvtIDs),
-          .pEvtIDs = ObjS_SubEvtIDs,
+          .pCbPrivData = &pCosmerObjs_CbPrivData[i],
+          .EvtNum      = IOC_calcArrayElmtCnt(EvenCosmerObj_SubEvtIDs),
+          .pEvtIDs     = EvenCosmerObj_SubEvtIDs,
       };
-      Result = IOC_subEVT_inConlesMode(&ObjS_SubEvtArgs);
+      Result = IOC_subEVT_inConlesMode(&EvenCosmerObj_SubEvtArgs);
       ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
     }
   }
@@ -642,16 +645,16 @@ TEST(UT_ConlesEventTypical, Case06_verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvt
   //===BEHAVIOR===
   std::thread EvtPrduerPostKeepAliveEvtThreads[_Case06_EvtPrduerNum];
   for (uint32_t i = 0; i < _Case06_EvtPrduerNum; i++) {
-    EvtPrduerPostKeepAliveEvtThreads[i] = std::thread([i, &pObjS_CbPrivData]() {
-      for (uint32_t j = 0; j < _Case06_KeepAliveCnt; j++) {
+    EvtPrduerPostKeepAliveEvtThreads[i] = std::thread([i, &pCosmerObjs_CbPrivData]() {
+      for (uint32_t NextEvtSeqID = 0; NextEvtSeqID < _Case06_KeepAliveCnt; NextEvtSeqID++) {
         IOC_EvtDesc_T ObjB_EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
         IOC_Result_T Result = IOC_postEVT_inConlesMode(&ObjB_EvtDesc, NULL);
         // Result is IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_QUEUING_EVTDESC
         ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC)  // CheckPoint
-            << "i= " << i << " j=" << j;
+            << "i= " << i << " j=" << NextEvtSeqID;
 
         if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
-          j--;           // retry
+          NextEvtSeqID--;  // retry
           usleep(1000);  // 1ms
         }
       }
@@ -659,31 +662,31 @@ TEST(UT_ConlesEventTypical, Case06_verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvt
   }
 
   std::thread EvtPrduerPostHelloFromEvenOrOddEvtThreads[_Case06_EvtPrduerNum];
-  for (uint32_t i = 0; i < _Case06_EvtPrduerNum; i++) {
-    EvtPrduerPostHelloFromEvenOrOddEvtThreads[i] = std::thread([i, &pObjS_CbPrivData]() {
-      if (i % 2 == 0) {
-        for (uint32_t j = 0; j < _Case06_HelloFromEvenToOddCnt; j++) {
+  for (uint32_t ThreadIdx = 0; ThreadIdx < _Case06_EvtPrduerNum; ThreadIdx++) {
+    EvtPrduerPostHelloFromEvenOrOddEvtThreads[ThreadIdx] = std::thread([ThreadIdx, &pCosmerObjs_CbPrivData]() {
+      if (ThreadIdx % 2 == 0) {
+        for (uint32_t NextEvenEvtSeqID = 0; NextEvenEvtSeqID < _Case06_HelloFromEvenToOddCnt; NextEvenEvtSeqID++) {
           IOC_EvtDesc_T ObjB_EvtDesc = {.EvtID = IOC_EVTID_TEST_HELLO_FROM_EVEN_TO_ODD};
           IOC_Result_T Result = IOC_postEVT_inConlesMode(&ObjB_EvtDesc, NULL);
           // Result is IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_QUEUING_EVTDESC
           ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC)  // CheckPoint
-              << "i= " << i << " j=" << j;
+              << "ThreadIdx= " << ThreadIdx << " NextEvenEvtSeqID=" << NextEvenEvtSeqID;
 
           if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
-            j--;           // retry
+            NextEvenEvtSeqID--;  // retry
             usleep(1000);  // 1ms
           }
         }
       } else {
-        for (uint32_t j = 0; j < _Case06_HelloFromOddToEvenCnt; j++) {
+        for (uint32_t NextOddEvtSeqID = 0; NextOddEvtSeqID < _Case06_HelloFromOddToEvenCnt; NextOddEvtSeqID++) {
           IOC_EvtDesc_T ObjB_EvtDesc = {.EvtID = IOC_EVTID_TEST_HELLO_FROM_ODD_TO_EVEN};
           IOC_Result_T Result = IOC_postEVT_inConlesMode(&ObjB_EvtDesc, NULL);
           // Result is IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_QUEUING_EVTDESC
           ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC)  // CheckPoint
-              << "i= " << i << " j=" << j;
+              << "ThreadIdx= " << ThreadIdx << " NextOddEvtSeqID=" << NextOddEvtSeqID;
 
           if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
-            j--;           // retry
+            NextOddEvtSeqID--;  // retry
             usleep(1000);  // 1ms
           }
         }
@@ -691,39 +694,40 @@ TEST(UT_ConlesEventTypical, Case06_verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvt
     });
   }
 
-  for (uint32_t i = 0; i < _Case06_EvtPrduerNum; i++) {
-    EvtPrduerPostKeepAliveEvtThreads[i].join();
-    EvtPrduerPostHelloFromEvenOrOddEvtThreads[i].join();
+  for (uint32_t PrduerIdx = 0; PrduerIdx < _Case06_EvtPrduerNum; PrduerIdx++) {
+    EvtPrduerPostKeepAliveEvtThreads[PrduerIdx].join();
+    EvtPrduerPostHelloFromEvenOrOddEvtThreads[PrduerIdx].join();
   }
 
   IOC_forceProcEVT();
+   // sleep(1);
 
-  //===VERIFY===
-  for (uint16_t i = 0; i < _Case06_EvtCosmerNum; i++) {
-    ASSERT_EQ(_Case06_KeepAliveCnt * _Case06_EvtPrduerNum, pObjS_CbPrivData[i].KeepAliveCnt)  // KeyVerifyPoint
-        << "MaxEvtCosmrNum= " << MaxEvtCosmerNum << " i=" << i;
+   //===VERIFY===
+   for (uint16_t CosmerIdx = 0; CosmerIdx < _Case06_EvtCosmerNum; CosmerIdx++) {
+    ASSERT_EQ(_Case06_KeepAliveCnt * _Case06_EvtPrduerNum, pCosmerObjs_CbPrivData[CosmerIdx].KeepAliveCnt)  // KeyVerifyPoint
+        << "MaxEvtCosmerNum= " << MaxEvtCosmerNum << " CosmerIdx=" << CosmerIdx;
 
-    if (pObjS_CbPrivData[i].IsOdd) {
+    if (pCosmerObjs_CbPrivData[CosmerIdx].IsOdd) {
       ASSERT_EQ(_Case06_HelloFromEvenToOddCnt * (_Case06_EvtPrduerNum / 2),
-                pObjS_CbPrivData[i].HelloFromEvenToOddCnt)  // KeyVerifyPoint
-          << "MaxEvtCosmrNum= " << MaxEvtCosmerNum << " i=" << i;
-      ASSERT_EQ(0, pObjS_CbPrivData[i].HelloFromOddToEvenCnt)  // KeyVerifyPoint
-          << "MaxEvtCosmrNum= " << MaxEvtCosmerNum << " i=" << i;
+                pCosmerObjs_CbPrivData[CosmerIdx].HelloFromEvenToOddCnt)  // KeyVerifyPoint
+          << "MaxEvtCosmrNum= " << MaxEvtCosmerNum << " CosmerIdx=" << CosmerIdx;
+      ASSERT_EQ(0, pCosmerObjs_CbPrivData[CosmerIdx].HelloFromOddToEvenCnt)  // KeyVerifyPoint
+          << "MaxEvtCosmrNum= " << MaxEvtCosmerNum << " CosmerIdx=" << CosmerIdx;
     } else {
-      ASSERT_EQ(0, pObjS_CbPrivData[i].HelloFromEvenToOddCnt)  // KeyVerifyPoint
-          << "MaxEvtCosmrNum= " << MaxEvtCosmerNum << " i=" << i;
+      ASSERT_EQ(0, pCosmerObjs_CbPrivData[CosmerIdx].HelloFromEvenToOddCnt)  // KeyVerifyPoint
+          << "MaxEvtCosmrNum= " << MaxEvtCosmerNum << " CosmerIdx=" << CosmerIdx;
       ASSERT_EQ(_Case06_HelloFromOddToEvenCnt * ((_Case06_EvtPrduerNum / 2) + (_Case06_EvtPrduerNum % 2)),
-                pObjS_CbPrivData[i].HelloFromOddToEvenCnt)  // KeyVerifyPoint
-          << "MaxEvtCosmrNum= " << MaxEvtCosmerNum << " i=" << i;
+                pCosmerObjs_CbPrivData[CosmerIdx].HelloFromOddToEvenCnt)  // KeyVerifyPoint
+          << "MaxEvtCosmrNum= " << MaxEvtCosmerNum << " CosmerIdx=" << CosmerIdx;
     }
-  }
+   }
 
   //===CLEANUP===
   for (uint16_t i = 0; i < _Case06_EvtCosmerNum; i++) {
-    IOC_UnsubEvtArgs_T ObjS_UnsubEvtArgs = {.CbProcEvt_F = _Case06_CbProcEvt_NvM, .pCbPriv = &pObjS_CbPrivData[i]};
+    IOC_UnsubEvtArgs_T ObjS_UnsubEvtArgs = {.CbProcEvt_F = _Case06_CbProcEvt_NvM, .pCbPriv = &pCosmerObjs_CbPrivData[i]};
     Result = IOC_unsubEVT_inConlesMode(&ObjS_UnsubEvtArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
   }
 
-  free(pObjS_CbPrivData);
+  free(pCosmerObjs_CbPrivData);
 }

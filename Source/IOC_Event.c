@@ -64,9 +64,10 @@ static void* __IOC_procEvtCbThread_inConlesMode(void* pArg) {
 
         //-------------------------------------------------------------------------------------------------------------
         // BEGIN: callback process event function
-        for (int j = 0; j < pSubEvtArgs->EvtNum; j++) {  // forEach EvtCosmer's subedEvtID
-          // if (pEvtDesc->EvtID == pSubEvtArgs->pEvtIDs[j])
-          { pSubEvtArgs->CbProcEvt_F(pEvtDesc, pSubEvtArgs->pCbPrivData); }
+        for (int Idx = 0; Idx < pSubEvtArgs->EvtNum; Idx++) {  // forEach EvtCosmer's subedEvtID
+          if (pEvtDesc->EvtID == pSubEvtArgs->pEvtIDs[Idx]) {
+            pSubEvtArgs->CbProcEvt_F(pEvtDesc, pSubEvtArgs->pCbPrivData);
+          }
         }
         free(pEvtDesc);
         // END: callback process event function
@@ -238,9 +239,10 @@ static void __IOC_forceProcEVT_inConlesMode() {
 
       //-------------------------------------------------------------------------------------------------------------
       // BEGIN: callback process event function
-      for (int j = 0; j < pSubEvtArgs->EvtNum; j++) {  // forEach EvtCosmer's subedEvtID
-        // if (pEvtDesc->EvtID == pSubEvtArgs->pEvtIDs[j])
-        { pSubEvtArgs->CbProcEvt_F(pEvtDesc, pSubEvtArgs->pCbPrivData); }
+      for (int Idx = 0; Idx < pSubEvtArgs->EvtNum; Idx++) {  // forEach EvtCosmer's subedEvtID
+        if (pEvtDesc->EvtID == pSubEvtArgs->pEvtIDs[Idx]) {
+          pSubEvtArgs->CbProcEvt_F(pEvtDesc, pSubEvtArgs->pCbPrivData);
+        }
       }
       // END: callback process event function
       //-------------------------------------------------------------------------------------------------------------
