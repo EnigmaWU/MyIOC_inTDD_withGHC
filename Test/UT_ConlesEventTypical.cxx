@@ -606,6 +606,7 @@ TEST(UT_ConlesEventTypical, Case06_verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvt
 #define _Case06_HelloFromEvenToOddCnt 1024
 #define _Case06_HelloFromOddToEvenCnt 1024
 
+  //------------------------------------- init&sub EvtCosmer -------------------------------------
   _Case06_CbPrivData_T *pCosmerObjs_CbPrivData =
       (_Case06_CbPrivData_T *)malloc(_Case06_EvtCosmerNum * sizeof(_Case06_CbPrivData_T));
   ASSERT_NE(nullptr, pCosmerObjs_CbPrivData);  // CheckPoint
@@ -618,25 +619,31 @@ TEST(UT_ConlesEventTypical, Case06_verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvt
     pCosmerObjs_CbPrivData[i].HelloFromOddToEvenCnt = 0;
 
     if (pCosmerObjs_CbPrivData[i].IsOdd) {
-      IOC_EvtID_T OddCosmerObj_SubEvtIDs[]     = {IOC_EVTID_TEST_KEEPALIVE, IOC_EVTID_TEST_HELLO_FROM_EVEN_TO_ODD,
-                                                  IOC_EVTID_TEST_SLEEP_9MS};
+      IOC_EvtID_T OddCosmerObj_SubEvtIDs[] = {
+          IOC_EVTID_TEST_KEEPALIVE,
+          IOC_EVTID_TEST_HELLO_FROM_EVEN_TO_ODD,
+      };
       IOC_SubEvtArgs_T OddCosmerObj_SubEvtArgs = {
           .CbProcEvt_F = _Case06_CbProcEvt_NvM,
           .pCbPrivData = &pCosmerObjs_CbPrivData[i],
           .EvtNum      = IOC_calcArrayElmtCnt(OddCosmerObj_SubEvtIDs),
           .pEvtIDs     = OddCosmerObj_SubEvtIDs,
       };
+
       Result = IOC_subEVT_inConlesMode(&OddCosmerObj_SubEvtArgs);
       ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
     } else {
-      IOC_EvtID_T EvenCosmerObj_SubEvtIDs[]     = {IOC_EVTID_TEST_KEEPALIVE, IOC_EVTID_TEST_HELLO_FROM_ODD_TO_EVEN,
-                                                   IOC_EVTID_TEST_SLEEP_99MS};
+      IOC_EvtID_T EvenCosmerObj_SubEvtIDs[] = {
+          IOC_EVTID_TEST_KEEPALIVE,
+          IOC_EVTID_TEST_HELLO_FROM_ODD_TO_EVEN,
+      };
       IOC_SubEvtArgs_T EvenCosmerObj_SubEvtArgs = {
           .CbProcEvt_F = _Case06_CbProcEvt_NvM,
           .pCbPrivData = &pCosmerObjs_CbPrivData[i],
           .EvtNum      = IOC_calcArrayElmtCnt(EvenCosmerObj_SubEvtIDs),
           .pEvtIDs     = EvenCosmerObj_SubEvtIDs,
       };
+
       Result = IOC_subEVT_inConlesMode(&EvenCosmerObj_SubEvtArgs);
       ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
     }
@@ -647,8 +654,8 @@ TEST(UT_ConlesEventTypical, Case06_verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvt
   for (uint32_t i = 0; i < _Case06_EvtPrduerNum; i++) {
     EvtPrduerPostKeepAliveEvtThreads[i] = std::thread([i, &pCosmerObjs_CbPrivData]() {
       for (uint32_t NextEvtSeqID = 0; NextEvtSeqID < _Case06_KeepAliveCnt; NextEvtSeqID++) {
-        IOC_EvtDesc_T ObjB_EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
-        IOC_Result_T Result = IOC_postEVT_inConlesMode(&ObjB_EvtDesc, NULL);
+        IOC_EvtDesc_T KeepAliveEvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
+        IOC_Result_T Result            = IOC_postEVT_inConlesMode(&KeepAliveEvtDesc, NULL);
         // Result is IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_QUEUING_EVTDESC
         ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC)  // CheckPoint
             << "i= " << i << " j=" << NextEvtSeqID;

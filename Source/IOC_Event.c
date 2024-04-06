@@ -157,7 +157,6 @@ static IOC_Result_T __IOC_postEVT_inConlesMode(
     /*ARG_IN*/ const IOC_EvtDesc_pT pEvtDesc,
     /*ARG_IN_OPTIONAL*/ const IOC_Options_pT pOptions) {
   ULONG_T CbProcEvtCnt = 0;
-  IOC_SubEvtArgs_pT pSavedSubEvtArgs = &_mConlesModeSubEvtArgs[0];
 
   bool IsNonBlockMode = true;
   // TODO: IF pOptions is not NULL, THEN parse the IOC_OPTID_NONBLOCK_MODE
@@ -169,7 +168,19 @@ static IOC_Result_T __IOC_postEVT_inConlesMode(
   }
 
   pthread_mutex_lock(&_mConlesModeSubEvtArgsMutex);
-  for (int i = 0; i < _IOC_CONLES_MODE_MAX_EVTCOSMER_NUNBER; i++) {  // forEach ConlesModeEvtCosmer
+  // forEach ConlesModeEvtCosmer, IF ANY NotProcedEvt, THEN return IOC_RESULT_TOO_MANY_QUEUING_EVTDESC
+  for (int CosmerIdx = 0; CosmerIdx < _IOC_CONLES_MODE_MAX_EVTCOSMER_NUNBER; CosmerIdx++) {
+    _IOC_ConlesModeQueuingEvtDesc_pT pQueuingEvtDesc = &_mConlesModeQueuingEvtDesc[CosmerIdx];
+
+    ULONG_T NotProcedEvtNum = pQueuingEvtDesc->QueuedEvtNum - pQueuingEvtDesc->ProcedEvtNum;
+    if (NotProcedEvtNum >= _IOC_CONLES_MODE_MAX_QUEUING_EVTDESC_NUMBER) {
+      pthread_mutex_unlock(&_mConlesModeSubEvtArgsMutex);
+      return IOC_RESULT_TOO_MANY_QUEUING_EVTDESC;
+    }
+  }
+
+  for (int CosmerIdx = 0; CosmerIdx < _IOC_CONLES_MODE_MAX_EVTCOSMER_NUNBER; CosmerIdx++) {  // forEach ConlesModeEvtCosmer
+    IOC_SubEvtArgs_pT pSavedSubEvtArgs = &_mConlesModeSubEvtArgs[CosmerIdx];
     if (!pSavedSubEvtArgs->CbProcEvt_F) {
       continue;
     }
@@ -183,17 +194,8 @@ static IOC_Result_T __IOC_postEVT_inConlesMode(
         pSavedSubEvtArgs->CbProcEvt_F(pEvtDesc, pSavedSubEvtArgs->pCbPrivData);
       } else {
         // Queuing the pEvtDesc
-        _IOC_ConlesModeQueuingEvtDesc_pT pQueuingEvtDesc = &_mConlesModeQueuingEvtDesc[i];  // SubEvtArgsIdx==EvtQueuingIdx
-
-        ULONG_T InQueueNotProcEvtNum = pQueuingEvtDesc->QueuedEvtNum - pQueuingEvtDesc->ProcedEvtNum;
-        if (InQueueNotProcEvtNum >= _IOC_CONLES_MODE_MAX_QUEUING_EVTDESC_NUMBER) {
-          if (IsNonBlockMode) {
-            pthread_mutex_unlock(&_mConlesModeSubEvtArgsMutex);
-
-            __IOC_wakeupEvtCbTrhead_inConlesMode();
-            return IOC_RESULT_TOO_MANY_QUEUING_EVTDESC;
-          }
-        }
+        _IOC_ConlesModeQueuingEvtDesc_pT pQueuingEvtDesc =
+            &_mConlesModeQueuingEvtDesc[CosmerIdx];  // SubEvtArgsIdx==EvtQueuingIdx
 
         ULONG_T NextQueuingEvtIdx = pQueuingEvtDesc->QueuedEvtNum % _IOC_CONLES_MODE_MAX_QUEUING_EVTDESC_NUMBER;
 
@@ -209,7 +211,6 @@ static IOC_Result_T __IOC_postEVT_inConlesMode(
       }
       CbProcEvtCnt++;
     }
-    pSavedSubEvtArgs++;
   }
   pthread_mutex_unlock(&_mConlesModeSubEvtArgsMutex);
 
