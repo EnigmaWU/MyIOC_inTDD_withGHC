@@ -66,21 +66,21 @@
 
 ### EVT::FSM::Conles
 
-* {TSF-0}<ACT:_initCRuntimeSuccess>  -> [STATE:LinkStateReady]
+* {TSF-0}\<ACT:_initCRuntimeSuccess>  -> [STATE:LinkStateReady]
 
 ---
 
-* {TSF-1}[STATE:LinkStateReady]  ->  <ACT:subEvt/unsubEvt>   -> [STATE:LinkStateReady]
+* {TSF-1}[STATE:LinkStateReady]  ->  \<ACT:subEvt/unsubEvt>   -> [STATE:LinkStateReady]
 
 ---
 
-* {TSF-2}[STATE:LinkStateReady/Busy]  ->  <ACT:postEvt>    -> [STATE:LinkStateReady/Busy]
-  * |-> <EVT:enterCbProcEvt_F>  ->  [STATE:LinkStateBusy]
+* {TSF-2}[STATE:LinkStateReady/Busy]  ->  \<ACT:postEvt>    -> [STATE:LinkStateReady/Busy]
+  * |-> \<EVT:enterCbProcEvt_F>  ->  [STATE:LinkStateBusy]
 
 ---
 
 * {TSF-3}[STATE:LinkStateBusy]
-  * |-> <EVT:leaveCbProcEvt_F>  ->  [STATE:LinkStateReady]
+  * |-> \<EVT:leaveCbProcEvt_F>  ->  [STATE:LinkStateReady]
 
 ```mermaid
 stateDiagram-v2
