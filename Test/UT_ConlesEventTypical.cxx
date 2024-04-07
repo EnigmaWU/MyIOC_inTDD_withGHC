@@ -750,3 +750,117 @@ TEST(UT_ConlesEventTypical, Case06_verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvt
 
   free(pCosmerObjs_CbPrivData);
 }
+
+/**
+ * [Name]: verifyPostEvtInCbProcEvt_byObjAPostEvt_andObjBInCbProcEvt_postEvtToObjC
+ * [Purpose]: accord [SPECv2-c.iii] support post new event in CbProcEvt, use this case to verify the behavior.
+ * [Steps]:
+ *   1. ObjB call subEVT(TEST_KEEPALIVE) with _Case07_CbProcEvt_postKeepAliveRelayEvt as SETUP.
+ *      ObjC call subEVT(TEST_KEEPALIVE_RELAY) with _Case07_CbProcEvt_procKeepAliveRelay as SETUP.
+ *   2. ObjA call postEVT(TEST_KEEPALIVE) with $_Case07_KeepAliveEvtCnt times as BEHAVIOR.
+ *   3. In _Case07_CbProcEvt_postNewEvt, postEVT(TEST_KEEPALIVE_RELAY) twice each time as BEHAVIOR.
+ *   4. Check ObjB's _Case07_CbProcEvt_postKeepAliveRelayEvt is callbacked $_Case07_KeepAliveEvtCnt times as VERIFY.
+ *      Check ObjC's _Case07_CbProcEvt_procKeepAliveRelay is callbacked 2 * $_Case07_KeepAliveEvtCnt times as VERIFY.
+ * [Expect]: Step 4 is passed.
+ * [Notes]:
+ */
+
+typedef struct {
+  uint32_t KeepAliveEvtCnt;
+} _Case07_CbPrivData_T;
+
+static IOC_Result_T _Case07_CbProcEvt_postKeepAliveRelayEvt(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
+  _Case07_CbPrivData_T *pCbPrivData = (_Case07_CbPrivData_T *)pCbPriv;
+
+  switch (pEvtDesc->EvtID) {
+    case IOC_EVTID_TEST_KEEPALIVE: {
+      pCbPrivData->KeepAliveEvtCnt++;
+
+      IOC_EvtDesc_T EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE_RELAY};
+
+      IOC_Result_T Result = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
+      EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+
+      Result = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
+      EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+    } break;
+    default: {
+      EXPECT_TRUE(false) << "BUG: unexpected EvtID=" << pEvtDesc->EvtID;
+    }
+      return IOC_RESULT_BUG;
+  }
+
+  return IOC_RESULT_SUCCESS;
+}
+
+static IOC_Result_T _Case07_CbProcEvt_procKeepAliveRelay(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
+  _Case07_CbPrivData_T *pCbPrivData = (_Case07_CbPrivData_T *)pCbPriv;
+
+  switch (pEvtDesc->EvtID) {
+    case IOC_EVTID_TEST_KEEPALIVE_RELAY: {
+      pCbPrivData->KeepAliveEvtCnt++;
+    } break;
+    default: {
+      EXPECT_TRUE(false) << "BUG: unexpected EvtID=" << pEvtDesc->EvtID;
+    }
+      return IOC_RESULT_BUG;
+  }
+
+  return IOC_RESULT_SUCCESS;
+}
+
+TEST(UT_ConlesEventTypical, Case07_verifyPostEvtInCbProcEvt_byObjAPostEvt_andObjBInCbProcEvt_postEvtToObjC) {
+  //===SETUP===
+  _Case07_CbPrivData_T ObjB_CbPrivData = {.KeepAliveEvtCnt = 0};
+  IOC_EvtID_T ObjB_SubEvtIDs[]         = {IOC_EVTID_TEST_KEEPALIVE};
+  IOC_SubEvtArgs_T ObjB_SubEvtArgs     = {
+          .CbProcEvt_F = _Case07_CbProcEvt_postKeepAliveRelayEvt,
+          .pCbPrivData = &ObjB_CbPrivData,
+          .EvtNum      = IOC_calcArrayElmtCnt(ObjB_SubEvtIDs),
+          .pEvtIDs     = ObjB_SubEvtIDs,
+  };
+  IOC_Result_T Result = IOC_subEVT_inConlesMode(&ObjB_SubEvtArgs);
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+
+  _Case07_CbPrivData_T ObjC_CbPrivData = {.KeepAliveEvtCnt = 0};
+  IOC_EvtID_T ObjC_SubEvtIDs[]         = {IOC_EVTID_TEST_KEEPALIVE_RELAY};
+  IOC_SubEvtArgs_T ObjC_SubEvtArgs     = {
+          .CbProcEvt_F = _Case07_CbProcEvt_procKeepAliveRelay,
+          .pCbPrivData = &ObjC_CbPrivData,
+          .EvtNum      = IOC_calcArrayElmtCnt(ObjC_SubEvtIDs),
+          .pEvtIDs     = ObjC_SubEvtIDs,
+  };
+  Result = IOC_subEVT_inConlesMode(&ObjC_SubEvtArgs);
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+
+#define _Case07_KeepAliveEvtCnt 2048
+
+  //===BEHAVIOR===
+  IOC_EvtDesc_T ObjA_EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
+  for (uint32_t NextEvtSeqID = 0; NextEvtSeqID < _Case07_KeepAliveEvtCnt; NextEvtSeqID++) {
+    Result = IOC_postEVT_inConlesMode(&ObjA_EvtDesc, NULL);
+    // Result is IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_QUEUING_EVTDESC
+    ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC)  // CheckPoint
+        << "NextEvtSeqID=" << NextEvtSeqID;
+
+    if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
+      NextEvtSeqID--;  // retry
+      usleep(1000);    // 1ms
+    }
+  }
+
+  //===VERIFY===
+  ASSERT_EQ(_Case07_KeepAliveEvtCnt, ObjB_CbPrivData.KeepAliveEvtCnt)  // KeyVerifyPoint
+      << "KeepAliveEvtCnt= " << _Case07_KeepAliveEvtCnt;
+  ASSERT_EQ(_Case07_KeepAliveEvtCnt * 2, ObjC_CbPrivData.KeepAliveEvtCnt)  // KeyVerifyPoint
+      << "KeepAliveEvtCnt= " << _Case07_KeepAliveEvtCnt;
+
+  //===CLEANUP===
+  IOC_UnsubEvtArgs_T ObjB_UnsubEvtArgs = {.CbProcEvt_F = _Case07_CbProcEvt_postKeepAliveRelayEvt, .pCbPriv = &ObjB_CbPrivData};
+  Result                               = IOC_unsubEVT_inConlesMode(&ObjB_UnsubEvtArgs);
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+
+  IOC_UnsubEvtArgs_T ObjC_UnsubEvtArgs = {.CbProcEvt_F = _Case07_CbProcEvt_procKeepAliveRelay, .pCbPriv = &ObjC_CbPrivData};
+  Result                               = IOC_unsubEVT_inConlesMode(&ObjC_UnsubEvtArgs);
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+}

@@ -173,6 +173,8 @@ static IOC_Result_T __IOC_postEVT_inConlesMode(
     ULONG_T NotProcedEvtNum = pQueuingEvtDesc->QueuedEvtNum - pQueuingEvtDesc->ProcedEvtNum;
     if (NotProcedEvtNum >= _IOC_CONLES_MODE_MAX_QUEUING_EVTDESC_NUMBER) {
       pthread_mutex_unlock(&_mConlesModeSubEvtArgsMutex);
+
+      __IOC_wakeupEvtCbTrhead_inConlesMode();
       return IOC_RESULT_TOO_MANY_QUEUING_EVTDESC;
     }
   }
