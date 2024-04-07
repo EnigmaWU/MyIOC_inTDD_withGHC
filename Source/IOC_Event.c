@@ -3,8 +3,6 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/_pthread/_pthread_mutex_t.h>
-#include <sys/_types/_null.h>
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //===>BEGIN: IOC Event in Conles Mode
