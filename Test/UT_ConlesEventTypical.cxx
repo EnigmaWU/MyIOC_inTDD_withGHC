@@ -1,6 +1,18 @@
 #include "_UT_IOC_Common.h"
 
 /**
+ * @brief Summary of UT_ConlesEventTypical
+ * Case01_verifyPostEvt1v1_byOneObjPostEvtAndAnotherObjCbProcEvt
+ * Case02_verifyPostEvt1vN_byOneObjPostEvt_R1TwoObjCbProcEvt_R2ThreeMoreObjCbProcEvt
+ * Case03_verifyPostEvt1vN_byOneObjPostEvt_Min2MaxEvtCosmerCbProcEvt
+ * Case04_verifyPostEvtNv1_byNxEvtPrduerPostEvtAnd1xEvtCosmerCbProcEvt
+ * Case05_verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvtCosmerCbProcEvt
+ * Case06_verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvtCosmerCbProcEvtInCrossOddEvenEvtID
+ * Case07_verifyPostEvtInCbProcEvt_byObjAPostEvt_andObjBInCbProcEvt_postEvtToObjC
+ *
+ */
+
+/**
  * @[Name]: verifyPostEvt1v1_byOneObjPostEvtAndAnotherObjCbProcEvt
  * @[Purpose]: accord [SPECv2-c.i] support 1:1 post event in ConlesMode, use this case to verify the 1:1 behavior.
  * @[Steps]:
