@@ -10,7 +10,7 @@
 static IOC_SubEvtArgs_T _mConlesModeSubEvtArgs[_IOC_CONLES_MODE_MAX_EVTCOSMER_NUNBER] = {};
 static pthread_mutex_t _mConlesModeSubEvtArgsMutex = PTHREAD_MUTEX_INITIALIZER;
 
-#define _IOC_CONLES_MODE_MAX_QUEUING_EVTDESC_NUMBER 10
+#define _IOC_CONLES_MODE_MAX_QUEUING_EVTDESC_NUMBER 20
 typedef struct {
   /**
    * IF QueuedEvtNum == ProcedEvtNum, the queue is empty;

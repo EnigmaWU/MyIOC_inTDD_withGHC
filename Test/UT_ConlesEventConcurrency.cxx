@@ -8,7 +8,8 @@
 
 /**
  * @[Name]: verifyASync_byPostTestSleep9ms99msEvtEvery10msByEvtPrducerInSingleThread
- * @[Purpose]: verify SPECv2-z.5 in README.md
+ * @[Purpose]: accord SPECv2-z.5 in README.md, use this case to verify postEVT in ASync mode,
+ *    by ObjA's call postEVT time cost(<1ms) is much less than ObjB/ObjC's CbProcEvt of each sleep 9ms/99ms.
  * @[Steps]:
  *   1) ObjB as EvtCosmer subEVT(TEST_SLEEP_9MS), ObjC as EvtCosmer subEVT(TEST_SLEEP_99MS)
  *   2) ObjA as EvtPrducer postEVT(TEST_SLEEP_9MS) every 10ms and postEVT(TEST_SLEEP_99MS) every 100ms
@@ -90,7 +91,7 @@ TEST(UT_ConlesEventConcurrency, Case01_verifyASync_byPostTestSleep9ms99msEvtEver
   struct timeval StartLoopTime, EndLoopTime;
 
   gettimeofday(&StartLoopTime, NULL);
-  for (uint32_t i = 0; i < 100; i++) {
+  for (uint32_t NextEvtID = 0; NextEvtID < 100; NextEvtID++) {
     // check every postEVT cost time less than 1ms
     struct timeval StartPost9msTime, EndPost9msTime;
     IOC_EvtDesc_T ObjA_EvtDescTestSleep9ms = {.EvtID = IOC_EVTID_TEST_SLEEP_9MS};
@@ -106,7 +107,7 @@ TEST(UT_ConlesEventConcurrency, Case01_verifyASync_byPostTestSleep9ms99msEvtEver
 
     ObjA_PostedPrivData.TestSleep9msEvtCnt++;
 
-    if (i % 10 == 0) {
+    if (NextEvtID % 10 == 0) {
       // check every postEVT cost time less than 1ms
       struct timeval StartPost99msTick, EndPost99msTick;
       IOC_EvtDesc_T ObjA_EvtDescTestSleep99ms = {.EvtID = IOC_EVTID_TEST_SLEEP_99MS};
@@ -127,7 +128,8 @@ TEST(UT_ConlesEventConcurrency, Case01_verifyASync_byPostTestSleep9ms99msEvtEver
   }
   gettimeofday(&EndLoopTime, NULL);
 
-  sleep(1);
+  // sleep(1);
+  IOC_forceProcEVT();
 
   //===VERIFY===
   ASSERT_EQ(100, ObjA_PostedPrivData.TestSleep9msEvtCnt)  // KeyVerifyPoint
