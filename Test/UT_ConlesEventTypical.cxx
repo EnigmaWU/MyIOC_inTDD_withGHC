@@ -1,3 +1,5 @@
+#include <unistd.h>
+
 #include "_UT_IOC_Common.h"
 
 /**
@@ -839,14 +841,9 @@ TEST(UT_ConlesEventTypical, Case07_verifyPostEvtInCbProcEvt_byObjAPostEvt_andObj
   IOC_EvtDesc_T ObjA_EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
   for (uint32_t NextEvtSeqID = 0; NextEvtSeqID < _Case07_KeepAliveEvtCnt; NextEvtSeqID++) {
     Result = IOC_postEVT_inConlesMode(&ObjA_EvtDesc, NULL);
-    // Result is IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_QUEUING_EVTDESC
-    ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC)  // CheckPoint
+    ASSERT_TRUE(Result == IOC_RESULT_SUCCESS)  // CheckPoint
         << "NextEvtSeqID=" << NextEvtSeqID;
-
-    if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
-      NextEvtSeqID--;  // retry
-      usleep(1000);    // 1ms
-    }
+    usleep(1000);  // 1ms
   }
 
   //===VERIFY===

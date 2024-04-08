@@ -38,10 +38,17 @@ static pthread_cond_t _mConlesModeEvtCbThreadCond   = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t _mConlesModeEvtCbThreadMutex = PTHREAD_MUTEX_INITIALIZER;
 
 static void* __IOC_procEvtCbThread_inConlesMode(void* pArg) {
+  ULONG_T ProcedEvtNum = 0;
+
   while (1) {
-    pthread_mutex_lock(&_mConlesModeEvtCbThreadMutex);
-    pthread_cond_wait(&_mConlesModeEvtCbThreadCond, &_mConlesModeEvtCbThreadMutex);
-    pthread_mutex_unlock(&_mConlesModeEvtCbThreadMutex);
+    if (!ProcedEvtNum) {
+      pthread_mutex_lock(&_mConlesModeEvtCbThreadMutex);
+      pthread_cond_wait(&_mConlesModeEvtCbThreadCond, &_mConlesModeEvtCbThreadMutex);
+      pthread_mutex_unlock(&_mConlesModeEvtCbThreadMutex);
+    } else {
+      // IF ProcedEvtNum > 0, THEN dont wait, try to see if new incoming event from CbProcEvt_F
+      ProcedEvtNum = 0;
+    }
 
     pthread_mutex_lock(&_mConlesModeSubEvtArgsMutex);
     for (int i = 0; i < _IOC_CONLES_MODE_MAX_EVTCOSMER_NUNBER; i++) {  // forEach ConlesModeEvtCosmer
@@ -61,6 +68,7 @@ static void* __IOC_procEvtCbThread_inConlesMode(void* pArg) {
         pQueuingEvtDesc->ProcedEvtNum++;
 
         //-------------------------------------------------------------------------------------------------------------
+        pthread_mutex_unlock(&_mConlesModeSubEvtArgsMutex);
         // BEGIN: callback process event function
         for (int Idx = 0; Idx < pSubEvtArgs->EvtNum; Idx++) {  // forEach EvtCosmer's subedEvtID
           if (pEvtDesc->EvtID == pSubEvtArgs->pEvtIDs[Idx]) {
@@ -68,7 +76,9 @@ static void* __IOC_procEvtCbThread_inConlesMode(void* pArg) {
           }
         }
         free(pEvtDesc);
+        ProcedEvtNum++;
         // END: callback process event function
+        pthread_mutex_lock(&_mConlesModeSubEvtArgsMutex);
         //-------------------------------------------------------------------------------------------------------------
       }
     }

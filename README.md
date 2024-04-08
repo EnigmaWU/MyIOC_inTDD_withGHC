@@ -116,7 +116,7 @@ stateDiagram-v2
   * c）Abilities:
     * i)Support ~~1:1/1:N/N:1/N:M~~ post event in ConlesMode;
     * ii)Support ~~customize event ID~~ payload data;
-    * iii)Support postEVT in cbEVT;
+    * iii)~~Support postEVT in cbEVT~~;
   * z) IF...THEN...
     * 1)~~IF no ObjXYZ subEVT, THEN return NO_EVTCOSMER when postEVT, return NO_EVTCOSMER when unsbuEVT.~~
     * 2)~~IF too many subEVT, THEN return TOO_MANY_EVTCOSMER. IF subEVT twice or more, THEN return CONFLICT_EVTCOSMER.~~
@@ -127,6 +127,7 @@ stateDiagram-v2
     * 6)IF ObjA postEVT(TEST_SLEEP_10MS) every 10ms, ObjB subEVT(TEST_SLEEP_10MS) but do sleep 999ms in its CbProcEvt, THEN ObjA postEVT with ASync/NonBlock by default, but may postEVT in Sync or MayBlock or Timeout.
     * 7)~~IF ObjA subEVT(TEST_SLEEP_99MS), ObjB postEVT(TEST_SLEEP_99MS) with Sync option ON, and ObjA update its SyncFlagValue to TRUE after usleep(99000), THEN ObjB's postEVT will cost >99ms and get ObjA's SyncFlagValue is TRUE immediately after postEVT return.~~
     * 8)IF ObjA's CbProcEvt using too many CPU cycles, ObjB posted too many events, THEN ObjB's postEVT will get TOO_MANY_EVENTS by default, or blocked if OptID=MayBlock is ON, or block a while then get TIMEOUT if OptID=Timeout/withMS is SET.
+    * 9) IF ObjA postEVT to ObjB as fast as possible, in ObjB's CbProcEvt_F post another twice or more event to ObjC/x2/x4/..., THEN ObjA/... get TOO_MANY_QUEUING_EVTDESC by default in NonBlock or block until return SUCCESS if MayBlock option on.
 
 * 【vN】Pending ideas...
   * Doc/ScrnCapRecs, clang-format/-tidy
