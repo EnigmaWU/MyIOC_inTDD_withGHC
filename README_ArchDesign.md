@@ -5,13 +5,13 @@
 
 # Glossary
 
+* ModMgr vs ModUsr
+* EvtPrduer vs EvtCosmer
+* Conet vs Conles
+* MSG: CMD vs EVT vs DAT
+
 # Concept
 
-# Object
-
-# Operation
-
-# State
 
 ## ModMgr vs ModUsr（EvtPrduer or EvtCosmer）
 
@@ -67,11 +67,17 @@
       USE IOC_Options_T to change Link's current postEvt to MAYDROP,
           which means ObjX's postEVT success, but sometimes ObjY never get this EVT.
 
-### EVT:FSM::Conet
+# Object
+
+# Operation
+
+# State
+
+## EVT:FSM::Conet
 
 * TODO
 
-### EVT::FSM::Conles
+## EVT::FSM::Conles
 
 * {TSF-0}\<ACT:_initCRuntimeSuccess>  -> [STATE:LinkStateReady]
 
