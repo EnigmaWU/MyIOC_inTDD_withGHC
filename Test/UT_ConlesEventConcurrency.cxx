@@ -4,6 +4,14 @@
 //===>RefMore: ConsoleEventCapabilty UT_ConlesEventCapabilty.cxx
 //===>RefMore: SPECv2 in README.md
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/**
+ * @brief Summary of UT_ConlesEventConcurrency
+ * 1) verifyASync_byPostTestSleep9ms99msEvtEvery10msByEvtPrducerInSingleThread
+ * 2) verifySync_byPostTestSleep99msEvt_andUpdateSyncFlagValueAfterSleepInCbProcEvt
+ */
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Define a test case to verify SPECv2-z.5 in README.md
 
 /**
