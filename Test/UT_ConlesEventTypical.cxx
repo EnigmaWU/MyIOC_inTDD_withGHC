@@ -6,10 +6,10 @@
  * @brief Summary of UT_ConlesEventTypical
  * Case01_verifyPostEvt1v1_byOneObjPostEvtAndAnotherObjCbProcEvt
  * Case02_verifyPostEvt1vN_byOneObjPostEvt_R1TwoObjCbProcEvt_R2ThreeMoreObjCbProcEvt
- * Case03_verifyPostEvt1vN_byOneObjPostEvt_Min2MaxEvtCosmerCbProcEvt
- * Case04_verifyPostEvtNv1_byNxEvtPrduerPostEvtAnd1xEvtCosmerCbProcEvt
- * Case05_verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvtCosmerCbProcEvt
- * Case06_verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvtCosmerCbProcEvtInCrossOddEvenEvtID
+ * Case03_verifyPostEvt1vN_byOneObjPostEvt_Min2MaxEvtConsumerCbProcEvt
+ * Case04_verifyPostEvtNv1_byNxEvtProducerPostEvtAnd1xEvtConsumerCbProcEvt
+ * Case05_verifyPostEvtNvM_byNxEvtProducerPostEvtAndMxEvtConsumerCbProcEvt
+ * Case06_verifyPostEvtNvM_byNxEvtProducerPostEvtAndMxEvtConsumerCbProcEvtInCrossOddEvenEvtID
  * Case07_verifyPostEvtInCbProcEvt_byObjAPostEvt_andObjBInCbProcEvt_postEvtToObjC
  *
  */
@@ -252,23 +252,23 @@ TEST(UT_ConlesEventTypical, Case02_verifyPostEvt1vN_byOneObjPostEvt_R1TwoObjCbPr
 }
 
 // Design a new case to replace UT_ConlesEventTypical, Case02_verifyPostEvt1vN
-//   use getCapabilty to get the max EvtCosmer number assign to N, then use the N to verify the 1:N behavior.
-//   and each EvtCosmer will callbacked step-by-step x1024 KeepAliveCnt times.
+//   use getCapabilty to get the max EvtConsumer number assign to N, then use the N to verify the 1:N behavior.
+//   and each EvtConsumer will callbacked step-by-step x1024 KeepAliveCnt times.
 
 /**
- * @[Name]: verifyPostEvt1vN_byOneObjPostEvt_Min2MaxEvtCosmerCbProcEvt
+ * @[Name]: verifyPostEvt1vN_byOneObjPostEvt_Min2MaxEvtConsumerCbProcEvt
  * @[Purpose]: accord [SPECv2-c.i] support 1:N post event in ConlesMode, use this case to verify the 1:N behavior.
  * @[Steps]:
- *   1. Get the max EvtCosmer number by IOC_getCapabilty(CAPID=CONLES_MODE_EVENT).
- *   2. First for each EvtCosmer loop:
+ *   1. Get the max EvtConsumer number by IOC_getCapabilty(CAPID=CONLES_MODE_EVENT).
+ *   2. First for each EvtConsumer loop:
  *        |-> call subEVT(TEST_KEEPALIVE) with _Case03_CbProcEvt1vN.
  *        |-> then call postEVT(TEST_KEEPALIVE) with $_Case03_KeepAliveEvtCnt times.
- *   3. Second for each EvtCosmer loop:
+ *   3. Second for each EvtConsumer loop:
  *        |-> call postEVT(TEST_KEEPALIVE) with $_Case03_KeepAliveEvtCnt times.
  *        |-> then call unsubEVT(TEST_KEEPALIVE).
- * @[Expect]: each EvtCosmer's _Case03_CbProcEvt1vN is callbacked different times,
- *        the first EvtCosmer is callbacked $_Case03_KeepAliveEvtCnt * 2 * MaxEvtCosmer times,
- *        the last EvtCosmer is callbacked $_Case03_KeepAliveEvtCnt * 2 times.
+ * @[Expect]: each EvtConsumer's _Case03_CbProcEvt1vN is callbacked different times,
+ *        the first EvtConsumer is callbacked $_Case03_KeepAliveEvtCnt * 2 * MaxEvtConsumer times,
+ *        the last EvtConsumer is callbacked $_Case03_KeepAliveEvtCnt * 2 times.
  * @[Notes]:
  */
 
@@ -278,21 +278,21 @@ typedef struct {
 
 static IOC_CbProcEvt_F _Case03_CbProcEvt1vN = _Case02_CbProcEvt_1vN;
 
-TEST(UT_ConlesEventTypical, Case03_verifyPostEvt1vN_byOneObjPostEvt_Min2MaxEvtCosmerCbProcEvt) {
+TEST(UT_ConlesEventTypical, Case03_verifyPostEvt1vN_byOneObjPostEvt_Min2MaxEvtConsumerCbProcEvt) {
   //===SETUP===
   IOC_CapabiltyDescription_T CapDesc = {.CapID = IOC_CAPID_CONLES_MODE_EVENT};
   IOC_Result_T Result = IOC_getCapabilty(&CapDesc);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
 
-  uint16_t MaxEvtCosmerNum = CapDesc.ConlesModeEvent.MaxEvtCosmer;
+  uint16_t MaxEvtConsumerNum = CapDesc.ConlesModeEvent.MaxEvtConsumer;
 
-  _Case03_CbPrivData_T *pObjS_CbPrivData = (_Case03_CbPrivData_T *)malloc(MaxEvtCosmerNum * sizeof(_Case03_CbPrivData_T));
+  _Case03_CbPrivData_T *pObjS_CbPrivData = (_Case03_CbPrivData_T *)malloc(MaxEvtConsumerNum * sizeof(_Case03_CbPrivData_T));
   ASSERT_NE(nullptr, pObjS_CbPrivData);  // CheckPoint
 
 #define _Case03_KeepAliveEvtCnt 1024
   //===BEHAVIOR===
   // subEVT one-by-one incresely, then postEVT round-by-round.
-  for (uint16_t i = 0; i < MaxEvtCosmerNum; i++) {
+  for (uint16_t i = 0; i < MaxEvtConsumerNum; i++) {
     pObjS_CbPrivData[i].KeepAliveEvtCnt = 0;
     IOC_EvtID_T ObjS_SubEvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
     IOC_SubEvtArgs_T ObjS_SubEvtArgs = {
@@ -319,7 +319,7 @@ TEST(UT_ConlesEventTypical, Case03_verifyPostEvt1vN_byOneObjPostEvt_Min2MaxEvtCo
   }
 
   // postEVT round-by-round, then unsubEVT one-by-one reversely.
-  for (uint16_t i = 0; i < MaxEvtCosmerNum; i++) {
+  for (uint16_t i = 0; i < MaxEvtConsumerNum; i++) {
     for (uint32_t j = 0; j < _Case03_KeepAliveEvtCnt; j++) {
       IOC_EvtDesc_T ObjA_EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
       Result = IOC_postEVT_inConlesMode(&ObjA_EvtDesc, NULL);
@@ -336,24 +336,24 @@ TEST(UT_ConlesEventTypical, Case03_verifyPostEvt1vN_byOneObjPostEvt_Min2MaxEvtCo
     IOC_forceProcEVT();
 
     IOC_UnsubEvtArgs_T ObjS_UnsubEvtArgs = {.CbProcEvt_F = _Case03_CbProcEvt1vN,
-                                            .pCbPriv = &pObjS_CbPrivData[MaxEvtCosmerNum - 1 - i] /*reverse*/};
+                                            .pCbPriv     = &pObjS_CbPrivData[MaxEvtConsumerNum - 1 - i] /*reverse*/};
     Result = IOC_unsubEVT_inConlesMode(&ObjS_UnsubEvtArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
   }
 
   //===VERIFY===
   /**
-   * @brief askCopilotChat why assert '_Case03_KeepAliveEvtCnt * 2 * (MaxEvtCosmerNum - i)'
+   * @brief askCopilotChat why assert '_Case03_KeepAliveEvtCnt * 2 * (MaxEvtConsumerNum - i)'
     The multiplication by 2 could be due to the way the "keep alive" events are generated or counted in the system under test.
     For example, each event might be counted twice for some reason, or each event might generate two sub-events.
 
-    The multiplication by (MaxEvtCosmerNum - i) suggests that the expected number of "keep alive" events decreases linearly for
-   each event consumer as i increases. This could be due to the way the events are distributed among the consumers, or it could
-   be a property of the specific test case.
+    The multiplication by (MaxEvtConsumerNum - i) suggests that the expected number of "keep alive" events decreases linearly
+   for each event consumer as i increases. This could be due to the way the events are distributed among the consumers, or it
+   could be a property of the specific test case.
    **/
-  for (uint16_t i = 0; i < MaxEvtCosmerNum; i++) {
-    ASSERT_EQ(_Case03_KeepAliveEvtCnt * 2 * (MaxEvtCosmerNum - i), pObjS_CbPrivData[i].KeepAliveEvtCnt)
-        << "MaxEvtCosmrNum= " << MaxEvtCosmerNum << " i=" << i;  // KeyVerifyPoint
+  for (uint16_t i = 0; i < MaxEvtConsumerNum; i++) {
+    ASSERT_EQ(_Case03_KeepAliveEvtCnt * 2 * (MaxEvtConsumerNum - i), pObjS_CbPrivData[i].KeepAliveEvtCnt)
+        << "MaxEvtCosmrNum= " << MaxEvtConsumerNum << " i=" << i;  // KeyVerifyPoint
   }
 
   //===CLEANUP===
@@ -361,18 +361,18 @@ TEST(UT_ConlesEventTypical, Case03_verifyPostEvt1vN_byOneObjPostEvt_Min2MaxEvtCo
 }
 
 // Design a test case to verify SPECv2-c.i N:1 post event in ConlesMode.
-// Define one EvtCosmer to subEVT(EVTID=TEST_KEEPALIVE) with _Case04_CbProcEvtNv1.
-//  and lastly expect the EvtCosmer will be callbacked N * $_Case04_KeepAliveEvtCnt times.
-// Define $_Case04_EvtPrduerNum as N,
-//  then use the foreach N EvtPrduer in a thread to postEVT(EVTID=TEST_KEEPALIVE) _Case04_KeepAliveEvtCnt times.
+// Define one EvtConsumer to subEVT(EVTID=TEST_KEEPALIVE) with _Case04_CbProcEvtNv1.
+//  and lastly expect the EvtConsumer will be callbacked N * $_Case04_KeepAliveEvtCnt times.
+// Define $_Case04_EvtProducerNum as N,
+//  then use the foreach N EvtProducer in a thread to postEVT(EVTID=TEST_KEEPALIVE) _Case04_KeepAliveEvtCnt times.
 
 /**
- * @[Name]: verifyPostEvtNv1_byNxEvtPrduerPostEvtAnd1xEvtCosmerCbProcEvt
+ * @[Name]: verifyPostEvtNv1_byNxEvtProducerPostEvtAnd1xEvtConsumerCbProcEvt
  * @[Purpose]: accord [SPECv2-c.i] support N:1 post event in ConlesMode, use this case to verify the N:1 behavior.
  * @[Steps]:
  *   1. ObjA call subEVT(TEST_KEEPALIVE) with _Case04_CbProcEvtNv1.
- *   2. Define $_Case04_EvtPrduerNum as N, create N threads to postEVT(TEST_KEEPALIVE) with $_Case04_KeepAliveEvtCnt times.
- *   3. ObjA check the _Case04_CbProcEvtNv1 is callbacked $_Case04_EvtPrduerNum * $_Case04_KeepAliveEvtCnt times.
+ *   2. Define $_Case04_EvtProducerNum as N, create N threads to postEVT(TEST_KEEPALIVE) with $_Case04_KeepAliveEvtCnt times.
+ *   3. ObjA check the _Case04_CbProcEvtNv1 is callbacked $_Case04_EvtProducerNum * $_Case04_KeepAliveEvtCnt times.
  * @[Expect]: Step 3 is passed.
  * @[Notes]:
  */
@@ -383,7 +383,7 @@ static IOC_Result_T _Case04_CbProcEvt_Nv1(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv
   return _Case02_CbProcEvt_1vN(pEvtDesc, pCbPriv);
 }
 
-TEST(UT_ConlesEventTypical, Case04_verifyPostEvtNv1_byNxEvtPrduerPostEvtAnd1xEvtCosmerCbProcEvt) {
+TEST(UT_ConlesEventTypical, Case04_verifyPostEvtNv1_byNxEvtProducerPostEvtAnd1xEvtConsumerCbProcEvt) {
   //===SETUP===
   _Case04_CbPrivData_T ObjA_CbPrivData = {.KeepAliveEvtCnt = 0};
   IOC_EvtID_T ObjA_SubEvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
@@ -396,12 +396,12 @@ TEST(UT_ConlesEventTypical, Case04_verifyPostEvtNv1_byNxEvtPrduerPostEvtAnd1xEvt
   IOC_Result_T Result = IOC_subEVT_inConlesMode(&ObjA_SubEvtArgs);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
 
-#define _Case04_EvtPrduerNum 8
+#define _Case04_EvtProducerNum 8
 #define _Case04_KeepAliveEvtCnt _Case03_KeepAliveEvtCnt
 
-  std::thread EvtPrduerThreads[_Case04_EvtPrduerNum];
-  for (uint32_t i = 0; i < _Case04_EvtPrduerNum; i++) {
-    EvtPrduerThreads[i] = std::thread([i]() {
+  std::thread EvtProducerThreads[_Case04_EvtProducerNum];
+  for (uint32_t i = 0; i < _Case04_EvtProducerNum; i++) {
+    EvtProducerThreads[i] = std::thread([i]() {
       for (uint32_t j = 0; j < _Case04_KeepAliveEvtCnt; j++) {
         IOC_EvtDesc_T ObjB_EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
         IOC_Result_T Result = IOC_postEVT_inConlesMode(&ObjB_EvtDesc, NULL);
@@ -417,14 +417,14 @@ TEST(UT_ConlesEventTypical, Case04_verifyPostEvtNv1_byNxEvtPrduerPostEvtAnd1xEvt
     });
   }
 
-  for (uint32_t i = 0; i < _Case04_EvtPrduerNum; i++) {
-    EvtPrduerThreads[i].join();
+  for (uint32_t i = 0; i < _Case04_EvtProducerNum; i++) {
+    EvtProducerThreads[i].join();
   }
 
   IOC_forceProcEVT();
 
   //===VERIFY===
-  ASSERT_EQ(_Case04_KeepAliveEvtCnt * _Case04_EvtPrduerNum, ObjA_CbPrivData.KeepAliveEvtCnt);  // KeyVerifyPoint
+  ASSERT_EQ(_Case04_KeepAliveEvtCnt * _Case04_EvtProducerNum, ObjA_CbPrivData.KeepAliveEvtCnt);  // KeyVerifyPoint
 
   //===CLEANUP===
   IOC_UnsubEvtArgs_T ObjA_UnsubEvtArgs = {.CbProcEvt_F = _Case04_CbProcEvt_Nv1, .pCbPriv = &ObjA_CbPrivData};
@@ -433,19 +433,19 @@ TEST(UT_ConlesEventTypical, Case04_verifyPostEvtNv1_byNxEvtPrduerPostEvtAnd1xEvt
 }
 
 // Design a test case to verify SPECv2-c.i N:M postEVT and subEVT/cbEVT in ConlesMode.
-// Define $_Case05_EvtPrduerNum as N, $_Case05_EvtCosmerNum as M.
-//  then use the foreach N EvtPrduer in a thread to postEVT(EVTID=TEST_KEEPALIVE) _Case05_KeepAliveEvtCnt times.
-//  and use the foreach M EvtCosmer to subEVT(EVTID=TEST_KEEPALIVE) with _Case05_CbProcEvtNvM.
-//  and lastly expect each EvtCosmer will be callbacked N * $_Case05_KeepAliveEvtCnt times.
+// Define $_Case05_EvtProducerNum as N, $_Case05_EvtConsumerNum as M.
+//  then use the foreach N EvtProducer in a thread to postEVT(EVTID=TEST_KEEPALIVE) _Case05_KeepAliveEvtCnt times.
+//  and use the foreach M EvtConsumer to subEVT(EVTID=TEST_KEEPALIVE) with _Case05_CbProcEvtNvM.
+//  and lastly expect each EvtConsumer will be callbacked N * $_Case05_KeepAliveEvtCnt times.
 
 /**
- * @[Name]: verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvtCosmerCbProcEvt
+ * @[Name]: verifyPostEvtNvM_byNxEvtProducerPostEvtAndMxEvtConsumerCbProcEvt
  * @[Purpose]: accord [SPECv2-c.i] support N:M post event in ConlesMode, use this case to verify the N:M behavior.
  * @[Steps]:
- *   1. Define $_Case05_EvtPrduerNum as N, $_Case05_EvtCosmerNum as M.
- *   2. Create M EvtCosmer to subEVT(TEST_KEEPALIVE) with _Case05_CbProcEvtNvM.
+ *   1. Define $_Case05_EvtProducerNum as N, $_Case05_EvtConsumerNum as M.
+ *   2. Create M EvtConsumer to subEVT(TEST_KEEPALIVE) with _Case05_CbProcEvtNvM.
  *   3. Create N threads to postEVT(TEST_KEEPALIVE) with $_Case05_KeepAliveEvtCnt times.
- *   4. Check each EvtCosmer is callbacked N * $_Case05_KeepAliveEvtCnt times.
+ *   4. Check each EvtConsumer is callbacked N * $_Case05_KeepAliveEvtCnt times.
  * @[Expect]: Step 4 is passed.
  * @[Notes]:
  */
@@ -470,22 +470,22 @@ static IOC_Result_T _Case05_CbProcEvt_NvM(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv
   return IOC_RESULT_SUCCESS;
 }
 
-TEST(UT_ConlesEventTypical, Case05_verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvtCosmerCbProcEvt) {
+TEST(UT_ConlesEventTypical, Case05_verifyPostEvtNvM_byNxEvtProducerPostEvtAndMxEvtConsumerCbProcEvt) {
   //===SETUP===
   IOC_CapabiltyDescription_T CapDesc = {.CapID = IOC_CAPID_CONLES_MODE_EVENT};
   IOC_Result_T Result = IOC_getCapabilty(&CapDesc);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
 
-  uint16_t MaxEvtCosmerNum = CapDesc.ConlesModeEvent.MaxEvtCosmer;
+  uint16_t MaxEvtConsumerNum = CapDesc.ConlesModeEvent.MaxEvtConsumer;
 
-#define _Case05_EvtPrduerNum 8
+#define _Case05_EvtProducerNum 8
 #define _Case05_KeepAliveEvtCnt _Case03_KeepAliveEvtCnt
 
-  // std::thread EvtCosmerThreads[MaxEvtCosmerNum];
-  _Case05_CbPrivData_T *pObjS_CbPrivData = (_Case05_CbPrivData_T *)malloc(MaxEvtCosmerNum * sizeof(_Case05_CbPrivData_T));
+  // std::thread EvtConsumerThreads[MaxEvtConsumerNum];
+  _Case05_CbPrivData_T *pObjS_CbPrivData = (_Case05_CbPrivData_T *)malloc(MaxEvtConsumerNum * sizeof(_Case05_CbPrivData_T));
   ASSERT_NE(nullptr, pObjS_CbPrivData);  // CheckPoint
 
-  for (uint16_t i = 0; i < MaxEvtCosmerNum; i++) {
+  for (uint16_t i = 0; i < MaxEvtConsumerNum; i++) {
     pObjS_CbPrivData[i].KeepAliveEvtCnt = 0;
     IOC_EvtID_T ObjS_SubEvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
     IOC_SubEvtArgs_T ObjS_SubEvtArgs = {
@@ -499,9 +499,9 @@ TEST(UT_ConlesEventTypical, Case05_verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvt
   }
 
   //===BEHAVIOR===
-  std::thread EvtPrduerThreads[_Case05_EvtPrduerNum];
-  for (uint32_t i = 0; i < _Case05_EvtPrduerNum; i++) {
-    EvtPrduerThreads[i] = std::thread([i]() {
+  std::thread EvtProducerThreads[_Case05_EvtProducerNum];
+  for (uint32_t i = 0; i < _Case05_EvtProducerNum; i++) {
+    EvtProducerThreads[i] = std::thread([i]() {
       for (uint32_t j = 0; j < _Case05_KeepAliveEvtCnt; j++) {
         IOC_EvtDesc_T ObjB_EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
         IOC_Result_T Result = IOC_postEVT_inConlesMode(&ObjB_EvtDesc, NULL);
@@ -517,20 +517,20 @@ TEST(UT_ConlesEventTypical, Case05_verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvt
     });
   }
 
-  for (uint32_t i = 0; i < _Case05_EvtPrduerNum; i++) {
-    EvtPrduerThreads[i].join();
+  for (uint32_t i = 0; i < _Case05_EvtProducerNum; i++) {
+    EvtProducerThreads[i].join();
   }
 
   IOC_forceProcEVT();
 
   //===VERIFY===
-  for (uint16_t i = 0; i < MaxEvtCosmerNum; i++) {
-    ASSERT_EQ(_Case05_KeepAliveEvtCnt * _Case05_EvtPrduerNum, pObjS_CbPrivData[i].KeepAliveEvtCnt)  // KeyVerifyPoint
-        << "MaxEvtCosmrNum= " << MaxEvtCosmerNum << " i=" << i;
+  for (uint16_t i = 0; i < MaxEvtConsumerNum; i++) {
+    ASSERT_EQ(_Case05_KeepAliveEvtCnt * _Case05_EvtProducerNum, pObjS_CbPrivData[i].KeepAliveEvtCnt)  // KeyVerifyPoint
+        << "MaxEvtCosmrNum= " << MaxEvtConsumerNum << " i=" << i;
   }
 
   //===CLEANUP===
-  for (uint16_t i = 0; i < MaxEvtCosmerNum; i++) {
+  for (uint16_t i = 0; i < MaxEvtConsumerNum; i++) {
     IOC_UnsubEvtArgs_T ObjS_UnsubEvtArgs = {.CbProcEvt_F = _Case05_CbProcEvt_NvM, .pCbPriv = &pObjS_CbPrivData[i]};
     Result = IOC_unsubEVT_inConlesMode(&ObjS_UnsubEvtArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
@@ -547,24 +547,26 @@ TEST(UT_ConlesEventTypical, Case05_verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvt
 //      and by all even M will subEVT(EVTID=TEST_HELLO_FROM_ODD_TO_EVEN) and  cbEVT(EVTID=TEST_HELLO_FROM_ODD_TO_EVEN).
 
 /**
- * @[Name]: verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvtCosmerCbProcEvtInCrossOddEvenEvtID
+ * @[Name]: verifyPostEvtNvM_byNxEvtProducerPostEvtAndMxEvtConsumerCbProcEvtInCrossOddEvenEvtID
  * @[Purpose]: based on Case05 to verify SPECv2-c.i N:M postEVT and subEVT/cbEVT different EvtID in ConlesMode,
  *      which means some N postEVT of specific EvtID to some M who subEVT specific EvtID will be callbacked,
  *      but will not be callbacked by other M who subEVT other EvtID.
  *    Also verify the N:M behavior of SPECv2-z.4.
  * @[Steps]:
- *  1) Define $_Case06_EvtPrduerNum as N, $_Case06_EvtCosmerNum as M.
- *      |-> If CAP::CONLES_MODE_EVENT.MaxEvtCosmer is less M, then use the MaxEvtCosmer as M.
- *  2) Create M EvtCosmer to subEVT(TEST_KEEPALIVE).
- *    2.1) Foreach M EvtCosmer, if M is odd then subEVT(TEST_HELLO_FROM_EVEN_TO_ODD), else subEVT(TEST_HELLO_FROM_ODD_TO_EVEN).
- *  3) Create N EvtPrduer, foreach N start a thread to postEVT(TEST_KEEPALIVE) of $_Case06_KeepAliveCnt.
- *    3.1) Foreach N EvtPrduer start a thread, if N is odd then postEVT(TEST_HELLO_FROM_ODD_TO_EVEN) of
+ *  1) Define $_Case06_EvtProducerNum as N, $_Case06_EvtConsumerNum as M.
+ *      |-> If CAP::CONLES_MODE_EVENT.MaxEvtConsumer is less M, then use the MaxEvtConsumer as M.
+ *  2) Create M EvtConsumer to subEVT(TEST_KEEPALIVE).
+ *    2.1) Foreach M EvtConsumer, if M is odd then subEVT(TEST_HELLO_FROM_EVEN_TO_ODD), else
+ subEVT(TEST_HELLO_FROM_ODD_TO_EVEN).
+ *  3) Create N EvtProducer, foreach N start a thread to postEVT(TEST_KEEPALIVE) of $_Case06_KeepAliveCnt.
+ *    3.1) Foreach N EvtProducer start a thread, if N is odd then postEVT(TEST_HELLO_FROM_ODD_TO_EVEN) of
  $           _Case06_HelloFromOddToEvenCnt, else postEVT(TEST_HELLO_FROM_EVEN_TO_ODD) of $_Case06_HelloFromEvenToOddCnt.
- *  4) Check each EvtCosmer's KeepAliveCnt is callbacked $_Case06_KeepAliveCnt * $_Case06_EvtPrduerNum times,
- *    and if EvtCosmer is odd then HelloFromEvenToOddCnt is callbacked
-          ($_Case06_HelloFromEvenToOddCnt*($_Case06_EvtPrduerNum/2)) while HelloFromOddToEvenCnt is ZERO,
- *    and if EvtCosmer is even then HelloFromOddToEvenCnt is callbacked
-          ($_Case06_HelloFromOddToEvenCnt*($_Case06_EvtPrduerNum/2+$_Case06_EvtPrduer%2)) while HelloFromEvenToOddCnt is ZERO.
+ *  4) Check each EvtConsumer's KeepAliveCnt is callbacked $_Case06_KeepAliveCnt * $_Case06_EvtProducerNum times,
+ *    and if EvtConsumer is odd then HelloFromEvenToOddCnt is callbacked
+          ($_Case06_HelloFromEvenToOddCnt*($_Case06_EvtProducerNum/2)) while HelloFromOddToEvenCnt is ZERO,
+ *    and if EvtConsumer is even then HelloFromOddToEvenCnt is callbacked
+          ($_Case06_HelloFromOddToEvenCnt*($_Case06_EvtProducerNum/2+$_Case06_EvtProducer%2)) while HelloFromEvenToOddCnt is
+ ZERO.
  * @[Expect]: Step 4 is passed.
  * @[Notes]:
  */
@@ -606,26 +608,26 @@ static IOC_Result_T _Case06_CbProcEvt_NvM(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv
   return IOC_RESULT_SUCCESS;
 }
 
-TEST(UT_ConlesEventTypical, Case06_verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvtCosmerCbProcEvtInCrossOddEvenEvtID) {
+TEST(UT_ConlesEventTypical, Case06_verifyPostEvtNvM_byNxEvtProducerPostEvtAndMxEvtConsumerCbProcEvtInCrossOddEvenEvtID) {
   //===SETUP===
   IOC_CapabiltyDescription_T CapDesc = {.CapID = IOC_CAPID_CONLES_MODE_EVENT};
   IOC_Result_T Result = IOC_getCapabilty(&CapDesc);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
 
-  uint16_t MaxEvtCosmerNum = CapDesc.ConlesModeEvent.MaxEvtCosmer;
+  uint16_t MaxEvtConsumerNum = CapDesc.ConlesModeEvent.MaxEvtConsumer;
 
-#define _Case06_EvtPrduerNum 8
-#define _Case06_EvtCosmerNum (MaxEvtCosmerNum < 8 ? MaxEvtCosmerNum : 8)
+#define _Case06_EvtProducerNum 8
+#define _Case06_EvtConsumerNum (MaxEvtConsumerNum < 8 ? MaxEvtConsumerNum : 8)
 #define _Case06_KeepAliveCnt _Case03_KeepAliveEvtCnt
 #define _Case06_HelloFromEvenToOddCnt 1024
 #define _Case06_HelloFromOddToEvenCnt 1024
 
-  //------------------------------------- init&sub EvtCosmer -------------------------------------
+  //------------------------------------- init&sub EvtConsumer -------------------------------------
   _Case06_CbPrivData_T *pCosmerObjs_CbPrivData =
-      (_Case06_CbPrivData_T *)malloc(_Case06_EvtCosmerNum * sizeof(_Case06_CbPrivData_T));
+      (_Case06_CbPrivData_T *)malloc(_Case06_EvtConsumerNum * sizeof(_Case06_CbPrivData_T));
   ASSERT_NE(nullptr, pCosmerObjs_CbPrivData);  // CheckPoint
 
-  for (uint16_t i = 0; i < _Case06_EvtCosmerNum; i++) {
+  for (uint16_t i = 0; i < _Case06_EvtConsumerNum; i++) {
     pCosmerObjs_CbPrivData[i].IsOdd                 = (i % 2 == 1);
     pCosmerObjs_CbPrivData[i].IsEven                = (i % 2 == 0);
     pCosmerObjs_CbPrivData[i].KeepAliveCnt          = 0;
@@ -664,9 +666,9 @@ TEST(UT_ConlesEventTypical, Case06_verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvt
   }
 
   //===BEHAVIOR===
-  std::thread EvtPrduerPostKeepAliveEvtThreads[_Case06_EvtPrduerNum];
-  for (uint32_t i = 0; i < _Case06_EvtPrduerNum; i++) {
-    EvtPrduerPostKeepAliveEvtThreads[i] = std::thread([i, &pCosmerObjs_CbPrivData]() {
+  std::thread EvtProducerPostKeepAliveEvtThreads[_Case06_EvtProducerNum];
+  for (uint32_t i = 0; i < _Case06_EvtProducerNum; i++) {
+    EvtProducerPostKeepAliveEvtThreads[i] = std::thread([i, &pCosmerObjs_CbPrivData]() {
       for (uint32_t NextEvtSeqID = 0; NextEvtSeqID < _Case06_KeepAliveCnt; NextEvtSeqID++) {
         IOC_EvtDesc_T KeepAliveEvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
         IOC_Result_T Result            = IOC_postEVT_inConlesMode(&KeepAliveEvtDesc, NULL);
@@ -682,9 +684,9 @@ TEST(UT_ConlesEventTypical, Case06_verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvt
     });
   }
 
-  std::thread EvtPrduerPostHelloFromEvenOrOddEvtThreads[_Case06_EvtPrduerNum];
-  for (uint32_t ThreadIdx = 0; ThreadIdx < _Case06_EvtPrduerNum; ThreadIdx++) {
-    EvtPrduerPostHelloFromEvenOrOddEvtThreads[ThreadIdx] = std::thread([ThreadIdx, &pCosmerObjs_CbPrivData]() {
+  std::thread EvtProducerPostHelloFromEvenOrOddEvtThreads[_Case06_EvtProducerNum];
+  for (uint32_t ThreadIdx = 0; ThreadIdx < _Case06_EvtProducerNum; ThreadIdx++) {
+    EvtProducerPostHelloFromEvenOrOddEvtThreads[ThreadIdx] = std::thread([ThreadIdx, &pCosmerObjs_CbPrivData]() {
       if (ThreadIdx % 2 == 0) {
         for (uint32_t NextEvenEvtSeqID = 0; NextEvenEvtSeqID < _Case06_HelloFromEvenToOddCnt; NextEvenEvtSeqID++) {
           IOC_EvtDesc_T ObjB_EvtDesc = {.EvtID = IOC_EVTID_TEST_HELLO_FROM_EVEN_TO_ODD};
@@ -715,40 +717,40 @@ TEST(UT_ConlesEventTypical, Case06_verifyPostEvtNvM_byNxEvtPrduerPostEvtAndMxEvt
     });
   }
 
-  for (uint32_t PrduerIdx = 0; PrduerIdx < _Case06_EvtPrduerNum; PrduerIdx++) {
-    EvtPrduerPostKeepAliveEvtThreads[PrduerIdx].join();
-    EvtPrduerPostHelloFromEvenOrOddEvtThreads[PrduerIdx].join();
+  for (uint32_t PrduerIdx = 0; PrduerIdx < _Case06_EvtProducerNum; PrduerIdx++) {
+    EvtProducerPostKeepAliveEvtThreads[PrduerIdx].join();
+    EvtProducerPostHelloFromEvenOrOddEvtThreads[PrduerIdx].join();
   }
 
   IOC_forceProcEVT();
    // sleep(1);
 
    //===VERIFY===
-   for (uint16_t CosmerIdx = 0; CosmerIdx < _Case06_EvtCosmerNum; CosmerIdx++) {
-    ASSERT_EQ(_Case06_KeepAliveCnt * _Case06_EvtPrduerNum, pCosmerObjs_CbPrivData[CosmerIdx].KeepAliveCnt)  // KeyVerifyPoint
-        << "MaxEvtCosmerNum= " << MaxEvtCosmerNum << " CosmerIdx=" << CosmerIdx;
+  for (uint16_t CosmerIdx = 0; CosmerIdx < _Case06_EvtConsumerNum; CosmerIdx++) {
+    ASSERT_EQ(_Case06_KeepAliveCnt * _Case06_EvtProducerNum, pCosmerObjs_CbPrivData[CosmerIdx].KeepAliveCnt)  // KeyVerifyPoint
+        << "MaxEvtConsumerNum= " << MaxEvtConsumerNum << " CosmerIdx=" << CosmerIdx;
 
     if (pCosmerObjs_CbPrivData[CosmerIdx].IsOdd) {
-      ASSERT_EQ(_Case06_HelloFromEvenToOddCnt * (_Case06_EvtPrduerNum / 2),
+      ASSERT_EQ(_Case06_HelloFromEvenToOddCnt * (_Case06_EvtProducerNum / 2),
                 pCosmerObjs_CbPrivData[CosmerIdx].HelloFromEvenToOddCnt)  // KeyVerifyPoint
-          << "MaxEvtCosmrNum= " << MaxEvtCosmerNum << " CosmerIdx=" << CosmerIdx;
+          << "MaxEvtCosmrNum= " << MaxEvtConsumerNum << " CosmerIdx=" << CosmerIdx;
       ASSERT_EQ(0, pCosmerObjs_CbPrivData[CosmerIdx].HelloFromOddToEvenCnt)  // KeyVerifyPoint
-          << "MaxEvtCosmrNum= " << MaxEvtCosmerNum << " CosmerIdx=" << CosmerIdx;
+          << "MaxEvtCosmrNum= " << MaxEvtConsumerNum << " CosmerIdx=" << CosmerIdx;
     } else {
       ASSERT_EQ(0, pCosmerObjs_CbPrivData[CosmerIdx].HelloFromEvenToOddCnt)  // KeyVerifyPoint
-          << "MaxEvtCosmrNum= " << MaxEvtCosmerNum << " CosmerIdx=" << CosmerIdx;
-      ASSERT_EQ(_Case06_HelloFromOddToEvenCnt * ((_Case06_EvtPrduerNum / 2) + (_Case06_EvtPrduerNum % 2)),
+          << "MaxEvtCosmrNum= " << MaxEvtConsumerNum << " CosmerIdx=" << CosmerIdx;
+      ASSERT_EQ(_Case06_HelloFromOddToEvenCnt * ((_Case06_EvtProducerNum / 2) + (_Case06_EvtProducerNum % 2)),
                 pCosmerObjs_CbPrivData[CosmerIdx].HelloFromOddToEvenCnt)  // KeyVerifyPoint
-          << "MaxEvtCosmrNum= " << MaxEvtCosmerNum << " CosmerIdx=" << CosmerIdx;
+          << "MaxEvtCosmrNum= " << MaxEvtConsumerNum << " CosmerIdx=" << CosmerIdx;
     }
-   }
+  }
 
   //===CLEANUP===
-  for (uint16_t i = 0; i < _Case06_EvtCosmerNum; i++) {
+   for (uint16_t i = 0; i < _Case06_EvtConsumerNum; i++) {
     IOC_UnsubEvtArgs_T ObjS_UnsubEvtArgs = {.CbProcEvt_F = _Case06_CbProcEvt_NvM, .pCbPriv = &pCosmerObjs_CbPrivData[i]};
     Result = IOC_unsubEVT_inConlesMode(&ObjS_UnsubEvtArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
-  }
+   }
 
   free(pCosmerObjs_CbPrivData);
 }

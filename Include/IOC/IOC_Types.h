@@ -21,9 +21,9 @@ typedef enum {
   // IOC's Result
   IOC_RESULT_NOT_IMPLEMENTED          = -500,
   IOC_RESULT_NOT_SUPPORT              = -501,
-  IOC_RESULT_NO_EVTCOSMER             = -502,
-  IOC_RESULT_TOO_MANY_EVTCOSMER       = -503,
-  IOC_RESULT_CONFLICT_EVTCOSMER       = -504,
+  IOC_RESULT_NO_EvtConsumer           = -502,
+  IOC_RESULT_TOO_MANY_EvtConsumer     = -503,
+  IOC_RESULT_CONFLICT_EvtConsumer     = -504,
   IOC_RESULT_TOO_MANY_QUEUING_EVTDESC = -505,
 
   IOC_RESULT_BUG = -999,
@@ -131,7 +131,7 @@ typedef enum {
 } IOC_CapabiltyID_T;
 
 typedef struct {
-    uint16_t MaxEvtCosmer;  // How many EvtCosmer can be subEVT in ConlesMode.
+    uint16_t MaxEvtConsumer;  // How many EvtConsumer can be subEVT in ConlesMode.
 } IOC_ConlesModeEventCapabilty_T, *IOC_ConlesModeEventCapabilty_pT;
 
 typedef struct {

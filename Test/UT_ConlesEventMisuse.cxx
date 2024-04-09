@@ -3,22 +3,23 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
  * @brief Summary of ConlesEventMisuse
- *  1) verifyNoEvtCosmer_byNotSubEvtButPostEvtDirectly
- *  2) verifyNoEvtCosmer_byUnsubEvtWithFakeUnsubArgs
- *  3) verifyNoEvtCosmer_bySubEvtOnceThenUnsubEvtTwice
- *  4) verifyConflictEvtCosmer_bySubSameFakeEvtSubArgsTwice
+ *  1) verifyNoEvtConsumer_byNotSubEvtButPostEvtDirectly
+ *  2) verifyNoEvtConsumer_byUnsubEvtWithFakeUnsubArgs
+ *  3) verifyNoEvtConsumer_bySubEvtOnceThenUnsubEvtTwice
+ *  4) verifyConflictEvtConsumer_bySubSameFakeEvtSubArgsTwice
  */
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
- * @[Name]: verifyNoEvtCosmer_byNotSubEvtButPostEvtDirectly
- * @[Purpose]: accord [SPECv2-z.1], verify the behavior of no event consumer when post event directly will return NO_EVTCOSMER.
+ * @[Name]: verifyNoEvtConsumer_byNotSubEvtButPostEvtDirectly
+ * @[Purpose]: accord [SPECv2-z.1], verify the behavior of no event consumer when post event directly will return
+ * NO_EvtConsumer.
  * @[Steps]:
  *   1. ObjA call postEVT(TEST_KEEPALIVE) directly.
- * @[Expect]: postEVT(TEST_KEEPALIVE) will return IOC_RESULT_NO_EVTCOSMER.
+ * @[Expect]: postEVT(TEST_KEEPALIVE) will return IOC_RESULT_NO_EvtConsumer.
  * @[Notes]:
  */
-TEST(UT_ConlesEventMisuse, Case01_verifyNoEvtCosmer_byNotSubEvtButPostEvtDirectly) {
+TEST(UT_ConlesEventMisuse, Case01_verifyNoEvtConsumer_byNotSubEvtButPostEvtDirectly) {
   //===SETUP===
 
   //===BEHAVIOR===
@@ -26,20 +27,20 @@ TEST(UT_ConlesEventMisuse, Case01_verifyNoEvtCosmer_byNotSubEvtButPostEvtDirectl
   IOC_Result_T Result = IOC_postEVT_inConlesMode(&ObjA_EvtDesc, NULL);
 
   //===VERIFY===
-  ASSERT_EQ(IOC_RESULT_NO_EVTCOSMER, Result);  // KeyVerifyPoint
+  ASSERT_EQ(IOC_RESULT_NO_EvtConsumer, Result);  // KeyVerifyPoint
 
   //===CLEANUP===
 }
 
 /**
- * @[Name]: verifyNoEvtCosmer_byUnsubEvtWithFakeUnsubArgs
- * @[Purpose]: accord [SPECv2-z.1], verify the behavior of no event consumer then unsubEVT directly will return NO_EVTCOSMER.
+ * @[Name]: verifyNoEvtConsumer_byUnsubEvtWithFakeUnsubArgs
+ * @[Purpose]: accord [SPECv2-z.1], verify the behavior of no event consumer then unsubEVT directly will return NO_EvtConsumer.
  * @[Steps]:
  *   1. ObjA call unsubEVT with FakeUnsubArgs directly.
- * @[Expect]: unsubEVT will return IOC_RESULT_NO_EVTCOSMER.
+ * @[Expect]: unsubEVT will return IOC_RESULT_NO_EvtConsumer.
  * @[Notes]:
  */
-TEST(UT_ConlesEventMisuse, Case02_verifyNoEvtCosmer_byUnsubEvtWithFakeUnsubArgs) {
+TEST(UT_ConlesEventMisuse, Case02_verifyNoEvtConsumer_byUnsubEvtWithFakeUnsubArgs) {
   //===SETUP===
 
   //===BEHAVIOR===
@@ -47,22 +48,22 @@ TEST(UT_ConlesEventMisuse, Case02_verifyNoEvtCosmer_byUnsubEvtWithFakeUnsubArgs)
   IOC_Result_T Result = IOC_unsubEVT_inConlesMode(&ObjA_UnsubEvtArgs);
 
   //===VERIFY===
-  ASSERT_EQ(IOC_RESULT_NO_EVTCOSMER, Result);  // KeyVerifyPoint
+  ASSERT_EQ(IOC_RESULT_NO_EvtConsumer, Result);  // KeyVerifyPoint
 
   //===CLEANUP===
 }
 
 /**
- * @[Name]: verifyNoEvtCosmer_bySubEvtOnceThenUnsubEvtTwice
- * @[Purpose]: accord [SPECv2-z.1], verify the behavior of subEVT once then unsubEVT twice will return NO_EVTCOSMER.
+ * @[Name]: verifyNoEvtConsumer_bySubEvtOnceThenUnsubEvtTwice
+ * @[Purpose]: accord [SPECv2-z.1], verify the behavior of subEVT once then unsubEVT twice will return NO_EvtConsumer.
  * @[Steps]:
  *   1. ObjA call subEVT with FakeSubArgs once.
  *   2. ObjA call unsubEVT once.
  *   3. ObjA call unsubEVT again.
- * @[Expect]: unsubEVT will return IOC_RESULT_NO_EVTCOSMER at the second time.
+ * @[Expect]: unsubEVT will return IOC_RESULT_NO_EvtConsumer at the second time.
  * @[Notes]:
  */
-TEST(UT_ConlesEventMisuse, Case03_verifyNoEvtCosmer_bySubEvtOnceThenUnsubEvtTwice) {
+TEST(UT_ConlesEventMisuse, Case03_verifyNoEvtConsumer_bySubEvtOnceThenUnsubEvtTwice) {
 #define _Case03_FakeCbProcEvt_F ((IOC_CbProcEvt_F)0x20040301UL)
 #define _Case03_FakeCbPrivData ((void *)0x20040302UL)
   //===SETUP===
@@ -79,22 +80,22 @@ TEST(UT_ConlesEventMisuse, Case03_verifyNoEvtCosmer_bySubEvtOnceThenUnsubEvtTwic
   Result = IOC_unsubEVT_inConlesMode(&ObjA_UnsubEvtArgs);
 
   //===VERIFY===
-  ASSERT_EQ(IOC_RESULT_NO_EVTCOSMER, Result);  // KeyVerifyPoint
+  ASSERT_EQ(IOC_RESULT_NO_EvtConsumer, Result);  // KeyVerifyPoint
 
   //===CLEANUP===
 }
 
 /**
- * @[Name]: verifyConflictEvtCosmer_bySubSameFakeEvtSubArgsTwice
+ * @[Name]: verifyConflictEvtConsumer_bySubSameFakeEvtSubArgsTwice
  * @[Purpose]: accord [SPECv2-z.2], verify the behavior of conflict event consumer when sub same event twice will return
- * CONFLICT_EVTCOSMER.
+ * CONFLICT_EvtConsumer.
  * @[Steps]:
  *   1. ObjA call subEVT with FakeSubArgs once.
  *   2. ObjA call subEVT with FakeSubArgs again.
- * @[Expect]: subEVT will return IOC_RESULT_CONFLICT_EVTCOSMER at the second time.
+ * @[Expect]: subEVT will return IOC_RESULT_CONFLICT_EvtConsumer at the second time.
  * @[Notes]:
  */
-TEST(UT_ConlesEventMisuse, Case04_verifyConflictEvtCosmer_bySubSameFakeEvtSubArgsTwice) {
+TEST(UT_ConlesEventMisuse, Case04_verifyConflictEvtConsumer_bySubSameFakeEvtSubArgsTwice) {
 #define _Case04_FakeCbProcEvt_F ((IOC_CbProcEvt_F)0x20240303UL)
 #define _Case04_FakeCbPrivData ((void *)0x20240304UL)
   //===SETUP===
@@ -107,7 +108,7 @@ TEST(UT_ConlesEventMisuse, Case04_verifyConflictEvtCosmer_bySubSameFakeEvtSubArg
   Result = IOC_subEVT_inConlesMode(&ObjA_SubEvtArgs);
 
   //===VERIFY===
-  ASSERT_EQ(IOC_RESULT_CONFLICT_EVTCOSMER, Result);  // KeyVerifyPoint
+  ASSERT_EQ(IOC_RESULT_CONFLICT_EvtConsumer, Result);  // KeyVerifyPoint
 
   //===CLEANUP===
   IOC_UnsubEvtArgs_T ObjA_UnsubEvtArgs = {.CbProcEvt_F = _Case04_FakeCbProcEvt_F, .pCbPriv = _Case04_FakeCbPrivData};

@@ -19,7 +19,7 @@
  * @[Purpose]: accord SPECv2-z.5 in README.md, use this case to verify postEVT in ASync mode,
  *    by ObjA's call postEVT time cost(<1ms) is much less than ObjB/ObjC's CbProcEvt of each sleep 9ms/99ms.
  * @[Steps]:
- *   1) ObjB as EvtCosmer subEVT(TEST_SLEEP_9MS), ObjC as EvtCosmer subEVT(TEST_SLEEP_99MS)
+ *   1) ObjB as EvtConsumer subEVT(TEST_SLEEP_9MS), ObjC as EvtConsumer subEVT(TEST_SLEEP_99MS)
  *   2) ObjA as EvtPrducer postEVT(TEST_SLEEP_9MS) every 10ms and postEVT(TEST_SLEEP_99MS) every 100ms
  *       |-> ObjA in main/single thread, ObjA run in a usleep(10ms) loop in 100 times.
  *   3) ObjA's Posted TestSleep9msEvtCnt is 100 and Posted TestSleep99msEvtCnt is 10,
@@ -183,9 +183,9 @@ TEST(UT_ConlesEventConcurrency, Case01_verifyASync_byPostTestSleep9ms99msEvtEver
 /**
  * @[Name]: verifySync_byPostTestSleep99msEvt_andUpdateSyncFlagValueAfterSleepInCbProcEvt
  * @[Purpose]: verify case SPECv2-z.7 in README.md, which is a Sync event case.
- *      Sync here means EvtPrducer postEVT WILL wait for EvtCosmer's CbProcEvt done.
+ *      Sync here means EvtPrducer postEVT WILL wait for EvtConsumer's CbProcEvt done.
  * @[Steps]:
- *   1) ObjA as EvtCosmer subEVT(TEST_SLEEP_99MS), and ObjA's CbPrivData.SyncFlagValue is FALSE.
+ *   1) ObjA as EvtConsumer subEVT(TEST_SLEEP_99MS), and ObjA's CbPrivData.SyncFlagValue is FALSE.
  *       |-> ObjA's CbProcEvt do sleep 99ms and update SyncFlagValue to TRUE in its CbPrivData after sleep.
  *   2) ObjB as EvtPrducer postEVT(TEST_SLEEP_99MS) with option(IOC_OPTION_SYNC_EVT)
  *   3) ObjB's postEVT cost time is >= 99ms, and ObjA's CbPrivData.SyncFlagValue is updated.

@@ -6,21 +6,21 @@
 # Glossary
 
 * ModMgr vs ModUsr
-* EvtPrduer vs EvtCosmer
+* EvtProducer vs EvtConsumer
 * Conet vs Conles
 * MSG: CMD vs EVT vs DAT
 
 # Concept
 
 
-## ModMgr vs ModUsr（EvtPrduer or EvtCosmer）
+## ModMgr vs ModUsr（EvtProducer or EvtConsumer）
 
 * Module Manager(a.k.a 【ModMgr】) who is a manager role such as platform manager, call IOC's MGR_APIs with arguments by product requirements to initModule, or deinitModule before module exit.
-* Module User(a.k.a 【ModUsr】) who is EvtPrduer or EvtCosmer call IOC's USR_APIs.
-  * Event Producer(a.k.a 【EvtPrduer】) who generate/trigge events.
-    * EvtPrduer will post event to IOC by IOC_postEVT API.
-  * Event Consumer(a.k.a 【EvtCosmer】) who process events.
-    * EvtCosmer will subscribe or unsubscribe event to IOC by IOC_subEVT or IOC_unsubEVT API.
+* Module User(a.k.a 【ModUsr】) who is EvtProducer or EvtConsumer call IOC's USR_APIs.
+  * Event Producer(a.k.a 【EvtProducer】) who generate/trigge events.
+    * EvtProducer will post event to IOC by IOC_postEVT API.
+  * Event Consumer(a.k.a 【EvtConsumer】) who process events.
+    * EvtConsumer will subscribe or unsubscribe event to IOC by IOC_subEVT or IOC_unsubEVT API.
 
 ## Conet vs Conles
 
