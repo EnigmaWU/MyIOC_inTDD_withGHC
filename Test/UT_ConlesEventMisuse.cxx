@@ -1,5 +1,15 @@
 #include "_UT_IOC_Common.h"
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/**
+ * @brief Summary of ConlesEventMisuse
+ *  1) verifyNoEvtCosmer_byNotSubEvtButPostEvtDirectly
+ *  2) verifyNoEvtCosmer_byUnsubEvtWithFakeUnsubArgs
+ *  3) verifyNoEvtCosmer_bySubEvtOnceThenUnsubEvtTwice
+ *  4) verifyConflictEvtCosmer_bySubSameFakeEvtSubArgsTwice
+ */
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
  * @[Name]: verifyNoEvtCosmer_byNotSubEvtButPostEvtDirectly
  * @[Purpose]: accord [SPECv2-z.1], verify the behavior of no event consumer when post event directly will return NO_EVTCOSMER.
@@ -22,7 +32,7 @@ TEST(UT_ConlesEventMisuse, Case01_verifyNoEvtCosmer_byNotSubEvtButPostEvtDirectl
 }
 
 /**
- * @[Name]: verifyNoEvtCosmer_byUnsubWithEvtFakeUnsubArgs
+ * @[Name]: verifyNoEvtCosmer_byUnsubEvtWithFakeUnsubArgs
  * @[Purpose]: accord [SPECv2-z.1], verify the behavior of no event consumer then unsubEVT directly will return NO_EVTCOSMER.
  * @[Steps]:
  *   1. ObjA call unsubEVT with FakeUnsubArgs directly.
