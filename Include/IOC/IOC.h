@@ -8,6 +8,27 @@
 extern "C" {
 #endif
 
+/**
+ * @brief EvtProducer call this API to post an event to IOC, which will be processed by EvtConsumer(s).
+ *
+ * @param LinkID: the link ID between EvtProducer and EvtConsumer.
+ *     RefMore: README_ArchDesign::Object::Link
+ * @param pEvtDesc: the event description. IOC will COPY-OUT this event description if return SUCCESS.
+ *     RefMore: README_ArchDesign::Concept::MSG::EVT
+ * @param pOption: the options for this postEVT.
+ *     Supported options: IOC_OPTID_TIMEOUT, IOC_OPTID_SYNC_MODE.
+ *
+ * @return IOC_RESULT_SUCCESS: postEVT successfully.
+ * @return IOC_RESULT_NO_EvtConsumer: no EvtConsumer for this event.
+ *      RefUT: UT_ConlesEventMisuse.Case01_verifyNoEvtConsumer_byNotSubEvtButPostEvtDirectly
+ * @return IOC_RESULT_TOO_MANY_QUEUING_EVTDESC: too many event description in IOC's queue.
+ *      RefUT: UT_ConlesEventXXX
+ * @return IOC_RESULT_XXX
+ * @return IOC_RESULT_BUG: IOC internal bug.
+ *
+ * @note This API is thread-safe.
+ *
+ */
 IOC_Result_T IOC_postEVT(
     /*ARG_IN*/IOC_LinkID_T LinkID, 
     /*ARG_IN*/const IOC_EvtDesc_pT pEvtDesc,
