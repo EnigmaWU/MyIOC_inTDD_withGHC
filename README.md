@@ -6,7 +6,9 @@
 
 # Requirements
 
-* [TODO: UserStories](./README_UserStories.md)
+* [TODO: UseCase](./README_UseCase.md)
+* [TODO: Specification](./README_Specification.md)  //RefPDF: https://github.com/Orthant/IEEE/blob/master/29148-2011.pdf
+* [TODO: UserStories](./README_UserStories.md)      //RefBook: <<User Story Applied>>
 
 # Design
 
