@@ -12,6 +12,7 @@
 
 * [ArchDesign](./README_ArchDesign.md)
 * [TODO: ModuleDesign](./README_ModuleDesign.md)
+* [TODO: VerifyDesign](./README_VerifyDesign.md)
 
 
 # Specifications(a.k.a SPEC)
