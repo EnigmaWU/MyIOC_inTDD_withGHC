@@ -126,7 +126,7 @@ static IOC_Result_T __IOC_subEVT_inConlesMode(
   }
 
   pthread_mutex_unlock(&_mConlesModeSubEvtArgsMutex);
-  return IOC_RESULT_TOO_MANY_EvtConsumer;
+  return IOC_RESULT_TOO_MANY_EVENT_CONSUMER;
 }
 
 static IOC_Result_T __IOC_unsubEVT_inConlesMode(

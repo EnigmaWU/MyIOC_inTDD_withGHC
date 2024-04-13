@@ -9,7 +9,7 @@
  *        |-> CbProcEvt_F and CbPrivData is fake valued with number index.
  *   3. Call subEVT with max EvtConsumer number + 1.
  *   4. Call unsubEVT with max EvtConsumer number.
- * @[Expect]: subEVT with max EvtConsumer number + 1 will return IOC_RESULT_TOO_MANY_EvtConsumer.
+ * @[Expect]: subEVT with max EvtConsumer number + 1 will return IOC_RESULT_TOO_MANY_EVENT_CONSUMER.
  * @[Notes]:
  */
 
@@ -42,7 +42,7 @@ TEST(UT_ConlesEventCapability, Case01_verifyTooManyEvtConsumer_bySubEvtOneMoreTh
   Result = IOC_subEVT_inConlesMode(&ObjA_SubEvtArgs);
 
   //===VERIFY===
-  ASSERT_EQ(IOC_RESULT_TOO_MANY_EvtConsumer, Result);  // KeyVerifyPoint
+  ASSERT_EQ(IOC_RESULT_TOO_MANY_EVENT_CONSUMER, Result);  // KeyVerifyPoint
 
   //===CLEANUP===
   for (uint16_t i = 0; i < CapDesc.ConlesModeEvent.MaxEvtConsumer; i++) {
