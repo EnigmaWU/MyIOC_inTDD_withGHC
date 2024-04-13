@@ -92,7 +92,7 @@ TEST(UT_ConlesEventMisuse, Case03_verifyNoEvtConsumer_bySubEvtOnceThenUnsubEvtTw
  * @[Steps]:
  *   1. ObjA call subEVT with FakeSubArgs once.
  *   2. ObjA call subEVT with FakeSubArgs again.
- * @[Expect]: subEVT will return IOC_RESULT_CONFLICT_EvtConsumer at the second time.
+ * @[Expect]: subEVT will return IOC_RESULT_CONFLICT_EVENT_CONSUMER at the second time.
  * @[Notes]:
  */
 TEST(UT_ConlesEventMisuse, Case04_verifyConflictEvtConsumer_bySubSameFakeEvtSubArgsTwice) {
@@ -108,7 +108,7 @@ TEST(UT_ConlesEventMisuse, Case04_verifyConflictEvtConsumer_bySubSameFakeEvtSubA
   Result = IOC_subEVT_inConlesMode(&ObjA_SubEvtArgs);
 
   //===VERIFY===
-  ASSERT_EQ(IOC_RESULT_CONFLICT_EvtConsumer, Result);  // KeyVerifyPoint
+  ASSERT_EQ(IOC_RESULT_CONFLICT_EVENT_CONSUMER, Result);  // KeyVerifyPoint
 
   //===CLEANUP===
   IOC_UnsubEvtArgs_T ObjA_UnsubEvtArgs = {.CbProcEvt_F = _Case04_FakeCbProcEvt_F, .pCbPriv = _Case04_FakeCbPrivData};

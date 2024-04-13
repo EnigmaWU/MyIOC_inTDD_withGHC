@@ -107,7 +107,7 @@ static IOC_Result_T __IOC_subEVT_inConlesMode(
     if (pSavedSubEvtArgs->CbProcEvt_F == pSubEvtArgs->CbProcEvt_F &&
         pSavedSubEvtArgs->pCbPrivData == pSubEvtArgs->pCbPrivData) {
       pthread_mutex_unlock(&_mConlesModeSubEvtArgsMutex);
-      return IOC_RESULT_CONFLICT_EvtConsumer;
+      return IOC_RESULT_CONFLICT_EVENT_CONSUMER;
     }
 
     if (pSavedSubEvtArgs->CbProcEvt_F == NULL) {
