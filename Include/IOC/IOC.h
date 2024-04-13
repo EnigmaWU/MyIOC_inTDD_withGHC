@@ -19,7 +19,7 @@ extern "C" {
  *     Supported options: IOC_OPTID_TIMEOUT, IOC_OPTID_SYNC_MODE.
  *
  * @return IOC_RESULT_SUCCESS: postEVT successfully.
- * @return IOC_RESULT_NO_EvtConsumer: no EvtConsumer for this event.
+ * @return IOC_RESULT_NO_EVENT_CONSUMER: no EvtConsumer for this event.
  *      RefUT: UT_ConlesEventMisuse.Case01_verifyNoEvtConsumer_byNotSubEvtButPostEvtDirectly
  * @return IOC_RESULT_TOO_MANY_QUEUING_EVTDESC: too many event description in IOC's queue.
  *      RefUT: UT_ConlesEventXXX

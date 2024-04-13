@@ -21,7 +21,7 @@ typedef enum {
   // IOC's Result
   IOC_RESULT_NOT_IMPLEMENTED          = -500,
   IOC_RESULT_NOT_SUPPORT              = -501,
-  IOC_RESULT_NO_EvtConsumer           = -502,
+  IOC_RESULT_NO_EVENT_CONSUMER        = -502,
   IOC_RESULT_TOO_MANY_EvtConsumer     = -503,
   IOC_RESULT_CONFLICT_EvtConsumer     = -504,
   IOC_RESULT_TOO_MANY_QUEUING_EVTDESC = -505,

@@ -158,7 +158,7 @@ static IOC_Result_T __IOC_unsubEVT_inConlesMode(
   }
   pthread_mutex_unlock(&_mConlesModeSubEvtArgsMutex);
 
-  return IOC_RESULT_NO_EvtConsumer;
+  return IOC_RESULT_NO_EVENT_CONSUMER;
 }
 
 static IOC_Result_T __IOC_postEVT_inConlesMode(
@@ -227,7 +227,7 @@ static IOC_Result_T __IOC_postEVT_inConlesMode(
   if (CbProcEvtCnt > 0) {
     return IOC_RESULT_SUCCESS;
   } else {
-    return IOC_RESULT_NO_EvtConsumer;
+    return IOC_RESULT_NO_EVENT_CONSUMER;
   }
 }
 
