@@ -62,7 +62,12 @@ end
     * ObjD subscribe class-b event from IOC.
         * IF ObjB post event of class-b,
             * THEN IOC callback ObjD to process the class-b event.
-    * ObjC and ObjD MAY also retrive the event from IOC.
+    * ObjE subscribe class-a/-b event from IOC.
+        * IF ObjA post event of class-a,
+            * THEN IOC callback ObjE to process the class-a event.
+        * IF ObjB post event of class-b,
+            * THEN IOC callback ObjE to process the class-b event.
+    * ObjC/D/E MAY also retrive the event from IOC.
 ```mermaid
 flowchart
 subgraph same process
@@ -72,5 +77,7 @@ subgraph same process
     IOC -.-> |callback ONLY class-b| ObjD
     ObjC --> |subscribe class-a event| IOC
     ObjD --> |subscribe class-b event| IOC
+    ObjE --> |subscribe class-a/-b event| IOC
+    IOC -.-> |callback class-a/-b| ObjE
 end
 ```
