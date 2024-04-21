@@ -6,12 +6,23 @@
 * ObjA and ObjB is in the same process.
     * ObjA post event to IOC,
         * IOC callback ObjB to process the event.
+            * ObjB MUST subscribe event before ObjA post event.
         * ObjB retrive the event from IOC and process it.
+            * ObjB DONT need to subscribe event before ObjA post event.
+            * ObjB retrive event from IOC MAYBLOCK if no event in IOC.
 ```mermaid
 flowchart
 subgraph same process
     ObjA --> |post event| IOC
+    ObjB --> |subscribe event| IOC
     IOC -.-> |callback| ObjB
+end
+```
+
+```mermaid
+flowchart
+subgraph same process
+    ObjA --> |post event| IOC
     ObjB --> |retrive event| IOC
     IOC -.-> |retrive event return| ObjB
     ObjB -.-> |process event| ObjB
