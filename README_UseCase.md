@@ -10,8 +10,9 @@
 flowchart
 subgraph same process
     ObjA --> |post event| IOC
-    IOC --> |callback| ObjB
+    IOC -.-> |callback| ObjB
     ObjB --> |retrive event| IOC
+    IOC -.-> |retrive event return| ObjB
     ObjB -.-> |process event| ObjB
 end
 ```
