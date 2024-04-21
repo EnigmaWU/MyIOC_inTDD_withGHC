@@ -1,7 +1,8 @@
 # About
-* This is IOC's Use Case document, describe how user as a specific role will use IOC in a specific context or scenario.
+* This is IOC's Use Case（a.k.a UC） document, describe how user as a specific role will use IOC in a specific context or scenario.
 
-# UC01: post&process event in same process.
+# UC-01: post&process event in same process.
+## -A
 * ObjA and ObjB is in the same process.
     * ObjA post event to IOC,
         * IOC callback ObjB to process the event.
@@ -17,6 +18,7 @@ subgraph same process
 end
 ```
 
+## -B
 * ObjA and ObjB/C is in the same process.
     * ObjA post event to IOC,
         * IOC callback ObjB to process the event.
@@ -32,6 +34,7 @@ subgraph same process
 end
 ```
 
+## -C
 * ObjA post event of class-b and class-c to IOC,
     * ObjB subscribe class-b event from IOC.
         * IF ObjA post event of class-b,
