@@ -4,13 +4,13 @@
   * in Test-Driven Development(a.k.a TDD) as Dev-Approach
     * with GitHub Copilot(a.k.a GHC) as Dev-Facilites.
 
-# Requirements
+# Requirement and Analysis
 
-* [TODO: UseCase](./README_UseCase.md)
-* [TODO: Specification](./README_Specification.md)  //RefPDF: https://github.com/Orthant/IEEE/blob/master/29148-2011.pdf
-* [TODO: UserStories](./README_UserStories.md)      //RefBook: <<User Story Applied>>
+* [TODO: UseCase](./README_UseCase.md)              (BeforeAnalysis)//
+* [TODO: UserStories](./README_UserStories.md)      (DoingAnalysis)//RefBook: <<User Story Applied>>
+* [TODO: Specification](./README_Specification.md)  (AfterAnalysis)//RefPDF: https://github.com/Orthant/IEEE/blob/master/29148-2011.pdf
 
-# Design
+# Architecure and Design
 
 * [ArchDesign](./README_ArchDesign.md)
 * [TODO: ModuleDesign](./README_ModuleDesign.md)
