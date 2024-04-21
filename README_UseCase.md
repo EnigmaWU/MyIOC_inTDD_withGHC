@@ -15,3 +15,18 @@ subgraph same process
     ObjB -.-> |process event| ObjB
 end
 ```
+
+* ObjA and ObjB/C is in the same process.
+    * ObjA post event to IOC,
+        * IOC callback ObjB to process the event.
+        * ObjC retrive the event from IOC and process it.
+```mermaid
+flowchart
+subgraph same process
+    ObjA --> |post event| IOC
+    IOC -.-> |callback| ObjB
+    ObjC --> |retrive event| IOC
+    IOC -.-> |retrive event return| ObjC
+    ObjC -.-> |process event| ObjC
+end
+```
