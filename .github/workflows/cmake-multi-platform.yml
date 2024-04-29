@@ -37,13 +37,9 @@ jobs:
       shell: bash
       run: |
         echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_ENV"
-    - name: Use build-output-dir
-      run: |
-        echo "env.build-output-dir IS ${{ env.build-output-dir }}"
-        echo "steps.strings.outputs.build-putput-dir IS ${{ steps.strings.outputs.build-output-dir }}"
     - name: Configure CMake
       run: >
-        cmake -B ${{ steps.strings.outputs.build-output-dir }}
+        cmake -B ${{ env.build-output-dir }}
         -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
         -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
         -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
