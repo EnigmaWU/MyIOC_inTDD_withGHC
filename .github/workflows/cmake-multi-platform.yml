@@ -45,6 +45,7 @@ jobs:
         cd build
         cmake ..
         make
+        make install
     - name: Configure CMake
       run: >
         cmake -B ${{ env.build-output-dir }}
