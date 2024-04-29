@@ -15,7 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest, ubuntu-latest]
-        build_type: [RelWithDebInfo, DiagASAN, DiagTSAN]
+        build_type: [DiagASAN, DiagTSAN]
         c_compiler: [gcc, clang]
         include:
           - os: ubuntu-latest
