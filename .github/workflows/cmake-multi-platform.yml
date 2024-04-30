@@ -31,21 +31,14 @@ jobs:
             c_compiler: clang
             cpp_compiler: clang++
     steps:
-    - uses: actions/checkout@v3
+    - uses: Bacondish2023/setup-googletest@v1
+      with:
+        tag: v1.14.0
     - name: Set reusable strings
       id: strings
       shell: bash
       run: |
         echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_ENV"
-    - name: Download and build Google Test
-      run: |
-        git clone https://github.com/google/googletest.git
-        cd googletest
-        mkdir build
-        cd build
-        cmake ..
-        make
-        make install
     - name: Configure CMake
       run: >
         cmake -B ${{ env.build-output-dir }}
