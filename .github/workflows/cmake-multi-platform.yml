@@ -31,9 +31,9 @@ jobs:
             c_compiler: clang
             cpp_compiler: clang++
     steps:
-    - uses: Bacondish2023/setup-googletest@v1
-      with:
-        tag: v1.14.0
+    - uses: actions/checkout@v4
+    - name: Setup gtest 
+      uses: MarkusJx/googletest-installer@v1.1.1
     - name: Set reusable strings
       id: strings
       shell: bash
