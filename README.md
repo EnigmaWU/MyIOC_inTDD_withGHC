@@ -6,7 +6,10 @@
 
 # Requirement and Analysis
 
-* [TODO: UseCase](./README_UseCase.md)              (BeforeAnalysis)//
+* [UseCase](./README_UseCase.md)
+  * BETWEEN: End User and IOC's PM before analysis.
+  * ABOUT: How USER as a specific role will USE IOC in a specific context.
+
 * [TODO: UserStories](./README_UserStories.md)      (DoingAnalysis)//RefBook: <<User Story Applied>>
 * [TODO: Specification](./README_Specification.md)  (AfterAnalysis)//RefPDF: https://github.com/Orthant/IEEE/blob/master/29148-2011.pdf
 
