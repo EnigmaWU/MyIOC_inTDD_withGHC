@@ -4,6 +4,7 @@
   * in Test-Driven Development(a.k.a TDD) as Dev-Approach
     * with GitHub Copilot(a.k.a GHC) as Dev-Facilites.
 
+* **module** MEANS a static library with C/C++ API implemented all functions in IOC.
 * **Inter-Object** MEANS the communication between objects in a thread/process/machine.
   * **Object** MEANS an object of struct/class with OO abstraction, named as ObjA/ObjB/ObjC/... in IOC.
 * **Communication** MEANS ObjA post event to ObjB/C/...(a.k.a EVT) 
