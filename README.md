@@ -4,6 +4,12 @@
   * in Test-Driven Development(a.k.a TDD) as Dev-Approach
     * with GitHub Copilot(a.k.a GHC) as Dev-Facilites.
 
+* **Inter-Object** MEANS the communication between objects in a thread/process/machine.
+  * **Object** MEANS an object of struct/class with OO abstraction, named as ObjA/ObjB/ObjC/... in IOC.
+* **Communication** MEANS ObjA post event to ObjB/C/...(a.k.a EVT) 
+    * OR ObjA execute command over ObjB(a.k.a CMD) 
+    * OR ObjA send data to ObjB(a.k.a DAT).
+
 # Requirement and Analysis
 
 * [UseCase](./README_UseCase.md)
