@@ -32,7 +32,7 @@ subgraph same process
 end
 ```
 
-* ObjB will be callbacked ONLY after successfully subscribe the event, and THEN ObjA post a new event.
+* ObjB will be callbacked only AFTER successfully subscribe the event, and THEN ObjA post a new event.
     * This MEANS ObjA post event will get NO_EVENT_CONSUMER result, if ObjB has NOT subscribed the event.
 
 ```mermaid
@@ -59,6 +59,39 @@ subgraph same process
     ObjB -.-> |process event| ObjB
 end
 ```
+
+* ObjB retrive event SHOULDBLOCK until ObjA post new event.
+    * This INDICATE ObjA post event will get NO_EVENT_CONSUMER result, if ObjB is NOT waitting to retrive event, which MEANS ObjA's pending event queue depth is ZERO by default.
+    * ObjB MAY set MAX_PENDING_EVENT_QUEUE_DEPTH=N(>0) to avoid NO_EVENT_CONSUMER result, but may get IOC_RESULT_TOO_MANY_QUEUING_EVENT result. 
+```mermaid
+sequenceDiagram
+    participant ObjA
+    participant IOC
+    participant ObjB
+    ObjA->>IOC: post event
+    IOC-->>ObjA: NO_EVENT_CONSUMER
+    ObjB->>IOC: wait to retrive event
+    ObjA->>IOC: post event
+    IOC-->>ObjA: SUCCESS
+    IOC--)ObjB: retrive event
+```
+
+```mermaid
+sequenceDiagram
+    participant ObjA
+    participant IOC
+    participant ObjB
+    ObjB->>IOC: set MAX_PENDING_EVENT_QUEUE_DEPTH=N(>0)
+    loop new event
+        ObjA->>IOC: post event
+        alt <=MAX_PENDING_EVENT_QUEUE_DEPTH
+            IOC-->>ObjA: SUCCESS
+        else
+            IOC-->>ObjA: IOC_RESULT_TOO_MANY_QUEUING_EVENT
+        end
+    end
+```
+
 
 ## [ Use Case-02 ]
 * ObjA and ObjB/C is in the same process.
