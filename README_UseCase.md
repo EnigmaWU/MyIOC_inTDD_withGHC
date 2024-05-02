@@ -5,9 +5,17 @@
         * OR ObjA execute command over ObjB(a.k.a CMD) 
             * OR ObjA send data to ObjB(a.k.a DAT).
 
+* All use cases are divided into different categories:
+    * [ Category-A ]: post event in same process.
+    * [ Category-B ]: post event beyond same process(inter-process/machine).
+    * [ Category-C ]: execute command in same process.
+    * [ Category-D ]: execute command beyond same process(inter-process/machine).
+    * [ Category-E ]: send data in same process.
+    * [ Category-F ]: send data beyond same process(inter-process/machine).
 
-# UC-01: post&process event in same process.
-## -A
+
+# [ Category-A ]: post event in same process.
+## [ Use Case-01 ]
 * ObjA and ObjB is in the same process.
     * ObjA post event to IOC,
         * IOC callback ObjB to process the event.
@@ -34,7 +42,7 @@ subgraph same process
 end
 ```
 
-## -B
+## [ Use Case-02 ]
 * ObjA and ObjB/C is in the same process.
     * ObjA post event to IOC,
         * IOC callback ObjB to process the event.
@@ -50,7 +58,7 @@ subgraph same process
 end
 ```
 
-## -C
+## [ Use Case-03 ]
 * ObjA post event of class-b and class-c to IOC,
     * ObjB subscribe class-b event from IOC.
         * IF ObjA post event of class-b,
@@ -70,7 +78,7 @@ subgraph same process
 end
 ```
 
-## -D
+## [ Use Case-04 ]
 * ObjA post event of class-a to IOC, ObjB post event of class-b to IOC.
     * ObjC subscribe class-a event from IOC.
         * IF ObjA post event of class-a,
