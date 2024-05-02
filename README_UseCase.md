@@ -1,7 +1,10 @@
 # About
 * This is IOC's Use Case（a.k.a UC） document, describe how **USER** as a specific role will **USE** IOC in a specific context.
-* **USER**: an object in a thread/process/machine, named as ObjA/ObjB/ObjC/ObjD/ObjE/... in IOC.
-* **UES**: ObjA post event and ObjB process event(a.k.a EVT) OR ObjA request ObjB to execute command(a.k.a CMD) OR ObjA send data to ObjB(a.k.a DAT).
+    * **USER**: an object in a thread/process/machine, named as ObjA/ObjB/ObjC/ObjD/ObjE/... in IOC.
+    * **UES**: ObjA post event to ObjB/C/...(a.k.a EVT) 
+        * OR ObjA execute command over ObjB(a.k.a CMD) 
+            * OR ObjA send data to ObjB(a.k.a DAT).
+
 
 # UC-01: post&process event in same process.
 ## -A
