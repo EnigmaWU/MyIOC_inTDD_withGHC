@@ -32,6 +32,24 @@ subgraph same process
 end
 ```
 
+* ObjB will be callbacked ONLY after successfully subscribe the event, and THEN ObjA post a new event.
+    * This MEANS ObjA post event will get NO_EVENT_CONSUMER result, if ObjB has NOT subscribed the event.
+
+```mermaid
+sequenceDiagram
+    participant ObjA
+    participant IOC
+    participant ObjB
+    ObjA->>IOC: post event
+    IOC-->>ObjA: NO_EVENT_CONSUMER
+    ObjB->>IOC: subscribe event
+    ObjA->>IOC: post event
+    IOC-->>ObjA: SUCCESS
+    IOC--)ObjB: callback
+```
+
+---
+
 ```mermaid
 flowchart
 subgraph same process
