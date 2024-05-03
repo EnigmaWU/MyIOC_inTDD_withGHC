@@ -176,7 +176,7 @@ subgraph same process
 end
 ```
 
-## [ Use Case-04 ]
+## [ Use Case-04 ]: ObjA post class-a event, ObjB post class-b event, ObjC process class-a event, ObjD process class-b event, ObjE process class-a/-b event.
 * ObjA post event of class-a to IOC, ObjB post event of class-b to IOC.
     * ObjC subscribe class-a event from IOC.
         * IF ObjA post event of class-a,
