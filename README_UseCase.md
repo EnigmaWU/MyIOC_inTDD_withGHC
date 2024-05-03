@@ -17,7 +17,7 @@
 
 
 # [ Category-A ]: post event in same process.
-## [ Use Case-01 ]
+## [ Use Case-01 ]: ObjA post event, ObjB process event by callback or retrive.
 ### [Scenario-01]
 * ObjA and ObjB is in the same process.
     * ObjA post event to IOC,
