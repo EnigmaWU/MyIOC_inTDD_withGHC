@@ -118,7 +118,7 @@ sequenceDiagram
 ```
 
 
-## [ Use Case-02 ]
+## [ Use Case-02 ]: ObjA post event, ObjB process event by callback, ObjC process event by retrive.
 * ObjA and ObjB/C is in the same process.
     * ObjA post event to IOC,
         * IOC callback ObjB to process the event.
