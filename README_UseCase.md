@@ -66,7 +66,7 @@ subgraph same process
 end
 ```
 
-#### [Scnario-02.a]
+#### [Scenario-02.a]
 * ObjB retrive event SHOULDBLOCK until ObjA post new event.
     * This INDICATE ObjA post event will get NO_EVENT_CONSUMER result, if ObjB is NOT waitting to retrive event, which MEANS ObjA's pending event queue depth is ZERO by default.
     
