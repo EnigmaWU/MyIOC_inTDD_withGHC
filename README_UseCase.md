@@ -66,7 +66,7 @@ subgraph same process
 end
 ```
 
-#### [Scnarion-02.a]
+#### [Scnario-02.a]
 * ObjB retrive event SHOULDBLOCK until ObjA post new event.
     * This INDICATE ObjA post event will get NO_EVENT_CONSUMER result, if ObjB is NOT waitting to retrive event, which MEANS ObjA's pending event queue depth is ZERO by default.
     
@@ -77,13 +77,13 @@ sequenceDiagram
     participant ObjB
     ObjA->>IOC: post event
     IOC-->>ObjA: NO_EVENT_CONSUMER
-    ObjB->>IOC: wait to retrive event
+    ObjB->>IOC: retrive event MAYBLOCK
     ObjA->>IOC: post event
     IOC-->>ObjA: SUCCESS
-    IOC--)ObjB: retrive event
+    IOC--)ObjB: retrive event return
 ```
 
-#### [Scnarion-02.b]
+#### [Scenario-02.b]
 * ObjB MAY set MAX_PENDING_EVENT_QUEUE_DEPTH=N(>0) to avoid NO_EVENT_CONSUMER result, but may get IOC_RESULT_TOO_MANY_QUEUING_EVENT result. 
 
 ```mermaid
@@ -100,6 +100,21 @@ sequenceDiagram
             IOC-->>ObjA: TOO_MANY_PENDING_EVENT_IN_QUEUE
         end
     end
+```
+
+#### [Scenario-02.c]
+* ObjB MAY retrive event with timeout arguement to avoid MAYBLOCK.
+    * IF ObjA not post event within timeout, 
+        * THEN ObjB will get RETRIVE_TIMEOUT result.
+
+```mermaid
+sequenceDiagram
+    participant ObjA
+    participant IOC
+    participant ObjB
+    ObjB->>IOC: retrive event TIMEOUT=1000ms
+    IOC--)ObjB: retrive event return RETRIVE_TIMEOUT
+
 ```
 
 
