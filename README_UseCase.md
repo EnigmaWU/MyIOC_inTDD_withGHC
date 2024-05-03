@@ -1,7 +1,7 @@
 [[_TOC_]]
 
 # About
-* This is IOC's Use Case（a.k.a UC） document, describe how **USER** as a specific role will **USE** IOC in a specific context.
+* This is IOC(a.k.a Inter-Object-Communication)'s Use Case（a.k.a UC） document, describe how **USER** as a specific role will **USE** IOC in a specific context.
     * **USER**: an object in a thread/process/machine, named as ObjA/ObjB/ObjC/ObjD/ObjE/... in IOC.
     * **UES**: ObjA post event to ObjB/C/...(a.k.a EVT) 
         * OR ObjA execute command over ObjB(a.k.a CMD) 
@@ -97,7 +97,7 @@ sequenceDiagram
         alt <=MAX_PENDING_EVENT_QUEUE_DEPTH
             IOC-->>ObjA: SUCCESS
         else
-            IOC-->>ObjA: IOC_RESULT_TOO_MANY_QUEUING_EVENT
+            IOC-->>ObjA: TOO_MANY_QUEUING_EVENT
         end
     end
 ```
