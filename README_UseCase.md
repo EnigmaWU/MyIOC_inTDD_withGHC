@@ -1,3 +1,5 @@
+[[_TOC_]]
+
 # About
 * This is IOC's Use Case（a.k.a UC） document, describe how **USER** as a specific role will **USE** IOC in a specific context.
     * **USER**: an object in a thread/process/machine, named as ObjA/ObjB/ObjC/ObjD/ObjE/... in IOC.
@@ -16,13 +18,11 @@
 
 # [ Category-A ]: post event in same process.
 ## [ Use Case-01 ]
+### [Scenario-01]
 * ObjA and ObjB is in the same process.
     * ObjA post event to IOC,
         * IOC callback ObjB to process the event.
             * ObjB MUST subscribe event before ObjA post event.
-        * ObjB retrive the event from IOC and process it.
-            * ObjB DONT need to subscribe event before ObjA post event.
-            * ObjB retrive event from IOC MAYBLOCK if no event in IOC.
 ```mermaid
 flowchart
 subgraph same process
@@ -32,6 +32,7 @@ subgraph same process
 end
 ```
 
+#### [Scenario-01.a]
 * ObjB will be callbacked only AFTER successfully subscribe the event, and THEN ObjA post a new event.
     * This MEANS ObjA post event will get NO_EVENT_CONSUMER result, if ObjB has NOT subscribed the event.
 
@@ -48,7 +49,12 @@ sequenceDiagram
     IOC--)ObjB: callback
 ```
 
----
+### [Scenario-02]
+* ObjA and ObjB is in the same process.
+    * ObjA post event to IOC,
+        * ObjB retrive the event from IOC and process it.
+            * ObjB DONT need to subscribe event before ObjA post event.
+            * ObjB retrive event from IOC MAYBLOCK if no event in IOC.
 
 ```mermaid
 flowchart
@@ -60,9 +66,10 @@ subgraph same process
 end
 ```
 
+#### [Scnarion-02.a]
 * ObjB retrive event SHOULDBLOCK until ObjA post new event.
     * This INDICATE ObjA post event will get NO_EVENT_CONSUMER result, if ObjB is NOT waitting to retrive event, which MEANS ObjA's pending event queue depth is ZERO by default.
-    * ObjB MAY set MAX_PENDING_EVENT_QUEUE_DEPTH=N(>0) to avoid NO_EVENT_CONSUMER result, but may get IOC_RESULT_TOO_MANY_QUEUING_EVENT result. 
+    
 ```mermaid
 sequenceDiagram
     participant ObjA
@@ -75,6 +82,9 @@ sequenceDiagram
     IOC-->>ObjA: SUCCESS
     IOC--)ObjB: retrive event
 ```
+
+#### [Scnarion-02.b]
+* ObjB MAY set MAX_PENDING_EVENT_QUEUE_DEPTH=N(>0) to avoid NO_EVENT_CONSUMER result, but may get IOC_RESULT_TOO_MANY_QUEUING_EVENT result. 
 
 ```mermaid
 sequenceDiagram
