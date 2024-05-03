@@ -134,7 +134,8 @@ subgraph same process
 end
 ```
 
-## [ Use Case-03 ]
+## [ Use Case-03 ]: ObjA post class-b/-c event, ObjB process class-b event, ObjC process class-c event.
+### [Scenario-01]
 * ObjA post event of class-b and class-c to IOC,
     * ObjB subscribe class-b event from IOC.
         * IF ObjA post event of class-b,
@@ -151,6 +152,27 @@ subgraph same process
     IOC -.-> |callback ONLY class-c| ObjC
     ObjB --> |subscribe class-b event| IOC
     ObjC --> |subscribe class-c event| IOC
+end
+```
+
+### [Scenario-02]
+* ObjA post event of class-b and class-c to IOC,
+    * ObjB retrive with class-b event arguement from IOC.
+        * IF ObjA post event of class-b,
+            * THEN ObjB retrive the class-b event from IOC and process it.
+    * ObjC retrive with class-c event arguement from IOC.
+        * IF ObjA post event of class-c,
+            * THEN ObjC retrive the class-c event from IOC and process it.
+```mermaid
+flowchart
+subgraph same process
+    ObjA --> |post event class-b/-c| IOC
+    ObjB --> |retrive class-b event| IOC
+    IOC -.-> |retrive class-b event return| ObjB
+    ObjB -.-> |process class-b event| ObjB
+    ObjC --> |retrive class-c event| IOC
+    IOC -.-> |retrive class-c event return| ObjC
+    ObjC -.-> |process class-c event| ObjC
 end
 ```
 
