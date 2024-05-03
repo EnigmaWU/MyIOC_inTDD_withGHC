@@ -97,7 +97,7 @@ sequenceDiagram
         alt <=MAX_PENDING_EVENT_QUEUE_DEPTH
             IOC-->>ObjA: SUCCESS
         else
-            IOC-->>ObjA: TOO_MANY_QUEUING_EVENT
+            IOC-->>ObjA: TOO_MANY_PENDING_EVENT_IN_QUEUE
         end
     end
 ```
