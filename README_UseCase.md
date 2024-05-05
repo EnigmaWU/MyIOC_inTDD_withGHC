@@ -26,8 +26,8 @@
 ```mermaid
 flowchart
 subgraph same process
-    ObjA --> |post event| IOC
     ObjB --> |subscribe event| IOC
+    ObjA --> |post event| IOC
     IOC -.-> |callback| ObjB
 end
 ```
