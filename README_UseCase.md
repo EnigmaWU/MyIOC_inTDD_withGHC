@@ -63,6 +63,28 @@ sequenceDiagram
     IOC-->>ObjA: NO_EVENT_CONSUMER
 ```
 
+#### [Scenario-01.c]
+* ObjA post event to IOC and IOC is callbacking ObjB,
+    * IF ObjB unsubscribe the event during callback,
+        * THEN the unsubscription will block until the callback is done.
+
+```mermaid
+sequenceDiagram
+    participant ObjA
+    participant IOC
+    participant ObjB
+    participant ThreadX
+    ObjA->>IOC: post event
+    IOC--)ObjB: callback begin
+    activate ObjB
+    ThreadX->>IOC: unsubscribe event
+    activate IOC
+    ObjB -->> IOC: callback end
+    deactivate ObjB
+    IOC -->> ThreadX: unsubscribe event return
+    deactivate IOC
+```
+
 ### [Scenario-02]
 * ObjA and ObjB is in the same process.
     * ObjA post event to IOC,
