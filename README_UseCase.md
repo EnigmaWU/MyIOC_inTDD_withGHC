@@ -49,6 +49,20 @@ sequenceDiagram
     IOC--)ObjB: callback
 ```
 
+#### [Scenario-01.b]
+* ObjA post event get NO_EVENT_CONSUMER result,
+    * IF ObjB unsubscribe the event before ObjA post event.
+
+```mermaid
+sequenceDiagram
+    participant ObjA
+    participant IOC
+    participant ObjB
+    ObjB->>IOC: unsubscribe event
+    ObjA->>IOC: post event
+    IOC-->>ObjA: NO_EVENT_CONSUMER
+```
+
 ### [Scenario-02]
 * ObjA and ObjB is in the same process.
     * ObjA post event to IOC,
