@@ -119,6 +119,7 @@ sequenceDiagram
 
 
 ## [ Use Case-02 ]: ObjA post event, ObjB process event by callback, ObjC process event by retrive.
+### [Scenario-01]
 * ObjA and ObjB/C is in the same process.
     * ObjA post event to IOC,
         * IOC callback ObjB to process the event.
@@ -177,6 +178,7 @@ end
 ```
 
 ## [ Use Case-04 ]: ObjA post class-a event, ObjB post class-b event, ObjC process class-a event, ObjD process class-b event, ObjE process class-a/-b event.
+### [Scenario-01]
 * ObjA post event of class-a to IOC, ObjB post event of class-b to IOC.
     * ObjC subscribe class-a event from IOC.
         * IF ObjA post event of class-a,
