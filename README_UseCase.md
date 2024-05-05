@@ -270,9 +270,30 @@ sequenceDiagram
     ObjB->>IOC: subscribe class-b event
     ObjC->>IOC: subscribe class-c event
     ObjA->>IOC: post class-b event
-    IOC--)ObjB: callback class-b
+    IOC--)ObjB: callback class-b begin
     activate ObjB
     ObjB->>IOC: post class-c event
+    ObjB -->> IOC: callback class-b end
     deactivate ObjB
     IOC--)ObjC: callback class-c
+```
+
+#### [Scenario-01.a]
+* IOC callback ObjC before ObjB's callback retrun
+
+```mermaid
+sequenceDiagram
+    participant ObjA
+    participant IOC
+    participant ObjB
+    participant ObjC
+    ObjB->>IOC: subscribe class-b event
+    ObjC->>IOC: subscribe class-c event
+    ObjA->>IOC: post class-b event
+    IOC--)ObjB: callback class-b begin
+    activate ObjB
+    ObjB->>IOC: post class-c event
+    IOC--)ObjC: callback class-c
+    ObjB -->> IOC: callback class-b end
+    deactivate ObjB
 ```
