@@ -15,10 +15,21 @@
 
 * [UseCase](./README_UseCase.md)
   * BETWEEN: End User and IOC's PM before analysis.
-  * ABOUT: How USER as a specific role will USE IOC in a specific context.
+  * ABOUT: How USER as a specific role will USE IOC in a specific context known as scenario.
 
-* [TODO: UserStories](./README_UserStories.md)      (DoingAnalysis)//RefBook: <<User Story Applied>>
-* [TODO: Specification](./README_Specification.md)  (AfterAnalysis)//RefPDF: https://github.com/Orthant/IEEE/blob/master/29148-2011.pdf
+* [Specification](./README_Specification.md) 
+  * BETWEEN: IOC's PM and team tech leader such as architect after analysis.
+    * Sometimes discuss with End User or ask End User to review it.
+  * ABOUT: What IOC will do, what IOC will not do, what IOC will do later.
+  * RefPDF: [IEEE 29148-2011](https://github.com/Orthant/IEEE/blob/master/29148-2011.pdf)
+
+* [UserStories](./README_UserStories.md)      
+  * BETWEEN: IOC's team tech leader and team members such as normal developers following Specification and referencing Use Case.
+    * Sometimes discuss with PM or End User.
+  * ABOUT: How to decompose the requirements into team member's monthly/weekly/daily development pieces.
+    * As a「X=Who/Role」，I want 「Y=What/Func」，So that 「Z=Why/Value」
+  * RefBook: [<<User Story Applied>>](https://www.mountaingoatsoftware.com/books/user-stories-applied)
+
 
 # Architecure and Design
 
