@@ -21,6 +21,7 @@
   * BETWEEN: IOC's PM and team tech leader such as architect after analysis.
     * Sometimes discuss with End User or ask End User to review it.
   * ABOUT: What IOC will do, what IOC will not do, what IOC will do later.
+    * Including functional/non-functional requirements, constraints, assumptions, and acceptance criteria, etc.
   * RefPDF: [IEEE 29148-2011](https://github.com/Orthant/IEEE/blob/master/29148-2011.pdf)
 
 * [UserStories](./README_UserStories.md)      
