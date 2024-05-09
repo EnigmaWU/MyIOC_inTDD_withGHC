@@ -11,6 +11,9 @@
     * OR ObjA execute command over ObjB(a.k.a CMD) 
     * OR ObjA send data to ObjB(a.k.a DAT).
 
+# Glossary
+* [README_Glossary](./README_Glossary.md)
+
 # Requirement and Analysis
 
 * [UseCase](./README_UseCase.md)

@@ -4,11 +4,7 @@
   * Glossary + Concept + Object + Operation + State
 
 # Glossary
-
-* ModMgr vs ModUsr
-* EvtProducer vs EvtConsumer
-* Conet vs Conles
-* MSG: CMD vs EVT vs DAT
+* RefDoc: [Glossary](./README_Glossary.md)
 
 # Concept
 
