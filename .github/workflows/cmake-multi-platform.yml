@@ -1,8 +1,8 @@
 #######
-# help rewrite this github workflow file, CMAKE_BUILD_TYPE=[RelWithDebInfo,DiagASAN,DiagTSAN] on MacOS and Linux with gcc and clang latest
+# help rewrite this github workflow file, CMAKE_BUILD_TYPE=[RelWithDebInfo,DiagASAN,DiagTSAN] on Linux with gcc and clang latest
 ######
 
-name: CMake on MacOS and Linux
+name: CMake on Linux/ubuntu-latest
 on:
   push:
     branches: [ "main" ]
