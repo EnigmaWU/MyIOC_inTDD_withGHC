@@ -297,3 +297,13 @@ sequenceDiagram
     ObjB -->> IOC: callback class-b end
     deactivate ObjB
 ```
+
+# [ Category-B ]: post event beyond same process(inter-process/machine)
+
+# [ Category-C ]: execute command in same process.
+
+# [ Category-D ]: execute command beyond same process(inter-process/machine)
+
+# [ Category-E ]: send data in same process.
+
+# [ Category-F ]: send data beyond same process(inter-process/machine)
