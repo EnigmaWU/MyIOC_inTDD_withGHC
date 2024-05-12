@@ -299,6 +299,12 @@ sequenceDiagram
 ```
 
 # [ Category-B ]: post event beyond same process(inter-process/machine)
+## Overview vs Category-A
+* Category-B is similar to Category-A, but ObjA and ObjB are in different process/machine.
+    * When Category-A: we assume ObjA MAY post event via IOC to ObjB directlly, which means ObjA and ObjB has a default \<auto>Link built by IOC.
+    * While Category-B: ObjA and ObjB MAY still post event via IOC to ObjB directly, which means even ObjA and ObjB are in different process/machine, they still have a default \<auto>Link built by IOC automatically.
+        * and this also means following scenarios are possible: Process-X has ObjA and ObjB, Process-Y has ObjC, Machine-Z has ObjD, ObjA post event to IOC, ObjB/C/D will get the event until they subscribe the event. Its IOC's responsibility to establish the \<auto>Link between ObjA and ObjB/C/D by any means.
+    * More Category-B: ObjA and ObjB MAY establish a \<user>Link via IOC before ObjA post event to ObjB, which means if ObjA post event use this \<user>Link, ObjB will get the event, even some other ObjC/D/E... has subscribed the same event on \<auto>Link. 
 
 # [ Category-C ]: execute command in same process.
 
