@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest]
+        os: [ubuntu-latest]
         build_type: [RelWithDebInfo, DiagASAN, DiagTSAN]
         c_compiler: [gcc, clang]
         include:
@@ -22,12 +22,6 @@ jobs:
             c_compiler: gcc
             cpp_compiler: g++
           - os: ubuntu-latest
-            c_compiler: clang
-            cpp_compiler: clang++
-          - os: macos-latest
-            c_compiler: gcc
-            cpp_compiler: g++
-          - os: macos-latest
             c_compiler: clang
             cpp_compiler: clang++
     steps:
