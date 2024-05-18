@@ -310,6 +310,24 @@ sequenceDiagram
 * In Summary: Category-B is a superset of Category-A, and Category-A is a subset of Category-B.
     * Category-B is more complex than Category-A, and Category-A is more simple than Category-B.
 
+## [Use Case-01]: post event beyond same process via \<auto>Link.
+### [Scenario-01]
+* IOC-X in Process-X, IOC-Y in Process-Y and establish \<auto>Link to IOC-X.
+    * ObjA in Process-X post event to IOC, ObjB in Process-Y subscribe the event.
+        * IOC in Process-X forward the event to IOC in Process-Y,
+            * IOC in Process-Y callback ObjB in Process-Y to process the event.
+```mermaid
+flowchart
+subgraph Process-X
+    ObjA --> |post event| IOC-X
+end
+subgraph Process-Y
+    IOC-Y --> |establish <^auto>Link| IOC-X
+    IOC-X -.-> |forward event| IOC-Y
+    ObjB --> |subscribe event| IOC-Y
+    IOC-Y -.-> |callback| ObjB
+end
+```
 
 # [ Category-C ]: execute command in same process.
 
