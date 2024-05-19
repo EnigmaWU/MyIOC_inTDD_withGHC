@@ -9,7 +9,9 @@ extern "C" {
 #endif
 
 /**
- * @brief EvtProducer call this API to post an event to IOC, which will be processed by EvtConsumer(s).
+ * @brief EvtProducer call this API to post an event to the LinkID,
+ *  IOC will deliver this event to the corresponding EvtConsumer,
+ *    who is subscribing or retriving this event by the LinkID.
  *
  * @param LinkID: the link ID between EvtProducer and EvtConsumer.
  *     RefMore: README_ArchDesign::Object::Link
