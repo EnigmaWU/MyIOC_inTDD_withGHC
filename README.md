@@ -3,6 +3,8 @@
 * This is a practice module named Inter-Object-Communication(a.k.a IOC) and has functions as its name
   * in Test-Driven Development(a.k.a TDD) as Dev-Approach
     * with GitHub Copilot(a.k.a GHC) as Dev-Facilites.
+  * Also, I'm exploring and evaluating 'Large Language Model based Software Engineering'(a.k.a LLMSE) in this project.
+    * RefMore: [README_LLMSE](README_LLMSE.md)
 
 * **module** MEANS a static library with C/C++ API implemented all functions in IOC.
 * **Inter-Object** MEANS the communication between objects in a thread/process/machine.
