@@ -322,7 +322,7 @@ subgraph Process-X
     ObjA --> |post event| IOC-X
 end
 subgraph Process-Y
-    IOC-Y --> |establish <^auto>Link| IOC-X
+    IOC-Y o==o |establish <^auto>Link| IOC-X
     IOC-X -.-> |forward event| IOC-Y
     ObjB --> |subscribe event| IOC-Y
     IOC-Y -.-> |callback| ObjB
@@ -341,9 +341,9 @@ subgraph Process-X
     ObjA --> |post event via <^user>Link| IOC-X
 end
 subgraph Process-Y
-    ObjB -.-> |establish <^user>Link| IOC-Y -.-> IOC-X -.-> ObjA
-    IOC-X --> |route event| IOC-Y
-    IOC-Y --> |callback| ObjB
+    ObjB o===o |establish <^user>Link| IOC-Y o==o IOC-X o===o ObjA
+    IOC-X -.-> |route event| IOC-Y
+    IOC-Y -.-> |callback| ObjB
 end
 ```
 
