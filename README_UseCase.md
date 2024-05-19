@@ -329,6 +329,24 @@ subgraph Process-Y
 end
 ```
 
+## [Use Case-02]: post event beyond same process via \<user>Link.
+### [Scenario-01]
+* IOC-X in Process-X, IOC-Y in Process-Y.
+    * ObjB establish \<user>Link to ObjA via IOC-X and IOC-Y.
+    * ObjA in Process-X post event to ObjB via \<user>Link.
+        * IOC-X route the event to IOC-Y, and IOC-Y callback ObjB to process the event finally.
+```mermaid
+flowchart
+subgraph Process-X
+    ObjA --> |post event via <^user>Link| IOC-X
+end
+subgraph Process-Y
+    ObjB -.-> |establish <^user>Link| IOC-Y -.-> IOC-X -.-> ObjA
+    IOC-X --> |route event| IOC-Y
+    IOC-Y --> |callback| ObjB
+end
+```
+
 # [ Category-C ]: execute command in same process.
 
 # [ Category-D ]: execute command beyond same process(inter-process/machine)
