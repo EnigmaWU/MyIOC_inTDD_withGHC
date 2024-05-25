@@ -36,3 +36,7 @@
 #include <gtest/gtest.h>
 
 #include <IOC/IOC.h>
+
+static inline uint32_t IOC_deltaTimevalInMS(const struct timeval *pFromTV, const struct timeval *pToTV) {
+  return (pToTV->tv_sec - pFromTV->tv_sec) * 1000 + pToTV->tv_usec / 1000 - pFromTV->tv_usec / 1000;
+}
