@@ -165,6 +165,7 @@ static IOC_Result_T __IOC_postEVT_inConlesMode(
     /*ARG_IN*/ const IOC_EvtDesc_pT pEvtDesc,
     /*ARG_IN_OPTIONAL*/ const IOC_Options_pT pOptions) {
   ULONG_T CbProcEvtCnt = 0;
+  IOC_Result_T SyncModeResult = IOC_RESULT_BUG;
 
   bool IsNonBlockMode = true;
   // TODO: IF pOptions is not NULL, THEN parse the IOC_OPTID_NONBLOCK_MODE
@@ -201,7 +202,10 @@ static IOC_Result_T __IOC_postEVT_inConlesMode(
       }
 
       if (IsSyncMode) {
-        pSavedSubEvtArgs->CbProcEvt_F(pEvtDesc, pSavedSubEvtArgs->pCbPrivData);
+        SyncModeResult = pSavedSubEvtArgs->CbProcEvt_F(pEvtDesc, pSavedSubEvtArgs->pCbPrivData);
+        if (IOC_RESULT_SUCCESS != SyncModeResult) {
+          break;  // FIXME: IF Multi-EvtConsumer but one CbProcEvt fail, how to do?
+        }
       } else {
         // Queuing the pEvtDesc
         _IOC_ConlesModeQueuingEvtDesc_pT pQueuingEvtDesc =
@@ -224,7 +228,9 @@ static IOC_Result_T __IOC_postEVT_inConlesMode(
   }
   pthread_mutex_unlock(&_mConlesModeSubEvtArgsMutex);
 
-  if (CbProcEvtCnt > 0) {
+  if (IsSyncMode) {
+    return SyncModeResult;
+  } else if (CbProcEvtCnt > 0) {
     return IOC_RESULT_SUCCESS;
   } else {
     return IOC_RESULT_NO_EVENT_CONSUMER;

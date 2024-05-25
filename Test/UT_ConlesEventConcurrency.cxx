@@ -201,20 +201,24 @@ typedef struct {
 } _Case02_PrivData_T;
 
 static IOC_Result_T _Case02_CbProcEvt_doSleepByEvtID(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
+  if (pCbPriv == nullptr || pEvtDesc == nullptr) {
+    return IOC_RESULT_BUG;
+  }
+
   _Case02_PrivData_T *pCbPrivData = (_Case02_PrivData_T *)pCbPriv;
 
   switch (pEvtDesc->EvtID) {
     case IOC_EVTID_TEST_SLEEP_99MS: {
-      usleep(99000);  // 99ms~100ms, not exactly 99ms
+      usleep(99000);
       pCbPrivData->SyncFlagValue = true;
-    } break;
+      return IOC_RESULT_SUCCESS;
+    }
+
     default: {
       EXPECT_TRUE(false) << "BUG: unexpected EvtID=" << pEvtDesc->EvtID;
-    }
       return IOC_RESULT_BUG;
+    }
   }
-
-  return IOC_RESULT_SUCCESS;
 }
 
 TEST(UT_ConlesEventConcurrency,
