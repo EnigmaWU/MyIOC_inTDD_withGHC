@@ -8,7 +8,7 @@
 /**
  * @brief Summary of UT_ConlesEventConcurrency
  * 1) verifyASync_bySingleEvtProducerPostTestSleep9ms99msEvtEvery10ms_whileProcedAsyncInDifferentEvtConsumerCallback
- * 2) verifySync_byPostTestSleep99msEvt_andUpdateSyncFlagValueAfterSleepInCbProcEvt
+ * 2) verifySync_byPostTestSleep99msEvtWithSyncOpt_updateAndCheckSyncFlagValueAfterSleepInCbProcEvt
  */
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -184,7 +184,7 @@ TEST(UT_ConlesEventConcurrency,
 }
 
 /**
- * @[Name]: verifySync_byPostTestSleep99msEvt_andUpdateSyncFlagValueAfterSleepInCbProcEvt
+ * @[Name]: verifySync_byPostTestSleep99msEvtWithSyncOpt_updateAndCheckSyncFlagValueAfterSleepInCbProcEvt
  * @[Purpose]: verify case SPECv2-z.7 in README.md, which is a Sync event case.
  *      Sync here means EvtPrducer postEVT WILL wait for EvtConsumer's CbProcEvt done.
  * @[Steps]:
@@ -217,7 +217,8 @@ static IOC_Result_T _Case02_CbProcEvt_doSleepByEvtID(IOC_EvtDesc_pT pEvtDesc, vo
   return IOC_RESULT_SUCCESS;
 }
 
-TEST(UT_ConlesEventConcurrency, Case02_verifySync_byPostTestSleep99msEvt_andUpdateSyncFlagValueAfterSleepInCbProcEvt) {
+TEST(UT_ConlesEventConcurrency,
+     Case02_verifySync_byPostTestSleep99msEvtWithSyncOpt_updateAndCheckSyncFlagValueAfterSleepInCbProcEvt) {
   //===SETUP===
   _Case02_PrivData_T ObjA_CbProcedPrivData = {
       .SyncFlagValue = false,
