@@ -7,7 +7,7 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
  * @brief Summary of UT_ConlesEventConcurrency
- * 1) verifyASync_byPostTestSleep9ms99msEvtEvery10ms_whileProcedInSingleCallback
+ * 1) verifyASync_bySingleEvtProducerPostTestSleep9ms99msEvtEvery10ms_whileProcedAsyncInDifferentEvtConsumerCallback
  * 2) verifySync_byPostTestSleep99msEvt_andUpdateSyncFlagValueAfterSleepInCbProcEvt
  */
 
@@ -15,7 +15,7 @@
 // Define a test case to verify SPECv2-z.5 in README.md
 
 /**
- * @[Name]: verifyASync_byPostTestSleep9ms99msEvtEvery10ms_whileProcedInSingleCallback
+ * @[Name]: verifyASync_bySingleEvtProducerPostTestSleep9ms99msEvtEvery10ms_whileProcedAsyncInDifferentEvtConsumerCallback
  * @[Purpose]: accord SPECv2-z.5 in README.md, use this case to verify postEVT in ASync mode,
  *    by ObjA's call postEVT time cost(<1ms) is much less than ObjB/ObjC's CbProcEvt of each sleep 9ms/99ms.
  * @[Steps]:
@@ -25,7 +25,9 @@
  *   3) ObjA's Posted TestSleep9msEvtCnt is 100 and Posted TestSleep99msEvtCnt is 10,
  *       |-> and ObjA's total sleep time is 100*10ms=1000ms
  *   4) ObjB's CbProced TestSleep9msEvtCnt is 100, ObjC's CbProced TestSleep99msEvtCnt is 10
- * @[Expect]: Step3 and Step4 are all true.
+ * @[Expect]:
+ *    a) Step3 and Step4 are all true.
+ *    b) ObjA's postEVT cost time is less than 1ms.
  * @[Notes]:
  *
  */
@@ -60,7 +62,8 @@ uint32_t IOC_deltaTimevalInMS(const struct timeval *pFromTV, const struct timeva
   return (pToTV->tv_sec - pFromTV->tv_sec) * 1000 + pToTV->tv_usec / 1000 - pFromTV->tv_usec / 1000;
 }
 
-TEST(UT_ConlesEventConcurrency, Case01_verifyASync_byPostTestSleep9ms99msEvtEvery10ms_whileProcedInSingleCallback) {
+TEST(UT_ConlesEventConcurrency,
+     Case01_verifyASync_bySingleEvtProducerPostTestSleep9ms99msEvtEvery10ms_whileProcedAsyncInDifferentEvtConsumerCallback) {
   //===SETUP===
   _Case01_PrivData_T ObjB_CbProcedPrivData = {
       .TestSleep9msEvtCnt  = 0,
