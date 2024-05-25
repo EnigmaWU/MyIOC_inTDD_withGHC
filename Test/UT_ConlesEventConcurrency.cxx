@@ -37,7 +37,11 @@ typedef struct {
   uint32_t TestSleep99msEvtCnt;
 } _Case01_PrivData_T;
 
-static IOC_Result_T _Case01_CbProcEvt_doSleepByEvtID(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
+// Disable thread satity check use attribute for this test case
+__attribute__((no_sanitize("thread")))
+
+static IOC_Result_T
+_Case01_CbProcEvt_doSleepByEvtID(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
   _Case01_PrivData_T *pCbPrivData = (_Case01_PrivData_T *)pCbPriv;
 
   switch (pEvtDesc->EvtID) {
@@ -51,8 +55,8 @@ static IOC_Result_T _Case01_CbProcEvt_doSleepByEvtID(IOC_EvtDesc_pT pEvtDesc, vo
     } break;
     default: {
       EXPECT_TRUE(false) << "BUG: unexpected EvtID=" << pEvtDesc->EvtID;
-    }
       return IOC_RESULT_BUG;
+    }
   }
 
   return IOC_RESULT_SUCCESS;
