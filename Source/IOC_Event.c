@@ -68,17 +68,18 @@ static void* __IOC_procEvtCbThread_inConlesMode(void* pArg) {
         pQueuingEvtDesc->ProcedEvtNum++;
 
         //-------------------------------------------------------------------------------------------------------------
-        pthread_mutex_unlock(&_mConlesModeSubEvtArgsMutex);
         // BEGIN: callback process event function
         for (int Idx = 0; Idx < pSubEvtArgs->EvtNum; Idx++) {  // forEach EvtConsumer's subedEvtID
           if (pEvtDesc->EvtID == pSubEvtArgs->pEvtIDs[Idx]) {
+            pthread_mutex_unlock(&_mConlesModeSubEvtArgsMutex);
             pSubEvtArgs->CbProcEvt_F(pEvtDesc, pSubEvtArgs->pCbPrivData);
+            pthread_mutex_lock(&_mConlesModeSubEvtArgsMutex);
           }
         }
         free(pEvtDesc);
         ProcedEvtNum++;
         // END: callback process event function
-        pthread_mutex_lock(&_mConlesModeSubEvtArgsMutex);
+
         //-------------------------------------------------------------------------------------------------------------
       }
     }

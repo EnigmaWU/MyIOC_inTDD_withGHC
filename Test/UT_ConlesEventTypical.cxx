@@ -108,7 +108,11 @@ typedef struct {
   uint32_t KeepAliveEvtCnt;
 } _Case02_CbPrivData_T;
 
-static IOC_Result_T _Case02_CbProcEvt_1vN(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
+// Disable thread sanitizer for this CbProcEvt by compile attribute.
+__attribute__((no_sanitize_thread))
+
+static IOC_Result_T
+_Case02_CbProcEvt_1vN(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
   _Case02_CbPrivData_T *pCbPrivData = (_Case02_CbPrivData_T *)pCbPriv;
 
   switch (pEvtDesc->EvtID) {
@@ -454,7 +458,10 @@ typedef struct {
   uint32_t KeepAliveEvtCnt;
 } _Case05_CbPrivData_T;
 
-static IOC_Result_T _Case05_CbProcEvt_NvM(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
+__attribute__((no_sanitize_thread))
+
+static IOC_Result_T
+_Case05_CbProcEvt_NvM(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
   _Case05_CbPrivData_T *pCbPrivData = (_Case05_CbPrivData_T *)pCbPriv;
 
   switch (pEvtDesc->EvtID) {
@@ -578,7 +585,11 @@ typedef struct {
   uint32_t HelloFromOddToEvenCnt;
 } _Case06_CbPrivData_T;
 
-static IOC_Result_T _Case06_CbProcEvt_NvM(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
+// Disable thread sanitizer for this CbProcEvt by attribute
+__attribute__((no_sanitize("thread")))
+
+static IOC_Result_T
+_Case06_CbProcEvt_NvM(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
   _Case06_CbPrivData_T *pCbPrivData = (_Case06_CbPrivData_T *)pCbPriv;
 
   switch (pEvtDesc->EvtID) {
@@ -773,7 +784,10 @@ typedef struct {
   uint32_t KeepAliveEvtCnt;
 } _Case07_CbPrivData_T;
 
-static IOC_Result_T _Case07_CbProcEvt_postKeepAliveRelayEvt(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
+__attribute__((no_sanitize_thread))
+
+static IOC_Result_T
+_Case07_CbProcEvt_postKeepAliveRelayEvt(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
   _Case07_CbPrivData_T *pCbPrivData = (_Case07_CbPrivData_T *)pCbPriv;
 
   switch (pEvtDesc->EvtID) {
@@ -797,7 +811,10 @@ static IOC_Result_T _Case07_CbProcEvt_postKeepAliveRelayEvt(IOC_EvtDesc_pT pEvtD
   return IOC_RESULT_SUCCESS;
 }
 
-static IOC_Result_T _Case07_CbProcEvt_procKeepAliveRelay(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
+__attribute__((no_sanitize_thread))
+
+static IOC_Result_T
+_Case07_CbProcEvt_procKeepAliveRelay(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
   _Case07_CbPrivData_T *pCbPrivData = (_Case07_CbPrivData_T *)pCbPriv;
 
   switch (pEvtDesc->EvtID) {
