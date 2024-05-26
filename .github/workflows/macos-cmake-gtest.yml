@@ -24,35 +24,26 @@ jobs:
       run: |
         brew install googletest
 
-    - name: Build RelWithDebInfo
+    - name: Build&Test RelWithDebInfo
       run: |
-        mkdir build
-        cd build
-        cmake ..
-        cmake --build . --config RelWithDebInfo
+        mkdir Dir4RelWithDebInfo
+        cd Dir4RelWithDebInfo
+        cmake -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo ..
+        cmake --build . 
+        ctest
 
-    - name: Test RelWithDebInfo
+    - name: Build&Test DiagASAN
       run: |
-        ctest -C RelWithDebInfo
+        mkdir Dir4DiagASAN
+        cd Dir4DiagASAN
+        cmake -DCMAKE_BUILD_TYPE:STRING=DiagASAN ..
+        cmake --build . 
+        ctest
 
-    - name: Build DiagASAN
+    - name: Build&Test DiagTSAN
       run: |
-        mkdir build
-        cd build
-        cmake ..
-        cmake --build . --config DiagASAN
-            
-    - name: Test DiagASAN
-      run: |
-        ctest -C DiagASAN
-
-    - name: Build DiagTSAN
-      run: |
-        mkdir build
-        cd build
-        cmake ..
-        cmake --build . --config DiagTSAN
-
-    - name: Test
-      run: |
-        ctest -C DiagTSAN
+        mkdir Dir4DiagTSAN
+        cd Dir4DiagTSAN
+        cmake -DCMAKE_BUILD_TYPE:STRING=DiagTSAN ..
+        cmake --build .
+        ctest
