@@ -22,7 +22,7 @@ jobs:
 
     - name: Install GTest
       run: |
-        brew install gtest
+        brew install googletest
 
     - name: Build RelWithDebInfo
       run: |
