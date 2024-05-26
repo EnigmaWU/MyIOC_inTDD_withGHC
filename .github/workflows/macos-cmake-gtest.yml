@@ -1,0 +1,58 @@
+##OS: MacOS-latest
+##Toolchain: llvm(clang/clang++)
+##BuildTool: cmake
+    ##WithCfgType: RelWithDebInfo, DiagASAN, DiagTSAN
+##TestTool: ctest
+##DepLibs: gtest
+
+name: MacOS-CMake-GTest
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: macOS-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Install CMake
+      run: |
+        brew install cmake
+
+    - name: Install GTest
+      run: |
+        brew install gtest
+
+    - name: Build RelWithDebInfo
+      run: |
+        mkdir build
+        cd build
+        cmake ..
+        cmake --build . --config RelWithDebInfo
+
+    - name: Test RelWithDebInfo
+      run: |
+        ctest -C RelWithDebInfo
+
+    - name: Build DiagASAN
+      run: |
+        mkdir build
+        cd build
+        cmake ..
+        cmake --build . --config DiagASAN
+            
+    - name: Test DiagASAN
+      run: |
+        ctest -C DiagASAN
+
+    - name: Build DiagTSAN
+      run: |
+        mkdir build
+        cd build
+        cmake ..
+        cmake --build . --config DiagTSAN
+
+    - name: Test
+      run: |
+        ctest -C DiagTSAN
