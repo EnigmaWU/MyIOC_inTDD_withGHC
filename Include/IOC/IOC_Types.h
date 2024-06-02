@@ -33,27 +33,31 @@ typedef enum {
  * @brief LinkID is a unique ID to identify a link between two objects in communication.
  *---------------------------------------------------------------------------------------------------------------------
  * Design::FSM
- *    RefReadme::MSG::EVT::FSM::Conles/Conet
+ *    RefReadme::MSG::EVT::Conles/Conet
  *    RefType::IOC_LinkState_T
  */
 typedef uint64_t IOC_LinkID_T;
 #define IOC_CONLES_MODE_AUTO_LINK_ID 0
 // TODO: IOC_CONLES_MODE_AUTO_LINK_ID_0<DFT>/_1/_2/...
 
-// RefReadme::MSG::EVT::FSM::Conles/Conet
+/**
+ * RefMore README_ArchDesign::State
+ *    |-> EVT::Conet
+ *    |-> EVT::Conles
+ */
 typedef enum {
-  IOC_LinkStateReady = 0,  // Link is ready to use.
-  IOC_LinkStateBusy  = 1,  // Link is busy, can't be used.
+  IOC_LinkStateReady = 0,
+  IOC_LinkStateBusy  = 1,
   // IOC_LinkStateError = 2,  // Link is error, can't be used.
 } IOC_LinkState_T,
     *IOC_LinkState_pT;
 
 typedef enum {
-  IOC_LinkSubState_ReadyIdle   = 0,  // Link is ready to use.
-  IOC_LinkSubState_ReadyLocked = 1,  // Link is ready but locked.
+  IOC_LinkSubState_ReadyIdle   = 0,
+  IOC_LinkSubState_ReadyLocked = 1,
 
-  IOC_LinkSubState_BusyProcing        = 0,  //  Link is busy of processing.
-  IOC_LinkSubState_BusyProcingPosting = 1,  //  Link is busy of processing&posting.
+  IOC_LinkSubState_BusyProcing        = 0,
+  IOC_LinkSubState_BusyProcingPosting = 1,
 } IOC_LinkSubState_T,
     *IOC_LinkSubState_pT;
 

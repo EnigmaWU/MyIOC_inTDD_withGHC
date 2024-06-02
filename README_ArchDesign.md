@@ -78,11 +78,11 @@
 
 # State
 
-## EVT:FSM::Conet
+## EVT::Conet
 
 * TODO
 
-## EVT::FSM::Conles
+## EVT::Conles
 
 * {TSF-0}\<ACT:_initCRuntimeSuccess>  -> [STATE:LinkStateReady]
 
@@ -119,3 +119,9 @@ stateDiagram-v2
   }
   
 ```
+
+* LinkStateReady is means we may perform sub/unsub/postEVT behaviors.
+  * LinkSubState_ReadyLocked is means we are performing one of sub/unsub/postEVT behaviors, and concurrent sub/unsub/postEVT behaviors may be blocked.
+* LinkStateBusy is means we may postEVT but may not sub/unsubEVT behaviors.
+  * LinkSubState_BusyProcing is means posted event is processing with CbProcEvt_F.
+  * LinkSubState_BusyProcingPosting is means posted event is processing with CbProcEvt_F and a new event is postEVT-ing.

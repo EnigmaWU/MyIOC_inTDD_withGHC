@@ -65,7 +65,7 @@
     * 3)IF subEVT MAX EvtConsumer and unsubEVT all, THEN this is a repeatable progress as robustness. ALSO multiply thread subEVT&unsubEVT still works as robustness.
     * 4)~~IF EvtProducer postEVT(TEST_HELLO_A or TEST_HELLO_B) alternatively, ObjA as EvtConsumer subEVT(TEST_HELLO_A), ObjB as EvtConsumer subEVT(TEST_HELLO_B), THEN ObjA's CbProcEvt will callbacked only with TEST_HELLO_A, ObjB is same exactly with ObjA.~~
     * 5)~~IF ObjA postEVT(TEST_SLEEP_10MS) every 10ms, postEVT(TEST_SLEEP_100MS) every 100ms in a single thread; ObjB subEVT(TEST_SLEEP_10MS) and do sleep 10ms in its CbProcEvt, ObjC subEVT(TEST_SLEEP_100MS) and do sleep 100ms in its CbProcEvt; THEN ObjA will(capable) post 100xTEST_SLEEP_10MS and 10xTEST_SLEE_100MS every second.~~
-      * RefMore: EVT::FSM::Conles
+      * RefMore: EVT::Conles
     * 6)IF ObjA postEVT(TEST_SLEEP_10MS) every 10ms, ObjB subEVT(TEST_SLEEP_10MS) but do sleep 999ms in its CbProcEvt, THEN ObjA postEVT with ASync/NonBlock by default, but may postEVT in Sync or MayBlock or Timeout.
     * 7)~~IF ObjA subEVT(TEST_SLEEP_99MS), ObjB postEVT(TEST_SLEEP_99MS) with Sync option ON, and ObjA update its SyncFlagValue to TRUE after usleep(99000), THEN ObjB's postEVT will cost >99ms and get ObjA's SyncFlagValue is TRUE immediately after postEVT return.~~
     * 8)IF ObjA's CbProcEvt using too many CPU cycles, ObjB posted too many events, THEN ObjB's postEVT will get TOO_MANY_EVENTS by default, or blocked if OptID=MayBlock is ON, or block a while then get TIMEOUT if OptID=Timeout/withMS is SET.
