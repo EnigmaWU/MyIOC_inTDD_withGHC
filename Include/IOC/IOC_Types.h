@@ -46,18 +46,21 @@ typedef uint64_t IOC_LinkID_T;
  *    |-> EVT::Conles
  */
 typedef enum {
-  IOC_LinkStateReady = 0,
-  IOC_LinkStateBusy  = 1,
-  // IOC_LinkStateError = 2,  // Link is error, can't be used.
+  IOC_LinkStateUndefined = 0,
+  IOC_LinkStateReady     = 1,
+  IOC_LinkStateBusy      = 2,
+  // TODO: IOC_LinkStateError = 3,
 } IOC_LinkState_T,
     *IOC_LinkState_pT;
 
 typedef enum {
-  IOC_LinkSubState_ReadyIdle   = 0,
-  IOC_LinkSubState_ReadyLocked = 1,
+  IOC_LinkSubStateUndefined = 0,
 
-  IOC_LinkSubState_BusyProcing        = 0,
-  IOC_LinkSubState_BusyProcingPosting = 1,
+  IOC_LinkSubState_ReadyIdle   = 1,
+  IOC_LinkSubState_ReadyLocked = 2,
+
+  IOC_LinkSubState_BusyProcing        = 1,
+  IOC_LinkSubState_BusyProcingPosting = 2,
 } IOC_LinkSubState_T,
     *IOC_LinkSubState_pT;
 
