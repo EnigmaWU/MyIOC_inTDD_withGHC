@@ -47,7 +47,7 @@
   * EVT is ASYNC/SYNC and DGRAM defined by IOC identified by EvtID;
   * DAT is ASNYC/SYNC and STREAM defined by IOC knowns only by object pair;
 
-### EVT::Properties
+### EVT
 
 * [EVT] is ASYNC and DGRAM defined by IOC identified by EvtID;
   * Its default property is ASYNC+MAYBLOCK+NODROP, and may be changed by setLinkParams or IOC_Options_T.

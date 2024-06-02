@@ -56,6 +56,11 @@ void IOC_forceProcEVT(void);
 IOC_Result_T IOC_getCapabilty(
     /*ARG_INOUT*/ IOC_CapabiltyDescription_pT);
 
+IOC_Result_T IOC_getLinkState(
+    /*ARG_IN*/ IOC_LinkID_T LinkID,
+    /*ARG_OUT*/ IOC_LinkState_pT pLinkState,
+    /*ARG_OUT_OPTIONAL*/ IOC_LinkSubState_pT pLinkSubState);
+
 //===>Helper APIs
 #define IOC_BugAbort()                                   \
   do {                                                   \

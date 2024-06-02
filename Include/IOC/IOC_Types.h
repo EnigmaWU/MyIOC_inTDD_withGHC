@@ -45,7 +45,8 @@ typedef enum {
   IOC_LinkStateReady = 0,  // Link is ready to use.
   IOC_LinkStateBusy  = 1,  // Link is busy, can't be used.
   // IOC_LinkStateError = 2,  // Link is error, can't be used.
-} IOC_LinkState_T;
+} IOC_LinkState_T,
+    *IOC_LinkState_pT;
 
 typedef enum {
   IOC_LinkSubState_ReadyIdle   = 0,  // Link is ready to use.
@@ -53,7 +54,8 @@ typedef enum {
 
   IOC_LinkSubState_BusyProcing        = 0,  //  Link is busy of processing.
   IOC_LinkSubState_BusyProcingPosting = 1,  //  Link is busy of processing&posting.
-} IOC_LinkSubState_T;
+} IOC_LinkSubState_T,
+    *IOC_LinkSubState_pT;
 
 typedef enum {
   IOC_OPTID_TIMEOUT = 1 << 0,    // set this IDs and Payload.TimeoutUS>=0, to set timeout for execCMD,waitCMD,sendDAT,recvDAT,...
