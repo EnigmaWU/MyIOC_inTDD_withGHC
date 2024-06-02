@@ -326,3 +326,16 @@ IOC_Result_T IOC_getCapabilty(
 
   return Result;
 }
+
+IOC_Result_T IOC_getLinkState(
+    /*ARG_IN*/ IOC_LinkID_T LinkID,
+    /*ARG_OUT*/ IOC_LinkState_pT pLinkState,
+    /*ARG_OUT_OPTIONAL*/ IOC_LinkSubState_pT pLinkSubState) {
+  if (LinkID == IOC_CONLES_MODE_AUTO_LINK_ID) {
+    *pLinkState    = IOC_LinkStateReady;
+    *pLinkSubState = IOC_LinkSubState_ReadyIdle;
+    return IOC_RESULT_SUCCESS;
+  } else {
+    return IOC_RESULT_NOT_IMPLEMENTED;
+  }
+}
