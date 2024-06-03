@@ -68,76 +68,76 @@ TEST(UT_ConlesEventState, Case01_verifyLinkStateReadyIdle_byDoNothing) {
  *    verify Link's main state is LinkStateReady and sub state is LinkStateReadyIdle or LinkStateReadyLocked,
  *    when subEVT+unsubEVT in multi threads currently.
  * @[Steps]:
- *    1. Create $_Case02_MAX_THREAD_NUM threads with thread body named _Case02_subUnsubEvtThread as SETUP
- *      |-> each thread has a ThreadID argument from 1 to $_Case02_MAX_THREAD_NUM
- *      |-> set this ThreadID to SubEvtArgs's [CbProcEvt_F,pCbPrivData] to distinguish each event subscriber
- *      |-> and SubEvtArg's EvtID is TestKeepAlive just for API usage purpose.
- *    2. Each thread do subEVT+unsubEVT of $_Case02_MAX_SUBUNSUB_CNT in loop as BEHAVIOR
- *    3. Call IOC_getLinkState to get the LinkState and LinkSubState continuously as BEHAVIOR
+ *    1. Create _Case02_MAX_THREAD_NUM threads with thread body named _Case02_subUnsubEvtThread as SETUP
+ *      |-> each thread has a ThreadID argument from 1 to _Case02_MAX_THREAD_NUM
+ *    2. In Each thread do subEVT+unsubEVT of _Case02_MAX_SUBUNSUB_CNT in loop as BEHAVIOR
+ *      |-> call subEVT with SubEvtArgs set with CbProcEvt_F=pCbPrivData=ThreadID and EvtIDs=IOC_EVTID_TEST_KEEPALIVE
+ *      |-> call unsubEVT with UnsubEvtArgs same with SubEvtArgs's CbProcEvt_F and pCbPrivData.
+ *      |-> RefAPI: IOC_subEVT_inConlesMode, IOC_unsubEVT_inConlesMode in IOC.h
+ *      |-> RefType: IOC_SubEvtArgs_T, IOC_UnsubEvtArgs_T in IOC_Types.h
+ *    3. In main thread call IOC_getLinkState to get the LinkState and LinkSubState continuously as BEHAVIOR
  *      a)-> check LinkState is LinkStateReady and sub state is LinkStateReadyIdle or LinkStateReadyLocked as VERIFY
- *      |-> save the LinkState in $_Case02_LinkStateCnt as BEHAVIOR
- *      |-> save LinkSubState in $_Case02_LinkSubStateIdleCnt or $_Case02_LinkSubStateLockedCnt as BEHAVIOR
- *    4. Verify the $_Case02_LinkStateCnt>0 and $_Case02_LinkSubStateCnt>0 as VERIFY
+ *      |-> account the getting of LinkState in LinkStateCnt as BEHAVIOR
+ *      |-> account the getting of LinkSubState in LinkSubStateIdleCnt or LinkSubStateLockedCnt as BEHAVIOR
+ *    4. Verify the _Case02_LinkStateCnt>0 and _Case02_LinkSubStateCnt>0 as VERIFY
  * @[Expect]: Step-3.a is TRUE, Step-4 is TRUE.
  * @[Notes]:
+ *      RefCode: UT_ConlesEventTypical.Case01-07
  */
 
 #define _Case02_MAX_THREAD_NUM 10
 #define _Case02_MAX_SUBUNSUB_CNT 1000000
 
-static void _Case02_subUnsubEvtThread(long threadID) {
-  IOC_EvtID_T TestKeepAlive[] = {IOC_EVTID_TEST_KEEPALIVE};
-  IOC_SubEvtArgs_T SubEvtArgs = {
-      .CbProcEvt_F = (IOC_CbProcEvt_F)threadID,
-      .pCbPrivData = (void *)threadID,
-      .EvtNum      = IOC_calcArrayElmtCnt(TestKeepAlive),
-      .pEvtIDs     = &TestKeepAlive[0],
-  };
-
-  IOC_UnsubEvtArgs_T UnsubEvtArgs = {
-      .CbProcEvt_F = (IOC_CbProcEvt_F)threadID,
-      .pCbPrivData = (void *)threadID,
-  };
-
+static void _Case02_subUnsubEvtThread(long ThreadID) {
   for (uint32_t i = 0; i < _Case02_MAX_SUBUNSUB_CNT; i++) {
-    IOC_Result_T result = IOC_subEVT_inConlesMode(&SubEvtArgs);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, result);  // VerifyPoint
+    IOC_EvtID_T EvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
 
-    result = IOC_unsubEVT_inConlesMode(&UnsubEvtArgs);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, result);  // VerifyPoint
+    IOC_SubEvtArgs_T subEvtArgs = {
+        .CbProcEvt_F = (IOC_CbProcEvt_F)ThreadID,
+        .pCbPrivData = (void *)ThreadID,
+        .EvtNum      = IOC_calcArrayElmtCnt(EvtIDs),
+        .pEvtIDs     = EvtIDs,
+    };
+    IOC_Result_T result = IOC_subEVT_inConlesMode(&subEvtArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result);  // VerifyPoint
+
+    IOC_UnsubEvtArgs_T unsubEvtArgs = {
+        .CbProcEvt_F = (IOC_CbProcEvt_F)ThreadID,
+        .pCbPrivData = (void *)ThreadID,
+    };
+    result = IOC_unsubEVT_inConlesMode(&unsubEvtArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result);  // VerifyPoint
   }
 }
 
 TEST(UT_ConlesEventState, Case02_verifyLinkStateReadyIdleOrLocked_bySubUnsubEvtConcurrently) {
   //===SETUP===
   std::thread threads[_Case02_MAX_THREAD_NUM];
-  IOC_LinkState_T linkState       = IOC_LinkStateUndefined;
-  IOC_LinkSubState_T linkSubState = IOC_LinkSubStateUndefined;
-  uint32_t LinkStateCnt           = 0;
-  uint32_t LinkSubStateIdleCnt    = 0;
-  uint32_t LinkSubStateLockedCnt  = 0;
-
-  //===BEHAVIOR===
   for (long i = 0; i < _Case02_MAX_THREAD_NUM; i++) {
     threads[i] = std::thread(_Case02_subUnsubEvtThread, i + 1);
   }
 
+  //===BEHAVIOR===
+  uint32_t LinkStateCnt          = 0;
+  uint32_t LinkSubStateIdleCnt   = 0;
+  uint32_t LinkSubStateLockedCnt = 0;
   for (uint32_t i = 0; i < _Case02_MAX_SUBUNSUB_CNT * _Case02_MAX_THREAD_NUM; i++) {
+    IOC_LinkState_T linkState       = IOC_LinkStateUndefined;
+    IOC_LinkSubState_T linkSubState = IOC_LinkSubStateUndefined;
+
     IOC_Result_T result = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &linkState, &linkSubState);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);  // VerifyPoint
-    // LinkState MUST IOC_LinkStateReady
-    // LinkSubState MUST IOC_LinkSubState_ReadyIdle or IOC_LinkSubState_ReadyLocked
-    ASSERT_EQ(IOC_LinkStateReady, linkState);                                                                 // KeyVerifyPoint
-    ASSERT_TRUE(linkSubState == IOC_LinkSubState_ReadyIdle || linkSubState == IOC_LinkSubState_ReadyLocked);  // KeyVerifyPoint
+    // linkState MUST be IOC_LinkStateReady
+    ASSERT_EQ(IOC_LinkStateReady, linkState);  // VerifyPoint
+    // linkSubState MUST be IOC_LinkSubState_ReadyIdle or IOC_LinkSubState_ReadyLocked
+    ASSERT_TRUE(linkSubState == IOC_LinkSubState_ReadyIdle || linkSubState == IOC_LinkSubState_ReadyLocked);  // VerifyPoint
 
     if (linkState == IOC_LinkStateReady) {
       LinkStateCnt++;
     }
-
     if (linkSubState == IOC_LinkSubState_ReadyIdle) {
       LinkSubStateIdleCnt++;
     }
-
     if (linkSubState == IOC_LinkSubState_ReadyLocked) {
       LinkSubStateLockedCnt++;
     }
