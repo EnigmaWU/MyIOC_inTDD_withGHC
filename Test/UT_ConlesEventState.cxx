@@ -156,3 +156,36 @@ TEST(UT_ConlesEventState, Case02_verifyLinkStateReadyIdleOrLocked_bySubUnsubEvtC
     threads[i].join();
   }
 }
+
+/**
+ * @[Name]: Case03_verifyLinkStateBusyProcing_byPostEVT_ofTestSleep99msEvt
+ * @[Purpose]: According to LinkState definition in README_ArchDesign::State::EVT::Conles
+ *      and IOC_LinkState_T/IOC_LinkSubState_T in IOC_Types.h,
+ *    verify Link's main state is LinkStateBusy and sub state is LinkStateBusyProcing,
+ *      by postEVT of TestSleep99msEvt and sync state checking via CbProcEvt_F.
+ * @[Steps]:
+ *    1. subEVT as SETUP
+ *      |-> CbProcEvt_F named _Case03_CbProcEvt_F_TestSleep99msEvt
+ *      |-> EvtID is IOC_EVTID_TEST_SLEEP_99MS
+ *      |-> RefAPI: IOC_subEVT_inConlesMode in IOC.h
+ *      |-> RefType: IOC_SubEvtArgs_T in IOC_Types.h
+ *      a) Call IOC_getLinkState to get the LinkState and LinkSubState
+ *              and make sure LinkState is LinkStateReady and LinkSubState is LinkStateReadyIdle as VERIFY
+ *    2. postEVT of TestSleep99msEvt as BEHAVIOR
+ *      |-> RefAPI: IOC_postEVT_inConlesMode in IOC.h
+ *      |-> RefType: IOC_EvtDesc_T in IOC_Types.h
+ *    3. Wait SemEnterCbProcEvt as BEHAVIOR
+ *      |-> Post SemEnterCbProcEvt in CbProcEvt_F
+ *    4. Call IOC_getLinkState to get the LinkState and LinkSubState as BEHAVIOR
+ *    5. Verify the LinkState is LinkStateBusy and sub state is LinkStateBusyProcing as VERIFY
+ *    6. Post SemLeaveCbProcEvt in CbProcEvt_F as BEHAVIOR
+ *      |-> Waiting SemLeaveCbProcEvt in CbProcEvt_F after Step-3
+ *    7. Sleep 100ms to make sure CbProcEvt_F is return as BEHAVIOR
+ *    8. unSubEVT as CLEANUP
+ *      a) Call IOC_getLinkState to get the LinkState and LinkSubState
+ *              and make sure LinkState is LinkStateReady and LinkSubState is LinkStateReadyIdle as VERIFY
+ * @[Expect]:
+ *    Step-1.a is TRUE, Step-5 is TRUE, Step-8.a is TRUE.
+ * @[Notes]:
+ *      RefCode:
+ */
