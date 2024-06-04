@@ -25,8 +25,6 @@
  *
  */
 
-#include <_types/_uint32_t.h>
-
 #include "_UT_IOC_Common.h"
 /**
  * @section ImplOfUT ConlesEventStateReady
@@ -121,7 +119,8 @@ TEST(UT_ConlesEventState, Case02_verifyLinkStateReadyIdleOrLocked_bySubUnsubEvtC
   uint32_t LinkStateCnt          = 0;
   uint32_t LinkSubStateIdleCnt   = 0;
   uint32_t LinkSubStateLockedCnt = 0;
-  for (uint32_t i = 0; i < _Case02_MAX_SUBUNSUB_CNT * _Case02_MAX_THREAD_NUM; i++) {
+  uint32_t GetLinkStateCnt       = _Case02_MAX_SUBUNSUB_CNT * _Case02_MAX_THREAD_NUM;
+  for (uint32_t i = 0; i < GetLinkStateCnt; i++) {
     IOC_LinkState_T linkState       = IOC_LinkStateUndefined;
     IOC_LinkSubState_T linkSubState = IOC_LinkSubStateUndefined;
 
@@ -147,6 +146,10 @@ TEST(UT_ConlesEventState, Case02_verifyLinkStateReadyIdleOrLocked_bySubUnsubEvtC
   ASSERT_GT(LinkStateCnt, 0);           // KeyVerifyPoint
   ASSERT_GT(LinkSubStateIdleCnt, 0);    // KeyVerifyPoint
   ASSERT_GT(LinkSubStateLockedCnt, 0);  // KeyVerifyPoint
+
+  // GetLinkStateCnt MUST be equal to LinkStateCnt or (LinkSubStateIdleCnt + LinkSubStateLockedCnt)
+  ASSERT_EQ(GetLinkStateCnt, LinkStateCnt);                                 // KeyVerifyPoint
+  ASSERT_EQ(GetLinkStateCnt, LinkSubStateIdleCnt + LinkSubStateLockedCnt);  // KeyVerifyPoint
 
   //===CLEANUP===
   for (long i = 0; i < _Case02_MAX_THREAD_NUM; i++) {
