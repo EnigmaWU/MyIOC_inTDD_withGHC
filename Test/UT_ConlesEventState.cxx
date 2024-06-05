@@ -25,6 +25,8 @@
  *  - Case03_verifyLinkStateBusyProcing_byPostEVT_ofTestSleep99msEvt
  */
 
+#include <mutex>
+
 #include "_UT_IOC_Common.h"
 /**
  * @section ImplOfUT ConlesEventStateReady
@@ -169,23 +171,111 @@ TEST(UT_ConlesEventState, Case02_verifyLinkStateReadyIdleOrLocked_bySubUnsubEvtC
  *      |-> EvtID is IOC_EVTID_TEST_SLEEP_99MS
  *      |-> RefAPI: IOC_subEVT_inConlesMode in IOC.h
  *      |-> RefType: IOC_SubEvtArgs_T in IOC_Types.h
+ *      |-> RefType: IOC_CbProcEvt_F in IOC_Types.h
  *      a) Call IOC_getLinkState to get the LinkState and LinkSubState
- *              and make sure LinkState is LinkStateReady and LinkSubState is LinkStateReadyIdle as VERIFY
+ *           and make sure LinkState is LinkStateReady and LinkSubState is LinkStateReadyIdle as VERIFY
  *    2. postEVT of TestSleep99msEvt as BEHAVIOR
  *      |-> RefAPI: IOC_postEVT_inConlesMode in IOC.h
  *      |-> RefType: IOC_EvtDesc_T in IOC_Types.h
  *    3. Wait SemEnterCbProcEvt as BEHAVIOR
- *      |-> Post SemEnterCbProcEvt in CbProcEvt_F
+ *      |-> Post SemEnterCbProcEvt from CbProcEvt_F
  *    4. Call IOC_getLinkState to get the LinkState and LinkSubState as BEHAVIOR
  *    5. Verify the LinkState is LinkStateBusy and sub state is LinkStateBusyProcing as VERIFY
- *    6. Post SemLeaveCbProcEvt in CbProcEvt_F as BEHAVIOR
+ *    6. Post SemLeaveCbProcEvt to CbProcEvt_F as BEHAVIOR
  *      |-> Waiting SemLeaveCbProcEvt in CbProcEvt_F after Step-3
- *    7. Sleep 100ms to make sure CbProcEvt_F is return as BEHAVIOR
+ *    7. Sleep 100ms to assume CbProcEvt_F is return as BEHAVIOR
  *    8. unSubEVT as CLEANUP
  *      a) Call IOC_getLinkState to get the LinkState and LinkSubState
- *              and make sure LinkState is LinkStateReady and LinkSubState is LinkStateReadyIdle as VERIFY
+ *           and make sure LinkState is LinkStateReady and LinkSubState is LinkStateReadyIdle as VERIFY
  * @[Expect]:
  *    Step-1.a is TRUE, Step-5 is TRUE, Step-8.a is TRUE.
  * @[Notes]:
  *      RefCode:
  */
+#include <semaphore.h>
+
+typedef struct {
+  sem_t SemEnterCbProcEvt;
+  sem_t SemLeaveCbProcEvt;
+} _Case03_PrivData_T;
+
+static IOC_Result_T _Case03_CbProcEvt_F_TestSleep99msEvt(const IOC_EvtDesc_pT pEvtDesc, void *pCbPrivData) {
+  _Case03_PrivData_T *pPrivData = (_Case03_PrivData_T *)pCbPrivData;
+  sem_post(&pPrivData->SemEnterCbProcEvt);
+
+  // Sleep 99ms to simulate the processing of TestSleep99msEvt
+  usleep(99 * 1000);
+
+  sem_wait(&pPrivData->SemLeaveCbProcEvt);
+  return IOC_RESULT_SUCCESS;
+}
+
+TEST(UT_ConlesEventState, Case03_verifyLinkStateBusyProcing_byPostEVT_ofTestSleep99msEvt) {
+  //===SETUP===
+  _Case03_PrivData_T PrivData = {
+      .SemEnterCbProcEvt = {},
+      .SemLeaveCbProcEvt = {},
+  };
+  sem_init(&PrivData.SemEnterCbProcEvt, 0, 0);
+  sem_init(&PrivData.SemLeaveCbProcEvt, 0, 0);
+
+  IOC_EvtID_T EvtIDs[] = {IOC_EVTID_TEST_SLEEP_99MS};
+
+  IOC_SubEvtArgs_T subEvtArgs = {
+      .CbProcEvt_F = _Case03_CbProcEvt_F_TestSleep99msEvt,
+      .pCbPrivData = &PrivData,
+      .EvtNum      = IOC_calcArrayElmtCnt(EvtIDs),
+      .pEvtIDs     = EvtIDs,
+  };
+  IOC_Result_T Result = IOC_subEVT_inConlesMode(&subEvtArgs);
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+
+  //===BEHAVIOR===
+  // Step-1.a
+  IOC_LinkState_T LinkState       = IOC_LinkStateUndefined;
+  IOC_LinkSubState_T LinkSubState = IOC_LinkSubStateUndefined;
+  Result                          = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &LinkState, &LinkSubState);
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);                // KeyVerifyPoint
+  ASSERT_EQ(IOC_LinkStateReady, LinkState);             // KeyVerifyPoint
+  ASSERT_EQ(IOC_LinkSubState_ReadyIdle, LinkSubState);  // KeyVerifyPoint
+
+  // Step-2
+  IOC_EvtDesc_T EvtDesc = {.EvtID = IOC_EVTID_TEST_SLEEP_99MS};
+  Result                = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+
+  // Step-3
+  sem_wait(&PrivData.SemEnterCbProcEvt);
+
+  // Step-4
+  Result = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &LinkState, &LinkSubState);
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+
+  //===VERIFY===
+  // Step-5
+  ASSERT_EQ(IOC_LinkStateBusy, LinkState);                // KeyVerifyPoint
+  ASSERT_EQ(IOC_LinkSubState_BusyProcing, LinkSubState);  // KeyVerifyPoint
+
+  // Step-6
+  sem_post(&PrivData.SemLeaveCbProcEvt);
+
+  // Step-7
+  usleep(100 * 1000);
+
+  //===CLEANUP===
+  // Step-8.a
+  Result = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &LinkState, &LinkSubState);
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);                // KeyVerifyPoint
+  ASSERT_EQ(IOC_LinkStateReady, LinkState);             // KeyVerifyPoint
+  ASSERT_EQ(IOC_LinkSubState_ReadyIdle, LinkSubState);  // KeyVerifyPoint
+
+  IOC_UnsubEvtArgs_T unsubEvtArgs = {
+      .CbProcEvt_F = _Case03_CbProcEvt_F_TestSleep99msEvt,
+      .pCbPrivData = &PrivData,
+  };
+  Result = IOC_unsubEVT_inConlesMode(&unsubEvtArgs);
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+
+  sem_destroy(&PrivData.SemEnterCbProcEvt);
+  sem_destroy(&PrivData.SemLeaveCbProcEvt);
+}
