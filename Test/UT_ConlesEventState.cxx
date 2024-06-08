@@ -25,8 +25,6 @@
  *  - Case03_verifyLinkStateBusyProcing_byPostEVT_ofTestSleep99msEvt
  */
 
-#include <sys/semaphore.h>
-
 #include "_UT_IOC_Common.h"
 /**
  * @section ImplOfUT ConlesEventStateReady
