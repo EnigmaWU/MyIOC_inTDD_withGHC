@@ -14,37 +14,37 @@ title: V-Model for LLM based Software Engineering
 ---
 graph LR
     subgraph "Requirements Analysis&Verifying"
-        UseCase -.-> UserStories_ofSystemLevel
-        UserStories_ofSystemLevel -.-> AcceptanceTesting
-        UserStories_ofSystemLevel -.-> AcceptanceCriterior_ofSystem
-        AcceptanceCriterior_ofSystem -.-> AcceptanceTesting
+        UseCase -.-> UserStories_ofSys
+        UserStories_ofSys -.-> AcceptanceTesting
+        UserStories_ofSys -.-> AceptCriterior_ofSys
+        AceptCriterior_ofSys -.-> AcceptanceTesting
         UseCase --> AcceptanceTesting
     end
     subgraph "Architectural Designing&Verifying"
         UseCase ==> ArchitectureDesign
-        UseCase -.-> Specificaton_ofSystem
-        Specificaton_ofSystem -.-> ArchitectureDesign
-        ArchitectureDesign -.-> UserStories_ofComponentLevel
-        UserStories_ofComponentLevel -.-> QualityTesting
+        UseCase -.-> Spec_ofSys
+        Spec_ofSys -.-> ArchitectureDesign
+        ArchitectureDesign -.-> UserStories_ofCom
+        UserStories_ofCom -.-> QualityTesting
         ArchitectureDesign --> QualityTesting
 
-        UserStories_ofSystemLevel -..-> UserStories_ofComponentLevel
-        UserStories_ofComponentLevel -.-> AcceptanceCriterior_ofComponent
-        AcceptanceCriterior_ofComponent -.-> QualityTesting
+        UserStories_ofSys -..-> UserStories_ofCom
+        UserStories_ofCom -.-> AceptCriterior_ofCom
+        AceptCriterior_ofCom -.-> QualityTesting
 
         QualityTesting ==> AcceptanceTesting
     end
     subgraph "Module Designing&Implementing&Verifying"
         ArchitectureDesign ==> ModuleDesign
-        ArchitectureDesign -.-> Specificaton_ofModule
-        Specificaton_ofModule -.-> ModuleDesign
-        ModuleDesign -.-> UserStories_ofModuleLevel
-        UserStories_ofModuleLevel -.-> UnitTesting
+        ArchitectureDesign -.-> Spec_ofMod
+        Spec_ofMod -.-> ModuleDesign
+        ModuleDesign -.-> UserStories_ofMod
+        UserStories_ofMod -.-> UnitTesting
         ModuleDesign ==> UnitTesting
 
-        UserStories_ofComponentLevel -.-> UserStories_ofModuleLevel
-        UserStories_ofModuleLevel -.-> AcceptanceCriterior_ofModule
-        AcceptanceCriterior_ofModule -.-> UnitTesting
+        UserStories_ofCom -.-> UserStories_ofMod
+        UserStories_ofMod -.-> AceptCriterior_ofMod
+        AceptCriterior_ofMod -.-> UnitTesting
 
         UnitTesting ==> QualityTesting
     end
