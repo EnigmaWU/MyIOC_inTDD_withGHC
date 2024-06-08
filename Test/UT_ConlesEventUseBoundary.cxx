@@ -2,8 +2,8 @@
  * @file UT_ConlesEventUseBoundary.cxx
  * @note Use Boundary to verify API is used in Min/Max/Beyond conditions.
  *---------------------------------------------------------------------------------------------------------------------
- *===> Begin DesignOfUT from Acceptace Creteria(a.k.a) <===
- *  1)
+ *===> Begin DesignOfUT from Acceptace Creteria(a.k.a AC) <===
+ *  a) Min condition: verify subEVT, postEVT, unsubEVT success at Minimum operations.
  *===> End DesignOfUT <===
  *---------------------------------------------------------------------------------------------------------------------
  *===> Begin DesignOfTestCase <===
@@ -12,8 +12,6 @@
  *---------------------------------------------------------------------------------------------------------------------
  * @note RefTemplate: TEMPLATE OF UT CASE in UT_FreelyDrafts.cxx
  */
-
-#include <sys/_types/_null.h>
 
 #include "_UT_IOC_Common.h"
 
@@ -69,6 +67,8 @@ TEST(ConlesEventUseBoundary, verifyPostProcEvtSuccess_by1xSubPostUnsubEvt) {
     Result                = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
     ASSERT_EQ(Result, IOC_RESULT_SUCCESS) << "IOC_postEVT_inConlesMode failed Result=" << Result;
 
+    usleep(10000);  // wait for CbProcEvt to be called
+
     IOC_UnsubEvtArgs_T UnsubArgs = {0};
     UnsubArgs.CbProcEvt_F        = _Case01_CbProcEvt;
     UnsubArgs.pCbPrivData        = &privData;
@@ -76,5 +76,5 @@ TEST(ConlesEventUseBoundary, verifyPostProcEvtSuccess_by1xSubPostUnsubEvt) {
     Result = IOC_unsubEVT_inConlesMode(&UnsubArgs);
     ASSERT_EQ(Result, IOC_RESULT_SUCCESS) << "IOC_unsubEVT_inConlesMode failed Result=" << Result;
 
-    EXPECT_EQ(privData.CbCnt, 1) << "CbProcEvt is MUST==1, while CbCnt=" << privData.CbCnt;  // KeyVerifyPoint
+    ASSERT_EQ(privData.CbCnt, 1) << "CbProcEvt is MUST==1, while CbCnt=" << privData.CbCnt;  // KeyVerifyPoint
 }

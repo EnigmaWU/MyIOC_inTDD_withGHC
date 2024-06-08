@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/semaphore.h>
+#include <unistd.h>
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //===>BEGIN: IOC Event in Conles Mode
@@ -42,6 +44,8 @@ static pthread_mutex_t _mConlesModeEvtCbThreadMutex = PTHREAD_MUTEX_INITIALIZER;
 static void* __IOC_procEvtCbThread_inConlesMode(void* pArg) {
   ULONG_T ProcedEvtNum = 0;
 
+  pthread_cond_signal(&_mConlesModeEvtCbThreadCond);  // signal to wakeup the main thread to continue
+
   while (1) {
     if (!ProcedEvtNum) {
       pthread_mutex_lock(&_mConlesModeEvtCbThreadMutex);
@@ -74,7 +78,13 @@ static void* __IOC_procEvtCbThread_inConlesMode(void* pArg) {
         for (int Idx = 0; Idx < pSubEvtArgs->EvtNum; Idx++) {  // forEach EvtConsumer's subedEvtID
           if (pEvtDesc->EvtID == pSubEvtArgs->pEvtIDs[Idx]) {
             pthread_mutex_unlock(&_mConlesModeSubEvtArgsMutex);
+
+            _mConlesModeLinkState    = IOC_LinkStateBusy;
+            _mConlesModeLinkSubState = IOC_LinkSubState_BusyProcing;
             pSubEvtArgs->CbProcEvt_F(pEvtDesc, pSubEvtArgs->pCbPrivData);
+            _mConlesModeLinkState    = IOC_LinkStateReady;
+            _mConlesModeLinkSubState = IOC_LinkSubState_ReadyIdle;
+
             pthread_mutex_lock(&_mConlesModeSubEvtArgsMutex);
           }
         }
@@ -95,41 +105,43 @@ static void __IOC_wakeupEvtCbTrhead_inConlesMode() {
   pthread_mutex_lock(&_mConlesModeEvtCbThreadMutex);
   if (_mConlesModeEvtCbThreadID == 0) {
     pthread_create(&_mConlesModeEvtCbThreadID, NULL, __IOC_procEvtCbThread_inConlesMode, NULL);
-  } else {
-    pthread_cond_signal(&_mConlesModeEvtCbThreadCond);
+    // wait thread is created and entered the thread function
+    pthread_cond_wait(&_mConlesModeEvtCbThreadCond, &_mConlesModeEvtCbThreadMutex);
   }
   pthread_mutex_unlock(&_mConlesModeEvtCbThreadMutex);
+
+  pthread_cond_signal(&_mConlesModeEvtCbThreadCond);
 }
 
 static IOC_Result_T __IOC_subEVT_inConlesMode(
-    /*ARG_IN*/ const IOC_SubEvtArgs_pT pSubEvtArgs) {
+    /*ARG_IN*/ const IOC_SubEvtArgs_pT pSubingEvtArgs) {
   IOC_Result_T Result                = IOC_RESULT_BUG;
   _mConlesModeLinkSubState           = IOC_LinkSubState_ReadyLocked;
-  IOC_SubEvtArgs_pT pSavedSubEvtArgs = &_mConlesModeSubEvtArgs[0];
+  IOC_SubEvtArgs_pT pSubedEvtArgs    = &_mConlesModeSubEvtArgs[0];
 
   pthread_mutex_lock(&_mConlesModeSubEvtArgsMutex);
   for (int i = 0; i < _IOC_CONLES_MODE_MAX_EvtConsumer_NUM; i++) {
-    if (pSavedSubEvtArgs->CbProcEvt_F == pSubEvtArgs->CbProcEvt_F &&
-        pSavedSubEvtArgs->pCbPrivData == pSubEvtArgs->pCbPrivData) {
+    if (pSubedEvtArgs->CbProcEvt_F == pSubingEvtArgs->CbProcEvt_F &&
+        pSubedEvtArgs->pCbPrivData == pSubingEvtArgs->pCbPrivData) {
       pthread_mutex_unlock(&_mConlesModeSubEvtArgsMutex);
       Result = IOC_RESULT_CONFLICT_EVENT_CONSUMER;
       goto _exitSubEVT;
     }
 
-    if (pSavedSubEvtArgs->CbProcEvt_F == NULL) {
-      pSavedSubEvtArgs->CbProcEvt_F = pSubEvtArgs->CbProcEvt_F;
-      pSavedSubEvtArgs->pCbPrivData = pSubEvtArgs->pCbPrivData;
+    if (pSubedEvtArgs->CbProcEvt_F == NULL) {
+      pSubedEvtArgs->CbProcEvt_F = pSubingEvtArgs->CbProcEvt_F;
+      pSubedEvtArgs->pCbPrivData = pSubingEvtArgs->pCbPrivData;
 
-      pSavedSubEvtArgs->EvtNum = pSubEvtArgs->EvtNum;
-      size_t EvtIDsSize = pSubEvtArgs->EvtNum * sizeof(IOC_EvtID_T);
-      pSavedSubEvtArgs->pEvtIDs = malloc(EvtIDsSize);
-      memcpy(pSavedSubEvtArgs->pEvtIDs, pSubEvtArgs->pEvtIDs, EvtIDsSize);
+      pSubedEvtArgs->EvtNum  = pSubingEvtArgs->EvtNum;
+      size_t EvtIDsSize      = pSubingEvtArgs->EvtNum * sizeof(IOC_EvtID_T);
+      pSubedEvtArgs->pEvtIDs = malloc(EvtIDsSize);
+      memcpy(pSubedEvtArgs->pEvtIDs, pSubingEvtArgs->pEvtIDs, EvtIDsSize);
 
       pthread_mutex_unlock(&_mConlesModeSubEvtArgsMutex);
       Result = IOC_RESULT_SUCCESS;
       goto _exitSubEVT;
     }
-    pSavedSubEvtArgs++;
+    pSubedEvtArgs++;
   }
 
   pthread_mutex_unlock(&_mConlesModeSubEvtArgsMutex);
@@ -208,18 +220,18 @@ static IOC_Result_T __IOC_postEVT_inConlesMode(
   }
 
   for (int CosmerIdx = 0; CosmerIdx < _IOC_CONLES_MODE_MAX_EvtConsumer_NUM; CosmerIdx++) {  // forEach ConlesModeEvtConsumer
-    IOC_SubEvtArgs_pT pSavedSubEvtArgs = &_mConlesModeSubEvtArgs[CosmerIdx];
-    if (!pSavedSubEvtArgs->CbProcEvt_F) {
+    IOC_SubEvtArgs_pT pSubedEvtArgs = &_mConlesModeSubEvtArgs[CosmerIdx];
+    if (!pSubedEvtArgs->CbProcEvt_F) {
       continue;
     }
 
-    for (int j = 0; j < pSavedSubEvtArgs->EvtNum; j++) {  // forEach EvtConsumer's subedEvtID
-      if (pEvtDesc->EvtID != pSavedSubEvtArgs->pEvtIDs[j]) {
+    for (int j = 0; j < pSubedEvtArgs->EvtNum; j++) {  // forEach EvtConsumer's subedEvtID
+      if (pEvtDesc->EvtID != pSubedEvtArgs->pEvtIDs[j]) {
         continue;  // IF pEvtDesc->EvtID is not subed by the EvtConsumer
       }
 
       if (IsSyncMode) {
-        SyncModeResult = pSavedSubEvtArgs->CbProcEvt_F(pEvtDesc, pSavedSubEvtArgs->pCbPrivData);
+        SyncModeResult = pSubedEvtArgs->CbProcEvt_F(pEvtDesc, pSubedEvtArgs->pCbPrivData);
         if (IOC_RESULT_SUCCESS != SyncModeResult) {
           break;  // FIXME: IF Multi-EvtConsumer but one CbProcEvt fail, how to do?
         }
