@@ -64,24 +64,25 @@ sequenceDiagram
 ```
 
 #### [Scenario-01.c]
+
 * ObjA post event to IOC and IOC is callbacking ObjB,
-    * IF ObjB unsubscribe the event during callback,
-        * THEN the unsubscription will block until the callback is done.
+  * IF ObjB unsubscribe the event from ThieadX when ObjB is callbacking by IOC,
+    * THEN the unsubscription will block until the callback is done.
 
 ```mermaid
 sequenceDiagram
     participant ObjA
     participant IOC
     participant ObjB
-    participant ThreadX
+    participant ThreadX(ObjB)
     ObjA->>IOC: post event
     IOC--)ObjB: callback begin
     activate ObjB
-    ThreadX->>IOC: unsubscribe event
+    ThreadX(ObjB)->>IOC: unsubscribe event
     activate IOC
     ObjB -->> IOC: callback end
     deactivate ObjB
-    IOC -->> ThreadX: unsubscribe event return
+    IOC -->> ThreadX(ObjB): unsubscribe event return
     deactivate IOC
 ```
 

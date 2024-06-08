@@ -13,16 +13,23 @@
 /**
  * @section DesignOfUT ConlesEventState
  * Based on the Concept of Conles and the state of EVT in ConlesMode,
- *  reference defination of IOC_LinkState_T in IOC_Types.h,
- *  reference defination of IOC_getLinkState in IOC.h,
- *  reference considering UT design aspect in _UT_IOC_Common.h.
+ *  refMore: section 'Category-A' in README_UseCases.md,
+ *  refMore: section 'Concept' and 'State' in README_ArchDesign.md,
+ *  refMore: IOC_LinkState_T defined in IOC_Types.h,
+ *  refMore: IOC_getLinkState and IOC[sub/unsub/post]EVT defined in IOC.h.
  * Design UTs to verify every State and SubState of Event in ConlesMode,
- *  by design combination behaviors of IOC_[sub/unsub/post]EVT.
+ *  from designed behaviors of IOC_[sub/unsub/post]EVT_inConlesMode,
+ *  and by IOC_getLinkState's result as verify.
+ *---------------------------------------------------------------------------------------------------------------------
+ *===> Begin DesignOfUT of Acceptace Creteria(a.k.a AC) <===
  *
- * List of UTs in summary:
+ *===> End DesignOfUT <===
+ *---------------------------------------------------------------------------------------------------------------------
+ *===> Begin DesignOfTestCase accordint to ACs <===
  *  - Case01_verifyLinkStateReadyIdle_byDoNothing
  *  - Case02_verifyLinkStateReadyIdleOrLocked_bySubUnsubEvtConcurrently
  *  - Case03_verifyLinkStateBusyProcing_byPostEVT_ofTestSleep99msEvt
+ *===> End DesignOfTestCase <===
  */
 
 #include "_UT_IOC_Common.h"
