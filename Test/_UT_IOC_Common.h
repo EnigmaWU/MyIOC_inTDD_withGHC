@@ -9,7 +9,7 @@
 //[Typical]: a typical case, such as IOC's basic typical usage or call flow examples.
 //[Capabilty]: a capability case, such as max EvtConsumer may call subEVT success in ConlesMode.
 //[Demo]: a demo case, used to demo a complete feature of a product model or series.
-//[Boundary]: a boundary case, used to verify API's argument boundary.
+//[Boundary]: a boundary case, used to verify API's argument boundary or use scenario boundary.
 //[State]: a state case, used to verify FSM of IOC's Objects, such as FSM_ofConlesEVT.
 //[Performance]: such as how many times of API can be called in 1 second, or each API's time consumption.
 //[Concurrency]: such as many threads call IOC's API at the same time and always related to:

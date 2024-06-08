@@ -25,7 +25,7 @@
  *  - Case03_verifyLinkStateBusyProcing_byPostEVT_ofTestSleep99msEvt
  */
 
-#include <mutex>
+#include <sys/semaphore.h>
 
 #include "_UT_IOC_Common.h"
 /**
@@ -90,23 +90,24 @@ TEST(UT_ConlesEventState, Case01_verifyLinkStateReadyIdle_byDoNothing) {
 
 static void _Case02_subUnsubEvtThread(long ThreadID) {
   for (uint32_t i = 0; i < _Case02_MAX_SUBUNSUB_CNT; i++) {
-    IOC_EvtID_T EvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
+      IOC_EvtID_T EvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
 
-    IOC_SubEvtArgs_T subEvtArgs = {
-        .CbProcEvt_F = (IOC_CbProcEvt_F)ThreadID,
-        .pCbPrivData = (void *)ThreadID,
-        .EvtNum      = IOC_calcArrayElmtCnt(EvtIDs),
-        .pEvtIDs     = EvtIDs,
-    };
-    IOC_Result_T result = IOC_subEVT_inConlesMode(&subEvtArgs);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, result);  // VerifyPoint
+      IOC_SubEvtArgs_T subEvtArgs = {
+          .CbProcEvt_F = (IOC_CbProcEvt_F)ThreadID,
+          .pCbPrivData = (void *)ThreadID,
+          .EvtNum      = IOC_calcArrayElmtCnt(EvtIDs),
+          .pEvtIDs     = EvtIDs,
+      };
 
-    IOC_UnsubEvtArgs_T unsubEvtArgs = {
-        .CbProcEvt_F = (IOC_CbProcEvt_F)ThreadID,
-        .pCbPrivData = (void *)ThreadID,
-    };
-    result = IOC_unsubEVT_inConlesMode(&unsubEvtArgs);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, result);  // VerifyPoint
+      IOC_Result_T result = IOC_subEVT_inConlesMode(&subEvtArgs);
+      ASSERT_EQ(IOC_RESULT_SUCCESS, result);  // VerifyPoint
+
+      IOC_UnsubEvtArgs_T unsubEvtArgs = {
+          .CbProcEvt_F = (IOC_CbProcEvt_F)ThreadID,
+          .pCbPrivData = (void *)ThreadID,
+      };
+      result = IOC_unsubEVT_inConlesMode(&unsubEvtArgs);
+      ASSERT_EQ(IOC_RESULT_SUCCESS, result);  // VerifyPoint
   }
 }
 
@@ -192,32 +193,39 @@ TEST(UT_ConlesEventState, Case02_verifyLinkStateReadyIdleOrLocked_bySubUnsubEvtC
  * @[Notes]:
  *      RefCode:
  */
+#include <fcntl.h> /* For O_* constants */
 #include <semaphore.h>
+#include <sys/stat.h> /* For mode constants */
 
 typedef struct {
-  sem_t SemEnterCbProcEvt;
-  sem_t SemLeaveCbProcEvt;
+  sem_t *pEnterCbProcEvtSem;
+  sem_t *pLeaveCbProcEvtSem;
 } _Case03_PrivData_T;
 
 static IOC_Result_T _Case03_CbProcEvt_F_TestSleep99msEvt(const IOC_EvtDesc_pT pEvtDesc, void *pCbPrivData) {
   _Case03_PrivData_T *pPrivData = (_Case03_PrivData_T *)pCbPrivData;
-  sem_post(&pPrivData->SemEnterCbProcEvt);
+  sem_post(pPrivData->pEnterCbProcEvtSem);
 
   // Sleep 99ms to simulate the processing of TestSleep99msEvt
   usleep(99 * 1000);
 
-  sem_wait(&pPrivData->SemLeaveCbProcEvt);
+  sem_wait(pPrivData->pLeaveCbProcEvtSem);
   return IOC_RESULT_SUCCESS;
 }
 
 TEST(UT_ConlesEventState, Case03_verifyLinkStateBusyProcing_byPostEVT_ofTestSleep99msEvt) {
   //===SETUP===
-  _Case03_PrivData_T PrivData = {
-      .SemEnterCbProcEvt = {},
-      .SemLeaveCbProcEvt = {},
-  };
-  sem_init(&PrivData.SemEnterCbProcEvt, 0, 0);
-  sem_init(&PrivData.SemLeaveCbProcEvt, 0, 0);
+  _Case03_PrivData_T PrivData = {};
+
+  sem_unlink("/EnterCbProcEvtSem");
+  PrivData.pEnterCbProcEvtSem = sem_open("/EnterCbProcEvtSem", O_CREAT | O_EXCL, 0644, 0);
+  ASSERT_NE(SEM_FAILED, PrivData.pEnterCbProcEvtSem)  // VerifyPoint
+      << "errno=" << errno << ", " << strerror(errno);
+
+  sem_unlink("/LeaveCbProcEvtSem");
+  PrivData.pLeaveCbProcEvtSem = sem_open("/LeaveCbProcEvtSem", O_CREAT | O_EXCL, 0644, 0);
+  ASSERT_NE(SEM_FAILED, PrivData.pLeaveCbProcEvtSem)  // VerifyPoint
+      << "errno=" << errno << ", " << strerror(errno);
 
   IOC_EvtID_T EvtIDs[] = {IOC_EVTID_TEST_SLEEP_99MS};
 
@@ -245,7 +253,9 @@ TEST(UT_ConlesEventState, Case03_verifyLinkStateBusyProcing_byPostEVT_ofTestSlee
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
   // Step-3
-  sem_wait(&PrivData.SemEnterCbProcEvt);
+  int RetPSX = sem_wait(PrivData.pEnterCbProcEvtSem);
+  ASSERT_EQ(0, RetPSX)  // VerifyPoint
+      << "errno=" << errno << ", " << strerror(errno);
 
   // Step-4
   Result = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &LinkState, &LinkSubState);
@@ -257,7 +267,7 @@ TEST(UT_ConlesEventState, Case03_verifyLinkStateBusyProcing_byPostEVT_ofTestSlee
   ASSERT_EQ(IOC_LinkSubState_BusyProcing, LinkSubState);  // KeyVerifyPoint
 
   // Step-6
-  sem_post(&PrivData.SemLeaveCbProcEvt);
+  sem_post(PrivData.pLeaveCbProcEvtSem);
 
   // Step-7
   usleep(100 * 1000);
@@ -276,6 +286,8 @@ TEST(UT_ConlesEventState, Case03_verifyLinkStateBusyProcing_byPostEVT_ofTestSlee
   Result = IOC_unsubEVT_inConlesMode(&unsubEvtArgs);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
-  sem_destroy(&PrivData.SemEnterCbProcEvt);
-  sem_destroy(&PrivData.SemLeaveCbProcEvt);
+  sem_close(PrivData.pEnterCbProcEvtSem);
+  sem_close(PrivData.pLeaveCbProcEvtSem);
+  sem_unlink("/EnterCbProcEvtSem");
+  sem_unlink("/LeaveCbProcEvtSem");
 }

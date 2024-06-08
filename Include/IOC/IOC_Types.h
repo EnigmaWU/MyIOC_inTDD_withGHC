@@ -54,13 +54,13 @@ typedef enum {
     *IOC_LinkState_pT;
 
 typedef enum {
-  IOC_LinkSubStateUndefined = 0,
+    IOC_LinkSubStateUndefined = 0,
 
-  IOC_LinkSubState_ReadyIdle   = 1,
-  IOC_LinkSubState_ReadyLocked = 2,
+    IOC_LinkSubState_ReadyIdle   = 11,
+    IOC_LinkSubState_ReadyLocked = 12,
 
-  IOC_LinkSubState_BusyProcing        = 1,
-  IOC_LinkSubState_BusyProcingPosting = 2,
+    IOC_LinkSubState_BusyProcing        = 21,
+    IOC_LinkSubState_BusyProcingPosting = 22,
 } IOC_LinkSubState_T,
     *IOC_LinkSubState_pT;
 
