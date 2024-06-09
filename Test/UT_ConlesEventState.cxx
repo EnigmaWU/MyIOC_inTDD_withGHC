@@ -29,7 +29,7 @@
  *  - Case01_verifyLinkStateReadyIdle_byDoNothing
  *  - Case02_verifyLinkStateReadyIdleOrLocked_bySubUnsubEvtConcurrently
  *  - Case03_verifyLinkStateBusyProcing_byPostEVT_ofTestSleep99msEvt
- *  - Case04_verifySubEvtMayBlock_byPostEVT_ofTestSleep99msEvt
+ *  - Case04_verifyUnsubEvtMayBlock_byPostEVT_ofTestSleep99msEvt
  *  - TODO: Case05_verifyUnsubEvtMayBlock_byPostEVT_ofTestSleep99msEvt
  *===> End DesignOfTestCase <===
  */
@@ -302,12 +302,12 @@ TEST(UT_ConlesEventState, Case03_verifyLinkStateBusyProcing_byPostEVT_ofTestSlee
 }
 
 /**
- * @[Name]: Case04_verifySubEvtMayBlock_byPostEVT_ofTestSleep99msEvt
+ * @[Name]: Case04_verifyUnsubEvtMayBlock_byPostEVT_ofTestSleep99msEvt
  * @[Purpose]: According to LinkState definition in README_ArchDesign::State::EVT::Conles,
- *    ONLY Link's main state is Ready and sub state is Idle, subEVT may be accpeted by IOC.
+ *    ONLY Link's main state is Ready and sub state is Idle, unsubEVT may be accpeted by IOC.
  *    SO GIVEN Link is in Busy State,
- *       WHEN call subEVT of that Link,
- *       THEN subEVT may be blocked.
+ *       WHEN call unsubEVT of that Link,
+ *       THEN unsubEVT may be blocked.
  * @[Steps]:
  *    1. subEVT EvtConsumer as SETUP
  *        |-> subEvtArgs(_Case04_CbProcEvt_F_TestSleep99msEvt) with dynamic allocated private data
@@ -350,7 +350,7 @@ static IOC_Result_T _Case04_CbProcEvt_F_TestSleep99msEvt(const IOC_EvtDesc_pT pE
   return IOC_RESULT_SUCCESS;
 }
 
-TEST(UT_ConlesEventState, Case04_verifySubEvtMayBlock_byPostEVT_ofTestSleep99msEvt) {
+TEST(UT_ConlesEventState, Case04_verifyUnsubEvtMayBlock_byPostEVT_ofTestSleep99msEvt) {
   //===SETUP===
   _Case04_PrivData_pT pPrivData = (_Case04_PrivData_pT)malloc(sizeof(_Case04_PrivData_T));
   ASSERT_NE(nullptr, pPrivData);  // VerifyPoint
