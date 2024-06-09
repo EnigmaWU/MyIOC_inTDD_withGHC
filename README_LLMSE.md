@@ -14,38 +14,41 @@ title: V-Model for LLM based Software Engineering
 ---
 graph LR
     subgraph "Requirements Analysis&Verifying"
+        UseCase ==> AcceptanceTesting
         UseCase -.-> UserStories_ofSys
         UserStories_ofSys -.-> AcceptanceTesting
         UserStories_ofSys -.-> AceptCriterior_ofSys
         AceptCriterior_ofSys -.-> AcceptanceTesting
-        UseCase --> AcceptanceTesting
+        
     end
     subgraph "Architectural Designing&Verifying"
         UseCase ==> ArchitectureDesign
         UseCase -.-> Spec_ofSys
         Spec_ofSys -.-> ArchitectureDesign
-        ArchitectureDesign -.-> UserStories_ofCom
-        UserStories_ofCom -.-> QualityTesting
+
+        ArchitectureDesign <-.-> UserStories_ofCom
         ArchitectureDesign --> QualityTesting
-
+        
         UserStories_ofSys -..-> UserStories_ofCom
+        UserStories_ofCom -.-> QualityTesting
         UserStories_ofCom -.-> AceptCriterior_ofCom
-        AceptCriterior_ofCom -.-> QualityTesting
 
+        AceptCriterior_ofCom -.-> QualityTesting
         QualityTesting ==> AcceptanceTesting
     end
     subgraph "Module Designing&Implementing&Verifying"
         ArchitectureDesign ==> ModuleDesign
         ArchitectureDesign -.-> Spec_ofMod
         Spec_ofMod -.-> ModuleDesign
-        ModuleDesign -.-> UserStories_ofMod
-        UserStories_ofMod -.-> UnitTesting
+
         ModuleDesign ==> UnitTesting
+        ModuleDesign -.-> UserStories_ofMod
 
         UserStories_ofCom -.-> UserStories_ofMod
+        UserStories_ofMod -.-> UnitTesting
         UserStories_ofMod -.-> AceptCriterior_ofMod
-        AceptCriterior_ofMod -.-> UnitTesting
 
+        AceptCriterior_ofMod -.-> UnitTesting
         UnitTesting ==> QualityTesting
     end
 ```
