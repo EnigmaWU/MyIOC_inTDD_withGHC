@@ -37,19 +37,10 @@ graph LR
         QualityTesting ==> AcceptanceTesting
     end
     subgraph "Module Designing+Implementing+Verifying"
-        ArchitectureDesign ==> ModuleDesign
-        ArchitectureDesign -.-> SpecOfMod
-        SpecOfMod -.-> ModuleDesign
-
-        ModuleDesign ==> UnitTesting
-        ModuleDesign -.-> UserStoriesOfMod
-
-        UserStoriesOfCom -.-> UserStoriesOfMod
-        UserStoriesOfMod -.-> UnitTesting
-        UserStoriesOfMod -.-> AceptCritOfMod
-
-        AceptCritOfMod -.-> UnitTesting
-        UnitTesting ==> QualityTesting
+        ArchitectureDesign ==> ModuleDesign ==> ModuleImplementing ==> UnitTesting ==> QualityTesting
+        ArchitectureDesign -.-> SpecOfMod -.-> ModuleDesign
+        ModuleDesign <-.-> UserStoriesOfMod -.-> AceptCritOfMod -.-> UnitTesting
+        UserStoriesOfCom -.-> UserStoriesOfMod -.-> UnitTesting 
     end
 ```
 
