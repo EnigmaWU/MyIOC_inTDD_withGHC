@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/_pthread/_pthread_mutex_t.h>
 #include <sys/semaphore.h>
 #include <unistd.h>
 
@@ -11,6 +12,7 @@
 #define _IOC_CONLES_MODE_MAX_EvtConsumer_NUM 16
 static IOC_SubEvtArgs_T _mConlesModeSubEvtArgs[_IOC_CONLES_MODE_MAX_EvtConsumer_NUM] = {};
 static pthread_mutex_t _mConlesModeSubEvtArgsMutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t _mConlesModeUnsubEvtArgsMutex                                 = PTHREAD_MUTEX_INITIALIZER;
 static IOC_LinkState_T _mConlesModeLinkState                                         = IOC_LinkStateReady;
 static IOC_LinkSubState_T _mConlesModeLinkSubState                                   = IOC_LinkSubState_ReadyIdle;
 
@@ -77,15 +79,17 @@ static void* __IOC_procEvtCbThread_inConlesMode(void* pArg) {
         // BEGIN: callback process event function
         for (int Idx = 0; Idx < pSubEvtArgs->EvtNum; Idx++) {  // forEach EvtConsumer's subedEvtID
           if (pEvtDesc->EvtID == pSubEvtArgs->pEvtIDs[Idx]) {
-            pthread_mutex_unlock(&_mConlesModeSubEvtArgsMutex);
+              pthread_mutex_lock(&_mConlesModeUnsubEvtArgsMutex);
+              pthread_mutex_unlock(&_mConlesModeSubEvtArgsMutex);
 
-            _mConlesModeLinkState    = IOC_LinkStateBusy;
-            _mConlesModeLinkSubState = IOC_LinkSubState_BusyProcing;
-            pSubEvtArgs->CbProcEvt_F(pEvtDesc, pSubEvtArgs->pCbPrivData);
-            _mConlesModeLinkState    = IOC_LinkStateReady;
-            _mConlesModeLinkSubState = IOC_LinkSubState_ReadyIdle;
+              _mConlesModeLinkState    = IOC_LinkStateBusy;
+              _mConlesModeLinkSubState = IOC_LinkSubState_BusyProcing;
+              pSubEvtArgs->CbProcEvt_F(pEvtDesc, pSubEvtArgs->pCbPrivData);
+              _mConlesModeLinkState    = IOC_LinkStateReady;
+              _mConlesModeLinkSubState = IOC_LinkSubState_ReadyIdle;
 
-            pthread_mutex_lock(&_mConlesModeSubEvtArgsMutex);
+              pthread_mutex_lock(&_mConlesModeSubEvtArgsMutex);
+              pthread_mutex_unlock(&_mConlesModeUnsubEvtArgsMutex);
           }
         }
         free(pEvtDesc);
@@ -158,6 +162,7 @@ static IOC_Result_T __IOC_unsubEVT_inConlesMode(
   _mConlesModeLinkSubState           = IOC_LinkSubState_ReadyLocked;
   IOC_SubEvtArgs_pT pSavedSubEvtArgs = &_mConlesModeSubEvtArgs[0];
 
+  pthread_mutex_lock(&_mConlesModeUnsubEvtArgsMutex);
   pthread_mutex_lock(&_mConlesModeSubEvtArgsMutex);
   for (int i = 0; i < _IOC_CONLES_MODE_MAX_EvtConsumer_NUM; i++) {
     if (pSavedSubEvtArgs->CbProcEvt_F && (pSavedSubEvtArgs->CbProcEvt_F == pUnsubEvtArgs->CbProcEvt_F) &&
@@ -177,12 +182,14 @@ static IOC_Result_T __IOC_unsubEVT_inConlesMode(
       pQueuingEvtDesc->ProcedEvtNum = 0;
 
       pthread_mutex_unlock(&_mConlesModeSubEvtArgsMutex);
+      pthread_mutex_unlock(&_mConlesModeUnsubEvtArgsMutex);
       Result = IOC_RESULT_SUCCESS;
       goto _exitUnsubEVT;
     }
     pSavedSubEvtArgs++;
   }
   pthread_mutex_unlock(&_mConlesModeSubEvtArgsMutex);
+  pthread_mutex_unlock(&_mConlesModeUnsubEvtArgsMutex);
   Result = IOC_RESULT_NO_EVENT_CONSUMER;
 
 _exitUnsubEVT:

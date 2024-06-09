@@ -421,5 +421,5 @@ TEST(UT_ConlesEventState, Case04_verifySubEvtMayBlock_byPostEVT_ofTestSleep99msE
   sem_unlink("/EnterCbProcEvtSem");
   free(pPrivData);
 
-  usleep(300000);
+  sleep(1);  // wait maybe Use-After-Free of pPrivData in CbProcEvt_F
 }
