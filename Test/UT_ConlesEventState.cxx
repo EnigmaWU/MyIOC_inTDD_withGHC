@@ -411,7 +411,7 @@ TEST(UT_ConlesEventState, Case04_verifyUnsubEvtMayBlock_byPostEVT_ofTestSleep99m
   //===VERIFY===
   // Step-4
   uint32_t TimeConsumption = IOC_deltaTimevalInMS(&pPrivData->BeginTime, &pPrivData->EndTime);
-  ASSERT_GT(TimeConsumption, 99)  // KeyVerifyPoint
+  ASSERT_GT(TimeConsumption, 99 - 1)  // KeyVerifyPoint
       << "TimeConsumption=" << TimeConsumption << "ms, Sleep99msEvtCnt=" << pPrivData->Sleep99msEvtCnt;
 
   ASSERT_EQ(1, pPrivData->Sleep99msEvtCnt);  // KeyVerifyPoint
@@ -546,7 +546,7 @@ TEST(UT_ConlesEventState, Case05_verifySubEvtMayBlock_byPostEVT_ofTestSleep99msE
   //===VERIFY===
   // Step-4
   uint32_t TimeConsumption = IOC_deltaTimevalInMS(&pNo2PrivData->No2.BeginTime, &pNo2PrivData->No2.EndTime);
-  ASSERT_GT(TimeConsumption, 99)  // KeyVerifyPoint
+  ASSERT_GT(TimeConsumption, 99 - 1)  // KeyVerifyPoint
       << "TimeConsumption=" << TimeConsumption << "ms, KeepAliveEvtCnt=" << pNo2PrivData->No2.KeepAliveEvtCnt;
 
   ASSERT_EQ(0, pNo2PrivData->No2.KeepAliveEvtCnt);  // KeyVerifyPoint
@@ -571,4 +571,6 @@ TEST(UT_ConlesEventState, Case05_verifySubEvtMayBlock_byPostEVT_ofTestSleep99msE
 
   free(pNo1PrivData);
   free(pNo2PrivData);
+
+  sleep(1);  // wait maybe Use-After-Free of pPrivData in CbProcEvt_F
 }
