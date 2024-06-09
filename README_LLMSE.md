@@ -12,7 +12,7 @@
 ---
 title: V-Model for LLM based Software Engineering
 ---
-graph LR
+graph 
     subgraph "Requirements Analysis+Verifying"
         UseCase ==> AcceptanceTesting
         UseCase -.-> UserStoriesOfSys
