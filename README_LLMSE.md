@@ -13,42 +13,42 @@
 title: V-Model for LLM based Software Engineering
 ---
 graph LR
-    subgraph "Requirements Analysis&Verifying"
+    subgraph "Requirements Analysis+Verifying"
         UseCase ==> AcceptanceTesting
-        UseCase -.-> UserStories_ofSys
-        UserStories_ofSys -.-> AcceptanceTesting
-        UserStories_ofSys -.-> AceptCriterior_ofSys
-        AceptCriterior_ofSys -.-> AcceptanceTesting
+        UseCase -.-> UserStoriesOfSys
+        UserStoriesOfSys -.-> AcceptanceTesting
+        UserStoriesOfSys -.-> AceptCritOfSys
+        AceptCritOfSys -.-> AcceptanceTesting
         
     end
-    subgraph "Architectural Designing&Verifying"
+    subgraph "Architectural Designing+Verifying"
         UseCase ==> ArchitectureDesign
-        UseCase -.-> Spec_ofSys
-        Spec_ofSys -.-> ArchitectureDesign
+        UseCase -.-> SpecOfSys
+        SpecOfSys -.-> ArchitectureDesign
 
-        ArchitectureDesign <-.-> UserStories_ofCom
+        ArchitectureDesign <-.-> UserStoriesOfCom
         ArchitectureDesign --> QualityTesting
         
-        UserStories_ofSys -..-> UserStories_ofCom
-        UserStories_ofCom -.-> QualityTesting
-        UserStories_ofCom -.-> AceptCriterior_ofCom
+        UserStoriesOfSys -..-> UserStoriesOfCom
+        UserStoriesOfCom -.-> QualityTesting
+        UserStoriesOfCom -.-> AceptCritOfCom
 
-        AceptCriterior_ofCom -.-> QualityTesting
+        AceptCritOfCom -.-> QualityTesting
         QualityTesting ==> AcceptanceTesting
     end
-    subgraph "Module Designing&Implementing&Verifying"
+    subgraph "Module Designing+Implementing+Verifying"
         ArchitectureDesign ==> ModuleDesign
-        ArchitectureDesign -.-> Spec_ofMod
-        Spec_ofMod -.-> ModuleDesign
+        ArchitectureDesign -.-> SpecOfMod
+        SpecOfMod -.-> ModuleDesign
 
         ModuleDesign ==> UnitTesting
-        ModuleDesign -.-> UserStories_ofMod
+        ModuleDesign -.-> UserStoriesOfMod
 
-        UserStories_ofCom -.-> UserStories_ofMod
-        UserStories_ofMod -.-> UnitTesting
-        UserStories_ofMod -.-> AceptCriterior_ofMod
+        UserStoriesOfCom -.-> UserStoriesOfMod
+        UserStoriesOfMod -.-> UnitTesting
+        UserStoriesOfMod -.-> AceptCritOfMod
 
-        AceptCriterior_ofMod -.-> UnitTesting
+        AceptCritOfMod -.-> UnitTesting
         UnitTesting ==> QualityTesting
     end
 ```
