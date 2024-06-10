@@ -31,6 +31,9 @@ typedef enum {
 
 /**
  * @brief LinkID is a unique ID to identify a link between two objects in communication.
+ *     In ConlesMode, LinkID is predefined as IOC_CONLES_MODE_AUTO_LINK_ID.
+ *     In ConetMode, LinkID is dynamically extablished,
+ *      then get it from connect API in ClientSide, or accept API in ServerSide.
  *---------------------------------------------------------------------------------------------------------------------
  * Design::FSM
  *    RefReadme::MSG::EVT::Conles/Conet
@@ -114,10 +117,10 @@ typedef struct
 typedef IOC_Result_T (*IOC_CbProcEvt_F)(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv);
 typedef struct 
 {
-    IOC_CbProcEvt_F CbProcEvt_F;
+    IOC_CbProcEvt_F CbProcEvt_F;  // Callback function for processing the event
     void *pCbPrivData;  // Callback private context data
     ULONG_T EvtNum;  // number of EvtIDs, IOC_calcArrayElmtCnt(SubEvtIDs)
-    IOC_EvtID_T *pEvtIDs;
+    IOC_EvtID_T *pEvtIDs;  // EvtIDs to subscribe
 } IOC_SubEvtArgs_T, *IOC_SubEvtArgs_pT;
 
 typedef struct {
