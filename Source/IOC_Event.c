@@ -91,9 +91,9 @@ static void* __IOC_procEvtCbThread_inConlesMode(void* pArg) {
               _mConlesModeLinkState    = IOC_LinkStateReady;
               _mConlesModeLinkSubState = IOC_LinkSubState_ReadyIdle;
 
-              pthread_mutex_lock(&_mConlesModeSubedEvtArgsMutex);
               pthread_mutex_unlock(&_mConlesModeSubingEvtArgsMutex);
               pthread_mutex_unlock(&_mConlesModeUnsubingEvtArgsMutex);
+              pthread_mutex_lock(&_mConlesModeSubedEvtArgsMutex);
           }
         }
         free(pEvtDesc);
@@ -127,8 +127,8 @@ static IOC_Result_T __IOC_subEVT_inConlesMode(
   _mConlesModeLinkSubState           = IOC_LinkSubState_ReadyLocked;
   IOC_SubEvtArgs_pT pSubedEvtArgs    = &_mConlesModeSubEvtArgs[0];
 
-  pthread_mutex_lock(&_mConlesModeSubingEvtArgsMutex);
   pthread_mutex_lock(&_mConlesModeSubedEvtArgsMutex);
+  pthread_mutex_lock(&_mConlesModeSubingEvtArgsMutex);
   for (int i = 0; i < _IOC_CONLES_MODE_MAX_EvtConsumer_NUM; i++) {
     if (pSubedEvtArgs->CbProcEvt_F == pSubingEvtArgs->CbProcEvt_F &&
         pSubedEvtArgs->pCbPrivData == pSubingEvtArgs->pCbPrivData) {
@@ -146,16 +146,18 @@ static IOC_Result_T __IOC_subEVT_inConlesMode(
       pSubedEvtArgs->pEvtIDs = malloc(EvtIDsSize);
       memcpy(pSubedEvtArgs->pEvtIDs, pSubingEvtArgs->pEvtIDs, EvtIDsSize);
 
-      pthread_mutex_unlock(&_mConlesModeSubedEvtArgsMutex);
       pthread_mutex_unlock(&_mConlesModeSubingEvtArgsMutex);
+      pthread_mutex_unlock(&_mConlesModeSubedEvtArgsMutex);
+
       Result = IOC_RESULT_SUCCESS;
       goto _exitSubEVT;
     }
     pSubedEvtArgs++;
   }
 
-  pthread_mutex_unlock(&_mConlesModeSubedEvtArgsMutex);
   pthread_mutex_unlock(&_mConlesModeSubingEvtArgsMutex);
+  pthread_mutex_unlock(&_mConlesModeSubedEvtArgsMutex);
+
   Result = IOC_RESULT_TOO_MANY_EVENT_CONSUMER;
 
 _exitSubEVT:
