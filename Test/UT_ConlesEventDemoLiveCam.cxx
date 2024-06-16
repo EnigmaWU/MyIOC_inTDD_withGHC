@@ -21,7 +21,7 @@
  * ----> ServerSide:
  * ModMgrObj: all modules in LiveCam is managed by ModMgrObj,
  *      which means created/destroyed/started/stopped by ModMgrObj,
- *      which also means all modules MUST post ModuleAliveEvent to ModMgrObj in 1s interval.
+ *      which also means all modules MUST post ModuleKeepAliveEvent to ModMgrObj in 1s interval.
  * SrvObj: ServerObject, used to simulate the server behaviors.
  * HiResStrmMuxObj: High Resolution Stream Object, used to simulate the HiRes stream.
  * LoResStrmMuxObj: Low Resolution Stream Object, used to simulate the LoRes stream.
@@ -40,7 +40,7 @@
 // #include UT_ConlesEventDemoLiveCam.md which has Data flow of service side module objects.
 
 /**
- * @details ModMgrObj
+ * @details ModMgrObj(Created by MAIN)
  * @behaviros:
  *    1) ModMgrObj will create all server side modules in LiveCam.
  *        a) start/stop all modules in LiveCam.
@@ -58,14 +58,14 @@
  * @brief VidCapObj
  * @behaviors:
  *    1) created by ModMgrObj and wait for start event.
- *    2) simuCapture video frame in 1920x1080@30fps and post to HiResVidEncObj or VidResizeObj.
+ *    2) simuCapture video frame in 1920x1080@30fps(a.k.a OriVidFrm) and send to HiResVidEncObj or VidResizeObj.
  *      a) HiResVidEncObj or VidResizeObj will reference video frame,
  *          so wait video frame recycle event from HiResVidEncObj or VidResizeObj.
- *    3) post ModuleAliveEvent to ModMgrObj in 1s interval.
+ *    3) post ModuleKeepAliveEvent to ModMgrObj in 1s interval.
  *
  * @todo
- *    subEVT: ModuleStartEvent, ModuleStopEvent, BizOriVidFrameRecycledEvent
- *    postEVT: ModuleAliveEvent, BizOriVidFrameCapturedEvent
+ *    subEVT: ModuleStartEvent, ModuleStopEvent, BizOriVidFrmRecycledEvent
+ *    postEVT: ModuleKeepAliveEvent, BizOriVidFrmCapturedEvent
  */
 
 /**
@@ -76,11 +76,11 @@
  *      a) HiResStrmMuxObj will reference HiResVidStrmBits,
  *          so wait HiResVidStrmBits recycle event from HiResStrmMuxObj.
  *      b) recycle HiResVidFrm to VidCapObj after HiResVidStrmBits encoded or sended to HiResStrmMuxObj.
- *    3) post ModuleAliveEvent to ModMgrObj in 1s interval.
+ *    3) post ModuleKeepAliveEvent to ModMgrObj in 1s interval.
  *
  * @todo
- *    subEVT: ModuleStartEvent, ModuleStopEvent, BizOriVidFrameCapturedEvent, BizHiResVidStrmBitsRecycledEvent
- *    postEVT: ModuleAliveEvent, BizOriVidFrameRecycledEvent, BizHiResVidStrmBitsEncodedEvent
+ *    subEVT: ModuleStartEvent, ModuleStopEvent, BizOriVidFrmCapturedEvent, BizHiResVidStrmBitsRecycledEvent
+ *    postEVT: ModuleKeepAliveEvent, BizOriVidFrmRecycledEvent, BizHiResVidStrmBitsEncodedEvent
  */
 
 /**
@@ -90,11 +90,11 @@
  *    2) simuMux HiResVidStrmBits and AudStrmBits to a HiResStrmBits in 1920x1080@30fps and 48KHz@16bit.
  *      a) send HiResStrmBits to SrvObj which will send to client.
  *      b) recycle HiResVidStrmBits to HiResVidEncObj.
- *    3) post ModuleAliveEvent to ModMgrObj in 1s interval.
+ *    3) post ModuleKeepAliveEvent to ModMgrObj in 1s interval.
  *
  * @todo
  *    subEVT: ModuleStartEvent, ModuleStopEvent, BizHiResVidStrmBitsEncodedEvent, BizAudStrmBitsEncodedEvent
- *    postEVT: ModuleAliveEvent, BizHiResStrmBitsMuxedEvent, BizHiResVidStrmBitsRecycledEvent
+ *    postEVT: ModuleKeepAliveEvent, BizHiResStrmBitsMuxedEvent, BizHiResVidStrmBitsRecycledEvent
  */
 
 /**
@@ -102,14 +102,14 @@
  * @behaviors:
  *    1) created by ModMgrObj and wait for start event.
  *    2) simuAccept client connection and send LoRes stream to client.
- *      a) v0.1.1: send HiResStrmBits to client by default, swith to LoResStrmBits if not VIP after 5 minutes.
+ *      a) v0.1.1: send HiResStrmBits to client by default, switch to LoResStrmBits if not VIP after 5 minutes.
  *      b) v0.1.2: accept bidirectional stream request from VIP client.
- *    3) post ModuleAliveEvent to ModMgrObj in 1s interval.
+ *    3) post ModuleKeepAliveEvent to ModMgrObj in 1s interval.
  *
  * @todo
  *    subEVT: ModuleStartEvent, ModuleStopEvent, BizHiResStrmBitsMuxedEvent, BizLoResStrmBitsMuxedEvent,
  *      SrvOpenStreamEvent, SrvCloseStreamEvent
- *    postEVT: ModuleAliveEvent, BizHiResVidStrmBitsRecycledEvent, BizLoResVidStrmBitsRecycledEvent,
+ *    postEVT: ModuleKeepAliveEvent, BizHiResStrmBitsRecycledEvent, BizLoResStrmBitsRecycledEvent,
  *      BizHiResStrmBitsSentEvent, BizLoResStrmBitsSentEvent
  */
 
@@ -117,14 +117,14 @@
  * @brief VidResizeObj
  * @behaviors:
  *    1) created by ModMgrObj and wait for start event.
- *    2) simuResize OriVidFrm into RszVidFrm of 640x480@30fps and send to LoResVidEncObj.
- *      a) LoResVidEncObj will reference RszVidFrm,
+ *    2) simuResize OriVidFrm into LoResVidFrm of 640x480@30fps and send to LoResVidEncObj.
+ *      a) LoResVidEncObj will reference LoResVidFrm,
  *          so wait video frame recycle event from LoResVidEncObj.
- *    3) post ModuleAliveEvent to ModMgrObj in 1s interval.
+ *    3) post ModuleKeepAliveEvent to ModMgrObj in 1s interval.
  *
  * @todo
- *    subEVT: ModuleStartEvent, ModuleStopEvent, BizOriVidFrameCapturedEvent, BizRszVidFrameRecycledEvent
- *    postEVT: ModuleAliveEvent, BizOriVidFrameRecycledEvent, BizLoResVidFrameResizedEvent
+ *    subEVT: ModuleStartEvent, ModuleStopEvent, BizOriVidFrmCapturedEvent, BizLoResVidFrmRecycledEvent
+ *    postEVT: ModuleKeepAliveEvent, BizOriVidFrmRecycledEvent, BizLoResVidFrmResizedEvent
  */
 
 /**
@@ -135,11 +135,11 @@
  *      a) LoResStrmMuxObj will reference video stream bits,
  *          so wait video stream bits recycle event from LoResStrmMuxObj.
  *      b) recycle video frame to VidResizeObj after video stream bits encoded or send to LoResStrmMuxObj.
- *    3) post ModuleAliveEvent to ModMgrObj in 1s interval.
+ *    3) post ModuleKeepAliveEvent to ModMgrObj in 1s interval.
  *
  * @todo
- *    subEVT: ModuleStartEvent, ModuleStopEvent, BizLoResVidFrameResizedEvent, BizLoResVidStrmBitsRecycledEvent
- *    postEVT: ModuleAliveEvent, BizLoResVidStrmBitsEncodedEvent, BizRszVidFrameRecycledEvent
+ *    subEVT: ModuleStartEvent, ModuleStopEvent, BizLoResVidFrmResizedEvent, BizLoResVidStrmBitsRecycledEvent
+ *    postEVT: ModuleKeepAliveEvent, BizLoResVidStrmBitsEncodedEvent, BizLoResVidFrmRecycledEvent
  *
  */
 
@@ -150,11 +150,11 @@
  *    2) simuMux LoResVidStrmBits and AudStrmBits to a LoResStrmBits in 640x480@30fps and 48KHz@16bit.
  *      a) send LoResStrmBits to SrvObj which will send to client.
  *      b) recycle LoResVidStrmBits to LoResVidEncObj.
- *    3) post ModuleAliveEvent to ModMgrObj in 1s interval.
+ *    3) post ModuleKeepAliveEvent to ModMgrObj in 1s interval.
  *
  * @todo
  *    subEVT: ModuleStartEvent, ModuleStopEvent, BizLoResVidStrmBitsEncodedEvent, BizAudStrmBitsEncodedEvent
- *    postEVT: ModuleAliveEvent, BizLoResStrmBitsMuxedEvent, BizLoResVidStrmBitsRecycledEvent
+ *    postEVT: ModuleKeepAliveEvent, BizLoResStrmBitsMuxedEvent, BizLoResVidStrmBitsRecycledEvent
  */
 
 /**
@@ -164,11 +164,11 @@
  *    2) simuCapture audio frame in 48KHz@16bit and post to AudEncObj.
  *      a) AudEncObj will copy audio frame data,
  *          so don't wait audio frame recycle event from AudEncObj.
- *    3) post ModuleAliveEvent to ModMgrObj in 1s interval.
+ *    3) post ModuleKeepAliveEvent to ModMgrObj in 1s interval.
  *
  * @todo
  *    subEVT: ModuleStartEvent, ModuleStopEvent
- *    postEVT: ModuleAliveEvent, BizOriAudFrameCapturedEvent
+ *    postEVT: ModuleKeepAliveEvent, BizOriAudFrmCapturedEvent
  */
 
 /**
@@ -177,25 +177,39 @@
  *    1) created by ModMgrObj and wait for start event.
  *    2) simuEncode audio frame to audio stream bits(a.k.a AudStrmBits) in 48KHz@16bit and send to HiResStrmMuxObj or
  * LoResStrmMuxObj. a) HiResStrmMuxObj or LoResStrmMuxObj will copy audio stream bits, so don't wait audio stream bits recycle
- * event from HiResStrmMuxObj or LoResStrmMuxObj. 3) post ModuleAliveEvent to ModMgrObj in 1s interval.
+ * event from HiResStrmMuxObj or LoResStrmMuxObj. 3) post ModuleKeepAliveEvent to ModMgrObj in 1s interval.
  *
  * @todo
- *    subEVT: ModuleStartEvent, ModuleStopEvent, BizOriAudFrameCapturedEvent
- *    postEVT: ModuleAliveEvent, BizAudStrmBitsEncodedEvent
+ *    subEVT: ModuleStartEvent, ModuleStopEvent, BizOriAudFrmCapturedEvent
+ *    postEVT: ModuleKeepAliveEvent, BizAudStrmBitsEncodedEvent
  *
  */
 
 /**
- * @details CliObjFactory
- *    subEVT: ModuleStartEvent, ModuleStopEvent
- *    postEVT: ModuleAliveEvent, ModuleCreateEvent, ModuleDestroyEvent
+ * @details CliObjFactory(Created by MAIN)
+ * @behaviors:
+ *    1) create CliObj by predefined strategy.
+ *    2) destroy CliObj by predefined strategy.
+ *
+ * @todo
+ *    subEVT: CliKeepAliveEvent
+ *    postEVT: CliStartEvent, CliStopEvent
  */
 
 /**
  * @details CliObj
- *    subEVT: ModuleStartEvent, ModuleStopEvent, SrvOpen[HiRes/LoRes]StreamEvent, SrvCloseStreamEvent
- *    postEVT: ModuleAliveEvent, SrvIdentifyClient, SrvVidOnlyEvent, SrvAudOnlyEvent, SrvStreamAliveEvent,
- *              SrvReqBidirStreamEvent
+ *    subEVT: CliStartEvent, CliStopEvent, BizHiResStrmBitsSentEvent, BizLoResStrmBitsSentEvent
+ *    postEVT: CliKeepAliveEvent, SrvOpenStreamEvent, SrvCloseStreamEvent
  */
 
 #include "_UT_IOC_Common.h"
+// Define DemoLiveCam's Event Class use IOC_EVT_CLASS_TEST
+#define IOC_EVT_CLASS_DEMO_LIVECAM IOC_EVT_CLASS_TEST
+
+// Define DemoLiveCam's Event Name by events between LiveCam's module objects.
+typedef enum {
+    IOC_EVT_NAME_DEMO_LIVECAM_MODULE_KEEPALIVE,
+    IOC_EVT_NAME_DEMO_LIVECAM_MODULE_START,
+    IOC_EVT_NAME_DEMO_LIVECAM_MODULE_STOP,
+
+} IOC_EvtNameDemoLiveCam_T;

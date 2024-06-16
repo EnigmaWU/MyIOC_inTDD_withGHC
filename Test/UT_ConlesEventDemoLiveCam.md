@@ -14,3 +14,12 @@ flowchart LR
     HiResStrmMuxObj -- HiResStrmBits --> SrvObj
     LoResStrmMuxObj --LoResStrmBits --> SrvObj
 ```
+
+## Data flow between service side and client side module objects
+
+```mermaid
+flowchart LR
+    SrvObj -- HiResStrmBits --> CliObj_ofVIP
+    CliObj_ofVIP -- StrmBits --> SrvObj
+    SrvObj -- LoResStrmBits --> CliObj
+```
