@@ -93,7 +93,8 @@
  *    3) post ModuleKeepAliveEvent to ModMgrObj in 1s interval.
  *
  * @todo
- *    subEVT: ModuleStartEvent, ModuleStopEvent, BizHiResVidStrmBitsEncodedEvent, BizAudStrmBitsEncodedEvent
+ *    subEVT: ModuleStartEvent, ModuleStopEvent, BizHiResVidStrmBitsEncodedEvent, BizAudStrmBitsEncodedEvent,
+ *      BizHiResStrmBitsRecycledEvent
  *    postEVT: ModuleKeepAliveEvent, BizHiResStrmBitsMuxedEvent, BizHiResVidStrmBitsRecycledEvent
  */
 
@@ -154,6 +155,7 @@
  *
  * @todo
  *    subEVT: ModuleStartEvent, ModuleStopEvent, BizLoResVidStrmBitsEncodedEvent, BizAudStrmBitsEncodedEvent
+ *      BizLoResStrmBitsRecycledEvent
  *    postEVT: ModuleKeepAliveEvent, BizLoResStrmBitsMuxedEvent, BizLoResVidStrmBitsRecycledEvent
  */
 

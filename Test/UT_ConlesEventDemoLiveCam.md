@@ -23,3 +23,48 @@ flowchart LR
     CliObj_ofVIP -- StrmBits --> SrvObj
     SrvObj -- LoResStrmBits --> CliObj
 ```
+
+## Event flow of service side module objects
+
+### From Biz Viewpoint
+
+```mermaid
+sequenceDiagram
+    participant VidCapObj
+    participant HiResVidEncObj
+    participant HiResStrmMuxObj
+    participant VidResizeObj
+    participant LoResVidEncObj
+    participant LoResStrmMuxObj
+    participant AudCapObj
+    participant AudEncObj
+    participant SrvObj
+    VidCapObj->>HiResVidEncObj: BizOriVidFrmCapturedEvent
+    HiResVidEncObj->>VidCapObj: BizOriVidFrmRecycledEvent
+    HiResVidEncObj->>HiResStrmMuxObj: BizHiResVidStrmBitsEncodedEvent
+    HiResStrmMuxObj->>HiResVidEncObj: BizHiResVidStrmBitsRecycledEvent
+    
+    VidCapObj->>VidResizeObj: BizOriVidFrmCapturedEvent
+    VidResizeObj->>VidCapObj: BizOriVidFrmRecycledEvent
+    VidResizeObj->>LoResVidEncObj: BizLoResVidFrmResizedEvent
+    LoResVidEncObj->>VidResizeObj: BizLoResVidFrmRecycledEvent
+    LoResVidEncObj->>LoResStrmMuxObj: BizLoResVidStrmBitsEncodedEvent
+    LoResStrmMuxObj->>LoResVidEncObj: BizLoResVidStrmBitsRecycledEvent
+    
+    AudCapObj->>AudEncObj: BizOriAudFrmCapturedEvent
+    AudEncObj->>HiResStrmMuxObj: BizAudStrmBitsEncodedEvent
+    AudEncObj->>LoResStrmMuxObj: BizAudStrmBitsEncodedEvent
+
+    HiResStrmMuxObj->>SrvObj: BizHiResStrmBitsMuxedEvent
+    SrvObj->>HiResStrmMuxObj: BizHiResStrmBitsRecycledEvent
+
+    LoResStrmMuxObj->>SrvObj: BizLoResStrmBitsMuxedEvent
+    SrvObj->>LoResStrmMuxObj: BizLoResStrmBitsRecycledEvent
+```
+
+### TODO: From Management Viewpoint
+
+```mermaid
+sequenceDiagram
+    participant MgmtObj
+```
