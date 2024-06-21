@@ -210,11 +210,48 @@
 
 // Define DemoLiveCam's Event Name by events between LiveCam's module objects.
 typedef enum {
+    // RefEvent flow of service side module objects from Biz Viewpoint
+    IOC_ENAME_BizOriVidFrmCaptured,
+    IOC_ENAME_BizOriVidFrmRecycled,
+    IOC_ENAME_BizHiResVidStrmBitsEncoded,
+    IOC_ENAME_BizHiResVidStrmBitsRecycled,
+    IOC_ENAME_BizHiResStrmBitsMuxed,
+    IOC_ENAME_BizHiResStrmBitsRecycled,
+
+    IOC_ENAME_BizLoResVidFrmResized,
+    IOC_ENAME_BizLoResVidFrmRecycled,
+    IOC_ENAME_BizLoResVidStrmBitsEncoded,
+    IOC_ENAME_BizLoResVidStrmBitsRecycled,
+    IOC_ENAME_BizLoResStrmBitsMuxed,
+    IOC_ENAME_BizLoResStrmBitsRecycled,
+
+    IOC_ENAME_BizOriAudFrmCaptured,
+    IOC_ENAME_BizAudStrmBitsEncoded,
+
+    // RefEvent flow of service side module objects from Biz Viewpoint
     IOC_EVT_NAME_LIVECAM_MODULE_KEEPALIVE,
     IOC_EVT_NAME_LIVECAM_MODULE_START,
     IOC_EVT_NAME_LIVECAM_MODULE_STOP,
 
 } IOC_EvtNameDemoLiveCam_T;
+
+// Define DemoLiveCam's Event ID by event flow between LiveCam's module objects from Biz Viewpoint
+#define IOC_EVTID_BizOriVidFrmCaptured IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizOriVidFrmCaptured)
+#define IOC_EVTID_BizOriVidFrmRecycled IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizOriVidFrmRecycled)
+#define IOC_EVTID_BizHiResVidStrmBitsEncoded IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizHiResVidStrmBitsEncoded)
+#define IOC_EVTID_BizHiResVidStrmBitsRecycled IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizHiResVidStrmBitsRecycled)
+#define IOC_EVTID_BizHiResStrmBitsMuxed IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizHiResStrmBitsMuxed)
+#define IOC_EVTID_BizHiResStrmBitsRecycled IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizHiResStrmBitsRecycled)
+
+#define IOC_EVTID_BizLoResVidFrmResized IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizLoResVidFrmResized)
+#define IOC_EVTID_BizLoResVidFrmRecycled IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizLoResVidFrmRecycled)
+#define IOC_EVTID_BizLoResVidStrmBitsEncoded IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizLoResVidStrmBitsEncoded)
+#define IOC_EVTID_BizLoResVidStrmBitsRecycled IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizLoResVidStrmBitsRecycled)
+#define IOC_EVTID_BizLoResStrmBitsMuxed IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizLoResStrmBitsMuxed)
+#define IOC_EVTID_BizLoResStrmBitsRecycled IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizLoResStrmBitsRecycled)
+
+#define IOC_EVTID_BizOriAudFrmCaptured IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizOriAudFrmCaptured)
+#define IOC_EVTID_BizAudStrmBitsEncoded IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizAudStrmBitsEncoded)
 
 // Define DemoLiveCam's Event ID
 #define IOC_EVTID_LIVECAM_MODULE_KEEPALIVE IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_EVT_NAME_LIVECAM_MODULE_KEEPALIVE)
