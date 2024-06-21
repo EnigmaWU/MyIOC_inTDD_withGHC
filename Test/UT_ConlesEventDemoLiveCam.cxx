@@ -229,9 +229,9 @@ typedef enum {
     IOC_ENAME_BizAudStrmBitsEncoded,
 
     // RefEvent flow of service side module objects from Biz Viewpoint
-    IOC_EVT_NAME_LIVECAM_MODULE_KEEPALIVE,
-    IOC_EVT_NAME_LIVECAM_MODULE_START,
-    IOC_EVT_NAME_LIVECAM_MODULE_STOP,
+    IOC_ENAME_ModStart,
+    IOC_ENAME_ModStop,
+    IOC_ENAME_ModKeepAlive,
 
 } IOC_EvtNameDemoLiveCam_T;
 
@@ -253,7 +253,7 @@ typedef enum {
 #define IOC_EVTID_BizOriAudFrmCaptured IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizOriAudFrmCaptured)
 #define IOC_EVTID_BizAudStrmBitsEncoded IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizAudStrmBitsEncoded)
 
-// Define DemoLiveCam's Event ID
-#define IOC_EVTID_LIVECAM_MODULE_KEEPALIVE IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_EVT_NAME_LIVECAM_MODULE_KEEPALIVE)
-#define IOC_EVTID_LIVECAM_MODULE_START IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_EVT_NAME_LIVECAM_MODULE_START)
-#define IOC_EVTID_LIVECAM_MODULE_STOP IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_EVT_NAME_LIVECAM_MODULE_STOP)
+// Define DemoLiveCam's Event ID by event flow between LiveCam's module objects from Management Viewpoint
+#define IOC_EVTID_ModStart IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_ModStart)
+#define IOC_EVTID_ModStop IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_ModStop)
+#define IOC_EVTID_ModKeepAlive IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_ModKeepAlive)

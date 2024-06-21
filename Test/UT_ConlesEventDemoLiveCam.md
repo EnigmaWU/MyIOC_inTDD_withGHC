@@ -62,9 +62,16 @@ sequenceDiagram
     SrvObj->>LoResStrmMuxObj: BizLoResStrmBitsRecycledEvent
 ```
 
-### TODO: From Management Viewpoint
+### From Management Viewpoint
 
 ```mermaid
 sequenceDiagram
     participant MgmtObj
+    participant XyzObj
+    
+    MgmtObj->>XyzObj: ModuleStartEvent
+    loop KeepAlive
+        XyzObj->>Mgmt: ModuleKeepAliveEvent
+    end
+    MgmtObj->>XyzObj: ModuleStopEvent
 ```
