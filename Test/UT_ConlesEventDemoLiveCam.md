@@ -71,7 +71,7 @@ sequenceDiagram
     
     MgmtObj->>XyzObj: ModuleStartEvent
     loop KeepAlive
-        XyzObj->>Mgmt: ModuleKeepAliveEvent
+        XyzObj->>MgmtObj: ModuleKeepAliveEvent
     end
     MgmtObj->>XyzObj: ModuleStopEvent
 ```
