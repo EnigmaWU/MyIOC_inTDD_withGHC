@@ -17,6 +17,7 @@
  * @version <TODO>0.1.2: VIP client may request bidirectional stream.
  */
 
+//======>>>>>>BEGIN OF PRIMITIVE UT DESIGN<<<<<<<=======================================================================
 /**
  * ----> ServerSide:
  * ModMgrObj: all modules in LiveCam is managed by ModMgrObj,
@@ -203,7 +204,9 @@
  *    subEVT: CliStartEvent, CliStopEvent, BizHiResStrmBitsSentEvent, BizLoResStrmBitsSentEvent
  *    postEVT: CliKeepAliveEvent, SrvOpenStreamEvent, SrvCloseStreamEvent
  */
+//======>>>>>>END OF PRIMITIVE UT DESIGN<<<<<<<========================================================================
 
+//======>>>>>>BEGIN OF UT DEFINATION<<<<<<<=============================================================================
 #include "_UT_IOC_Common.h"
 // Define DemoLiveCam's Event Class use IOC_EVT_CLASS_TEST
 #define IOC_EVT_CLASS_LIVECAM IOC_EVT_CLASS_TEST
@@ -257,3 +260,34 @@ typedef enum {
 #define IOC_EVTID_ModStart IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_ModStart)
 #define IOC_EVTID_ModStop IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_ModStop)
 #define IOC_EVTID_ModKeepAlive IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_ModKeepAlive)
+
+typedef enum {
+    ObjState_Stopped,  // stopped state
+                       // initial state or stopped by user on IOC_EVTID_ModStop from running state
+    ObjState_Running,  // running state
+                       // started by user on IOC_EVTID_ModStart from stopped state
+} _LiveCamObjState_T;
+typedef struct {
+    _LiveCamObjState_T State;
+} _LiveCamObjBase_T, *LiveCamObjBase_pT;
+
+typedef struct {
+    _LiveCamObjBase_T Base;
+} _LiveCamVidCapObj_T, *LiveCamVidCapObj_pT;
+
+//======>>>>>>END OF UT DEFINATION<<<<<<<===============================================================================
+
+//======>>>>>>BEGIN OF UT IMPLEMENTATION<<<<<<<=========================================================================
+
+/**
+ * @[Name]: UT_ConlesEventDemoLiveCam_verifyFunctionality
+ * @[Purpose]: accroding to v0.1.0, verify the functionality of ConlesEventDemoLiveCam.
+ *
+ */
+TEST(UT_ConlesEventDemoLiveCam, verifyFunctionality) {}
+
+TEST(UT_ConlesEventDemoLiveCam, verifyPerformance) {}
+
+TEST(UT_ConlesEventDemoLiveCam, verifyRobustness) {}
+
+//======>>>>>>END OF UT IMPLEMENTATION<<<<<<<===========================================================================
