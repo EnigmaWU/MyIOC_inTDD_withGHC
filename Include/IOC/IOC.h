@@ -1,5 +1,6 @@
 // Description: This file is the header file for the MyIOC module.
 
+#include "IOC_Helpers.h"
 #include "IOC_Types.h"
 
 #ifndef __INTER_OBJECT_COMMUNICATION_H__

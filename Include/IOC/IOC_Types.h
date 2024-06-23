@@ -110,7 +110,9 @@ typedef struct
 
     //EvtSpecific
     IOC_EvtID_T EvtID;
-    //TOOD(@W): +More...
+    ULONG_T EvtValue;
+
+    // TOOD(@W): +More..., such as EvtPayload
 } IOC_EvtDesc_T, *IOC_EvtDesc_pT;
 
 #define IOC_calcArrayElmtCnt(array) (sizeof(array) / sizeof(array[0]))
