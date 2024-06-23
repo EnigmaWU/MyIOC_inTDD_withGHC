@@ -1,14 +1,18 @@
 /**
  * @file UT_ConlesEventDemoLiveCam.cxx
  * @brief Demo for ConlesEvent of LiveStreamingCamera(a.k.a LiveCam).
- *  1) LiveCam has a network service module which used to accept the connection from the client.
- *      a) Client will receive the camera's live audio&video stream by default,
- *           client may select audio-only, video-only, or both after connected.
- *      b) Only VIP client may continuly receive high-resolution(HiRes) audio&video stream,
- *          others will receive HiRes in first 5 minutes then switch to low-resolution(LoRes) audio&video stream.
- *      c) Only a VIP client may request bidirectional audio&video communication.
- *  2) LiveCam also internally include modules for video/audio capture, video/audio encode, stream multiplexing(mux).
- *      a) video capture in HiRes by default, and may use video resize module to get LoRes video.
+ * @details
+ *  @[API] LiveCam use ConlesEvent to simulate the behaviors of LiveCam's modules.
+ *   a) IOC_subEVT_inConlesMode(useCbProcEvt_F), IOC_unsubEVT_inConlesMode
+ *   b) IOC_postEVT_inConlesMode
+ *  @[Func] LiveCam has a network service module which used to accept the connection from the client.
+ *   a) Client will receive the camera's live audio&video stream by default,
+ *       client may select audio-only, video-only, or both after connected.
+ *   b) Only VIP client may continuly receive high-resolution(HiRes) audio&video stream,
+ *       others will receive HiRes in first 5 minutes then switch to low-resolution(LoRes) audio&video stream.
+ *   c) Only a VIP client may request bidirectional audio&video communication.
+ *  @[Module] LiveCam also internally include modules for video/audio capture, video/audio encode, stream multiplexing(mux).
+ *   a) video capture in HiRes by default, and may use video resize module to get LoRes video.
  */
 
 /**
@@ -38,7 +42,10 @@
  *  |-> CliObj: ClientObject, created by CliObjFactory, used to simulate the client behaviors.
  */
 
-// #include UT_ConlesEventDemoLiveCam.md which has Data flow of service side module objects.
+/**
+ * RefMore: UT_ConlesEventDemoLiveCam.md
+ *   Data flow and event flow between LiveCam's module objects.
+ */
 
 /**
  * @details ModMgrObj(Created by MAIN)
@@ -267,24 +274,313 @@ typedef enum {
     ObjState_Running,  // running state
                        // started by user on IOC_EVTID_ModStart from stopped state
 } _LiveCamObjState_T;
+
+// RefBrief: server and client side module objects
 typedef struct {
     _LiveCamObjState_T State;
+    struct timespec LastKeepAliveTime;
 } _LiveCamObjBase_T, *LiveCamObjBase_pT;
 
+// RefBrief: ModMgrObj
 typedef struct {
     _LiveCamObjBase_T Base;
+
+    // subEVT: ModuleKeepAliveEvent
+    struct {
+        ULONG_T VidCapObj;
+        ULONG_T AudCapObj;
+        ULONG_T HiResVidEncObj;
+        ULONG_T LoResVidEncObj;
+        ULONG_T VidResizeObj;
+        ULONG_T HiResStrmMuxObj;
+        ULONG_T LoResStrmMuxObj;
+        ULONG_T AudEncObj;
+        ULONG_T SrvObj;
+    } TotalKeepAliveEvents;  // TotalMgntSpecEvents
+
+    // postEVT
+    struct {
+        ULONG_T VidCapObj;
+        ULONG_T AudCapObj;
+        ULONG_T HiResVidEncObj;
+        ULONG_T LoResVidEncObj;
+        ULONG_T VidResizeObj;
+        ULONG_T HiResStrmMuxObj;
+        ULONG_T LoResStrmMuxObj;
+        ULONG_T AudEncObj;
+        ULONG_T SrvObj;
+    } TotalStartEvents;  // TotalMgntSpecEvents
+
+    struct {
+        ULONG_T VidCapObj;
+        ULONG_T AudCapObj;
+        ULONG_T HiResVidEncObj;
+        ULONG_T LoResVidEncObj;
+        ULONG_T VidResizeObj;
+        ULONG_T HiResStrmMuxObj;
+        ULONG_T LoResStrmMuxObj;
+        ULONG_T AudEncObj;
+        ULONG_T SrvObj;
+    } TotalStopEvents;  // TotalMgntSpecEvents
+
+} _LiveCamModMgrObj_T, *LiveCamModMgrObj_pT;
+
+// RefBrief: VidCapObj
+typedef struct {
+    _LiveCamObjBase_T Base;
+
+    // subEVT
+    struct {
+        ULONG_T ModuleStartEvent;           // TotalMgntSpecEvents
+        ULONG_T ModuleStopEvent;            // TotalMgntSpecEvents
+        ULONG_T BizOriVidFrmRecycledEvent;  // TotalBizSpecEvents
+    } TotalSubEvents;
+
+    // postEVT
+    struct {
+        ULONG_T BizOriVidFrmCapturedEvent;  // TotalBizSpecEvents
+        ULONG_T ModuleKeepAliveEvent;       // TotalMgntSpecEvents
+    } TotalPostEvents;
+
 } _LiveCamVidCapObj_T, *LiveCamVidCapObj_pT;
+
+// RefBrief: AudCapObj
+typedef struct {
+    _LiveCamObjBase_T Base;
+
+    // subEVT
+    struct {
+        ULONG_T ModuleStartEvent;  // TotalMgntSpecEvents
+        ULONG_T ModuleStopEvent;   // TotalMgntSpecEvents
+    } TotalSubEvents;
+
+    // postEVT
+    struct {
+        ULONG_T BizOriAudFrmCapturedEvent;  // TotalBizSpecEvents
+        ULONG_T ModuleKeepAliveEvent;       // TotalMgntSpecEvents
+    } TotalPostEvents;
+
+} _LiveCamAudCapObj_T, *LiveCamAudCapObj_pT;
+
+// RefBrief: AudEncObj
+typedef struct {
+    _LiveCamObjBase_T Base;
+
+    // subEVT
+    struct {
+        ULONG_T ModuleStartEvent;           // TotalMgntSpecEvents
+        ULONG_T ModuleStopEvent;            // TotalMgntSpecEvents
+        ULONG_T BizOriAudFrmCapturedEvent;  // TotalBizSpecEvents
+    } TotalSubEvents;
+
+    // postEVT
+    struct {
+        ULONG_T BizAudStrmBitsEncodedEvent;  // TotalBizSpecEvents
+        ULONG_T ModuleKeepAliveEvent;        // TotalMgntSpecEvents
+    } TotalPostEvents;
+
+} _LiveCamAudEncObj_T, *LiveCamAudEncObj_pT;
+
+// RefBrief: HiResVidEncObj
+typedef struct {
+    _LiveCamObjBase_T Base;
+
+    // subEVT
+    struct {
+        ULONG_T ModuleStartEvent;                  // TotalMgntSpecEvents
+        ULONG_T ModuleStopEvent;                   // TotalMgntSpecEvents
+        ULONG_T BizOriVidFrmCapturedEvent;         // TotalBizSpecEvents
+        ULONG_T BizHiResVidStrmBitsRecycledEvent;  // TotalBizSpecEvents
+    } TotalSubEvents;
+
+    // postEVT
+    struct {
+        ULONG_T BizHiResVidStrmBitsEncodedEvent;  // TotalBizSpecEvents
+        ULONG_T ModuleKeepAliveEvent;             // TotalMgntSpecEvents
+        ULONG_T BizOriVidFrmRecycledEvent;        // TotalBizSpecEvents
+    } TotalPostEvents;
+} _LiveCamHiResVidEncObj_T, *LiveCamHiResVidEncObj_pT;
+
+// RefBrief: LoResVidEncObj
+typedef struct {
+    _LiveCamObjBase_T Base;
+
+    // subEVT
+    struct {
+        ULONG_T ModuleStartEvent;                  // TotalMgntSpecEvents
+        ULONG_T ModuleStopEvent;                   // TotalMgntSpecEvents
+        ULONG_T BizLoResVidFrmResizedEvent;        // TotalBizSpecEvents
+        ULONG_T BizLoResVidStrmBitsRecycledEvent;  // TotalBizSpecEvents
+    } TotalSubEvents;
+
+    // postEVT
+    struct {
+        ULONG_T BizLoResVidStrmBitsEncodedEvent;  // TotalBizSpecEvents
+        ULONG_T ModuleKeepAliveEvent;             // TotalMgntSpecEvents
+        ULONG_T BizLoResVidFrmRecycledEvent;      // TotalBizSpecEvents
+    } TotalPostEvents;
+
+} _LiveCamLoResVidEncObj_T, *LiveCamLoResVidEncObj_pT;
+
+// RefBrief: VidResizeObj
+typedef struct {
+    _LiveCamObjBase_T Base;
+
+    // subEVT
+    struct {
+        ULONG_T ModuleStartEvent;           // TotalMgntSpecEvents
+        ULONG_T ModuleStopEvent;            // TotalMgntSpecEvents
+        ULONG_T BizOriVidFrmCapturedEvent;  // TotalBizSpecEvents
+    } TotalSubEvents;
+
+    // postEVT
+    struct {
+        ULONG_T BizOriVidFrmRecycledEvent;   // TotalBizSpecEvents
+        ULONG_T ModuleKeepAliveEvent;        // TotalMgntSpecEvents
+        ULONG_T BizLoResVidFrmResizedEvent;  // TotalBizSpecEvents
+    } TotalPostEvents;
+
+} _LiveCamVidResizeObj_T, *LiveCamVidResizeObj_pT;
+
+// RefBrief: HiResStrmMuxObj
+typedef struct {
+    _LiveCamObjBase_T Base;
+
+    // subEVT
+    struct {
+        ULONG_T ModuleStartEvent;                 // TotalMgntSpecEvents
+        ULONG_T ModuleStopEvent;                  // TotalMgntSpecEvents
+        ULONG_T BizHiResVidStrmBitsEncodedEvent;  // TotalBizSpecEvents
+        ULONG_T BizAudStrmBitsEncodedEvent;       // TotalBizSpecEvents
+        ULONG_T BizHiResStrmBitsRecycledEvent;    // TotalBizSpecEvents
+    } TotalSubEvents;
+
+    // postEVT
+    struct {
+        ULONG_T BizHiResStrmBitsMuxedEvent;        // TotalBizSpecEvents
+        ULONG_T ModuleKeepAliveEvent;              // TotalMgntSpecEvents
+        ULONG_T BizHiResVidStrmBitsRecycledEvent;  // TotalBizSpecEvents
+    } TotalPostEvents;
+
+} _LiveCamHiResStrmMuxObj_T, *LiveCamHiResStrmMuxObj_pT;
+
+// RefBrief: LoResStrmMuxObj
+typedef struct {
+    _LiveCamObjBase_T Base;
+
+    // subEVT
+    struct {
+        ULONG_T ModuleStartEvent;                 // TotalMgntSpecEvents
+        ULONG_T ModuleStopEvent;                  // TotalMgntSpecEvents
+        ULONG_T BizLoResVidStrmBitsEncodedEvent;  // TotalBizSpecEvents
+        ULONG_T BizAudStrmBitsEncodedEvent;       // TotalBizSpecEvents
+        ULONG_T BizLoResStrmBitsRecycledEvent;    // TotalBizSpecEvents
+    } TotalSubEvents;
+
+    // postEVT
+    struct {
+        ULONG_T BizLoResStrmBitsMuxedEvent;        // TotalBizSpecEvents
+        ULONG_T ModuleKeepAliveEvent;              // TotalMgntSpecEvents
+        ULONG_T BizLoResVidStrmBitsRecycledEvent;  // TotalBizSpecEvents
+    } TotalPostEvents;
+
+} _LiveCamLoResStrmMuxObj_T, *LiveCamLoResStrmMuxObj_pT;
+
+// RefBrief: SrvObj
+typedef struct {
+    _LiveCamObjBase_T Base;
+
+    // subEVT
+    struct {
+        ULONG_T ModuleStartEvent;            // TotalMgntSpecEvents
+        ULONG_T ModuleStopEvent;             // TotalMgntSpecEvents
+        ULONG_T BizHiResStrmBitsMuxedEvent;  // TotalBizSpecEvents
+        ULONG_T BizLoResStrmBitsMuxedEvent;  // TotalBizSpecEvents
+        ULONG_T SrvOpenStreamEvent;          // TotalBizSpecEvents
+        ULONG_T SrvCloseStreamEvent;         // TotalBizSpecEvents
+    } TotalSubEvents;
+
+    // postEVT
+    struct {
+        ULONG_T BizHiResStrmBitsSentEvent;      // TotalBizSpecEvents
+        ULONG_T BizLoResStrmBitsSentEvent;      // TotalBizSpecEvents
+        ULONG_T ModuleKeepAliveEvent;           // TotalMgntSpecEvents
+        ULONG_T BizHiResStrmBitsRecycledEvent;  // TotalBizSpecEvents
+        ULONG_T BizLoResStrmBitsRecycledEvent;  // TotalBizSpecEvents
+    } TotalPostEvents;
+
+} _LiveCamSrvObj_T, *LiveCamSrvObj_pT;
+
+// RefBrief: CliObj
+typedef struct {
+    _LiveCamObjBase_T Base;
+
+    // subEVT
+    struct {
+        ULONG_T CliStartEvent;              // TotalMgntSpecEvents
+        ULONG_T CliStopEvent;               // TotalMgntSpecEvents
+        ULONG_T BizHiResStrmBitsSentEvent;  // TotalBizSpecEvents
+        ULONG_T BizLoResStrmBitsSentEvent;  // TotalBizSpecEvents
+    } TotalSubEvents;
+
+    // postEVT
+    struct {
+        ULONG_T CliKeepAliveEvent;    // TotalMgntSpecEvents
+        ULONG_T SrvOpenStreamEvent;   // TotalBizSpecEvents
+        ULONG_T SrvCloseStreamEvent;  // TotalBizSpecEvents
+    } TotalPostEvents;
+
+} _LiveCamCliObj_T, *LiveCamCliObj_pT;
+
+// RefBrief: CliObjFactory
+typedef struct {
+    _LiveCamObjBase_T Base;
+
+    // subEVT
+    struct {
+        ULONG_T CliKeepAliveEvent;  // TotalMgntSpecEvents
+    } TotalSubEvents;
+
+    // postEVT
+    struct {
+        ULONG_T CliStartEvent;  // TotalMgntSpecEvents
+        ULONG_T CliStopEvent;   // TotalMgntSpecEvents
+    } TotalPostEvents;
+
+} _LiveCamCliObjFactory_T, *LiveCamCliObjFactory_pT;
 
 //======>>>>>>END OF UT DEFINATION<<<<<<<===============================================================================
 
 //======>>>>>>BEGIN OF UT IMPLEMENTATION<<<<<<<=========================================================================
 
 /**
- * @[Name]: UT_ConlesEventDemoLiveCam_verifyFunctionality
- * @[Purpose]: accroding to v0.1.0, verify the functionality of ConlesEventDemoLiveCam.
- *
+ * @[Name]: UT_ConlesEventDemoLiveCam_verifyFunctionality_v0_1_0
+ * @[Purpose]: accroding to v0.1.0, verify the functionality of ConlesEventDemoLiveCam,
+ *  which means only LoRes stream will be sent to client.
+ * @[Overview]:
+ *    a) ViCapObj: 1920x1080@25fps x 100s -> BizOriVidFrmCapturedEvent/40ms
+ *          |-> TotalBizOriVidFrmCapturedEvents = 25x100 = 2500
+ *    b) AudCapObj: 8KHz@16bit x 100s -> BizOriAudFrmCapturedEvent/20ms
+ *          |-> TotalBizOriAudFrmCapturedEvents = 50x100 = 5000
+ *    c) CliObj: 5xcurrent clients, each receive (V25fps+A50fps)x9s
+ * @[Steps]:
+ *  1) create all server side module objects, and subscribe each module's events when created,
+ *        then start all server side module objects as SETUP&BEHAVIOR.
+ *  2) create client object factory,
+ *        which will create 5 client objects every 10s of total 9 times as SETUP&BEHAVIOR.
+ *  3) wait for 101s, then stop all server side module objects.
+ *        check each object's EVTCNT of BizSpec events as VERIFY.
+ *  4) destroy all server and client side objects as CLEANUP.
+ * @[Expects]:
+ *  All EVTCNT of BizSpec events meet the expected value, such as
+ *      ViCapObj's EVTCNT of BizOriVidFrmCapturedEvent is 2500,
+ *      AudCapObj's EVTCNT of BizOriAudFrmCapturedEvent is 5000.
+ *  All EVTCNT of MgntSpec events meet the expected value, such as
+ *      ViCapObj's EVTCNT of ModuleKeepAliveEvent is 100,
+ *      AudCapObj's EVTCNT of ModuleKeepAliveEvent is 100.
+ * @[Notes]: N/A
  */
-TEST(UT_ConlesEventDemoLiveCam, verifyFunctionality) {}
+TEST(UT_ConlesEventDemoLiveCam, verifyFunctionality_v0_1_0) {}
 
 TEST(UT_ConlesEventDemoLiveCam, verifyPerformance) {}
 

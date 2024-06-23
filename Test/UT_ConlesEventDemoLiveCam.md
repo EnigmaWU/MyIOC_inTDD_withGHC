@@ -66,12 +66,56 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant MgmtObj
+    participant MgrObj
     participant XyzObj
     
-    MgmtObj->>XyzObj: ModuleStartEvent
+    MgrObj->>XyzObj: ModuleStartEvent
     loop KeepAlive
-        XyzObj->>MgmtObj: ModuleKeepAliveEvent
+        XyzObj->>MgrObj: ModuleKeepAliveEvent
     end
-    MgmtObj->>XyzObj: ModuleStopEvent
+    MgrObj->>XyzObj: ModuleStopEvent
+```
+
+## Event flow between service side and client side module objects
+
+```mermaid
+sequenceDiagram
+    participant SrvObj
+    participant CliObj
+
+    CliObj->>SrvObj: SrvOpenStreamEvent
+    alt HiResStrmBits
+        loop HiResStrmBits
+            SrvObj->>CliObj: BizHiResStrmBitsSentEvent
+        end
+    else LoResStrmBits
+        loop LoResStrmBits
+            SrvObj->>CliObj: BizLoResStrmBitsSentEvent
+        end
+    end
+
+    CliObj->>SrvObj: CliCloseStreamEvent
+```
+
+### TODO: CliObjVIP additional event flow
+
+```mermaid
+sequenceDiagram
+    participant SrvObj
+    participant CliObjVIP
+
+```
+
+## Event flow between client side module objects
+
+```mermaid
+sequenceDiagram
+    participant CliObjFactory
+    participant CliObj
+
+    CliObjFactory->>CliObj: CliStartEvent
+    loop KeepAlive
+        CliObj->>CliObjFactory: CliKeepAliveEvent
+    end
+    CliObjFactory->>CliObj: CliStopEvent
 ```
