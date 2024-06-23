@@ -214,6 +214,8 @@
 //======>>>>>>END OF PRIMITIVE UT DESIGN<<<<<<<========================================================================
 
 //======>>>>>>BEGIN OF UT DEFINATION<<<<<<<=============================================================================
+#include <ctime>
+
 #include "_UT_IOC_Common.h"
 // Define DemoLiveCam's Event Class use IOC_EVT_CLASS_TEST
 #define IOC_EVT_CLASS_LIVECAM IOC_EVT_CLASS_TEST
@@ -275,55 +277,32 @@ typedef enum {
                        // started by user on IOC_EVTID_ModStart from stopped state
 } _LiveCamObjState_T;
 
+static inline struct timespec IOC_getCurrentTimeSpec() {
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    return now;
+}
+
+static inline ULONG_T IOC_diffTimeSpecInSec(const struct timespec *pFromTS, const struct timespec *pToTS) {
+    if (pToTS->tv_nsec < pFromTS->tv_nsec) {
+        // 如果pToTS的纳秒小于pFromTS的纳秒，需要从秒数中借位
+        return (pToTS->tv_sec - pFromTS->tv_sec - 1) + ((pToTS->tv_nsec + 1000000000) - pFromTS->tv_nsec) / 1000000000;
+    } else {
+        // 正常情况下的计算
+        return (pToTS->tv_sec - pFromTS->tv_sec) + (pToTS->tv_nsec - pFromTS->tv_nsec) / 1000000000;
+    }
+}
+
 // RefBrief: server and client side module objects
 typedef struct {
     _LiveCamObjState_T State;
+
+    /**
+     * @initial: NOW=IOC_getCurrentTimeSpec()
+     * @Every1s: UPDATE=IOC_getCurrentTimeSpec()
+     */
     struct timespec LastKeepAliveTime;
 } _LiveCamObjBase_T, *LiveCamObjBase_pT;
-
-// RefBrief: ModMgrObj
-typedef struct {
-    _LiveCamObjBase_T Base;
-
-    // subEVT: ModuleKeepAliveEvent
-    struct {
-        ULONG_T VidCapObj;
-        ULONG_T AudCapObj;
-        ULONG_T HiResVidEncObj;
-        ULONG_T LoResVidEncObj;
-        ULONG_T VidResizeObj;
-        ULONG_T HiResStrmMuxObj;
-        ULONG_T LoResStrmMuxObj;
-        ULONG_T AudEncObj;
-        ULONG_T SrvObj;
-    } TotalKeepAliveEvents;  // TotalMgntSpecEvents
-
-    // postEVT
-    struct {
-        ULONG_T VidCapObj;
-        ULONG_T AudCapObj;
-        ULONG_T HiResVidEncObj;
-        ULONG_T LoResVidEncObj;
-        ULONG_T VidResizeObj;
-        ULONG_T HiResStrmMuxObj;
-        ULONG_T LoResStrmMuxObj;
-        ULONG_T AudEncObj;
-        ULONG_T SrvObj;
-    } TotalStartEvents;  // TotalMgntSpecEvents
-
-    struct {
-        ULONG_T VidCapObj;
-        ULONG_T AudCapObj;
-        ULONG_T HiResVidEncObj;
-        ULONG_T LoResVidEncObj;
-        ULONG_T VidResizeObj;
-        ULONG_T HiResStrmMuxObj;
-        ULONG_T LoResStrmMuxObj;
-        ULONG_T AudEncObj;
-        ULONG_T SrvObj;
-    } TotalStopEvents;  // TotalMgntSpecEvents
-
-} _LiveCamModMgrObj_T, *LiveCamModMgrObj_pT;
 
 // RefBrief: VidCapObj
 typedef struct {
@@ -511,6 +490,50 @@ typedef struct {
 
 } _LiveCamSrvObj_T, *LiveCamSrvObj_pT;
 
+// RefBrief: ModMgrObj
+typedef struct {
+    _LiveCamObjBase_T Base;
+
+    // subEVT: ModuleKeepAliveEvent
+    struct {
+        ULONG_T VidCapObj;
+        ULONG_T AudCapObj;
+        ULONG_T HiResVidEncObj;
+        ULONG_T LoResVidEncObj;
+        ULONG_T VidResizeObj;
+        ULONG_T HiResStrmMuxObj;
+        ULONG_T LoResStrmMuxObj;
+        ULONG_T AudEncObj;
+        ULONG_T SrvObj;
+    } TotalKeepAliveEvents;  // TotalMgntSpecEvents
+
+    // postEVT
+    struct {
+        ULONG_T VidCapObj;
+        ULONG_T AudCapObj;
+        ULONG_T HiResVidEncObj;
+        ULONG_T LoResVidEncObj;
+        ULONG_T VidResizeObj;
+        ULONG_T HiResStrmMuxObj;
+        ULONG_T LoResStrmMuxObj;
+        ULONG_T AudEncObj;
+        ULONG_T SrvObj;
+    } TotalStartEvents;  // TotalMgntSpecEvents
+
+    struct {
+        ULONG_T VidCapObj;
+        ULONG_T AudCapObj;
+        ULONG_T HiResVidEncObj;
+        ULONG_T LoResVidEncObj;
+        ULONG_T VidResizeObj;
+        ULONG_T HiResStrmMuxObj;
+        ULONG_T LoResStrmMuxObj;
+        ULONG_T AudEncObj;
+        ULONG_T SrvObj;
+    } TotalStopEvents;  // TotalMgntSpecEvents
+
+} _LiveCamModMgrObj_T, *LiveCamModMgrObj_pT;
+
 // RefBrief: CliObj
 typedef struct {
     _LiveCamObjBase_T Base;
@@ -580,10 +603,86 @@ typedef struct {
  *      AudCapObj's EVTCNT of ModuleKeepAliveEvent is 100.
  * @[Notes]: N/A
  */
-TEST(UT_ConlesEventDemoLiveCam, verifyFunctionality_v0_1_0) {}
 
-TEST(UT_ConlesEventDemoLiveCam, verifyPerformance) {}
+static IOC_Result_T __Case01_cbProcEvt_VidCapObj(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
+    _LiveCamVidCapObj_T *pVidCapObj = (_LiveCamVidCapObj_T *)pCbPriv;
+    IOC_Result_T Result             = IOC_RESULT_BUG;
+    IOC_EvtID_T EvtID               = pEvtDesc->EvtID;
 
-TEST(UT_ConlesEventDemoLiveCam, verifyRobustness) {}
+    switch (EvtID) {
+        case IOC_EVTID_ModStart: {
+            if (pVidCapObj->Base.State == ObjState_Stopped) {
+                pVidCapObj->Base.State = ObjState_Running;
+            } else {
+                // BUG: expect stopped state, but ??? state
+                EXPECT_FALSE(true) << "BUG: expect stopped state, but " << pVidCapObj->Base.State;
+            }
+        } break;
+
+        case IOC_EVTID_ModStop: {
+            if (pVidCapObj->Base.State == ObjState_Running) {
+                pVidCapObj->Base.State = ObjState_Stopped;
+            } else {
+                // BUG: expect running state, but ??? state
+                EXPECT_FALSE(true) << "BUG: expect running state, but " << pVidCapObj->Base.State;
+            }
+        } break;
+
+        case IOC_EVTID_BizOriVidFrmRecycled: {
+            if (pVidCapObj->Base.State == ObjState_Running) {
+                pVidCapObj->TotalSubEvents.BizOriVidFrmRecycledEvent++;
+            } else {
+                // BUG: expect running state, but ??? state
+                EXPECT_FALSE(true) << "BUG: expect running state, but " << pVidCapObj->Base.State;
+            }
+        } break;
+
+        default: {
+            // BUG: unexpected event
+            EXPECT_FALSE(true) << "BUG: unexpected event " << EvtID;
+        } break;
+    }
+
+    return Result;
+}
+
+static void __Case01_setupVidCapObj(_LiveCamVidCapObj_T *VidCapObj) {
+    // SETUP ZERO AS DEFAULT
+    memset(VidCapObj, 0, sizeof(_LiveCamVidCapObj_T));
+
+    VidCapObj->Base.State             = ObjState_Stopped;
+    VidCapObj->Base.LastKeepAliveTime = IOC_getCurrentTimeSpec();
+
+    IOC_EvtID_T SubEvtIDs[]     = {IOC_EVTID_ModStart, IOC_EVTID_ModStop, IOC_EVTID_BizOriVidFrmRecycled};
+    IOC_SubEvtArgs_T SubEvtArgs = {
+        .CbProcEvt_F = __Case01_cbProcEvt_VidCapObj,
+        .pCbPrivData = VidCapObj,
+
+        .EvtNum  = IOC_calcArrayElmtCnt(SubEvtIDs),
+        .pEvtIDs = SubEvtIDs,
+    };
+
+    IOC_Result_T Result = IOC_subEVT_inConlesMode(&SubEvtArgs);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);
+}
+TEST(UT_ConlesEventDemoLiveCamCase01, verifyFunctionality_v0_1_0) {
+    // SETUP
+    _LiveCamModMgrObj_T ModMgrObj;
+    _LiveCamVidCapObj_T VidCapObj;
+    __Case01_setupVidCapObj(&VidCapObj);
+    _LiveCamAudCapObj_T AudCapObj;
+    _LiveCamLoResVidEncObj_T LoResVidEncObj;
+    _LiveCamVidResizeObj_T VidResizeObj;
+    _LiveCamLoResStrmMuxObj_T LoResStrmMuxObj;
+    _LiveCamAudEncObj_T AudEncObj;
+    _LiveCamSrvObj_T SrvObj;
+    _LiveCamCliObjFactory_T CliObjFactory;
+
+    // BEHAVIOR
+}
+
+TEST(UT_ConlesEventDemoLiveCamCase02, verifyPerformance) {}
+
+TEST(UT_ConlesEventDemoLiveCamCase03, verifyRobustness) {}
 
 //======>>>>>>END OF UT IMPLEMENTATION<<<<<<<===========================================================================
