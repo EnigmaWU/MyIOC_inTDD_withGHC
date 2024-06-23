@@ -639,7 +639,7 @@ static void *__Case01_ThreadFunc_simuVidCap(void *arg) {
 
     while (pVidCapObj->Base.State == ObjState_Running) {
         clock_gettime(CLOCK_MONOTONIC, &CurrentTime);
-        if (IOC_diffTimeSpecInSec(&LastCaptureTime, &CurrentTime) >= 40) {
+        if (IOC_diffTimeSpecInMS(&LastCaptureTime, &CurrentTime) >= 40) {
             // simulate capture video frame in 1920x1080@25fps
             // 1: post the BizOriVidFrmCapturedEvent
             IOC_EvtDesc_T EvtDesc = {
