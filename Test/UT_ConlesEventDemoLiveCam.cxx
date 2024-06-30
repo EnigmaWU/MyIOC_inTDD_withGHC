@@ -624,7 +624,7 @@ typedef struct {
  *      AudCapObj's EVTCNT of KeepAliveEvent is 100.
  * @[Notes]: N/A
  */
-#define _CASE01_DURATION 100  // NOLINT(*-reserved-identifier)
+#define _CASE01_DURATION 10  // NOLINT(*-reserved-identifier)
 
 #define _CASE01_VIDCAP_FPS 25
 #define _CASE01_VIDCAP_FRM_CNT (_CASE01_DURATION * _CASE01_VIDCAP_FPS)
@@ -756,6 +756,17 @@ static void __Case01_setupVidCapObj(_LiveCamVidCapObj_pT pVidCapObj) {
     EXPECT_EQ(IOC_RESULT_SUCCESS, Result);
 }
 
+static void __Case01_cleanupVidCapObj(_LiveCamVidCapObj_pT pVidCapObj) {
+    // CLEANUP
+    IOC_UnsubEvtArgs_T UnsubEvtArgs = {
+        .CbProcEvt_F = __Case01_cbProcEvt_VidCapObj,
+        .pCbPrivData = pVidCapObj,
+    };
+
+    IOC_Result_T Result = IOC_unsubEVT_inConlesMode(&UnsubEvtArgs);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result) << "VidCapObj unsubEVT fail, Result=" << IOC_getResultStr(Result);
+}
+
 static void __Case01_verifyVidCapObj(_LiveCamVidCapObj_pT pVidCapObj) {
     // VERIFY
     EXPECT_EQ(ObjState_Stopped, pVidCapObj->Base.State);
@@ -851,6 +862,17 @@ static void __Case01_setupModMgrObj(_LiveCamModMgrObj_T *ModMgrObj) {
 
     IOC_Result_T Result = IOC_subEVT_inConlesMode(&SubEvtArgs);
     EXPECT_EQ(IOC_RESULT_SUCCESS, Result);
+}
+
+static void __Case01_cleanupModMgrObj(_LiveCamModMgrObj_T *ModMgrObj) {
+    // CLEANUP
+    IOC_UnsubEvtArgs_T UnsubEvtArgs = {
+        .CbProcEvt_F = __Case01_cbProcEvt_ModMgrObj,
+        .pCbPrivData = ModMgrObj,
+    };
+
+    IOC_Result_T Result = IOC_unsubEVT_inConlesMode(&UnsubEvtArgs);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result) << "ModMgrObj unsubEVT fail, Result=" << IOC_getResultStr(Result);
 }
 
 static void __Case01_startModMgrObj(_LiveCamModMgrObj_T *ModMgrObj) {
@@ -1002,6 +1024,17 @@ static void __Case01_setupAudCapObj(_LiveCamAudCapObj_pT AudCapObj) {
     EXPECT_EQ(IOC_RESULT_SUCCESS, Result);
 }
 
+static void __Case01_cleanupAudCapObj(_LiveCamAudCapObj_pT pAudCapObj) {
+    // CLEANUP
+    IOC_UnsubEvtArgs_T UnsubEvtArgs = {
+        .CbProcEvt_F = __Case01_cbProcEvt_AudCapObj,
+        .pCbPrivData = pAudCapObj,
+    };
+
+    IOC_Result_T Result = IOC_unsubEVT_inConlesMode(&UnsubEvtArgs);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result) << "AudCapObj unsubEVT fail, Result=" << IOC_getResultStr(Result);
+}
+
 static void __Case01_verifyAudCapObj(_LiveCamAudCapObj_pT pAudCapObj) {
     // VERIFY
     EXPECT_EQ(ObjState_Stopped, pAudCapObj->Base.State);
@@ -1095,6 +1128,17 @@ static void __Case01_setupAudEncObj(_LiveCamAudEncObj_pT pAudEncObj) {
 
     IOC_Result_T Result = IOC_subEVT_inConlesMode(&SubEvtArgs);
     EXPECT_EQ(IOC_RESULT_SUCCESS, Result);
+}
+
+static void __Case01_cleanupAudEncObj(_LiveCamAudEncObj_pT pAudEncObj) {
+    // CLEANUP
+    IOC_UnsubEvtArgs_T UnsubEvtArgs = {
+        .CbProcEvt_F = __Case01_cbProcEvt_AudEncObj,
+        .pCbPrivData = pAudEncObj,
+    };
+
+    IOC_Result_T Result = IOC_unsubEVT_inConlesMode(&UnsubEvtArgs);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result) << "AudEncObj unsubEVT fail, Result=" << IOC_getResultStr(Result);
 }
 
 static void __Case01_verifyAudEncObj(_LiveCamAudEncObj_pT pAudEncObj) {
@@ -1209,6 +1253,17 @@ static void __Case01_setupVidResizeObj(_LiveCamVidResizeObj_pT VidResizeObj) {
     EXPECT_EQ(IOC_RESULT_SUCCESS, Result);
 }
 
+static void __Case01_cleanupVidResizeObj(_LiveCamVidResizeObj_pT VidResizeObj) {
+    // CLEANUP
+    IOC_UnsubEvtArgs_T UnsubEvtArgs = {
+        .CbProcEvt_F = __Case01_cbProcEvt_VidResizeObj,
+        .pCbPrivData = VidResizeObj,
+    };
+
+    IOC_Result_T Result = IOC_unsubEVT_inConlesMode(&UnsubEvtArgs);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result) << "VidResizeObj unsubEVT fail, Result=" << IOC_getResultStr(Result);
+}
+
 static void __Case01_verifyVidResizeObj(_LiveCamVidResizeObj_pT VidResizeObj) {
     // VERIFY
     EXPECT_EQ(ObjState_Stopped, VidResizeObj->Base.State);
@@ -1310,6 +1365,17 @@ static void __Case01_setupLoResVidEncObj(_LiveCamLoResVidEncObj_pT LoResVidEncOb
 
     IOC_Result_T Result = IOC_subEVT_inConlesMode(&SubEvtArgs);
     EXPECT_EQ(IOC_RESULT_SUCCESS, Result);
+}
+
+static void __Case01_cleanupLoResVidEncObj(_LiveCamLoResVidEncObj_pT LoResVidEncObj) {
+    // CLEANUP
+    IOC_UnsubEvtArgs_T UnsubEvtArgs = {
+        .CbProcEvt_F = __Case01_cbProcEvt_LoResVidEncObj,
+        .pCbPrivData = LoResVidEncObj,
+    };
+
+    IOC_Result_T Result = IOC_unsubEVT_inConlesMode(&UnsubEvtArgs);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result) << "LoResVidEncObj unsubEVT fail, Result=" << IOC_getResultStr(Result);
 }
 
 static void __Case01_verifyLoResVidEncObj(_LiveCamLoResVidEncObj_pT LoResVidEncObj) {
@@ -1433,6 +1499,17 @@ static void __Case01_setupLoResStrmMuxObj(_LiveCamLoResStrmMuxObj_pT pLoResStrmM
     EXPECT_EQ(IOC_RESULT_SUCCESS, Result);
 }
 
+static void __Case01_cleanupLoResStrmMuxObj(_LiveCamLoResStrmMuxObj_pT pLoResStrmMuxObj) {
+    // CLEANUP
+    IOC_UnsubEvtArgs_T UnsubEvtArgs = {
+        .CbProcEvt_F = __Case01_cbProcEvt_LoResStrmMuxObj,
+        .pCbPrivData = pLoResStrmMuxObj,
+    };
+
+    IOC_Result_T Result = IOC_unsubEVT_inConlesMode(&UnsubEvtArgs);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result) << "LoResStrmMuxObj unsubEVT fail, Result=" << IOC_getResultStr(Result);
+}
+
 static void __Case01_verifyLoResStrmMuxObj(_LiveCamLoResStrmMuxObj_pT pLoResStrmMuxObj) {
     // VERIFY
     EXPECT_EQ(ObjState_Stopped, pLoResStrmMuxObj->Base.State);
@@ -1537,6 +1614,17 @@ static void __Case01_setupSrvObj(_LiveCamSrvObj_pT pSrvObj) {
     EXPECT_EQ(IOC_RESULT_SUCCESS, Result);
 }
 
+static void __Case01_cleanupSrvObj(_LiveCamSrvObj_pT pSrvObj) {
+    // CLEANUP
+    IOC_UnsubEvtArgs_T UnsubEvtArgs = {
+        .CbProcEvt_F = __Case01_cbProcEvt_SrvObj,
+        .pCbPrivData = pSrvObj,
+    };
+
+    IOC_Result_T Result = IOC_unsubEVT_inConlesMode(&UnsubEvtArgs);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result) << "SrvObj unsubEVT fail, Result=" << IOC_getResultStr(Result);
+}
+
 static void __Case01_verifySrvObj(_LiveCamSrvObj_pT pSrvObj) {
     // VERIFY
     EXPECT_EQ(ObjState_Stopped, pSrvObj->Base.State);
@@ -1576,17 +1664,17 @@ TEST(UT_ConlesEventDemoLiveCam, verifyFunctionality_v0_1_0) {
     _LiveCamModMgrObj_T ModMgrObj;
     __Case01_setupModMgrObj(&ModMgrObj);
 
-    _LiveCamCliObjFactory_T CliObjFactory;
+    //[TODO@W UseCase::Category-B]: _LiveCamCliObjFactory_T CliObjFactory;
 
     // BEHAVIOR
     __Case01_startModMgrObj(&ModMgrObj);
-    //__startCliObjFactory(&CliObjFactory);
+    //[TODO@W UseCase::Category-B]: __startCliObjFactory(&CliObjFactory);
 
-    sleep(_CASE01_DURATION + 5);  // wait a little bit more time,
+    sleep(_CASE01_DURATION + (_CASE01_DURATION / 10) /*10%*/);  // wait a little bit more time,
     // becaused all FPS is sleep-NNms based and may not be accurate as expected
 
     __Case01_stopModMgrObj(&ModMgrObj);
-    //__stopCliObjFactory(&CliObjFactory);
+    //[TODO@W UseCase::Category-B]: __stopCliObjFactory(&CliObjFactory);
 
     // VERIFY
     // force all pending events to be processed
@@ -1599,12 +1687,21 @@ TEST(UT_ConlesEventDemoLiveCam, verifyFunctionality_v0_1_0) {
     __Case01_verifyLoResVidEncObj(&LoResVidEncObj);
     __Case01_verifyLoResStrmMuxObj(&LoResStrmMuxObj);
     __Case01_verifySrvObj(&SrvObj);
-
-    //__Case01_verifyXXXObj(&XXXObj);
-
     __Case01_verifyModMgrObj(&ModMgrObj);
 
+    //[TODO@W UseCase::Category-B]: __verifyCliObjFactory(&CliObjFactory);
+
     // CLEANUP
+    __Case01_cleanupVidCapObj(&VidCapObj);
+    __Case01_cleanupAudCapObj(&AudCapObj);
+    __Case01_cleanupAudEncObj(&AudEncObj);
+    __Case01_cleanupVidResizeObj(&VidResizeObj);
+    __Case01_cleanupLoResVidEncObj(&LoResVidEncObj);
+    __Case01_cleanupLoResStrmMuxObj(&LoResStrmMuxObj);
+    __Case01_cleanupSrvObj(&SrvObj);
+    __Case01_cleanupModMgrObj(&ModMgrObj);
+
+    //[TODO@W UseCase::Category-B]: __cleanupCliObjFactory(&CliObjFactory);
 }
 
 // TEST(UT_ConlesEventDemoLiveCamCase02, verifyPerformance) {}

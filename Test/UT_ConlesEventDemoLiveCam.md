@@ -85,11 +85,11 @@ sequenceDiagram
 
     CliObj->>SrvObj: SrvOpenStreamEvent
     alt HiResStrmBits
-        loop HiResStrmBits
+        loop 
             SrvObj->>CliObj: BizHiResStrmBitsSentEvent
         end
     else LoResStrmBits
-        loop LoResStrmBits
+        loop 
             SrvObj->>CliObj: BizLoResStrmBitsSentEvent
         end
     end
