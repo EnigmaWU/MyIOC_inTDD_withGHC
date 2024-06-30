@@ -29,6 +29,8 @@ typedef enum {
   IOC_RESULT_BUG = -999,
 } IOC_Result_T;
 
+const char *IOC_getResultStr(IOC_Result_T Result);
+
 /**
  * @brief LinkID is a unique ID to identify a link between two objects in communication.
  *     In ConlesMode, LinkID is predefined as IOC_CONLES_MODE_AUTO_LINK_ID.

@@ -51,6 +51,7 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
-CMakeBuilt/*
+CMakeBuilt*
 compile_commands.json
 .cache/*
+.idea*

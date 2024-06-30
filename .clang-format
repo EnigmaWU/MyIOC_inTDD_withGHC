@@ -6,5 +6,4 @@ BasedOnStyle:  Google
 ColumnLimit: 128
 AlignConsecutiveAssignments: true
 AlignConsecutiveDeclarations: false
-#TabSize=4
-IndentWidth: 4
+#IndentWidth: 4
