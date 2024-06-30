@@ -632,6 +632,15 @@ typedef struct {
 #define _CASE01_AUDCAP_FPS 50
 #define _CASE01_AUDCAP_FRM_CNT (_CASE01_DURATION * _CASE01_AUDCAP_FPS)
 
+#define _CASE01_PERF_LE_1000US 1000UL
+static void __Case01_verifyFromPostEvt2CbProcEvtPerfMeets(IOC_EvtDesc_pT pEvtDesc) {
+    struct timespec CurrentTime = IOC_getCurrentTimeSpec();
+
+    ULONG_T TimeCost = IOC_diffTimeSpecInUS(&pEvtDesc->MsgDesc.TimeStamp, &CurrentTime);
+    EXPECT_LE(TimeCost, _CASE01_PERF_LE_1000US)
+        << "TimeCost=" << TimeCost << "us, expect less than " << _CASE01_PERF_LE_1000US << "us";
+}
+
 static void *__Case01_ThreadFunc_simuVidCap(void *arg) {
     _LiveCamVidCapObj_T *pVidCapObj = (_LiveCamVidCapObj_T *)arg;
     struct timespec LastCaptureTime = IOC_getCurrentTimeSpec();
@@ -677,6 +686,8 @@ static IOC_Result_T __Case01_cbProcEvt_VidCapObj(IOC_EvtDesc_pT pEvtDesc, void *
     _LiveCamVidCapObj_pT pVidCapObj = (_LiveCamVidCapObj_T *)pCbPriv;
     IOC_Result_T Result             = IOC_RESULT_BUG;
     IOC_EvtID_T EvtID               = pEvtDesc->EvtID;
+
+    __Case01_verifyFromPostEvt2CbProcEvtPerfMeets(pEvtDesc);
 
     switch (EvtID) {
         case IOC_EVTID_ModStart: {
@@ -783,6 +794,8 @@ static IOC_Result_T __Case01_cbProcEvt_ModMgrObj(IOC_EvtDesc_pT pEvtDesc, void *
     _LiveCamModMgrObj_pT pModMgrObj = (_LiveCamModMgrObj_pT)pCbPriv;
     IOC_Result_T Result             = IOC_RESULT_BUG;
     IOC_EvtID_T EvtID               = pEvtDesc->EvtID;
+
+    __Case01_verifyFromPostEvt2CbProcEvtPerfMeets(pEvtDesc);
 
     // ModMgrObj's state MUST be running
     if (pModMgrObj->Base.State != ObjState_Running) {
@@ -958,6 +971,8 @@ static IOC_Result_T __Case01_cbProcEvt_AudCapObj(IOC_EvtDesc_pT pEvtDesc, void *
     IOC_Result_T Result             = IOC_RESULT_BUG;
     IOC_EvtID_T EvtID               = pEvtDesc->EvtID;
 
+    __Case01_verifyFromPostEvt2CbProcEvtPerfMeets(pEvtDesc);
+
     switch (EvtID) {
         case IOC_EVTID_ModStart: {
             if (pAudCapObj->Base.State == ObjState_Stopped) {
@@ -1049,6 +1064,8 @@ static IOC_Result_T __Case01_cbProcEvt_AudEncObj(IOC_EvtDesc_pT pEvtDesc, void *
     _LiveCamAudEncObj_pT pAudEncObj = (_LiveCamAudEncObj_pT)pCbPriv;
     IOC_Result_T Result             = IOC_RESULT_BUG;
     IOC_EvtID_T EvtID               = pEvtDesc->EvtID;
+
+    __Case01_verifyFromPostEvt2CbProcEvtPerfMeets(pEvtDesc);
 
     switch (EvtID) {
         case IOC_EVTID_ModStart: {
@@ -1156,6 +1173,8 @@ static IOC_Result_T __Case01_cbProcEvt_VidResizeObj(IOC_EvtDesc_pT pEvtDesc, voi
     _LiveCamVidResizeObj_pT VidResizeObj = (_LiveCamVidResizeObj_pT)pCbPriv;
     IOC_Result_T Result                  = IOC_RESULT_BUG;
     IOC_EvtID_T EvtID                    = pEvtDesc->EvtID;
+
+    __Case01_verifyFromPostEvt2CbProcEvtPerfMeets(pEvtDesc);
 
     switch (EvtID) {
         case IOC_EVTID_ModStart: {
@@ -1282,6 +1301,8 @@ static IOC_Result_T __Case01_cbProcEvt_LoResVidEncObj(IOC_EvtDesc_pT pEvtDesc, v
     IOC_Result_T Result                      = IOC_RESULT_BUG;
     IOC_EvtID_T EvtID                        = pEvtDesc->EvtID;
 
+    __Case01_verifyFromPostEvt2CbProcEvtPerfMeets(pEvtDesc);
+
     switch (EvtID) {
         case IOC_EVTID_ModStart: {
             if (LoResVidEncObj->Base.State == ObjState_Stopped) {
@@ -1395,6 +1416,8 @@ static IOC_Result_T __Case01_cbProcEvt_LoResStrmMuxObj(IOC_EvtDesc_pT pEvtDesc, 
     _LiveCamLoResStrmMuxObj_pT pLoResStrmMuxObj = (_LiveCamLoResStrmMuxObj_T *)pCbPriv;
     IOC_Result_T Result                         = IOC_RESULT_BUG;
     IOC_EvtID_T EvtID                           = pEvtDesc->EvtID;
+
+    __Case01_verifyFromPostEvt2CbProcEvtPerfMeets(pEvtDesc);
 
     switch (EvtID) {
         case IOC_EVTID_ModStart: {
@@ -1527,6 +1550,8 @@ static IOC_Result_T __Case01_cbProcEvt_SrvObj(IOC_EvtDesc_pT pEvtDesc, void *pCb
     _LiveCamSrvObj_pT pSrvObj = (_LiveCamSrvObj_pT)pCbPriv;
     IOC_Result_T Result       = IOC_RESULT_BUG;
     IOC_EvtID_T EvtID         = pEvtDesc->EvtID;
+
+    __Case01_verifyFromPostEvt2CbProcEvtPerfMeets(pEvtDesc);
 
     switch (EvtID) {
         case IOC_EVTID_ModStart: {
@@ -1704,6 +1729,12 @@ TEST(UT_ConlesEventDemoLiveCam, verifyFunctionality_v0_1_0) {
     //[TODO@W UseCase::Category-B]: __cleanupCliObjFactory(&CliObjFactory);
 }
 
+/**
+ * @brief UT to verify perforamce of ConlesEventDemoLiveCam.
+ *    First class performance is delay time from postEVT to cbProcEvt, so
+ *      - update UT_ConlesEventDemoLiveCamCase01.verifyFunctionality_v0_1_0 to measure the delay time of each event.
+ *
+ */
 // TEST(UT_ConlesEventDemoLiveCamCase02, verifyPerformance) {}
 
 // TEST(UT_ConlesEventDemoLiveCamCase03, verifyRobustness) {}

@@ -96,11 +96,11 @@ typedef enum {
 //MSG is Common Head of Evt and Cmd
 typedef struct
 {
-    ULONG_T RZVD;
+    struct timespec TimeStamp;  // when call IOC_postEVT set value from IOC_getCurrentTimeSpec
 
-    //TODO(@W): +More...
-    //ULONG_T SeqID;
-    //IOC_MsgFlags_T Flags;
+    // TODO: ULONG_T MagicID;  // MagicID is used to identify the message type.
+    // ULONG_T SeqID;
+    // IOC_MsgFlags_T Flags;
 } IOC_MsgDesc_T, *IOC_MsgDesc_pT;
 
 

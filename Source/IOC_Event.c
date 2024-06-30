@@ -322,6 +322,8 @@ IOC_Result_T IOC_postEVT(
     /*ARG_IN*/const IOC_EvtDesc_pT pEvtDesc,
     /*ARG_IN_OPTIONAL*/IOC_Options_pT pOptions)
 {
+  pEvtDesc->MsgDesc.TimeStamp = IOC_getCurrentTimeSpec();
+
   if (LinkID == IOC_CONLES_MODE_AUTO_LINK_ID) {
     return __IOC_postEVT_inConlesMode(pEvtDesc, pOptions);
   } else {
