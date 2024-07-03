@@ -78,23 +78,51 @@ IOC_Result_T IOC_unsubEVT(
 
 #define IOC_unsubEVT_inConlesMode(pUnsubEvtArgs) IOC_unsubEVT(IOC_CONLES_MODE_AUTO_LINK_ID, pUnsubEvtArgs)
 
+/**
+ * @brief force IOC to process the event immediately.
+ *  when return from this API, all pending events will be processed.
+ * @attention
+ *  So, this API is a blocking API, and IOC may use current thread to process the event.
+ */
 void IOC_forceProcEVT(void);
 // TODO: add IOC_forceProcEVT_byLinkID
 
+/**
+ * @brief get IOC's capability by CapID in pCapDesc.
+ * @param pCapDesc: the capability description.
+ *    RefMore: IOC_CapabiltyDescription_T in IOC_Types.h
+ * @return IOC_RESULT_SUCCESS: get capability successfully.
+ * @return IOC_RESULT_NOT_SUPPORT: the CapID is not supported.
+ *
+ * @attention
+ *  IOC's capability is static or update once when call IOC_initModule.
+ */
 IOC_Result_T IOC_getCapabilty(
-    /*ARG_INOUT*/ IOC_CapabiltyDescription_pT);
+    /*ARG_INOUT*/ IOC_CapabiltyDescription_pT pCapDesc);
 
+//===>Helper APIs for UnitTesting && Debugging=========================================================================
+/**
+ * @brief get LinkID's MainState and SubState.
+ *      This is a helper API mainly used for UnitTesting && Debugging.
+ *    RefMore: IOC_LinkState_T in IOC_Types.h
+ *    RefMore: README_ArchDesign::State
+ * @param LinkID: the link ID to get the state.
+ * @param pLinkMainState: to store the main state of the LinkID.
+ * @param pLinkSubState: to store the sub state of the LinkID.
+ * @return IOC_RESULT_SUCCESS: get the state successfully.
+ * @return IOC_RESULT_NOT_EXIST_LINK: the LinkID is not exist.
+ */
 IOC_Result_T IOC_getLinkState(
     /*ARG_IN*/ IOC_LinkID_T LinkID,
-    /*ARG_OUT*/ IOC_LinkState_pT pLinkState,
+    /*ARG_OUT*/ IOC_LinkState_pT pLinkMainState,
     /*ARG_OUT_OPTIONAL*/ IOC_LinkSubState_pT pLinkSubState);
 
-//===>Helper APIs
 #define IOC_BugAbort()                                   \
   do {                                                   \
     fprintf(stderr, "BUG: %s:%d\n", __FILE__, __LINE__); \
     abort();                                             \
   } while (0)
+//<===Helper APIs for UnitTesting && Debugging==========================================================================
 
 #ifdef __cplusplus
 }
