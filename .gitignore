@@ -55,3 +55,4 @@ CMakeBuilt*
 compile_commands.json
 .cache/*
 .idea*
+cmake*
