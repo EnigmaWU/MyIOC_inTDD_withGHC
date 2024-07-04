@@ -1,6 +1,11 @@
 /**
  * @file _IOC_ConlesEvent.h
  * @brief This is ConlesEvent internal header file, which is included by _IOC.h only.
+ * @attention
+ *   - LinkID in ConlesMode is predefined as IOC_CONLES_MODE_AUTO_LINK_ID(_0/_1/_2/...) in IOC_Types.h
+ *      Currently, only IOC_CONLES_MODE_AUTO_LINK_ID is supported, and other values are reserved for future use.
+ * @version
+ *   - SPECv2
  */
 
 #include "_IOC_Types.h"
@@ -18,6 +23,7 @@ IOC_Result_T _IOC_unsubEVT_inConlesMode(
     /*ARG_IN*/ const IOC_UnsubEvtArgs_pT pUnsubEvtArgs);
 
 IOC_Result_T _IOC_postEVT_inConlesMode(
+    /*ARG_IN*/ IOC_LinkID_T LinkID,
     /*ARG_IN*/ const IOC_EvtDesc_pT pEvtDesc,
     /*ARG_IN_OPTIONAL*/ const IOC_Options_pT pOption);
 
