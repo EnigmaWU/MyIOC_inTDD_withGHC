@@ -37,8 +37,55 @@
 
 #include "_IOC_ConlesEvent.h"
 
+#include <pthread.h>
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //======>>>>>>BEGIN OF DEFINE FOR ConlesEvent>>>>>>====================================================================
+#define _CONLES_EVENT_MAX_SUBSCRIBER 16
+#define _CONLES_EVENT_MAX_QUEUING_EVTDESC 32
+
+//---------------------------------------------------------------------------------------------------------------------
+/**
+ * @brief DataType of EvtDescQueue
+ *    A FIFO queue to save all EvtDesc.
+ * @note
+ *    May this queue be IOC's common queue in future?
+ */
+typedef struct _EvtDescQueueStru {
+  pthread_mutex_t Mutex;
+  /**
+   * IF QueuedEvtNum == ProcedEvtNum, the queue is empty;
+   * IF new postEVT, THEN alloc&copy a new pEvtDesc, AND save in
+   *    pQueuedEvtDescs[QueuedEvtNum%_IOC_CONLES_MODE_MAX_QUEUING_EVTDESC_NUMBER] and QueuedEvtNum++;
+   * IF QueuedEvtNum > ProcedEvtNum, THEN wakeup/loop the ConlesModeEvtCbThread, read pEvtDesc from
+   *    pQueuedEvtDescs[ProcedEvtNum%_IOC_CONLES_MODE_MAX_QUEUING_EVTDESC_NUMBER], proc&free the pEvtDesc, and ProcedEvtNum++;
+   */
+  ULONG_T QueuedEvtNum, ProcedEvtNum;
+  IOC_EvtDesc_pT pQueuedEvtDescs[_CONLES_EVENT_MAX_QUEUING_EVTDESC];
+} _EvtDescQueue_T, *_EvtDescQueue_pT;
+
+void _IOC_initEvtDescQueue(_EvtDescQueue_pT pEvtDescQueue);
+void _IOC_deinitEvtDescQueue(_EvtDescQueue_pT pEvtDescQueue);
+
+IOC_Result_T _IOC_isEmptyEvtDescQueue(_EvtDescQueue_pT pEvtDescQueue);
+
+// Return: IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_QUEUING_EVTDESC
+IOC_Result_T _IOC_enqueueEvtDescQueueLast(_EvtDescQueue_pT pEvtDescQueue, IOC_EvtDesc_pT pEvtDesc);
+// Return: IOC_RESULT_SUCCESS or IOC_RESULT_EVENT_QUEUE_EMPTY
+IOC_Result_T _IOC_dequeueEvtDescQueueFirst(_EvtDescQueue_pT pEvtDescQueue, IOC_EvtDesc_pT *ppEvtDesc);
+//---------------------------------------------------------------------------------------------------------------------
+/**
+ * @brief DataType of ClsEvtSuber
+ */
+typedef struct {
+} _ClsEvtSuber_T, *_ClsEvtSuber_pT;
+
+//---------------------------------------------------------------------------------------------------------------------
+/**
+ * @brief DataType of ClsEvtLinkObj
+ */
+typedef struct {
+} _ClsEvtLinkObj_T, *_ClsEvtLinkObj_pT;
 
 //======>>>>>>END OF DEFINE FOR ConlesEvent>>>>>>======================================================================
 
