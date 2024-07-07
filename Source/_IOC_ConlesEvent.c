@@ -38,6 +38,7 @@
 #include "_IOC_ConlesEvent.h"
 
 #include <pthread.h>
+#include <string.h>
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //======>>>>>>BEGIN OF DEFINE FOR ConlesEvent>>>>>>====================================================================
@@ -55,24 +56,25 @@ typedef struct _EvtDescQueueStru {
   pthread_mutex_t Mutex;
   /**
    * IF QueuedEvtNum == ProcedEvtNum, the queue is empty;
-   * IF new postEVT, THEN alloc&copy a new pEvtDesc, AND save in
-   *    pQueuedEvtDescs[QueuedEvtNum%_IOC_CONLES_MODE_MAX_QUEUING_EVTDESC_NUMBER] and QueuedEvtNum++;
-   * IF QueuedEvtNum > ProcedEvtNum, THEN wakeup/loop the ConlesModeEvtCbThread, read pEvtDesc from
-   *    pQueuedEvtDescs[ProcedEvtNum%_IOC_CONLES_MODE_MAX_QUEUING_EVTDESC_NUMBER], proc&free the pEvtDesc, and ProcedEvtNum++;
+   * WHEN postEVT new EvtDesc, DO copy&save enqueuing EvtDesc in
+   *    QueuedEvtDescs[QueuedEvtNum%_CONLES_EVENT_MAX_QUEUING_EVTDESC] and QueuedEvtNum++;
+   * WHILE QueuedEvtNum > ProcedEvtNum, DO wakeup/loop the EvtProcThread, read one EvtDesc from
+   *    QueuedEvtDescs[ProcedEvtNum%_CONLES_EVENT_MAX_QUEUING_EVTDESC], proc one EvtDesc and ProcedEvtNum++;
    */
-  ULONG_T QueuedEvtNum, ProcedEvtNum;
-  IOC_EvtDesc_pT pQueuedEvtDescs[_CONLES_EVENT_MAX_QUEUING_EVTDESC];
+  ULONG_T QueuedEvtNum, ProcedEvtNum;  // ULONG_T type is long lone enough to avoid overflow even one event per nanosecond.
+  IOC_EvtDesc_T QueuedEvtDescs[_CONLES_EVENT_MAX_QUEUING_EVTDESC];
 } _EvtDescQueue_T, *_EvtDescQueue_pT;
 
 void _IOC_initEvtDescQueue(_EvtDescQueue_pT pEvtDescQueue);
 void _IOC_deinitEvtDescQueue(_EvtDescQueue_pT pEvtDescQueue);
 
+// Return: IOC_RESULT_YES or IOC_RESULT_NO
 IOC_Result_T _IOC_isEmptyEvtDescQueue(_EvtDescQueue_pT pEvtDescQueue);
 
 // Return: IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_QUEUING_EVTDESC
-IOC_Result_T _IOC_enqueueEvtDescQueueLast(_EvtDescQueue_pT pEvtDescQueue, IOC_EvtDesc_pT pEvtDesc);
+IOC_Result_T _IOC_enqueueEvtDescQueueLast(_EvtDescQueue_pT pEvtDescQueue, /*ARG_IN*/ IOC_EvtDesc_pT pEvtDesc);
 // Return: IOC_RESULT_SUCCESS or IOC_RESULT_EVENT_QUEUE_EMPTY
-IOC_Result_T _IOC_dequeueEvtDescQueueFirst(_EvtDescQueue_pT pEvtDescQueue, IOC_EvtDesc_pT *ppEvtDesc);
+IOC_Result_T _IOC_dequeueEvtDescQueueFirst(_EvtDescQueue_pT pEvtDescQueue, /*ARG_OUT*/ IOC_EvtDesc_pT pEvtDesc);
 //---------------------------------------------------------------------------------------------------------------------
 /**
  * @brief DataType of ClsEvtSuber
@@ -91,5 +93,96 @@ typedef struct {
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //======>>>>>>BEGIN OF IMPLEMENT FOR ConlesEvent>>>>>>=================================================================
+void _IOC_initEvtDescQueue(_EvtDescQueue_pT pEvtDescQueue) {
+  pthread_mutex_init(&pEvtDescQueue->Mutex, NULL);
+  pEvtDescQueue->QueuedEvtNum = 0;
+  pEvtDescQueue->ProcedEvtNum = 0;
 
+  // clear all EvtDesc in QueuedEvtDescs
+  memset(pEvtDescQueue->QueuedEvtDescs, 0, sizeof(pEvtDescQueue->QueuedEvtDescs));
+}
+void _IOC_deinitEvtDescQueue(_EvtDescQueue_pT pEvtDescQueue) {
+  // deinit all checkable members only
+
+  // check conditions which matching destoriability
+  _IOC_LogAssert(pEvtDescQueue->QueuedEvtNum == pEvtDescQueue->ProcedEvtNum);
+
+  int PosixResult = pthread_mutex_destroy(&pEvtDescQueue->Mutex);
+  if (PosixResult != 0) {
+    _IOC_LogAssert(PosixResult == 0);
+  }
+}
+
+IOC_Result_T _IOC_isEmptyEvtDescQueue(_EvtDescQueue_pT pEvtDescQueue) {
+  pthread_mutex_lock(&pEvtDescQueue->Mutex);
+  IOC_Result_T Result = (pEvtDescQueue->QueuedEvtNum == pEvtDescQueue->ProcedEvtNum) ? IOC_RESULT_YES : IOC_RESULT_NO;
+  pthread_mutex_unlock(&pEvtDescQueue->Mutex);
+  return Result;
+}
+
+IOC_Result_T _IOC_enqueueEvtDescQueueLast(_EvtDescQueue_pT pEvtDescQueue, IOC_EvtDesc_pT pEvtDesc) {
+  pthread_mutex_lock(&pEvtDescQueue->Mutex);
+
+  ULONG_T QueuedEvtNum  = pEvtDescQueue->QueuedEvtNum;
+  ULONG_T ProcedEvtNum  = pEvtDescQueue->ProcedEvtNum;
+  ULONG_T QueuingEvtNum = QueuedEvtNum - ProcedEvtNum;
+
+  // sanity check QueuingEvtNum
+  _IOC_LogAssert(QueuingEvtNum >= 0);
+  _IOC_LogAssert(QueuingEvtNum <= _CONLES_EVENT_MAX_QUEUING_EVTDESC);
+
+  if (QueuingEvtNum == _CONLES_EVENT_MAX_QUEUING_EVTDESC) {
+    pthread_mutex_unlock(&pEvtDescQueue->Mutex);
+    return IOC_RESULT_TOO_MANY_QUEUING_EVTDESC;
+  }
+
+  //---------------------------------------------------------------------------
+  // sanity check
+  _IOC_LogAssert(pEvtDescQueue->QueuedEvtNum >= pEvtDescQueue->ProcedEvtNum);
+
+  ULONG_T NextQueuingPos         = QueuedEvtNum % _CONLES_EVENT_MAX_QUEUING_EVTDESC;
+  IOC_EvtDesc_pT pNextQueuingBuf = &pEvtDescQueue->QueuedEvtDescs[NextQueuingPos];
+
+  memcpy(pNextQueuingBuf, pEvtDesc, sizeof(IOC_EvtDesc_T));
+  pEvtDescQueue->QueuedEvtNum++;
+  QueuedEvtNum = pEvtDescQueue->QueuedEvtNum;
+  pthread_mutex_unlock(&pEvtDescQueue->Mutex);
+
+  _IOC_LogDebug("Enqueued EvtDesc(%lu) to EvtDescQueue(Pos=%lu,Proced=%lu <= Queued=%lu)", pEvtDesc->MsgDesc.SeqID,
+                NextQueuingPos, ProcedEvtNum, QueuedEvtNum);
+
+  return IOC_RESULT_SUCCESS;
+}
+
+IOC_Result_T _IOC_dequeueEvtDescQueueFirst(_EvtDescQueue_pT pEvtDescQueue, IOC_EvtDesc_pT pEvtDesc) {
+  pthread_mutex_lock(&pEvtDescQueue->Mutex);
+
+  ULONG_T QueuedEvtNum  = pEvtDescQueue->QueuedEvtNum;
+  ULONG_T ProcedEvtNum  = pEvtDescQueue->ProcedEvtNum;
+  ULONG_T QueuingEvtNum = QueuedEvtNum - ProcedEvtNum;
+
+  // sanity check QueuingEvtNum
+  _IOC_LogAssert(QueuingEvtNum >= 0);
+  _IOC_LogAssert(QueuingEvtNum <= _CONLES_EVENT_MAX_QUEUING_EVTDESC);
+
+  if (QueuingEvtNum == 0) {
+    pthread_mutex_unlock(&pEvtDescQueue->Mutex);
+    return IOC_RESULT_EVTDESC_QUEUE_EMPTY;
+  }
+
+  //---------------------------------------------------------------------------
+  ULONG_T NextProcingPos         = ProcedEvtNum % _CONLES_EVENT_MAX_QUEUING_EVTDESC;
+  IOC_EvtDesc_pT pNextProcingBuf = &pEvtDescQueue->QueuedEvtDescs[NextProcingPos];
+
+  memcpy(pEvtDesc, pNextProcingBuf, sizeof(IOC_EvtDesc_T));
+  pEvtDescQueue->ProcedEvtNum++;
+  ProcedEvtNum = pEvtDescQueue->ProcedEvtNum;
+
+  pthread_mutex_unlock(&pEvtDescQueue->Mutex);
+
+  _IOC_LogDebug("Dequeued EvtDesc(%lu) from EvtDescQueue(Pos=%lu,Proced=%lu <= Queued=%lu)", pEvtDesc->MsgDesc.SeqID,
+                NextProcingPos, ProcedEvtNum, QueuedEvtNum);
+
+  return IOC_RESULT_SUCCESS;
+}
 //======>>>>>>END OF IMPLEMENT FOR ConlesEvent>>>>>>===================================================================

@@ -15,6 +15,9 @@ typedef enum {
   IOC_RESULT_SUCCESS = 0,
   IOC_RESULT_FAILURE = -1,
 
+  IOC_RESULT_YES = 1,
+  IOC_RESULT_NO  = 0,
+
   // POSIX's Result (errno.h)
   IOC_RESULT_POSIX_ENOMEM = -ENOMEM,
 
@@ -98,10 +101,10 @@ typedef enum {
 //MSG is Common Head of Evt and Cmd
 typedef struct
 {
+    // TODO: ULONG_T MagicID;  // MagicID is used to identify the message type.
+    ULONG_T SeqID;
     struct timespec TimeStamp;  // when call IOC_postEVT set value from IOC_getCurrentTimeSpec
 
-    // TODO: ULONG_T MagicID;  // MagicID is used to identify the message type.
-    // ULONG_T SeqID;
     // IOC_MsgFlags_T Flags;
 } IOC_MsgDesc_T, *IOC_MsgDesc_pT;
 

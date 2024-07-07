@@ -8,7 +8,7 @@
  *   - SPECv2
  */
 
-#include "_IOC_Types.h"
+#include "_IOC.h"
 
 #ifndef __INTER_OBJECT_COMMUNICATION_CONLESEVENT_H__
 #define __INTER_OBJECT_COMMUNICATION_CONLESEVENT_H__

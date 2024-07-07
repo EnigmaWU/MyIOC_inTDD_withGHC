@@ -15,6 +15,7 @@ extern "C" {
 
 // make sure this file is included only once
 #include "_IOC_ConlesEvent.h"
+#include "_IOC_Logging.h"
 #include "_IOC_Types.h"
 
 #ifdef __cplusplus
