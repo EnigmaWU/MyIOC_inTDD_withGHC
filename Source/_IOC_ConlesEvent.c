@@ -53,7 +53,7 @@
  *    May this queue be IOC's common queue in future?
  */
 typedef struct _EvtDescQueueStru {
-  pthread_mutex_t Mutex;
+  pthread_mutex_t Mutex;  // Used to protect QueuedEvtNum, ProcedEvtNum, QueuedEvtDescs
   /**
    * IF QueuedEvtNum == ProcedEvtNum, the queue is empty;
    * WHEN postEVT new EvtDesc, DO copy&save enqueuing EvtDesc in
@@ -63,7 +63,7 @@ typedef struct _EvtDescQueueStru {
    */
   ULONG_T QueuedEvtNum, ProcedEvtNum;  // ULONG_T type is long lone enough to avoid overflow even one event per nanosecond.
   IOC_EvtDesc_T QueuedEvtDescs[_CONLES_EVENT_MAX_QUEUING_EVTDESC];
-} _EvtDescQueue_T, *_EvtDescQueue_pT;
+} _IOC_EvtDescQueue_T, *_EvtDescQueue_pT;
 
 void _IOC_initEvtDescQueue(_EvtDescQueue_pT pEvtDescQueue);
 void _IOC_deinitEvtDescQueue(_EvtDescQueue_pT pEvtDescQueue);
@@ -76,11 +76,28 @@ IOC_Result_T _IOC_enqueueEvtDescQueueLast(_EvtDescQueue_pT pEvtDescQueue, /*ARG_
 // Return: IOC_RESULT_SUCCESS or IOC_RESULT_EVENT_QUEUE_EMPTY
 IOC_Result_T _IOC_dequeueEvtDescQueueFirst(_EvtDescQueue_pT pEvtDescQueue, /*ARG_OUT*/ IOC_EvtDesc_pT pEvtDesc);
 //---------------------------------------------------------------------------------------------------------------------
+typedef enum {
+  UnSubed = 0,
+  Subed   = 1,
+} _ClsEvtSuberState_T;
+
 /**
- * @brief DataType of ClsEvtSuber
+ * @brief DataType of one ClsEvtSuber
  */
 typedef struct {
+  _ClsEvtSuberState_T State;
+  IOC_SubEvtArgs_T Args;
 } _ClsEvtSuber_T, *_ClsEvtSuber_pT;
+
+typedef struct {
+  pthread_mutex_t Mutex;  // Used to protect Subers
+  _ClsEvtSuber_T Subers[_CONLES_EVENT_MAX_SUBSCRIBER];
+} _ClsEvtSuberList_T, *_ClsEvtSuberList_pT;
+
+// Return: IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_EVENT_CONSUMER or IOC_RESULT_CONFLICT_EVENT_CONSUMER
+static IOC_Result_T __IOC_subIntoEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_SubEvtArgs_pT pSubEvtArgs);
+// Return: IOC_RESULT_SUCCESS or IOC_RESULT_NO_EVENT_CONSUMER
+static IOC_Result_T __IOC_unsubFromEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_UnsubEvtArgs_pT pUnsubEvtArgs);
 
 //---------------------------------------------------------------------------------------------------------------------
 /**
@@ -101,6 +118,7 @@ void _IOC_initEvtDescQueue(_EvtDescQueue_pT pEvtDescQueue) {
   // clear all EvtDesc in QueuedEvtDescs
   memset(pEvtDescQueue->QueuedEvtDescs, 0, sizeof(pEvtDescQueue->QueuedEvtDescs));
 }
+
 void _IOC_deinitEvtDescQueue(_EvtDescQueue_pT pEvtDescQueue) {
   // deinit all checkable members only
 
