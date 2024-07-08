@@ -126,8 +126,13 @@ typedef struct
 typedef IOC_Result_T (*IOC_CbProcEvt_F)(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv);
 typedef struct 
 {
+    /**
+     * @brief CbProcEvt_F + pCbPrivData is used to IDENTIFY one EvtConsumer.
+     *    RefMore: IOC_UnsubEvtArgs_T
+     */
     IOC_CbProcEvt_F CbProcEvt_F;  // Callback function for processing the event
     void *pCbPrivData;  // Callback private context data
+
     ULONG_T EvtNum;  // number of EvtIDs, IOC_calcArrayElmtCnt(SubEvtIDs)
     IOC_EvtID_T *pEvtIDs;  // EvtIDs to subscribe
 } IOC_SubEvtArgs_T, *IOC_SubEvtArgs_pT;

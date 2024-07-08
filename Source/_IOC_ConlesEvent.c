@@ -38,6 +38,7 @@
 #include "_IOC_ConlesEvent.h"
 
 #include <pthread.h>
+#include <stdlib.h>
 #include <string.h>
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -227,7 +228,37 @@ static void __IOC_deinitClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList) {
 
 // Return: IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_EVENT_CONSUMER or IOC_RESULT_CONFLICT_EVENT_CONSUMER
 static IOC_Result_T __IOC_addIntoClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_SubEvtArgs_pT pSubEvtArgs) {
-  return IOC_RESULT_NOT_IMPLEMENTED;
+  pthread_mutex_lock(&pEvtSuberList->Mutex);
+
+  ULONG_T SuberNum = pEvtSuberList->SuberNum;
+  if (SuberNum >= _CONLES_EVENT_MAX_SUBSCRIBER) {
+    pthread_mutex_unlock(&pEvtSuberList->Mutex);
+    return IOC_RESULT_TOO_MANY_EVENT_CONSUMER;
+  }
+
+  // check conflict
+
+  // forloop to get the first empty slot
+  for (ULONG_T i = 0; i < _CONLES_EVENT_MAX_SUBSCRIBER; i++) {
+    _ClsEvtSuber_T *pEvtSuber = &pEvtSuberList->Subers[i];
+
+    if (pEvtSuber->State == UnSubed) {
+      pEvtSuber->State = Subed;
+
+      // save direct args, and alloc new memory to save indirect EvtIDs
+      pEvtSuber->Args.CbProcEvt_F = pSubEvtArgs->CbProcEvt_F;
+      pEvtSuber->Args.pCbPrivData = pSubEvtArgs->pCbPrivData;
+      pEvtSuber->Args.EvtNum      = pSubEvtArgs->EvtNum;
+      pEvtSuber->Args.pEvtIDs     = (IOC_EvtID_T *)malloc(pSubEvtArgs->EvtNum * sizeof(IOC_EvtID_T));
+      memcpy(pEvtSuber->Args.pEvtIDs, pSubEvtArgs->pEvtIDs, pSubEvtArgs->EvtNum * sizeof(IOC_EvtID_T));
+
+      pEvtSuberList->SuberNum++;
+      break;
+    }
+  }
+
+  pthread_mutex_unlock(&pEvtSuberList->Mutex);
+  return IOC_RESULT_SUCCESS;
 }
 // Return: IOC_RESULT_SUCCESS or IOC_RESULT_NO_EVENT_CONSUMER
 static IOC_Result_T __IOC_removeFromClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_UnsubEvtArgs_pT pUnsubEvtArgs) {
