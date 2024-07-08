@@ -63,18 +63,18 @@ typedef struct _EvtDescQueueStru {
    */
   ULONG_T QueuedEvtNum, ProcedEvtNum;  // ULONG_T type is long lone enough to avoid overflow even one event per nanosecond.
   IOC_EvtDesc_T QueuedEvtDescs[_CONLES_EVENT_MAX_QUEUING_EVTDESC];
-} _IOC_EvtDescQueue_T, *_EvtDescQueue_pT;
+} _IOC_EvtDescQueue_T, *_IOC_EvtDescQueue_pT;
 
-void _IOC_initEvtDescQueue(_EvtDescQueue_pT pEvtDescQueue);
-void _IOC_deinitEvtDescQueue(_EvtDescQueue_pT pEvtDescQueue);
+void _IOC_initEvtDescQueue(_IOC_EvtDescQueue_pT pEvtDescQueue);
+void _IOC_deinitEvtDescQueue(_IOC_EvtDescQueue_pT pEvtDescQueue);
 
 // Return: IOC_RESULT_YES or IOC_RESULT_NO
-IOC_Result_T _IOC_isEmptyEvtDescQueue(_EvtDescQueue_pT pEvtDescQueue);
+IOC_Result_T _IOC_isEmptyEvtDescQueue(_IOC_EvtDescQueue_pT pEvtDescQueue);
 
 // Return: IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_QUEUING_EVTDESC
-IOC_Result_T _IOC_enqueueEvtDescQueueLast(_EvtDescQueue_pT pEvtDescQueue, /*ARG_IN*/ IOC_EvtDesc_pT pEvtDesc);
+IOC_Result_T _IOC_enqueueEvtDescQueueLast(_IOC_EvtDescQueue_pT pEvtDescQueue, /*ARG_IN*/ IOC_EvtDesc_pT pEvtDesc);
 // Return: IOC_RESULT_SUCCESS or IOC_RESULT_EVENT_QUEUE_EMPTY
-IOC_Result_T _IOC_dequeueEvtDescQueueFirst(_EvtDescQueue_pT pEvtDescQueue, /*ARG_OUT*/ IOC_EvtDesc_pT pEvtDesc);
+IOC_Result_T _IOC_dequeueEvtDescQueueFirst(_IOC_EvtDescQueue_pT pEvtDescQueue, /*ARG_OUT*/ IOC_EvtDesc_pT pEvtDesc);
 //---------------------------------------------------------------------------------------------------------------------
 typedef enum {
   UnSubed = 0,
@@ -110,7 +110,7 @@ typedef struct {
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //======>>>>>>BEGIN OF IMPLEMENT FOR ConlesEvent>>>>>>=================================================================
-void _IOC_initEvtDescQueue(_EvtDescQueue_pT pEvtDescQueue) {
+void _IOC_initEvtDescQueue(_IOC_EvtDescQueue_pT pEvtDescQueue) {
   pthread_mutex_init(&pEvtDescQueue->Mutex, NULL);
   pEvtDescQueue->QueuedEvtNum = 0;
   pEvtDescQueue->ProcedEvtNum = 0;
@@ -119,7 +119,7 @@ void _IOC_initEvtDescQueue(_EvtDescQueue_pT pEvtDescQueue) {
   memset(pEvtDescQueue->QueuedEvtDescs, 0, sizeof(pEvtDescQueue->QueuedEvtDescs));
 }
 
-void _IOC_deinitEvtDescQueue(_EvtDescQueue_pT pEvtDescQueue) {
+void _IOC_deinitEvtDescQueue(_IOC_EvtDescQueue_pT pEvtDescQueue) {
   // deinit all checkable members only
 
   // check conditions which matching destoriability
@@ -131,14 +131,14 @@ void _IOC_deinitEvtDescQueue(_EvtDescQueue_pT pEvtDescQueue) {
   }
 }
 
-IOC_Result_T _IOC_isEmptyEvtDescQueue(_EvtDescQueue_pT pEvtDescQueue) {
+IOC_Result_T _IOC_isEmptyEvtDescQueue(_IOC_EvtDescQueue_pT pEvtDescQueue) {
   pthread_mutex_lock(&pEvtDescQueue->Mutex);
   IOC_Result_T Result = (pEvtDescQueue->QueuedEvtNum == pEvtDescQueue->ProcedEvtNum) ? IOC_RESULT_YES : IOC_RESULT_NO;
   pthread_mutex_unlock(&pEvtDescQueue->Mutex);
   return Result;
 }
 
-IOC_Result_T _IOC_enqueueEvtDescQueueLast(_EvtDescQueue_pT pEvtDescQueue, IOC_EvtDesc_pT pEvtDesc) {
+IOC_Result_T _IOC_enqueueEvtDescQueueLast(_IOC_EvtDescQueue_pT pEvtDescQueue, IOC_EvtDesc_pT pEvtDesc) {
   pthread_mutex_lock(&pEvtDescQueue->Mutex);
 
   ULONG_T QueuedEvtNum  = pEvtDescQueue->QueuedEvtNum;
@@ -172,7 +172,7 @@ IOC_Result_T _IOC_enqueueEvtDescQueueLast(_EvtDescQueue_pT pEvtDescQueue, IOC_Ev
   return IOC_RESULT_SUCCESS;
 }
 
-IOC_Result_T _IOC_dequeueEvtDescQueueFirst(_EvtDescQueue_pT pEvtDescQueue, IOC_EvtDesc_pT pEvtDesc) {
+IOC_Result_T _IOC_dequeueEvtDescQueueFirst(_IOC_EvtDescQueue_pT pEvtDescQueue, IOC_EvtDesc_pT pEvtDesc) {
   pthread_mutex_lock(&pEvtDescQueue->Mutex);
 
   ULONG_T QueuedEvtNum  = pEvtDescQueue->QueuedEvtNum;
