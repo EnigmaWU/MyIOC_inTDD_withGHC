@@ -273,7 +273,35 @@ static IOC_Result_T __IOC_addIntoClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberLi
 }
 // Return: IOC_RESULT_SUCCESS or IOC_RESULT_NO_EVENT_CONSUMER
 static IOC_Result_T __IOC_removeFromClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_UnsubEvtArgs_pT pUnsubEvtArgs) {
-  return IOC_RESULT_NOT_IMPLEMENTED;
+  pthread_mutex_lock(&pEvtSuberList->Mutex);
+
+  ULONG_T SuberNum = pEvtSuberList->SuberNum;
+  if (SuberNum == 0) {
+    pthread_mutex_unlock(&pEvtSuberList->Mutex);
+    return IOC_RESULT_NO_EVENT_CONSUMER;
+  }
+
+  // forloop to find the first match slot
+  for (ULONG_T i = 0; i < _CONLES_EVENT_MAX_SUBSCRIBER; i++) {
+    _ClsEvtSuber_T *pEvtSuber = &pEvtSuberList->Subers[i];
+
+    if (pEvtSuber->State == Subed) {
+      // RefComments: IOC_SubEvtArgs_T how to identify a EvtConsumer
+      if (pEvtSuber->Args.CbProcEvt_F == pUnsubEvtArgs->CbProcEvt_F &&
+          pEvtSuber->Args.pCbPrivData == pUnsubEvtArgs->pCbPrivData) {
+        pEvtSuber->State = UnSubed;
+
+        // free indirect EvtIDs
+        free(pEvtSuber->Args.pEvtIDs);
+
+        pEvtSuberList->SuberNum--;
+        break;
+      }
+    }
+  }
+
+  pthread_mutex_unlock(&pEvtSuberList->Mutex);
+  return IOC_RESULT_SUCCESS;
 }
 
 //======>>>>>>END OF IMPLEMENT FOR ConlesEvent>>>>>>===================================================================
