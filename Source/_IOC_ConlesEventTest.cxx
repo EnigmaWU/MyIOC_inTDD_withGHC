@@ -129,3 +129,30 @@ TEST(_IOC_ConlesEvent_ClsEvtSuberList, verifySubSuccessOrTooMany_bySubingUptoMax
   // deinit WILL fail because not remove all added, this is known issue of this SUT.
   // so don't call __IOC_deinitClsEvtSuberList(&SUT_ClsEvtSuberList);
 }
+
+TEST(_IOC_ConlesEvent_ClsEvtSuberList, verifySubConflict_bySubingSameConsumerIdentify) {
+  //===SETUP===
+  _ClsEvtSuberList_T SUT_ClsEvtSuberList;
+  __IOC_initClsEvtSuberList(&SUT_ClsEvtSuberList);
+
+  IOC_SubEvtArgs_T SubEvtArgs = {
+      .CbProcEvt_F = (IOC_CbProcEvt_F)0x12345678,
+      .pCbPrivData = (void *)0x87654321,
+  };
+
+  //===BEHAVIOR===
+  IOC_Result_T Result = __IOC_addIntoClsEvtSuberList(&SUT_ClsEvtSuberList, &SubEvtArgs);
+  //===VERIFY===
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);       // KeyVerifyPoint
+  ASSERT_EQ(1, SUT_ClsEvtSuberList.SuberNum);  // KeyVerifyPoint
+
+  //===BEHAVIOR===
+  Result = __IOC_addIntoClsEvtSuberList(&SUT_ClsEvtSuberList, &SubEvtArgs);
+  //===VERIFY===
+  ASSERT_EQ(IOC_RESULT_CONFLICT_EVENT_CONSUMER, Result);  // KeyVerifyPoint
+  ASSERT_EQ(1, SUT_ClsEvtSuberList.SuberNum);             // KeyVerifyPoint
+
+  //===CLEANUP===
+  // deinit WILL fail because not remove all added, this is known issue of this SUT.
+  // so don't call __IOC_deinitClsEvtSuberList(&SUT_ClsEvtSuberList);
+}
