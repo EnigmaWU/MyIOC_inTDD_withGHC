@@ -156,3 +156,40 @@ TEST(_IOC_ConlesEvent_ClsEvtSuberList, verifySubConflict_bySubingSameConsumerIde
   // deinit WILL fail because not remove all added, this is known issue of this SUT.
   // so don't call __IOC_deinitClsEvtSuberList(&SUT_ClsEvtSuberList);
 }
+
+TEST(_IOC_ConlesEvent_ClsEvtSuberList, verifyUnsubSuccessOrNot_byUnsubTwice) {
+  //===SETUP===
+  _ClsEvtSuberList_T SUT_ClsEvtSuberList;
+  __IOC_initClsEvtSuberList(&SUT_ClsEvtSuberList);
+
+  IOC_EvtID_T EvtIDs[]        = {IOC_EVTID_TEST_KEEPALIVE, IOC_EVTID_TEST_KEEPALIVE_RELAY};
+  IOC_SubEvtArgs_T SubEvtArgs = {
+      .CbProcEvt_F = (IOC_CbProcEvt_F)0x12345678,
+      .pCbPrivData = (void *)0x87654321,
+      .EvtNum      = IOC_calcArrayElmtCnt(EvtIDs),
+      .pEvtIDs     = EvtIDs,
+  };
+
+  IOC_Result_T Result = __IOC_addIntoClsEvtSuberList(&SUT_ClsEvtSuberList, &SubEvtArgs);
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+  ASSERT_EQ(1, SUT_ClsEvtSuberList.SuberNum);
+
+  //===BEHAVIOR===
+  IOC_UnsubEvtArgs_T UnsubEvtArgs = {
+      .CbProcEvt_F = (IOC_CbProcEvt_F)0x12345678,
+      .pCbPrivData = (void *)0x87654321,
+  };
+  Result = __IOC_removeFromClsEvtSuberList(&SUT_ClsEvtSuberList, &UnsubEvtArgs);
+  //===VERIFY===
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);       // KeyVerifyPoint
+  ASSERT_EQ(0, SUT_ClsEvtSuberList.SuberNum);  // KeyVerifyPoint
+
+  //===BEHAVIOR===
+  Result = __IOC_removeFromClsEvtSuberList(&SUT_ClsEvtSuberList, &UnsubEvtArgs);
+  //===VERIFY===
+  ASSERT_EQ(IOC_RESULT_NO_EVENT_CONSUMER, Result);  // KeyVerifyPoint
+  ASSERT_EQ(0, SUT_ClsEvtSuberList.SuberNum);       // KeyVerifyPoint
+
+  //===CLEANUP===
+  __IOC_deinitClsEvtSuberList(&SUT_ClsEvtSuberList);
+}
