@@ -237,6 +237,17 @@ static IOC_Result_T __IOC_addIntoClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberLi
   }
 
   // check conflict
+  for (ULONG_T i = 0; i < _CONLES_EVENT_MAX_SUBSCRIBER; i++) {
+    _ClsEvtSuber_T *pEvtSuber = &pEvtSuberList->Subers[i];
+
+    if (pEvtSuber->State == Subed) {
+      // RefComments: IOC_SubEvtArgs_T how to identify a EvtConsumer
+      if (pEvtSuber->Args.CbProcEvt_F == pSubEvtArgs->CbProcEvt_F && pEvtSuber->Args.pCbPrivData == pSubEvtArgs->pCbPrivData) {
+        pthread_mutex_unlock(&pEvtSuberList->Mutex);
+        return IOC_RESULT_CONFLICT_EVENT_CONSUMER;
+      }
+    }
+  }
 
   // forloop to get the first empty slot
   for (ULONG_T i = 0; i < _CONLES_EVENT_MAX_SUBSCRIBER; i++) {

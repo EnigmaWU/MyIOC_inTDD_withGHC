@@ -103,8 +103,8 @@ TEST(_IOC_ConlesEvent_ClsEvtSuberList, verifySubSuccessOrTooMany_bySubingUptoMax
 
   for (ULONG_T i = 0; i < MaxSuber; i++) {
     IOC_SubEvtArgs_T SubEvtArgs = {
-        .CbProcEvt_F = (IOC_CbProcEvt_F)0x12345678,
-        .pCbPrivData = (void *)0x87654321,
+        .CbProcEvt_F = (IOC_CbProcEvt_F)(0x12345678 + i + 1),
+        .pCbPrivData = (void *)(0x87654321 - i - 1),
     };
 
     //===BEHAVIOR===
