@@ -91,13 +91,17 @@ typedef struct {
 
 typedef struct {
   pthread_mutex_t Mutex;  // Used to protect Subers
+  ULONG_T SuberNum;
   _ClsEvtSuber_T Subers[_CONLES_EVENT_MAX_SUBSCRIBER];
 } _ClsEvtSuberList_T, *_ClsEvtSuberList_pT;
 
+static void __IOC_initClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList);
+static void __IOC_deinitClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList);
+
 // Return: IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_EVENT_CONSUMER or IOC_RESULT_CONFLICT_EVENT_CONSUMER
-static IOC_Result_T __IOC_subIntoEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_SubEvtArgs_pT pSubEvtArgs);
+static IOC_Result_T __IOC_addIntoClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_SubEvtArgs_pT pSubEvtArgs);
 // Return: IOC_RESULT_SUCCESS or IOC_RESULT_NO_EVENT_CONSUMER
-static IOC_Result_T __IOC_unsubFromEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_UnsubEvtArgs_pT pUnsubEvtArgs);
+static IOC_Result_T __IOC_removeFromClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_UnsubEvtArgs_pT pUnsubEvtArgs);
 
 //---------------------------------------------------------------------------------------------------------------------
 /**
@@ -203,4 +207,31 @@ IOC_Result_T _IOC_dequeueEvtDescQueueFirst(_IOC_EvtDescQueue_pT pEvtDescQueue, I
 
   return IOC_RESULT_SUCCESS;
 }
+
+static void __IOC_initClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList) {
+  pthread_mutex_init(&pEvtSuberList->Mutex, NULL);
+  pEvtSuberList->SuberNum = 0;
+  memset(pEvtSuberList->Subers, 0, sizeof(pEvtSuberList->Subers));
+}
+static void __IOC_deinitClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList) {
+  // deinit all checkable members only
+
+  // check conditions which matching destoriability
+  _IOC_LogAssert(pEvtSuberList->SuberNum == 0);
+
+  int PosixResult = pthread_mutex_destroy(&pEvtSuberList->Mutex);
+  if (PosixResult != 0) {
+    _IOC_LogAssert(PosixResult == 0);
+  }
+}
+
+// Return: IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_EVENT_CONSUMER or IOC_RESULT_CONFLICT_EVENT_CONSUMER
+static IOC_Result_T __IOC_addIntoClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_SubEvtArgs_pT pSubEvtArgs) {
+  return IOC_RESULT_NOT_IMPLEMENTED;
+}
+// Return: IOC_RESULT_SUCCESS or IOC_RESULT_NO_EVENT_CONSUMER
+static IOC_Result_T __IOC_removeFromClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_UnsubEvtArgs_pT pUnsubEvtArgs) {
+  return IOC_RESULT_NOT_IMPLEMENTED;
+}
+
 //======>>>>>>END OF IMPLEMENT FOR ConlesEvent>>>>>>===================================================================

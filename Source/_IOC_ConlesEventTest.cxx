@@ -93,3 +93,39 @@ TEST(_IOC_ConlesEvent_EvtDescQueue, verifyDequeueSuccessOrEmpty_byDequeueingUpto
   //===CLEANUP===
   _IOC_deinitEvtDescQueue(&SUT_EvtDescQueue);
 }
+
+TEST(_IOC_ConlesEvent_ClsEvtSuberList, verifySubSuccessOrTooMany_bySubingUptoMaxSuber) {
+  //===SETUP===
+  _ClsEvtSuberList_T SUT_ClsEvtSuberList;
+  __IOC_initClsEvtSuberList(&SUT_ClsEvtSuberList);
+
+  ULONG_T MaxSuber = _CONLES_EVENT_MAX_SUBSCRIBER;
+
+  for (ULONG_T i = 0; i < MaxSuber; i++) {
+    IOC_SubEvtArgs_T SubEvtArgs = {
+        .CbProcEvt_F = (IOC_CbProcEvt_F)0x12345678,
+        .pCbPrivData = (void *)0x87654321,
+    };
+
+    //===BEHAVIOR===
+    IOC_Result_T Result = __IOC_addIntoClsEvtSuberList(&SUT_ClsEvtSuberList, &SubEvtArgs);
+    //===VERIFY===
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);           // KeyVerifyPoint
+    ASSERT_EQ(i + 1, SUT_ClsEvtSuberList.SuberNum);  // KeyVerifyPoint
+  }
+
+  IOC_SubEvtArgs_T SubEvtArgs = {
+      .CbProcEvt_F = (IOC_CbProcEvt_F)0x12345678,
+      .pCbPrivData = (void *)0x87654321,
+  };
+
+  //===BEHAVIOR===
+  IOC_Result_T Result = __IOC_addIntoClsEvtSuberList(&SUT_ClsEvtSuberList, &SubEvtArgs);
+  //===VERIFY===
+  ASSERT_EQ(IOC_RESULT_TOO_MANY_EVENT_CONSUMER, Result);  // KeyVerifyPoint
+  ASSERT_EQ(MaxSuber, SUT_ClsEvtSuberList.SuberNum);      // KeyVerifyPoint
+
+  //===CLEANUP===
+  // deinit WILL fail because not remove all added, this is known issue of this SUT.
+  // so don't call __IOC_deinitClsEvtSuberList(&SUT_ClsEvtSuberList);
+}
