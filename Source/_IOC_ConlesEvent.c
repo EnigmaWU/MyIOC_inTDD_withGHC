@@ -40,6 +40,7 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/_pthread/_pthread_mutex_t.h>
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //======>>>>>>BEGIN OF DEFINE FOR ConlesEvent>>>>>>====================================================================
@@ -104,12 +105,34 @@ static IOC_Result_T __IOC_addIntoClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberLi
 // Return: IOC_RESULT_SUCCESS or IOC_RESULT_NO_EVENT_CONSUMER
 static IOC_Result_T __IOC_removeFromClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_UnsubEvtArgs_pT pUnsubEvtArgs);
 
+static void __IOC_cbProcEvtClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_EvtDesc_pT pEvtDesc);
+
 //---------------------------------------------------------------------------------------------------------------------
 /**
  * @brief DataType of ClsEvtLinkObj
  */
 typedef struct {
+  IOC_LinkID_T LinkID;  // AutoLinkID = IOC_CONLES_MODE_AUTO_LINK_ID/...
+
+  /**
+   * @brief each postEVT to this LinkID will wakeup by
+   */
+  pthread_mutex_t Mutex;  // Used to protect EvtLinkObj
+
+  pthread_cond_t Cond;        // Used to wakeup EvtProcThread
+  pthread_mutex_t CondMutex;  // Used to protect Cond
+
+  /**
+   * @brief each LinkObj has a thread to procEvt=call each EvtSuber's CbProcEvt_F if EvtID matched.
+   */
+  pthread_t ThreadID;
+
+  _IOC_EvtDescQueue_T EvtDescQueue;
+  _ClsEvtSuberList_T EvtSuberList;
 } _ClsEvtLinkObj_T, *_ClsEvtLinkObj_pT;
+
+static void __IOC_wakeupClsEvtLinkObj(_ClsEvtLinkObj_pT pLinkObj);
+static void __IOC_waitClsEvtLinkObj(_ClsEvtLinkObj_pT pLinkObj);
 
 //======>>>>>>END OF DEFINE FOR ConlesEvent>>>>>>======================================================================
 
@@ -209,6 +232,8 @@ IOC_Result_T _IOC_dequeueEvtDescQueueFirst(_IOC_EvtDescQueue_pT pEvtDescQueue, I
   return IOC_RESULT_SUCCESS;
 }
 
+//---------------------------------------------------------------------------------------------------------------------
+//===> BEGIN IMPLEMENT FOR ClsEvtSuberList
 static void __IOC_initClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList) {
   pthread_mutex_init(&pEvtSuberList->Mutex, NULL);
   pEvtSuberList->SuberNum = 0;
@@ -304,4 +329,165 @@ static IOC_Result_T __IOC_removeFromClsEvtSuberList(_ClsEvtSuberList_pT pEvtSube
   return IOC_RESULT_SUCCESS;
 }
 
+static void __IOC_cbProcEvtClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_EvtDesc_pT pEvtDesc) {
+  pthread_mutex_lock(&pEvtSuberList->Mutex);
+
+  for (ULONG_T i = 0; i < _CONLES_EVENT_MAX_SUBSCRIBER; i++) {
+    _ClsEvtSuber_T *pEvtSuber = &pEvtSuberList->Subers[i];
+
+    if (pEvtSuber->State == Subed) {
+      for (ULONG_T j = 0; j < pEvtSuber->Args.EvtNum; j++) {
+        if (pEvtDesc->EvtID == pEvtSuber->Args.pEvtIDs[j]) {
+          // FIXME: IF ANY CbProcEvt_F STUCK, IT WILL BLOCK THE WHOLE THREAD, SO WE NEED TO HANDLE THIS CASE.
+          // TODO: INSTALL A TIMER TO CATCH TIMEOUT, AND OUTPUT LOG TO INDICATE WHICH CbProcEvt_F STUCK.
+          pEvtSuber->Args.CbProcEvt_F(pEvtDesc, pEvtSuber->Args.pCbPrivData);
+        }
+      }
+    }
+  }
+
+  pthread_mutex_unlock(&pEvtSuberList->Mutex);
+}
+
+//===> END IMPLEMENT FOR ClsEvtSuberList
+//---------------------------------------------------------------------------------------------------------------------
+
+//---------------------------------------------------------------------------------------------------------------------
+//===> BEGIN IMPLEMENT FOR ClsEvtLinkObj
+static _ClsEvtLinkObj_T _mClsEvtLinkObjs[] = {
+    {
+        .LinkID = IOC_CONLES_MODE_AUTO_LINK_ID,
+    },
+};
+
+static inline void __IOC_lockClsEvtLinkObj(_ClsEvtLinkObj_T *pLinkObj) { pthread_mutex_lock(&pLinkObj->Mutex); }
+
+static inline void __IOC_unlockClsEvtLinkObj(_ClsEvtLinkObj_T *pLinkObj) { pthread_mutex_unlock(&pLinkObj->Mutex); }
+
+static _ClsEvtLinkObj_pT __IOC_getClsEvtLinkObjLocked(IOC_LinkState_T AutoLinkID) {
+  _ClsEvtLinkObj_pT pLinkObj = NULL;
+  ULONG_T TotalClsLinkObjNum = IOC_calcArrayElmtCnt(_mClsEvtLinkObjs);
+
+  for (ULONG_T i = 0; i < TotalClsLinkObjNum; i++) {
+    pLinkObj = &_mClsEvtLinkObjs[i];
+    if (pLinkObj->LinkID == AutoLinkID) {
+      __IOC_lockClsEvtLinkObj(pLinkObj);
+      return pLinkObj;
+    }
+  }
+
+  return NULL;
+}
+
+static void __IOC_putClsEvtLinkObj(_ClsEvtLinkObj_pT pLinkObj) { __IOC_unlockClsEvtLinkObj(pLinkObj); }
+
+static void __IOC_wakeupClsEvtLinkObj(_ClsEvtLinkObj_pT pLinkObj) {
+  pthread_mutex_lock(&pLinkObj->CondMutex);
+  pthread_cond_signal(&pLinkObj->Cond);
+  pthread_mutex_unlock(&pLinkObj->CondMutex);
+}
+static void __IOC_waitClsEvtLinkObj(_ClsEvtLinkObj_pT pLinkObj) {
+  // wait for signal or timeout 10ms
+  struct timespec ts;
+  clock_gettime(CLOCK_REALTIME, &ts);
+
+  ts.tv_nsec += 10000000;  // 10ms
+  ts.tv_sec += ts.tv_nsec / 1000000000;
+  ts.tv_nsec %= 1000000000;
+
+  pthread_mutex_lock(&pLinkObj->CondMutex);
+  pthread_cond_timedwait(&pLinkObj->Cond, &pLinkObj->CondMutex, &ts);
+  pthread_mutex_unlock(&pLinkObj->CondMutex);
+}
+
+static void *__IOC_procClsEvtThread(void *arg) {
+  _ClsEvtLinkObj_pT pLinkObj = (_ClsEvtLinkObj_pT)arg;
+
+  /**
+   * Steps:
+   *  1) __IOC_waitClsEvtLinkObj
+   *  2) __IOC_dequeueEvtDescQueueFirst
+   *    |-> if IOC_RESULT_EVTDESC_QUEUE_EMPTY, goto 1)
+   *  3) __IOC_cbProcEvtClsEvtSuberList
+   */
+  do {
+    __IOC_waitClsEvtLinkObj(pLinkObj);
+
+    IOC_EvtDesc_T EvtDesc;
+    IOC_Result_T Result = _IOC_dequeueEvtDescQueueFirst(&pLinkObj->EvtDescQueue, &EvtDesc);
+    if (Result == IOC_RESULT_EVTDESC_QUEUE_EMPTY) {
+      continue;
+    }
+
+    __IOC_cbProcEvtClsEvtSuberList(&pLinkObj->EvtSuberList, &EvtDesc);
+  } while (0x20240709);
+
+  pthread_exit(NULL);
+}
+
+//===> END IMPLEMENT FOR ClsEvtLinkObj
+//---------------------------------------------------------------------------------------------------------------------
+
+IOC_Result_T _IOC_subEVT_inConlesMode(
+    /*ARG_IN*/ const IOC_SubEvtArgs_pT pSubEvtArgs) {
+  _ClsEvtLinkObj_pT pLinkObj = __IOC_getClsEvtLinkObjLocked(IOC_CONLES_MODE_AUTO_LINK_ID);
+  if (pLinkObj == NULL) {
+    return IOC_RESULT_BUG;
+  }
+
+  IOC_Result_T Result = __IOC_addIntoClsEvtSuberList(&pLinkObj->EvtSuberList, pSubEvtArgs);
+  __IOC_putClsEvtLinkObj(pLinkObj);
+
+  if (IOC_RESULT_SUCCESS == Result) {
+    _IOC_LogDebug("AutoLinkID(%lu) new EvtSuber(CbProcEvt_F=%p,PrivData=%p)", IOC_CONLES_MODE_AUTO_LINK_ID,
+                  pSubEvtArgs->CbProcEvt_F, pSubEvtArgs->pCbPrivData);
+  } else {
+    _IOC_LogWarn("AutoLinkID(%lu) new EvtSuber(CbProcEvt_F=%p,PrivData=%p) failed(%s)", IOC_CONLES_MODE_AUTO_LINK_ID,
+                 pSubEvtArgs->CbProcEvt_F, pSubEvtArgs->pCbPrivData, IOC_getResultStr(Result));
+  }
+
+  return Result;
+}
+
+IOC_Result_T _IOC_unsubEVT_inConlesMode(
+    /*ARG_IN*/ const IOC_UnsubEvtArgs_pT pUnsubEvtArgs) {
+  _ClsEvtLinkObj_pT pLinkObj = __IOC_getClsEvtLinkObjLocked(IOC_CONLES_MODE_AUTO_LINK_ID);
+  if (pLinkObj == NULL) {
+    return IOC_RESULT_BUG;
+  }
+
+  IOC_Result_T Result = __IOC_removeFromClsEvtSuberList(&pLinkObj->EvtSuberList, pUnsubEvtArgs);
+  __IOC_putClsEvtLinkObj(pLinkObj);
+
+  if (IOC_RESULT_SUCCESS == Result) {
+    _IOC_LogDebug("AutoLinkID(%lu) remove EvtSuber(CbProcEvt_F=%p,PrivData=%p)", IOC_CONLES_MODE_AUTO_LINK_ID,
+                  pUnsubEvtArgs->CbProcEvt_F, pUnsubEvtArgs->pCbPrivData);
+  } else {
+    _IOC_LogWarn("AutoLinkID(%lu) remove EvtSuber(CbProcEvt_F=%p,PrivData=%p) failed(%s)", IOC_CONLES_MODE_AUTO_LINK_ID,
+                 pUnsubEvtArgs->CbProcEvt_F, pUnsubEvtArgs->pCbPrivData, IOC_getResultStr(Result));
+  }
+
+  return Result;
+}
+
+IOC_Result_T _IOC_postEVT_inConlesMode(
+    /*ARG_IN*/ IOC_LinkID_T LinkID,
+    /*ARG_IN*/ const IOC_EvtDesc_pT pEvtDesc,
+    /*ARG_IN_OPTIONAL*/ const IOC_Options_pT pOption) {
+  if (LinkID != IOC_CONLES_MODE_AUTO_LINK_ID) {
+    return IOC_RESULT_NOT_EXIST_LINK;
+  }
+
+  _ClsEvtLinkObj_pT pLinkObj = __IOC_getClsEvtLinkObjLocked(IOC_CONLES_MODE_AUTO_LINK_ID);
+  if (pLinkObj == NULL) {
+    return IOC_RESULT_BUG;
+  }
+
+  IOC_Result_T Result = _IOC_enqueueEvtDescQueueLast(&pLinkObj->EvtDescQueue, pEvtDesc);
+  if (Result == IOC_RESULT_SUCCESS) {
+    __IOC_wakeupClsEvtLinkObj(pLinkObj);
+  }
+
+  __IOC_putClsEvtLinkObj(pLinkObj);
+}
 //======>>>>>>END OF IMPLEMENT FOR ConlesEvent>>>>>>===================================================================

@@ -27,7 +27,7 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
     /*ARG_IN*/ const IOC_EvtDesc_pT pEvtDesc,
     /*ARG_IN_OPTIONAL*/ const IOC_Options_pT pOption);
 
-IOC_Result_T _IOC_getLinkID_inConlesMode(
+IOC_Result_T _IOC_getLinkState_inConlesMode(
     /*ARG_IN*/ IOC_LinkID_T LinkID,
     /*ARG_OUT*/ IOC_LinkState_pT pLinkState,
     /*ARG_OUT_OPTIONAL*/ IOC_LinkSubState_pT pLinkSubState);

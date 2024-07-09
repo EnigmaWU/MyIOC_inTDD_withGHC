@@ -47,7 +47,7 @@ const char *IOC_getResultStr(IOC_Result_T Result);
  *    RefType::IOC_LinkState_T
  */
 typedef uint64_t IOC_LinkID_T;
-#define IOC_CONLES_MODE_AUTO_LINK_ID 0
+#define IOC_CONLES_MODE_AUTO_LINK_ID 0UL
 // TODO: IOC_CONLES_MODE_AUTO_LINK_ID_0<DFT>/_1/_2/...
 
 /**
@@ -135,6 +135,8 @@ typedef struct
 
     ULONG_T EvtNum;  // number of EvtIDs, IOC_calcArrayElmtCnt(SubEvtIDs)
     IOC_EvtID_T *pEvtIDs;  // EvtIDs to subscribe
+
+    // TODO: AutoLinkID
 } IOC_SubEvtArgs_T, *IOC_SubEvtArgs_pT;
 
 typedef struct {
