@@ -333,6 +333,13 @@ static IOC_Result_T __IOC_removeFromClsEvtSuberList(_ClsEvtSuberList_pT pEvtSube
   return IOC_RESULT_SUCCESS;
 }
 
+static IOC_Result_T _IOC_isEmptyClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList) {
+  pthread_mutex_lock(&pEvtSuberList->Mutex);
+  IOC_Result_T Result = (pEvtSuberList->SuberNum == 0) ? IOC_RESULT_YES : IOC_RESULT_NO;
+  pthread_mutex_unlock(&pEvtSuberList->Mutex);
+  return Result;
+}
+
 static void __IOC_cbProcEvtClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_EvtDesc_pT pEvtDesc) {
   pthread_mutex_lock(&pEvtSuberList->Mutex);
 
@@ -368,7 +375,7 @@ static inline void __IOC_lockClsEvtLinkObj(_ClsEvtLinkObj_T *pLinkObj) { pthread
 
 static inline void __IOC_unlockClsEvtLinkObj(_ClsEvtLinkObj_T *pLinkObj) { pthread_mutex_unlock(&pLinkObj->Mutex); }
 
-static _ClsEvtLinkObj_pT __IOC_getClsEvtLinkObjLocked(IOC_LinkState_T AutoLinkID) {
+static _ClsEvtLinkObj_pT __IOC_getClsEvtLinkObjLocked(IOC_LinkID_T AutoLinkID) {
   _ClsEvtLinkObj_pT pLinkObj = NULL;
   ULONG_T TotalClsLinkObjNum = IOC_calcArrayElmtCnt(_mClsEvtLinkObjs);
 
@@ -500,12 +507,13 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
     /*ARG_IN*/ const IOC_EvtDesc_pT pEvtDesc,
     /*ARG_IN_OPTIONAL*/ const IOC_Options_pT pOption) {
   IOC_Result_T Result = IOC_RESULT_BUG;
+  bool IsAsyncMode    = IOC_Option_isAsyncMode(pOption);
+  bool IsNonBlockMode = IOC_Option_isNonBlockMode(pOption);
 
   _ClsEvtLinkObj_pT pLinkObj = __IOC_getClsEvtLinkObjLocked(LinkID);
   if (pLinkObj == NULL) {
     _IOC_LogError("Invalid AutoLinkID(%llu)", LinkID);
-    Result = IOC_RESULT_INVALID_AUTO_LINK_ID;  // Path@C->1
-    goto _returnResult;
+    return IOC_RESULT_INVALID_AUTO_LINK_ID;  // Path@C->1
   }
 
   IOC_Result_T IsEmptyEvtSuberList = _IOC_isEmptyClsEvtSuberList(&pLinkObj->EvtSuberList);
@@ -516,9 +524,6 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
   }
 
   //---------------------------------------------------------------------------
-  bool IsAsyncMode    = IOC_Option_isAsyncMode(pOption);
-  bool IsNonBlockMode = IOC_Option_isNonBlockMode(pOption);
-
   if (IsAsyncMode) {
     Result = _IOC_enqueueEvtDescQueueLast(&pLinkObj->EvtDescQueue, pEvtDesc);
     if (Result == IOC_RESULT_SUCCESS) {
@@ -531,14 +536,15 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
                      pEvtDesc->EvtID, IOC_getResultStr(Result));
         Result = IOC_RESULT_TOO_MANY_QUEUING_EVTDESC;  // Path@A->3 of NonBlockMode
         goto _returnResult;
-      } else {
+      } else /* MayBlockMode */ {
         ULONG_T RetryUS = 1000;  // 1ms
         // MayBlockMode: calculate timeout, then retry enqueue every 1ms until success or timeout
         ULONG_T TimeoutUS = IOC_Option_getTimeoutUS(pOption);
         // sanity check TimeoutUS>0
         _IOC_LogAssert(TimeoutUS > 0);
+        bool IsLastRetry = false;
 
-        while (TimeoutUS > 0) {
+        while (!IsLastRetry) {
           usleep(RetryUS);
 
           Result = _IOC_enqueueEvtDescQueueLast(&pLinkObj->EvtDescQueue, pEvtDesc);
@@ -552,10 +558,12 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
               TimeoutUS -= RetryUS;  // retry
             } else if (TimeoutUS > 0) {
               RetryUS = TimeoutUS;  // last retry
+              TimeoutUS = 0;
             } else {
               _IOC_LogWarn("MayBlockMode: AutoLinkID(%llu) enqueue EvtDesc(%lu,%llu) failed(%s)", LinkID,
                            pEvtDesc->MsgDesc.SeqID, pEvtDesc->EvtID, IOC_getResultStr(Result));
               Result = IOC_RESULT_TOO_MANY_QUEUING_EVTDESC;  // Path@A->3 of Timeout
+              IsLastRetry = true;
               break;
             }
           } else {
@@ -575,14 +583,60 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
       goto _returnResult;
     }
   } else /*SyncMode*/ {
-    // TODO
+    bool IsEmptyEvtDescQueue = _IOC_isEmptyEvtDescQueue(&pLinkObj->EvtDescQueue);
+
+    if (IsEmptyEvtDescQueue == IOC_RESULT_YES) {
+      __IOC_cbProcEvtClsEvtSuberList(&pLinkObj->EvtSuberList, pEvtDesc);
+      _IOC_LogDebug("SyncMode: AutoLinkID(%llu) proc EvtDesc(%lu,%llu)", LinkID, pEvtDesc->MsgDesc.SeqID, pEvtDesc->EvtID);
+      Result = IOC_RESULT_SUCCESS;  // Path@B->1
+    } else {
+      if (IsNonBlockMode) {
+        _IOC_LogWarn("NonBlockMode: AutoLinkID(%llu) emptying EvtDescQueue failed(%s)", LinkID, IOC_getResultStr(Result));
+        Result = IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE;  // Path@B->3 of NonBlockMode
+        goto _returnResult;
+      } else /* MayBlockMode */ {
+        ULONG_T RetryUS = 1000;  // 1ms
+        // MayBlockMode: calculate timeout, then retry emptying every 1ms until success or timeout
+        ULONG_T TimeoutUS = IOC_Option_getTimeoutUS(pOption);
+        // sanity check TimeoutUS>0
+        _IOC_LogAssert(TimeoutUS > 0);
+        bool IsLastRetry = false;
+
+        while (!IsLastRetry) {
+          usleep(RetryUS);
+
+          IsEmptyEvtDescQueue = _IOC_isEmptyEvtDescQueue(&pLinkObj->EvtDescQueue);
+          if (IsEmptyEvtDescQueue == IOC_RESULT_YES) {
+            __IOC_cbProcEvtClsEvtSuberList(&pLinkObj->EvtSuberList, pEvtDesc);
+            _IOC_LogDebug("MayBlockMode: AutoLinkID(%llu) proc EvtDesc(%lu,%llu)", LinkID, pEvtDesc->MsgDesc.SeqID,
+                          pEvtDesc->EvtID);
+            Result = IOC_RESULT_SUCCESS;  // Path@B->2 MayBlockMode of cbProcEvtSuccess
+            break;
+          } else {
+            if (TimeoutUS > RetryUS) {
+              TimeoutUS -= RetryUS;  // retry
+            } else if (TimeoutUS > 0) {
+              RetryUS   = TimeoutUS;  // last retry
+              TimeoutUS = 0;
+            } else {
+              _IOC_LogWarn("MayBlockMode: AutoLinkID(%llu) emptying EvtDescQueue failed(%s)", LinkID, IOC_getResultStr(Result));
+              Result      = IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE;  // Path@B->3 of Timeout
+              IsLastRetry = true;
+              break;
+            }
+          }
+        }  // END of while(TimeoutUS>0)
+
+        goto _returnResult;
+      }
+    }
   }
 
 //-----------------------------------------------------------------------------
 _returnResult:
-  if (pLinkObj != NULL) {
-    __IOC_putClsEvtLinkObj(pLinkObj);
-  }
+  _IOC_LogAssert(pLinkObj != NULL);
+  __IOC_putClsEvtLinkObj(pLinkObj);
+
   return Result;
 }
 //======>>>>>>END OF IMPLEMENT FOR ConlesEvent>>>>>>===================================================================
