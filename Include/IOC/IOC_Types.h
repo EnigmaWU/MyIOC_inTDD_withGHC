@@ -1,7 +1,11 @@
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/errno.h>
 #include <sys/time.h>
+#include <unistd.h>
 
 #ifndef __IOC_TYPES_H__
 #define __IOC_TYPES_H__
@@ -22,14 +26,16 @@ typedef enum {
   IOC_RESULT_POSIX_ENOMEM = -ENOMEM,
 
   // IOC's Result
-  IOC_RESULT_NOT_IMPLEMENTED          = -500,
-  IOC_RESULT_NOT_SUPPORT              = -501,
-  IOC_RESULT_NO_EVENT_CONSUMER        = -502,
-  IOC_RESULT_TOO_MANY_EVENT_CONSUMER  = -503,
-  IOC_RESULT_CONFLICT_EVENT_CONSUMER  = -504,
-  IOC_RESULT_TOO_MANY_QUEUING_EVTDESC = -505,
-  IOC_RESULT_NOT_EXIST_LINK           = -506,
-  IOC_RESULT_EVTDESC_QUEUE_EMPTY      = -507,
+  IOC_RESULT_NOT_IMPLEMENTED                 = -500,
+  IOC_RESULT_NOT_SUPPORT                     = -501,
+  IOC_RESULT_NO_EVENT_CONSUMER               = -502,
+  IOC_RESULT_TOO_MANY_EVENT_CONSUMER         = -503,
+  IOC_RESULT_CONFLICT_EVENT_CONSUMER         = -504,
+  IOC_RESULT_TOO_MANY_QUEUING_EVTDESC        = -505,
+  IOC_RESULT_NOT_EXIST_LINK                  = -506,
+  IOC_RESULT_EVTDESC_QUEUE_EMPTY             = -507,
+  IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE = -508,
+  IOC_RESULT_INVALID_AUTO_LINK_ID            = -509,
 
   IOC_RESULT_BUG = -999,
 } IOC_Result_T;
@@ -86,10 +92,45 @@ typedef struct
 
     union {
       uint64_t RZVD[8];  // reserve for MAX payload size.
-      uint32_t TimeoutUS;
+      ULONG_T TimeoutUS;
     } Payload;
 
 } IOC_Options_T, *IOC_Options_pT;
+
+static inline bool IOC_Option_isAsyncMode(IOC_Options_pT pOption) {
+    bool IsAsyncMode = true;  // Default is AsyncMode
+    if (pOption) {
+      if (pOption->IDs & IOC_OPTID_SYNC_MODE) {
+        IsAsyncMode = false;
+      }
+    }
+
+    return IsAsyncMode;
+}
+
+static inline bool IOC_Option_isNonBlockMode(IOC_Options_pT pOption) {
+    bool IsNonBlockMode = false;  // Default is BlockMode
+    if (pOption) {
+      if (pOption->IDs & IOC_OPTID_TIMEOUT) {
+        if (pOption->Payload.TimeoutUS == 0) {
+          IsNonBlockMode = true;
+        }
+      }
+    }
+
+    return IsNonBlockMode;
+}
+
+static inline ULONG_T IOC_Option_getTimeoutUS(IOC_Options_pT pOption) {
+    ULONG_T TimeoutUS = 0xFFFFFFFFFFFFFFFFULL;  // Default is Infinite
+    if (pOption) {
+      if (pOption->IDs & IOC_OPTID_TIMEOUT) {
+        TimeoutUS = pOption->Payload.TimeoutUS;
+      }
+    }
+
+    return TimeoutUS;
+}
 
 //---------------------------------------------------------------------------------------------------------------------
 #if 0

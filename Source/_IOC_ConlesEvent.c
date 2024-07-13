@@ -38,6 +38,7 @@
 #include "_IOC_ConlesEvent.h"
 
 #include <pthread.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/_pthread/_pthread_mutex_t.h>
@@ -104,6 +105,9 @@ static void __IOC_deinitClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList);
 static IOC_Result_T __IOC_addIntoClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_SubEvtArgs_pT pSubEvtArgs);
 // Return: IOC_RESULT_SUCCESS or IOC_RESULT_NO_EVENT_CONSUMER
 static IOC_Result_T __IOC_removeFromClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_UnsubEvtArgs_pT pUnsubEvtArgs);
+
+// Return: IOC_RESULT_YES or IOC_RESULT_NO
+static IOC_Result_T _IOC_isEmptyClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList);
 
 static void __IOC_cbProcEvtClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_EvtDesc_pT pEvtDesc);
 
@@ -470,24 +474,115 @@ IOC_Result_T _IOC_unsubEVT_inConlesMode(
   return Result;
 }
 
+/**
+ * RefDiagram: _IOC_ConlesEvent.md
+ *   |-> FlowChart Diagram
+ *     |-> _IOC_postEVT_inConlesMode
+ *
+ * Path:
+ *  A) 1) AsyncMode + enqueueSuccess
+ *        2) MayBlockMode + waitSpaceEnqueueSuccess
+ *        3) NonBlockOrTimeoutMode + failTooManyQueuingEvtDesc
+ *        4) UnExceptError: failWithLogBug
+ *  B) 1)SyncMode + cbProcEvtSuccess
+ *        2) MayBlockMode + waitEmptyCbProcEvtSuccess
+ *        3) NonBlockOrTimeoutMode + failTooLongEmptyingEvtDescQueue
+ *  C) BugLikeError:
+ *     1) invalidAutoLinkID if no LinkObj
+ *     2) noEvtSuber if no EvtSuber of LinkObj
+ *
+ * @note:
+ *  a) SUCCESS result with LogDebug, FAIL result with LogWarn or LogError or LogBug
+ *  b) Each Result setting point comment with 'Path@[A/B/C]->[1/2/3]' and goto _returnResult
+ */
 IOC_Result_T _IOC_postEVT_inConlesMode(
     /*ARG_IN*/ IOC_LinkID_T LinkID,
     /*ARG_IN*/ const IOC_EvtDesc_pT pEvtDesc,
     /*ARG_IN_OPTIONAL*/ const IOC_Options_pT pOption) {
-  if (LinkID != IOC_CONLES_MODE_AUTO_LINK_ID) {
-    return IOC_RESULT_NOT_EXIST_LINK;
-  }
+  IOC_Result_T Result = IOC_RESULT_BUG;
 
-  _ClsEvtLinkObj_pT pLinkObj = __IOC_getClsEvtLinkObjLocked(IOC_CONLES_MODE_AUTO_LINK_ID);
+  _ClsEvtLinkObj_pT pLinkObj = __IOC_getClsEvtLinkObjLocked(LinkID);
   if (pLinkObj == NULL) {
-    return IOC_RESULT_BUG;
+    _IOC_LogError("Invalid AutoLinkID(%llu)", LinkID);
+    Result = IOC_RESULT_INVALID_AUTO_LINK_ID;  // Path@C->1
+    goto _returnResult;
   }
 
-  IOC_Result_T Result = _IOC_enqueueEvtDescQueueLast(&pLinkObj->EvtDescQueue, pEvtDesc);
-  if (Result == IOC_RESULT_SUCCESS) {
-    __IOC_wakeupClsEvtLinkObj(pLinkObj);
+  IOC_Result_T IsEmptyEvtSuberList = _IOC_isEmptyClsEvtSuberList(&pLinkObj->EvtSuberList);
+  if (IsEmptyEvtSuberList == IOC_RESULT_YES) {
+    _IOC_LogWarn("No EvtSuber of AutoLinkID(%llu)", LinkID);
+    Result = IOC_RESULT_NO_EVENT_CONSUMER;  // Path@C->2
+    goto _returnResult;
   }
 
-  __IOC_putClsEvtLinkObj(pLinkObj);
+  //---------------------------------------------------------------------------
+  bool IsAsyncMode    = IOC_Option_isAsyncMode(pOption);
+  bool IsNonBlockMode = IOC_Option_isNonBlockMode(pOption);
+
+  if (IsAsyncMode) {
+    Result = _IOC_enqueueEvtDescQueueLast(&pLinkObj->EvtDescQueue, pEvtDesc);
+    if (Result == IOC_RESULT_SUCCESS) {
+      __IOC_wakeupClsEvtLinkObj(pLinkObj);
+      _IOC_LogDebug("AsyncMode: AutoLinkID(%llu) enqueued EvtDesc(%lu,%llu)", LinkID, pEvtDesc->MsgDesc.SeqID, pEvtDesc->EvtID);
+      goto _returnResult;  // Path@A->1
+    } else if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
+      if (IsNonBlockMode) {
+        _IOC_LogWarn("NonBlockMode: AutoLinkID(%llu) enqueue EvtDesc(%lu,%llu) failed(%s)", LinkID, pEvtDesc->MsgDesc.SeqID,
+                     pEvtDesc->EvtID, IOC_getResultStr(Result));
+        Result = IOC_RESULT_TOO_MANY_QUEUING_EVTDESC;  // Path@A->3 of NonBlockMode
+        goto _returnResult;
+      } else {
+        ULONG_T RetryUS = 1000;  // 1ms
+        // MayBlockMode: calculate timeout, then retry enqueue every 1ms until success or timeout
+        ULONG_T TimeoutUS = IOC_Option_getTimeoutUS(pOption);
+        // sanity check TimeoutUS>0
+        _IOC_LogAssert(TimeoutUS > 0);
+
+        while (TimeoutUS > 0) {
+          usleep(RetryUS);
+
+          Result = _IOC_enqueueEvtDescQueueLast(&pLinkObj->EvtDescQueue, pEvtDesc);
+          if (Result == IOC_RESULT_SUCCESS) {
+            __IOC_wakeupClsEvtLinkObj(pLinkObj);
+            _IOC_LogDebug("MayBlockMode: AutoLinkID(%llu) enqueued EvtDesc(%lu,%llu)", LinkID, pEvtDesc->MsgDesc.SeqID,
+                          pEvtDesc->EvtID);
+            break;  // Path@A->2 MayBlockMode of enqueueSuccess
+          } else if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
+            if (TimeoutUS > RetryUS) {
+              TimeoutUS -= RetryUS;  // retry
+            } else if (TimeoutUS > 0) {
+              RetryUS = TimeoutUS;  // last retry
+            } else {
+              _IOC_LogWarn("MayBlockMode: AutoLinkID(%llu) enqueue EvtDesc(%lu,%llu) failed(%s)", LinkID,
+                           pEvtDesc->MsgDesc.SeqID, pEvtDesc->EvtID, IOC_getResultStr(Result));
+              Result = IOC_RESULT_TOO_MANY_QUEUING_EVTDESC;  // Path@A->3 of Timeout
+              break;
+            }
+          } else {
+            _IOC_LogBug("UnExceptError: AutoLinkID(%llu) enqueue EvtDesc(%lu,%llu) failed(%s)", LinkID, pEvtDesc->MsgDesc.SeqID,
+                        pEvtDesc->EvtID, IOC_getResultStr(Result));
+            Result = IOC_RESULT_BUG;  // Path@A->4
+            break;
+          }
+        }  // END of while(TimeoutUS>0)
+
+        goto _returnResult;
+      }
+    } else {
+      _IOC_LogBug("UnExceptError: AutoLinkID(%llu) enqueue EvtDesc(%lu,%llu) failed(%s)", LinkID, pEvtDesc->MsgDesc.SeqID,
+                  pEvtDesc->EvtID, IOC_getResultStr(Result));
+      Result = IOC_RESULT_BUG;  // Path@A->4
+      goto _returnResult;
+    }
+  } else /*SyncMode*/ {
+    // TODO
+  }
+
+//-----------------------------------------------------------------------------
+_returnResult:
+  if (pLinkObj != NULL) {
+    __IOC_putClsEvtLinkObj(pLinkObj);
+  }
+  return Result;
 }
 //======>>>>>>END OF IMPLEMENT FOR ConlesEvent>>>>>>===================================================================
