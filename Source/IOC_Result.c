@@ -20,6 +20,8 @@ const char* IOC_getResultStr(IOC_Result_T Result) {
       return "IOC_RESULT_CONFLICT_EVENT_CONSUMER";
     case IOC_RESULT_TOO_MANY_QUEUING_EVTDESC:
       return "IOC_RESULT_TOO_MANY_QUEUING_EVTDESC";
+    case IOC_RESULT_INVALID_PARAM:
+      return "IOC_RESULT_INVALID_PARAM";
     case IOC_RESULT_BUG:
       return "IOC_RESULT_BUG";
     default:

@@ -209,8 +209,9 @@ IOC_Result_T _IOC_enqueueEvtDescQueueLast(_IOC_EvtDescQueue_pT pEvtDescQueue, IO
   QueuedEvtNum = pEvtDescQueue->QueuedEvtNum;
   pthread_mutex_unlock(&pEvtDescQueue->Mutex);
 
-  _IOC_LogDebug("Enqueued EvtDesc(%lu) to EvtDescQueue(Pos=%lu,Proced=%lu <= Queued=%lu)", pEvtDesc->MsgDesc.SeqID,
-                NextQueuingPos, ProcedEvtNum, QueuedEvtNum);
+  //_IOC_LogDebug("Enqueued EvtDesc(SeqID=%lu, EvtID(%lu,%lu)) to EvtDescQueue(Pos=%lu,Proced=%lu <= Queued=%lu)",
+  //              pEvtDesc->MsgDesc.SeqID, IOC_getEvtClassID(pEvtDesc->EvtID), IOC_getEvtNameID(pEvtDesc->EvtID),
+  //              NextQueuingPos, ProcedEvtNum, QueuedEvtNum);
 
   return IOC_RESULT_SUCCESS;
 }
@@ -241,8 +242,9 @@ IOC_Result_T _IOC_dequeueEvtDescQueueFirst(_IOC_EvtDescQueue_pT pEvtDescQueue, I
 
   pthread_mutex_unlock(&pEvtDescQueue->Mutex);
 
-  _IOC_LogDebug("Dequeued EvtDesc(%lu) from EvtDescQueue(Pos=%lu,Proced=%lu <= Queued=%lu)", pEvtDesc->MsgDesc.SeqID,
-                NextProcingPos, ProcedEvtNum, QueuedEvtNum);
+  //_IOC_LogDebug("Dequeued EvtDesc(SeqID=%lu, EvtID(%lu,%lu)) from EvtDescQueue(Pos=%lu,Proced=%lu <= Queued=%lu)",
+  //              pEvtDesc->MsgDesc.SeqID, IOC_getEvtClassID(pEvtDesc->EvtID), IOC_getEvtNameID(pEvtDesc->EvtID),
+  //              NextProcingPos, ProcedEvtNum, QueuedEvtNum);
 
   return IOC_RESULT_SUCCESS;
 }
@@ -632,16 +634,17 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
     Result = _IOC_enqueueEvtDescQueueLast(&pLinkObj->EvtDescQueue, pEvtDesc);
     if (Result == IOC_RESULT_SUCCESS) {
       __IOC_wakeupClsEvtLinkObj(pLinkObj);
-      _IOC_LogDebug("AsyncMode: AutoLinkID(%llu) enqueued EvtDesc(SeqID=%lu,EvtID=(%lu,%lu))", LinkID, pEvtDesc->MsgDesc.SeqID,
-                    IOC_getEvtClassID(pEvtDesc->EvtID), IOC_getEvtNameID(pEvtDesc->EvtID));
+      //_IOC_LogDebug("AsyncMode: AutoLinkID(%llu) enqueued EvtDesc(SeqID=%lu,EvtID=(%lu,%lu))", LinkID,
+      //              pEvtDesc->MsgDesc.SeqID, IOC_getEvtClassID(pEvtDesc->EvtID), IOC_getEvtNameID(pEvtDesc->EvtID));
       //_IOC_LogNotTested();
       goto _returnResult;  // Path@A->1
     } else if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
       if (IsNonBlockMode) {
-        _IOC_LogWarn("ASyncNonBlockMode: AutoLinkID(%llu) enqueue EvtDesc(%lu,%llu) failed(%s)", LinkID,
-                     pEvtDesc->MsgDesc.SeqID, pEvtDesc->EvtID, IOC_getResultStr(Result));
+        //_IOC_LogDebug("ASyncNonBlockMode: AutoLinkID(%llu) enqueue EvtDesc(SeqID=%lu,EvtID(%lu,%lu)) failed(%s)",
+        //              LinkID, pEvtDesc->MsgDesc.SeqID, IOC_getEvtClassID(pEvtDesc->EvtID),
+        //              IOC_getEvtNameID(pEvtDesc->EvtID), IOC_getResultStr(Result));
         Result = IOC_RESULT_TOO_MANY_QUEUING_EVTDESC;  // Path@A->3 of NonBlockMode
-        _IOC_LogNotTested();                           // TODO: check this path, comment out after test
+        //_IOC_LogNotTested();
         goto _returnResult;
       } else /* MayBlockMode */ {
         ULONG_T RetryUS = 1000;  // 1ms
@@ -657,8 +660,9 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
           Result = _IOC_enqueueEvtDescQueueLast(&pLinkObj->EvtDescQueue, pEvtDesc);
           if (Result == IOC_RESULT_SUCCESS) {
             __IOC_wakeupClsEvtLinkObj(pLinkObj);
-            _IOC_LogDebug("ASyncMayBlockMode: AutoLinkID(%llu) enqueued EvtDesc(%lu,%llu)", LinkID, pEvtDesc->MsgDesc.SeqID,
-                          pEvtDesc->EvtID);
+            //_IOC_LogDebug("ASyncMayBlockMode: AutoLinkID(%llu) enqueued EvtDesc(SeqID=%lu,EvtID(%lu,%lu))", LinkID,
+            //              pEvtDesc->MsgDesc.SeqID, IOC_getEvtClassID(pEvtDesc->EvtID),
+            //              IOC_getEvtNameID(pEvtDesc->EvtID));
             break;  // Path@A->2 MayBlockMode of enqueueSuccess
           } else if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
             if (TimeoutUS > RetryUS) {

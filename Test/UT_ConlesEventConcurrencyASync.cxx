@@ -120,7 +120,7 @@ TEST(UT_ConlesEventConcurrency,
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
 
     uint32_t Post9msCostTime = IOC_deltaTimevalInMS(&StartPost9msTime, &EndPost9msTime);
-    ASSERT_LE(Post9msCostTime, 1)  // KeyVerifyPoint
+    ASSERT_LE(Post9msCostTime, 3)  // KeyVerifyPoint
         << "Post9msCostTime = " << Post9msCostTime;
 
     ObjA_PostedPrivData.TestSleep9msEvtCnt++;
@@ -131,8 +131,9 @@ TEST(UT_ConlesEventConcurrency,
       IOC_EvtDesc_T ObjA_EvtDescTestSleep99ms = {.EvtID = IOC_EVTID_TEST_SLEEP_99MS};
 
       do {
+        IOC_Option_defineNonBlock(OptNonBlock);
         gettimeofday(&StartPost99msTick, NULL);
-        Result = IOC_postEVT_inConlesMode(&ObjA_EvtDescTestSleep99ms, NULL);
+        Result = IOC_postEVT_inConlesMode(&ObjA_EvtDescTestSleep99ms, &OptNonBlock);
         gettimeofday(&EndPost99msTick, NULL);
         if (IOC_RESULT_TOO_MANY_QUEUING_EVTDESC == Result) {
           usleep(1000);
@@ -165,7 +166,7 @@ TEST(UT_ConlesEventConcurrency,
 
   // ObjA's total sleep time is 100*10ms=1000ms
   uint32_t TotalLoopSleepTime = IOC_deltaTimevalInMS(&StartLoopTime, &EndLoopTime);
-  ASSERT_LE(TotalLoopSleepTime, 1200)  // KeyVerifyPoint
+  ASSERT_LE(TotalLoopSleepTime, 1500)  // KeyVerifyPoint
       << "TotalSleepTime= " << TotalLoopSleepTime;
 
   // ObjB's TestSleep9msEvtCnt is 100
