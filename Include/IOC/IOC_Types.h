@@ -23,7 +23,8 @@ typedef enum {
   IOC_RESULT_NO  = 0,
 
   // POSIX's Result (errno.h)
-  IOC_RESULT_POSIX_ENOMEM = -ENOMEM,
+  IOC_RESULT_POSIX_ENOMEM  = -ENOMEM,
+  IOC_RESULT_INVALID_PARAM = -EINVAL,
 
   // IOC's Result
   IOC_RESULT_NOT_IMPLEMENTED                 = -500,

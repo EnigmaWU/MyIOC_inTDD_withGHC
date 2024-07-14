@@ -102,9 +102,9 @@ static void __IOC_initClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList);
 static void __IOC_deinitClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList);
 
 // Return: IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_EVENT_CONSUMER or IOC_RESULT_CONFLICT_EVENT_CONSUMER
-static IOC_Result_T __IOC_addIntoClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_SubEvtArgs_pT pSubEvtArgs);
+static IOC_Result_T __IOC_insertClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_SubEvtArgs_pT pSubEvtArgs);
 // Return: IOC_RESULT_SUCCESS or IOC_RESULT_NO_EVENT_CONSUMER
-static IOC_Result_T __IOC_removeFromClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_UnsubEvtArgs_pT pUnsubEvtArgs);
+static IOC_Result_T __IOC_removeClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_UnsubEvtArgs_pT pUnsubEvtArgs);
 
 // Return: IOC_RESULT_YES or IOC_RESULT_NO
 static IOC_Result_T _IOC_isEmptyClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList);
@@ -133,6 +133,16 @@ typedef struct {
 
   _IOC_EvtDescQueue_T EvtDescQueue;
   _ClsEvtSuberList_T EvtSuberList;
+
+  /**
+   * RefState: README_ArchDesign.md
+   *    |-> State
+   *      |-> EVT::Conles
+   */
+  struct {
+    IOC_LinkState_T Main;
+    IOC_LinkSubState_T Sub;
+  } State;
 } _ClsEvtLinkObj_T, *_ClsEvtLinkObj_pT;
 
 static void __IOC_wakeupClsEvtLinkObj(_ClsEvtLinkObj_pT pLinkObj);
@@ -256,7 +266,7 @@ static void __IOC_deinitClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList) {
 }
 
 // Return: IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_EVENT_CONSUMER or IOC_RESULT_CONFLICT_EVENT_CONSUMER
-static IOC_Result_T __IOC_addIntoClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_SubEvtArgs_pT pSubEvtArgs) {
+static IOC_Result_T __IOC_insertClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_SubEvtArgs_pT pSubEvtArgs) {
   pthread_mutex_lock(&pEvtSuberList->Mutex);
 
   ULONG_T SuberNum = pEvtSuberList->SuberNum;
@@ -301,7 +311,7 @@ static IOC_Result_T __IOC_addIntoClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberLi
   return IOC_RESULT_SUCCESS;
 }
 // Return: IOC_RESULT_SUCCESS or IOC_RESULT_NO_EVENT_CONSUMER
-static IOC_Result_T __IOC_removeFromClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_UnsubEvtArgs_pT pUnsubEvtArgs) {
+static IOC_Result_T __IOC_removeClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_UnsubEvtArgs_pT pUnsubEvtArgs) {
   pthread_mutex_lock(&pEvtSuberList->Mutex);
 
   ULONG_T SuberNum = pEvtSuberList->SuberNum;
@@ -446,7 +456,7 @@ IOC_Result_T _IOC_subEVT_inConlesMode(
     return IOC_RESULT_BUG;
   }
 
-  IOC_Result_T Result = __IOC_addIntoClsEvtSuberList(&pLinkObj->EvtSuberList, pSubEvtArgs);
+  IOC_Result_T Result = __IOC_insertClsEvtSuberList(&pLinkObj->EvtSuberList, pSubEvtArgs);
   __IOC_putClsEvtLinkObj(pLinkObj);
 
   if (IOC_RESULT_SUCCESS == Result) {
@@ -467,7 +477,7 @@ IOC_Result_T _IOC_unsubEVT_inConlesMode(
     return IOC_RESULT_BUG;
   }
 
-  IOC_Result_T Result = __IOC_removeFromClsEvtSuberList(&pLinkObj->EvtSuberList, pUnsubEvtArgs);
+  IOC_Result_T Result = __IOC_removeClsEvtSuberList(&pLinkObj->EvtSuberList, pUnsubEvtArgs);
   __IOC_putClsEvtLinkObj(pLinkObj);
 
   if (IOC_RESULT_SUCCESS == Result) {
@@ -481,6 +491,64 @@ IOC_Result_T _IOC_unsubEVT_inConlesMode(
   return Result;
 }
 
+IOC_Result_T _IOC_getLinkState_inConlesMode(
+    /*ARG_IN*/ IOC_LinkID_T LinkID,
+    /*ARG_OUT*/ IOC_LinkState_pT pLinkState,
+    /*ARG_OUT_OPTIONAL*/ IOC_LinkSubState_pT pLinkSubState) {
+  if (LinkID != IOC_CONLES_MODE_AUTO_LINK_ID) {
+    _IOC_LogError("Invalid AutoLinkID(%llu)", LinkID);
+    return IOC_RESULT_INVALID_AUTO_LINK_ID;
+  }
+
+  _ClsEvtLinkObj_pT pLinkObj = __IOC_getClsEvtLinkObjLocked(LinkID);
+  if (pLinkObj == NULL) {
+    _IOC_LogBug("No LinkObj of AutoLinkID(%llu)", LinkID);
+    return IOC_RESULT_BUG;
+  }
+
+  *pLinkState = pLinkObj->State.Main;
+  if (pLinkSubState != NULL) {
+    *pLinkSubState = pLinkObj->State.Sub;
+  }
+
+  __IOC_putClsEvtLinkObj(pLinkObj);
+  return IOC_RESULT_SUCCESS;
+}
+
+IOC_Result_T _IOC_getCapabilty_inConlesMode(
+    /*ARG_INOUT*/ IOC_CapabiltyDescription_pT pCapDesc) {
+  IOC_Result_T Result = IOC_RESULT_BUG;
+
+  switch (pCapDesc->CapID) {
+    case IOC_CAPID_CONLES_MODE_EVENT: {
+      pCapDesc->ConlesModeEvent.MaxEvtConsumer = _CONLES_EVENT_MAX_SUBSCRIBER;
+      Result                                   = IOC_RESULT_SUCCESS;
+    } break;
+    default:
+      _IOC_LogError("Not-Support CapID(%d)", pCapDesc->CapID);
+      Result = IOC_RESULT_NOT_SUPPORT;
+  }
+
+  return Result;
+}
+
+void _IOC_forceProcEvt_inConlesMode(void) {
+  // foreach ClsEvtLinkObj, getLock, dequeueEvtDescQueueFirst, cbProcEvtClsEvtSuberList, until EvtDescQueue is empty, then
+  // unlock
+  ULONG_T TotalClsLinkObjNum = IOC_calcArrayElmtCnt(_mClsEvtLinkObjs);
+
+  for (ULONG_T i = 0; i < TotalClsLinkObjNum; i++) {
+    _ClsEvtLinkObj_pT pLinkObj = &_mClsEvtLinkObjs[i];
+    __IOC_lockClsEvtLinkObj(pLinkObj);
+
+    IOC_EvtDesc_T EvtDesc;
+    while (IOC_RESULT_SUCCESS == _IOC_dequeueEvtDescQueueFirst(&pLinkObj->EvtDescQueue, &EvtDesc)) {
+      __IOC_cbProcEvtClsEvtSuberList(&pLinkObj->EvtSuberList, &EvtDesc);
+    }
+
+    __IOC_putClsEvtLinkObj(pLinkObj);
+  }
+}
 /**
  * RefDiagram: _IOC_ConlesEvent.md
  *   |-> FlowChart Diagram

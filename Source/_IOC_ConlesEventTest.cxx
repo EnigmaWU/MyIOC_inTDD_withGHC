@@ -108,7 +108,7 @@ TEST(_IOC_ConlesEvent_ClsEvtSuberList, verifySubSuccessOrTooMany_bySubingUptoMax
     };
 
     //===BEHAVIOR===
-    IOC_Result_T Result = __IOC_addIntoClsEvtSuberList(&SUT_ClsEvtSuberList, &SubEvtArgs);
+    IOC_Result_T Result = __IOC_insertClsEvtSuberList(&SUT_ClsEvtSuberList, &SubEvtArgs);
     //===VERIFY===
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);           // KeyVerifyPoint
     ASSERT_EQ(i + 1, SUT_ClsEvtSuberList.SuberNum);  // KeyVerifyPoint
@@ -120,7 +120,7 @@ TEST(_IOC_ConlesEvent_ClsEvtSuberList, verifySubSuccessOrTooMany_bySubingUptoMax
   };
 
   //===BEHAVIOR===
-  IOC_Result_T Result = __IOC_addIntoClsEvtSuberList(&SUT_ClsEvtSuberList, &SubEvtArgs);
+  IOC_Result_T Result = __IOC_insertClsEvtSuberList(&SUT_ClsEvtSuberList, &SubEvtArgs);
   //===VERIFY===
   ASSERT_EQ(IOC_RESULT_TOO_MANY_EVENT_CONSUMER, Result);  // KeyVerifyPoint
   ASSERT_EQ(MaxSuber, SUT_ClsEvtSuberList.SuberNum);      // KeyVerifyPoint
@@ -141,13 +141,13 @@ TEST(_IOC_ConlesEvent_ClsEvtSuberList, verifySubConflict_bySubingSameConsumerIde
   };
 
   //===BEHAVIOR===
-  IOC_Result_T Result = __IOC_addIntoClsEvtSuberList(&SUT_ClsEvtSuberList, &SubEvtArgs);
+  IOC_Result_T Result = __IOC_insertClsEvtSuberList(&SUT_ClsEvtSuberList, &SubEvtArgs);
   //===VERIFY===
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);       // KeyVerifyPoint
   ASSERT_EQ(1, SUT_ClsEvtSuberList.SuberNum);  // KeyVerifyPoint
 
   //===BEHAVIOR===
-  Result = __IOC_addIntoClsEvtSuberList(&SUT_ClsEvtSuberList, &SubEvtArgs);
+  Result = __IOC_insertClsEvtSuberList(&SUT_ClsEvtSuberList, &SubEvtArgs);
   //===VERIFY===
   ASSERT_EQ(IOC_RESULT_CONFLICT_EVENT_CONSUMER, Result);  // KeyVerifyPoint
   ASSERT_EQ(1, SUT_ClsEvtSuberList.SuberNum);             // KeyVerifyPoint
@@ -170,7 +170,7 @@ TEST(_IOC_ConlesEvent_ClsEvtSuberList, verifyUnsubSuccessOrNot_byUnsubTwice) {
       .pEvtIDs     = EvtIDs,
   };
 
-  IOC_Result_T Result = __IOC_addIntoClsEvtSuberList(&SUT_ClsEvtSuberList, &SubEvtArgs);
+  IOC_Result_T Result = __IOC_insertClsEvtSuberList(&SUT_ClsEvtSuberList, &SubEvtArgs);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
   ASSERT_EQ(1, SUT_ClsEvtSuberList.SuberNum);
 
@@ -179,13 +179,13 @@ TEST(_IOC_ConlesEvent_ClsEvtSuberList, verifyUnsubSuccessOrNot_byUnsubTwice) {
       .CbProcEvt_F = (IOC_CbProcEvt_F)0x12345678,
       .pCbPrivData = (void *)0x87654321,
   };
-  Result = __IOC_removeFromClsEvtSuberList(&SUT_ClsEvtSuberList, &UnsubEvtArgs);
+  Result = __IOC_removeClsEvtSuberList(&SUT_ClsEvtSuberList, &UnsubEvtArgs);
   //===VERIFY===
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);       // KeyVerifyPoint
   ASSERT_EQ(0, SUT_ClsEvtSuberList.SuberNum);  // KeyVerifyPoint
 
   //===BEHAVIOR===
-  Result = __IOC_removeFromClsEvtSuberList(&SUT_ClsEvtSuberList, &UnsubEvtArgs);
+  Result = __IOC_removeClsEvtSuberList(&SUT_ClsEvtSuberList, &UnsubEvtArgs);
   //===VERIFY===
   ASSERT_EQ(IOC_RESULT_NO_EVENT_CONSUMER, Result);  // KeyVerifyPoint
   ASSERT_EQ(0, SUT_ClsEvtSuberList.SuberNum);       // KeyVerifyPoint
