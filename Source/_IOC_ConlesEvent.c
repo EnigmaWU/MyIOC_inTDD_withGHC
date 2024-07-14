@@ -703,8 +703,8 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
 
     if (IsEmptyEvtDescQueue == IOC_RESULT_YES) {
       __IOC_cbProcEvtClsEvtSuberList(&pLinkObj->EvtSuberList, pEvtDesc);
-      _IOC_LogDebug("SyncMode: AutoLinkID(%llu) proc EvtDesc(%lu,%llu)", LinkID, pEvtDesc->MsgDesc.SeqID, pEvtDesc->EvtID);
-      _IOC_LogNotTested();          // TODO: check this path, comment out after test
+      //_IOC_LogDebug("SyncMode: AutoLinkID(%llu) proc EvtDesc(%lu,%llu)", LinkID, pEvtDesc->MsgDesc.SeqID,
+      //pEvtDesc->EvtID); _IOC_LogNotTested();
       Result = IOC_RESULT_SUCCESS;  // Path@B->1
     } else {
       if (IsNonBlockMode) {
