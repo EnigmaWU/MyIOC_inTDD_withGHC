@@ -501,6 +501,7 @@ IOC_Result_T _IOC_unsubEVT_inConlesMode(
  * @note:
  *  a) SUCCESS result with LogDebug, FAIL result with LogWarn or LogError or LogBug
  *  b) Each Result setting point comment with 'Path@[A/B/C]->[1/2/3]' and goto _returnResult
+ *  c) Each Result of Path add _IOC_LogNotTested() to indicate need to check this path, comment out after test
  */
 IOC_Result_T _IOC_postEVT_inConlesMode(
     /*ARG_IN*/ IOC_LinkID_T LinkID,
@@ -513,6 +514,7 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
   _ClsEvtLinkObj_pT pLinkObj = __IOC_getClsEvtLinkObjLocked(LinkID);
   if (pLinkObj == NULL) {
     _IOC_LogError("Invalid AutoLinkID(%llu)", LinkID);
+    _IOC_LogNotTested();                     // TODO: check this path, comment out after test
     return IOC_RESULT_INVALID_AUTO_LINK_ID;  // Path@C->1
   }
 
@@ -520,6 +522,7 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
   if (IsEmptyEvtSuberList == IOC_RESULT_YES) {
     _IOC_LogWarn("No EvtSuber of AutoLinkID(%llu)", LinkID);
     Result = IOC_RESULT_NO_EVENT_CONSUMER;  // Path@C->2
+    _IOC_LogNotTested();                    // TODO: check this path, comment out after test
     goto _returnResult;
   }
 
@@ -529,12 +532,14 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
     if (Result == IOC_RESULT_SUCCESS) {
       __IOC_wakeupClsEvtLinkObj(pLinkObj);
       _IOC_LogDebug("AsyncMode: AutoLinkID(%llu) enqueued EvtDesc(%lu,%llu)", LinkID, pEvtDesc->MsgDesc.SeqID, pEvtDesc->EvtID);
+      _IOC_LogNotTested();  // TODO: check this path, comment out after test
       goto _returnResult;  // Path@A->1
     } else if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
       if (IsNonBlockMode) {
-        _IOC_LogWarn("NonBlockMode: AutoLinkID(%llu) enqueue EvtDesc(%lu,%llu) failed(%s)", LinkID, pEvtDesc->MsgDesc.SeqID,
-                     pEvtDesc->EvtID, IOC_getResultStr(Result));
+        _IOC_LogWarn("ASyncNonBlockMode: AutoLinkID(%llu) enqueue EvtDesc(%lu,%llu) failed(%s)", LinkID,
+                     pEvtDesc->MsgDesc.SeqID, pEvtDesc->EvtID, IOC_getResultStr(Result));
         Result = IOC_RESULT_TOO_MANY_QUEUING_EVTDESC;  // Path@A->3 of NonBlockMode
+        _IOC_LogNotTested();                           // TODO: check this path, comment out after test
         goto _returnResult;
       } else /* MayBlockMode */ {
         ULONG_T RetryUS = 1000;  // 1ms
@@ -550,7 +555,7 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
           Result = _IOC_enqueueEvtDescQueueLast(&pLinkObj->EvtDescQueue, pEvtDesc);
           if (Result == IOC_RESULT_SUCCESS) {
             __IOC_wakeupClsEvtLinkObj(pLinkObj);
-            _IOC_LogDebug("MayBlockMode: AutoLinkID(%llu) enqueued EvtDesc(%lu,%llu)", LinkID, pEvtDesc->MsgDesc.SeqID,
+            _IOC_LogDebug("ASyncMayBlockMode: AutoLinkID(%llu) enqueued EvtDesc(%lu,%llu)", LinkID, pEvtDesc->MsgDesc.SeqID,
                           pEvtDesc->EvtID);
             break;  // Path@A->2 MayBlockMode of enqueueSuccess
           } else if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
@@ -560,7 +565,7 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
               RetryUS = TimeoutUS;  // last retry
               TimeoutUS = 0;
             } else {
-              _IOC_LogWarn("MayBlockMode: AutoLinkID(%llu) enqueue EvtDesc(%lu,%llu) failed(%s)", LinkID,
+              _IOC_LogWarn("ASyncMayBlockMode: AutoLinkID(%llu) enqueue EvtDesc(%lu,%llu) failed(%s)", LinkID,
                            pEvtDesc->MsgDesc.SeqID, pEvtDesc->EvtID, IOC_getResultStr(Result));
               Result = IOC_RESULT_TOO_MANY_QUEUING_EVTDESC;  // Path@A->3 of Timeout
               IsLastRetry = true;
@@ -574,12 +579,15 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
           }
         }  // END of while(TimeoutUS>0)
 
+        _IOC_LogAssert((Result == IOC_RESULT_SUCCESS) || (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC));
+        _IOC_LogNotTested();  // TODO: check this path, comment out after test
         goto _returnResult;
       }
     } else {
       _IOC_LogBug("UnExceptError: AutoLinkID(%llu) enqueue EvtDesc(%lu,%llu) failed(%s)", LinkID, pEvtDesc->MsgDesc.SeqID,
                   pEvtDesc->EvtID, IOC_getResultStr(Result));
       Result = IOC_RESULT_BUG;  // Path@A->4
+      _IOC_LogNotTested();      // TODO: check this path, comment out after test
       goto _returnResult;
     }
   } else /*SyncMode*/ {
@@ -588,11 +596,13 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
     if (IsEmptyEvtDescQueue == IOC_RESULT_YES) {
       __IOC_cbProcEvtClsEvtSuberList(&pLinkObj->EvtSuberList, pEvtDesc);
       _IOC_LogDebug("SyncMode: AutoLinkID(%llu) proc EvtDesc(%lu,%llu)", LinkID, pEvtDesc->MsgDesc.SeqID, pEvtDesc->EvtID);
+      _IOC_LogNotTested();          // TODO: check this path, comment out after test
       Result = IOC_RESULT_SUCCESS;  // Path@B->1
     } else {
       if (IsNonBlockMode) {
-        _IOC_LogWarn("NonBlockMode: AutoLinkID(%llu) emptying EvtDescQueue failed(%s)", LinkID, IOC_getResultStr(Result));
+        _IOC_LogWarn("SyncNonBlockMode: AutoLinkID(%llu) emptying EvtDescQueue failed(%s)", LinkID, IOC_getResultStr(Result));
         Result = IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE;  // Path@B->3 of NonBlockMode
+        _IOC_LogNotTested();                                  // TODO: check this path, comment out after test
         goto _returnResult;
       } else /* MayBlockMode */ {
         ULONG_T RetryUS = 1000;  // 1ms
@@ -608,7 +618,7 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
           IsEmptyEvtDescQueue = _IOC_isEmptyEvtDescQueue(&pLinkObj->EvtDescQueue);
           if (IsEmptyEvtDescQueue == IOC_RESULT_YES) {
             __IOC_cbProcEvtClsEvtSuberList(&pLinkObj->EvtSuberList, pEvtDesc);
-            _IOC_LogDebug("MayBlockMode: AutoLinkID(%llu) proc EvtDesc(%lu,%llu)", LinkID, pEvtDesc->MsgDesc.SeqID,
+            _IOC_LogDebug("SyncMayBlockMode: AutoLinkID(%llu) proc EvtDesc(%lu,%llu)", LinkID, pEvtDesc->MsgDesc.SeqID,
                           pEvtDesc->EvtID);
             Result = IOC_RESULT_SUCCESS;  // Path@B->2 MayBlockMode of cbProcEvtSuccess
             break;
@@ -619,7 +629,8 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
               RetryUS   = TimeoutUS;  // last retry
               TimeoutUS = 0;
             } else {
-              _IOC_LogWarn("MayBlockMode: AutoLinkID(%llu) emptying EvtDescQueue failed(%s)", LinkID, IOC_getResultStr(Result));
+              _IOC_LogWarn("SyncMayBlockMode: AutoLinkID(%llu) emptying EvtDescQueue failed(%s)", LinkID,
+                           IOC_getResultStr(Result));
               Result      = IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE;  // Path@B->3 of Timeout
               IsLastRetry = true;
               break;
@@ -627,6 +638,8 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
           }
         }  // END of while(TimeoutUS>0)
 
+        _IOC_LogAssert((Result == IOC_RESULT_SUCCESS) || (Result == IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE));
+        _IOC_LogNotTested();  // TODO: check this path, comment out after test
         goto _returnResult;
       }
     }
