@@ -375,11 +375,21 @@ static void __IOC_cbProcEvtClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IO
 
 //---------------------------------------------------------------------------------------------------------------------
 //===> BEGIN IMPLEMENT FOR ClsEvtLinkObj
+/**
+ * @brief Only LinkID==IOC_CONLES_MODE_AUTO_LINK_ID is supported now.
+ *  TODO: support other LinkID in future of IOC_CONLES_MODE_AUTO_LINK_ID_1/2/3/...
+ *
+ */
 static _ClsEvtLinkObj_T _mClsEvtLinkObjs[] = {
     {
         .LinkID = IOC_CONLES_MODE_AUTO_LINK_ID,
     },
 };
+
+IOC_Result_T _IOC_isAutoLink_inConlesMode(
+    /*ARG_IN*/ IOC_LinkID_T LinkID) {
+  return (LinkID == IOC_CONLES_MODE_AUTO_LINK_ID) ? IOC_RESULT_YES : IOC_RESULT_NO;
+}
 
 static inline void __IOC_lockClsEvtLinkObj(_ClsEvtLinkObj_T *pLinkObj) { pthread_mutex_lock(&pLinkObj->Mutex); }
 
