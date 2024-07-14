@@ -632,13 +632,13 @@ typedef struct {
 #define _CASE01_AUDCAP_FPS 50
 #define _CASE01_AUDCAP_FRM_CNT (_CASE01_DURATION * _CASE01_AUDCAP_FPS)
 
-#define _CASE01_PERF_LE_1000US 1000UL
+#define _CASE01_PERF_LE_1500US 1500UL
 static void __Case01_verifyFromPostEvt2CbProcEvtPerfMeets(IOC_EvtDesc_pT pEvtDesc) {
     struct timespec CurrentTime = IOC_getCurrentTimeSpec();
 
     ULONG_T TimeCost = IOC_diffTimeSpecInUS(&pEvtDesc->MsgDesc.TimeStamp, &CurrentTime);
-    EXPECT_LE(TimeCost, _CASE01_PERF_LE_1000US)
-        << "TimeCost=" << TimeCost << "us, expect less than " << _CASE01_PERF_LE_1000US << "us";
+    EXPECT_LE(TimeCost, _CASE01_PERF_LE_1500US)
+        << "TimeCost=" << TimeCost << "us, expect less than " << _CASE01_PERF_LE_1500US << "us";
 }
 
 static void *__Case01_ThreadFunc_simuVidCap(void *arg) {

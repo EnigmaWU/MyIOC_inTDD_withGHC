@@ -647,8 +647,8 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
         //_IOC_LogNotTested();
         goto _returnResult;
       } else /* MayBlockMode */ {
-        ULONG_T RetryUS = 1000;  // 1ms
-        // MayBlockMode: calculate timeout, then retry enqueue every 1ms until success or timeout
+        ULONG_T RetryUS = 9;  // 9us
+        // MayBlockMode: calculate timeout, then retry enqueue every RetryUS until success or timeout
         ULONG_T TimeoutUS = IOC_Option_getTimeoutUS(pOption);
         // sanity check TimeoutUS>0
         _IOC_LogAssert(TimeoutUS > 0);
@@ -713,8 +713,8 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
         _IOC_LogNotTested();                                  // TODO: check this path, comment out after test
         goto _returnResult;
       } else /* MayBlockMode */ {
-        ULONG_T RetryUS = 1000;  // 1ms
-        // MayBlockMode: calculate timeout, then retry emptying every 1ms until success or timeout
+        ULONG_T RetryUS = 9;  // 9us
+        // MayBlockMode: calculate timeout, then retry emptying every RetryUS until success or timeout
         ULONG_T TimeoutUS = IOC_Option_getTimeoutUS(pOption);
         // sanity check TimeoutUS>0
         _IOC_LogAssert(TimeoutUS > 0);
