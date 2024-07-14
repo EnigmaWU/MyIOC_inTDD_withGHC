@@ -67,7 +67,7 @@ TEST(ConlesEventUseBoundary, verifyPostProcEvtSuccess_by1xSubPostUnsubEvt) {
     Result                = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
     ASSERT_EQ(Result, IOC_RESULT_SUCCESS) << "IOC_postEVT_inConlesMode failed Result=" << Result;
 
-    usleep(10000);  // wait for CbProcEvt to be called
+    IOC_forceProcEVT();  // force to process event
 
     IOC_UnsubEvtArgs_T UnsubArgs = {0};
     UnsubArgs.CbProcEvt_F        = _Case01_CbProcEvt;

@@ -38,6 +38,7 @@
 #include "_IOC_ConlesEvent.h"
 
 #include <pthread.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -94,7 +95,7 @@ typedef struct {
 
 typedef struct {
   pthread_mutex_t Mutex;  // Used to protect Subers
-  ULONG_T SuberNum;
+  atomic_ulong SuberNum;
   _ClsEvtSuber_T Subers[_CONLES_EVENT_MAX_SUBSCRIBER];
 } _ClsEvtSuberList_T, *_ClsEvtSuberList_pT;
 
@@ -302,7 +303,8 @@ static IOC_Result_T __IOC_insertClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberLis
       pEvtSuber->Args.pEvtIDs     = (IOC_EvtID_T *)malloc(pSubEvtArgs->EvtNum * sizeof(IOC_EvtID_T));
       memcpy(pEvtSuber->Args.pEvtIDs, pSubEvtArgs->pEvtIDs, pSubEvtArgs->EvtNum * sizeof(IOC_EvtID_T));
 
-      pEvtSuberList->SuberNum++;
+      // increase SuberNum atomically
+      atomic_fetch_add(&pEvtSuberList->SuberNum, 1);
       break;
     }
   }
@@ -333,7 +335,8 @@ static IOC_Result_T __IOC_removeClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberLis
         // free indirect EvtIDs
         free(pEvtSuber->Args.pEvtIDs);
 
-        pEvtSuberList->SuberNum--;
+        // decrease SuberNum atomically
+        atomic_fetch_sub(&pEvtSuberList->SuberNum, 1);
         break;
       }
     }
@@ -344,9 +347,9 @@ static IOC_Result_T __IOC_removeClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberLis
 }
 
 static IOC_Result_T _IOC_isEmptyClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList) {
-  pthread_mutex_lock(&pEvtSuberList->Mutex);
-  IOC_Result_T Result = (pEvtSuberList->SuberNum == 0) ? IOC_RESULT_YES : IOC_RESULT_NO;
-  pthread_mutex_unlock(&pEvtSuberList->Mutex);
+  // read SuberNum atomically
+  ULONG_T SuberNum    = atomic_load(&pEvtSuberList->SuberNum);
+  IOC_Result_T Result = (SuberNum == 0) ? IOC_RESULT_YES : IOC_RESULT_NO;
   return Result;
 }
 
@@ -431,7 +434,7 @@ static void __IOC_waitClsEvtLinkObj(_ClsEvtLinkObj_pT pLinkObj) {
   pthread_mutex_unlock(&pLinkObj->CondMutex);
 }
 
-static void *__IOC_procClsEvtThread(void *arg) {
+static void *__IOC_cbProcClsEvtLinkObjThread(void *arg) {
   _ClsEvtLinkObj_pT pLinkObj = (_ClsEvtLinkObj_pT)arg;
 
   /**
@@ -444,16 +447,36 @@ static void *__IOC_procClsEvtThread(void *arg) {
   do {
     __IOC_waitClsEvtLinkObj(pLinkObj);
 
-    IOC_EvtDesc_T EvtDesc;
-    IOC_Result_T Result = _IOC_dequeueEvtDescQueueFirst(&pLinkObj->EvtDescQueue, &EvtDesc);
-    if (Result == IOC_RESULT_EVTDESC_QUEUE_EMPTY) {
-      continue;
-    }
+    do {
+      IOC_EvtDesc_T EvtDesc;
+      IOC_Result_T Result = _IOC_dequeueEvtDescQueueFirst(&pLinkObj->EvtDescQueue, &EvtDesc);
+      if (Result == IOC_RESULT_EVTDESC_QUEUE_EMPTY) {
+        break;
+      }
 
-    __IOC_cbProcEvtClsEvtSuberList(&pLinkObj->EvtSuberList, &EvtDesc);
+      __IOC_cbProcEvtClsEvtSuberList(&pLinkObj->EvtSuberList, &EvtDesc);
+    } while (0x20240714);
   } while (0x20240709);
 
   pthread_exit(NULL);
+}
+
+// On libc's runtime init, this function will be called to create all ClsEvtLinkObj's EvtProcThread.
+__attribute__((constructor)) static void __IOC_initClsEvtLinkObj(void) {
+  ULONG_T TotalClsLinkObjNum = IOC_calcArrayElmtCnt(_mClsEvtLinkObjs);
+
+  for (ULONG_T i = 0; i < TotalClsLinkObjNum; i++) {
+    _ClsEvtLinkObj_pT pLinkObj = &_mClsEvtLinkObjs[i];
+
+    _IOC_initEvtDescQueue(&pLinkObj->EvtDescQueue);
+    __IOC_initClsEvtSuberList(&pLinkObj->EvtSuberList);
+
+    pthread_mutex_init(&pLinkObj->Mutex, NULL);
+    pthread_cond_init(&pLinkObj->Cond, NULL);
+    pthread_mutex_init(&pLinkObj->CondMutex, NULL);
+
+    pthread_create(&pLinkObj->ThreadID, NULL, __IOC_cbProcClsEvtLinkObjThread, pLinkObj);
+  }
 }
 
 //===> END IMPLEMENT FOR ClsEvtLinkObj
@@ -609,8 +632,9 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
     Result = _IOC_enqueueEvtDescQueueLast(&pLinkObj->EvtDescQueue, pEvtDesc);
     if (Result == IOC_RESULT_SUCCESS) {
       __IOC_wakeupClsEvtLinkObj(pLinkObj);
-      _IOC_LogDebug("AsyncMode: AutoLinkID(%llu) enqueued EvtDesc(%lu,%llu)", LinkID, pEvtDesc->MsgDesc.SeqID, pEvtDesc->EvtID);
-      _IOC_LogNotTested();  // TODO: check this path, comment out after test
+      _IOC_LogDebug("AsyncMode: AutoLinkID(%llu) enqueued EvtDesc(SeqID=%lu,EvtID=(%lu,%lu))", LinkID, pEvtDesc->MsgDesc.SeqID,
+                    IOC_getEvtClassID(pEvtDesc->EvtID), IOC_getEvtNameID(pEvtDesc->EvtID));
+      //_IOC_LogNotTested();
       goto _returnResult;  // Path@A->1
     } else if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
       if (IsNonBlockMode) {
@@ -649,6 +673,8 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
               IsLastRetry = true;
               break;
             }
+
+            __IOC_wakeupClsEvtLinkObj(pLinkObj);  // try wakeup and try enqueue again
           } else {
             _IOC_LogBug("UnExceptError: AutoLinkID(%llu) enqueue EvtDesc(%lu,%llu) failed(%s)", LinkID, pEvtDesc->MsgDesc.SeqID,
                         pEvtDesc->EvtID, IOC_getResultStr(Result));
@@ -658,7 +684,7 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
         }  // END of while(TimeoutUS>0)
 
         _IOC_LogAssert((Result == IOC_RESULT_SUCCESS) || (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC));
-        _IOC_LogNotTested();  // TODO: check this path, comment out after test
+        //_IOC_LogNotTested();
         goto _returnResult;
       }
     } else {
