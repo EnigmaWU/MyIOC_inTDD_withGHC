@@ -37,17 +37,10 @@
 
 #include "_IOC_ConlesEvent.h"
 
-#include <pthread.h>
-#include <stdatomic.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/_pthread/_pthread_mutex_t.h>
-
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //======>>>>>>BEGIN OF DEFINE FOR ConlesEvent>>>>>>====================================================================
 #define _CONLES_EVENT_MAX_SUBSCRIBER 16
-#define _CONLES_EVENT_MAX_QUEUING_EVTDESC 32
+#define _CONLES_EVENT_MAX_QUEUING_EVTDESC 64
 
 //---------------------------------------------------------------------------------------------------------------------
 /**
@@ -625,7 +618,7 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
   if (IsEmptyEvtSuberList == IOC_RESULT_YES) {
     _IOC_LogWarn("No EvtSuber of AutoLinkID(%llu)", LinkID);
     Result = IOC_RESULT_NO_EVENT_CONSUMER;  // Path@C->2
-    _IOC_LogNotTested();                    // TODO: check this path, comment out after test
+    //_IOC_LogNotTested();
     goto _returnResult;
   }
 
