@@ -63,16 +63,12 @@ TEST(UT_ConlesEventTypical, Case01_verifyPostEvt1v1_byOneObjPostEvtAndAnotherObj
 #define _Case01_KeepAliveEvtCnt 1024
   //===BEHAVIOR===
   for (uint32_t i = 0; i < _Case01_KeepAliveEvtCnt; i++) {
-    IOC_EvtDesc_T ObjB_EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
-    Result = IOC_postEVT_inConlesMode(&ObjB_EvtDesc, NULL);
-    // Result is IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_QUEUING_EVTDESC
-    ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC)  // CheckPoint
-        << "i= " << i << " Result= " << Result;
+    IOC_EvtDesc_T ObjB_EvtDesc = {
+        .EvtID = IOC_EVTID_TEST_KEEPALIVE,
+    };
 
-    if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
-      i--;           // retry
-      usleep(1000);  // 1ms
-    }
+    Result = IOC_postEVT_inConlesMode(&ObjB_EvtDesc, NULL);                            // ASync+MayBlock+NoDrop
+    ASSERT_TRUE(Result == IOC_RESULT_SUCCESS) << "i= " << i << " Result= " << Result;  // CheckPoint
   }
 
   IOC_forceProcEVT();
@@ -156,16 +152,13 @@ TEST(UT_ConlesEventTypical, Case02_verifyPostEvt1vN_byOneObjPostEvt_R1TwoObjCbPr
 #define _Case02_KeepAliveEvtCntR1 1024
   //===BEHAVIOR===
   for (uint32_t i = 0; i < _Case02_KeepAliveEvtCntR1; i++) {
-    IOC_EvtDesc_T ObjA_EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
-    Result = IOC_postEVT_inConlesMode(&ObjA_EvtDesc, NULL);
-    // Result is IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_QUEUING_EVTDESC
-    ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC)  // CheckPoint
-        << "i= " << i << " Result= " << Result;
+    IOC_EvtDesc_T ObjA_EvtDesc = {
+        .EvtID = IOC_EVTID_TEST_KEEPALIVE,
+    };
 
-    if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
-      i--;           // retry
-      usleep(1000);  // 1ms
-    }
+    Result = IOC_postEVT_inConlesMode(&ObjA_EvtDesc, NULL);  // ASync+MayBlock+NoDrop
+    ASSERT_TRUE(Result == IOC_RESULT_SUCCESS)                // CheckPoint
+        << "i= " << i << " Result= " << Result;
   }
 
   IOC_forceProcEVT();
@@ -215,20 +208,16 @@ TEST(UT_ConlesEventTypical, Case02_verifyPostEvt1vN_byOneObjPostEvt_R1TwoObjCbPr
 #define _Case02_KeepAliveEvtCntR2 2048
   //===BEHAVIOR===
   for (uint32_t i = 0; i < _Case02_KeepAliveEvtCntR2; i++) {
-    IOC_EvtDesc_T ObjA_EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
-    Result = IOC_postEVT_inConlesMode(&ObjA_EvtDesc, NULL);
-    // Result is IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_QUEUING_EVTDESC
-    ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC)  // CheckPoint
-        << "i= " << i << " Result= " << Result;
+    IOC_EvtDesc_T ObjA_EvtDesc = {
+        .EvtID = IOC_EVTID_TEST_KEEPALIVE,
+    };
 
-    if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
-      i--;           // retry
-      usleep(1000);  // 1ms
-    }
+    Result = IOC_postEVT_inConlesMode(&ObjA_EvtDesc, NULL);  // ASync+MayBlock+NoDrop
+    ASSERT_TRUE(Result == IOC_RESULT_SUCCESS)                // CheckPoint
+        << "i= " << i << " Result= " << Result;
   }
 
   IOC_forceProcEVT();
-  // sleep(1);
 
   //===VERIFY===
   ASSERT_EQ(_Case02_KeepAliveEvtCntR1 + _Case02_KeepAliveEvtCntR2, ObjB_CbPrivData.KeepAliveEvtCnt);  // KeyVerifyPoint
