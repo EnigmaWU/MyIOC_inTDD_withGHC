@@ -217,7 +217,7 @@ TEST(UT_ConlesEventTypical, Case02_verifyPostEvt1vN_byOneObjPostEvt_R1TwoObjCbPr
         << "i= " << i << " Result= " << Result;
   }
 
-  IOC_forceProcEVT();
+  IOC_forceProcEVT();  // sleep(1);
 
   //===VERIFY===
   ASSERT_EQ(_Case02_KeepAliveEvtCntR1 + _Case02_KeepAliveEvtCntR2, ObjB_CbPrivData.KeepAliveEvtCnt);  // KeyVerifyPoint
@@ -298,32 +298,26 @@ TEST(UT_ConlesEventTypical, Case03_verifyPostEvt1vN_byOneObjPostEvt_Min2MaxEvtCo
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
 
     for (uint32_t j = 0; j < _Case03_KeepAliveEvtCnt; j++) {
-      IOC_EvtDesc_T ObjA_EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
-      Result = IOC_postEVT_inConlesMode(&ObjA_EvtDesc, NULL);
-      // Result is IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_QUEUING_EVTDESC
-      ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC)  // CheckPoint
-          << "i= " << i << " j=" << j;
+      IOC_EvtDesc_T ObjA_EvtDesc = {
+          .EvtID = IOC_EVTID_TEST_KEEPALIVE,
+      };
 
-      if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
-        j--;           // retry
-        usleep(1000);  // 1ms
-      }
+      Result = IOC_postEVT_inConlesMode(&ObjA_EvtDesc, NULL);  // ASync+MayBlock+NoDrop
+      ASSERT_TRUE(Result == IOC_RESULT_SUCCESS) << "i= " << i << " j=" << j << " Result=" << Result;  // CheckPoint
     }
+
+    IOC_forceProcEVT();  // make sure all events are processed in this round.
   }
 
   // postEVT round-by-round, then unsubEVT one-by-one reversely.
   for (uint16_t i = 0; i < MaxEvtConsumerNum; i++) {
     for (uint32_t j = 0; j < _Case03_KeepAliveEvtCnt; j++) {
-      IOC_EvtDesc_T ObjA_EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
-      Result = IOC_postEVT_inConlesMode(&ObjA_EvtDesc, NULL);
-      // Result is IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_QUEUING_EVTDESC
-      ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC)  // CheckPoint
-          << "i= " << i << " j=" << j;
+      IOC_EvtDesc_T ObjA_EvtDesc = {
+          .EvtID = IOC_EVTID_TEST_KEEPALIVE,
+      };
 
-      if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
-        j--;           // retry
-        usleep(1000);  // 1ms
-      }
+      Result = IOC_postEVT_inConlesMode(&ObjA_EvtDesc, NULL);  // ASync+MayBlock+NoDrop
+      ASSERT_TRUE(Result == IOC_RESULT_SUCCESS) << "i= " << i << " j=" << j << " Result=" << Result;  // CheckPoint
     }
 
     IOC_forceProcEVT();

@@ -37,6 +37,8 @@
 
 #include "_IOC_ConlesEvent.h"
 
+#include <stdbool.h>
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //======>>>>>>BEGIN OF DEFINE FOR ConlesEvent>>>>>>====================================================================
 #define _CONLES_EVENT_MAX_SUBSCRIBER 16
@@ -116,6 +118,7 @@ typedef struct {
    * @brief each postEVT to this LinkID will wakeup by
    */
   pthread_mutex_t Mutex;  // Used to protect EvtLinkObj
+  pthread_mutex_t ForceProcMutex;  // Used to protect ForceProcEvt_inConlesMode
 
   pthread_cond_t Cond;        // Used to wakeup EvtProcThread
   pthread_mutex_t CondMutex;  // Used to protect Cond
@@ -390,8 +393,20 @@ IOC_Result_T _IOC_isAutoLink_inConlesMode(
 }
 
 static inline void __IOC_lockClsEvtLinkObj(_ClsEvtLinkObj_T *pLinkObj) { pthread_mutex_lock(&pLinkObj->Mutex); }
-
 static inline void __IOC_unlockClsEvtLinkObj(_ClsEvtLinkObj_T *pLinkObj) { pthread_mutex_unlock(&pLinkObj->Mutex); }
+
+static inline void __IOC_enterClsEvtLinkObjForceProcEvt(_ClsEvtLinkObj_T *pLinkObj) {
+  pthread_mutex_lock(&pLinkObj->ForceProcMutex);
+}
+static inline void __IOC_leaveClsEvtLinkObjForceProcEvt(_ClsEvtLinkObj_T *pLinkObj) {
+  pthread_mutex_unlock(&pLinkObj->ForceProcMutex);
+}
+static inline void __IOC_preventClsEvtLinkObjForceProcEvt(_ClsEvtLinkObj_T *pLinkObj) {
+  pthread_mutex_lock(&pLinkObj->ForceProcMutex);
+}
+static inline void __IOC_allowClsEvtLinkObjForceProcEvt(_ClsEvtLinkObj_T *pLinkObj) {
+  pthread_mutex_unlock(&pLinkObj->ForceProcMutex);
+}
 
 static _ClsEvtLinkObj_pT __IOC_getClsEvtLinkObjLocked(IOC_LinkID_T AutoLinkID) {
   _ClsEvtLinkObj_pT pLinkObj = NULL;
@@ -442,6 +457,12 @@ static void *__IOC_cbProcClsEvtLinkObjThread(void *arg) {
   do {
     __IOC_waitClsEvtLinkObj(pLinkObj);
 
+    // prevent forceProcEvt_inConlesMode to process EvtDesc in EvtDescQueue
+    //   while this thread is processing EvtDesc in EvtDescQueue
+    // because each to process EvtDesc is dequeue first, then process
+    __IOC_preventClsEvtLinkObjForceProcEvt(pLinkObj);
+
+    //-----------------------------------------------------------------------------------------------------------------
     do {
       IOC_EvtDesc_T EvtDesc;
       IOC_Result_T Result = _IOC_dequeueEvtDescQueueFirst(&pLinkObj->EvtDescQueue, &EvtDesc);
@@ -451,6 +472,10 @@ static void *__IOC_cbProcClsEvtLinkObjThread(void *arg) {
 
       __IOC_cbProcEvtClsEvtSuberList(&pLinkObj->EvtSuberList, &EvtDesc);
     } while (0x20240714);
+
+    //-----------------------------------------------------------------------------------------------------------------
+    // may call _IOC_forceProcEvt_inConlesMode to force process all EvtDesc in EvtDescQueue now
+    __IOC_allowClsEvtLinkObjForceProcEvt(pLinkObj);
   } while (0x20240709);
 
   pthread_exit(NULL);
@@ -567,14 +592,20 @@ void _IOC_forceProcEvt_inConlesMode(void) {
 
   for (ULONG_T i = 0; i < TotalClsLinkObjNum; i++) {
     _ClsEvtLinkObj_pT pLinkObj = &_mClsEvtLinkObjs[i];
-    __IOC_lockClsEvtLinkObj(pLinkObj);
 
-    IOC_EvtDesc_T EvtDesc;
-    while (IOC_RESULT_SUCCESS == _IOC_dequeueEvtDescQueueFirst(&pLinkObj->EvtDescQueue, &EvtDesc)) {
-      __IOC_cbProcEvtClsEvtSuberList(&pLinkObj->EvtSuberList, &EvtDesc);
+    __IOC_enterClsEvtLinkObjForceProcEvt(pLinkObj);
+
+    while (true) {
+      IOC_EvtDesc_T EvtDesc = {};
+      IOC_Result_T Result   = _IOC_dequeueEvtDescQueueFirst(&pLinkObj->EvtDescQueue, &EvtDesc);
+      if (Result == IOC_RESULT_SUCCESS) {
+        __IOC_cbProcEvtClsEvtSuberList(&pLinkObj->EvtSuberList, &EvtDesc);
+      } else {
+        break;
+      }
     }
 
-    __IOC_putClsEvtLinkObj(pLinkObj);
+    __IOC_leaveClsEvtLinkObjForceProcEvt(pLinkObj);
   }
 }
 /**
