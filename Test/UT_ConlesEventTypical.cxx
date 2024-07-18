@@ -253,10 +253,10 @@ TEST(UT_ConlesEventTypical, Case02_verifyPostEvt1vN_byOneObjPostEvt_R1TwoObjCbPr
  * @[Purpose]: accord [SPECv2-c.i] support 1:N post event in ConlesMode, use this case to verify the 1:N behavior.
  * @[Steps]:
  *   1. Get the max EvtConsumer number by IOC_getCapabilty(CAPID=CONLES_MODE_EVENT).
- *   2. First for each EvtConsumer loop:
+ *   2. Firstly for each EvtConsumer loop:
  *        |-> call subEVT(TEST_KEEPALIVE) with _Case03_CbProcEvt1vN.
  *        |-> then call postEVT(TEST_KEEPALIVE) with $_Case03_KeepAliveEvtCnt times.
- *   3. Second for each EvtConsumer loop:
+ *   3. Secondly for each EvtConsumer loop:
  *        |-> call postEVT(TEST_KEEPALIVE) with $_Case03_KeepAliveEvtCnt times.
  *        |-> then call unsubEVT(TEST_KEEPALIVE).
  * @[Expect]: each EvtConsumer's _Case03_CbProcEvt1vN is callbacked different times,
