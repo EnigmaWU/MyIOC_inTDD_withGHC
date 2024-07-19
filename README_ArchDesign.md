@@ -84,44 +84,23 @@
 
 ## EVT::Conles
 
-* {TSF-0}\<ACT:_initCRuntimeSuccess>  -> [STATE:LinkStateReady]
-
----
-
-* {TSF-1}[STATE:LinkStateReady]  ->  \<ACT:subEvt/unsubEvt>   -> [STATE:LinkStateReady]
-
----
-
-* {TSF-2}[STATE:LinkStateReady/Busy]  ->  \<ACT:postEvt>    -> [STATE:LinkStateReady/Busy]
-  * |-> \<EVT:enterCbProcEvt_F>  ->  [STATE:LinkStateBusy]
-
----
-
-* {TSF-3}[STATE:LinkStateBusy]
-  * |-> \<EVT:leaveCbProcEvt_F>  ->  [STATE:LinkStateReady]
-
 ```mermaid
 stateDiagram-v2
   [*] --> LinkStateReady: _initCRuntimeSuccess
-  LinkStateReady --> LinkStateBusy: enterCbProcEvt_F
-  LinkStateBusy --> LinkStateReady: leaveCbProcEvt_F
-  state LinkStateReady
-  {
-    [*] --> LinkStateReadyIdle
-    LinkStateReadyIdle --> LinkStateReadyLock: enter[sub/unsub/post]Evt
-    LinkStateReadyLock --> LinkStateReadyIdle: leave[sub/unsub/post]Evt
-  }
-  state LinkStateBusy
-  {
-    [*] --> LinkStateBusyProcing
-    LinkStateBusyProcing --> LinkStateBusyProcingPosting: enter[post]Evt
-    LinkStateBusyProcingPosting --> LinkStateBusyProcing: leave[post]Evt
-  }
-  
+  LinkStateReady --> LinkStateBusyCbProcEvt: enterCbProcEvt
+  LinkStateBusyCbProcEvt --> LinkStateReady: leaveCbProcEvt
+
+  LinkStateReady --> LinkStateBusySubEvt: enterSubEvt
+  LinkStateBusySubEvt --> LinkStateReady: leaveSubEvt
+
+  LinkStateReady --> LinkStateBusyUnsubEvt: enterUnsubEvt
+  LinkStateBusyUnsubEvt --> LinkStateReady: leaveUnsubEvt
 ```
 
-* LinkStateReady is means we may perform sub/unsub/postEVT behaviors.
-  * LinkSubState_ReadyLocked is means we are performing one of sub/unsub/postEVT behaviors, and concurrent sub/unsub/postEVT behaviors may be blocked.
-* LinkStateBusy is means we may postEVT but may not sub/unsubEVT behaviors.
-  * LinkSubState_BusyProcing is means posted event is processing with CbProcEvt_F.
-  * LinkSubState_BusyProcingPosting is means posted event is processing with CbProcEvt_F and a new event is postEVT-ing.
+* LinkStateReady is means we may perform subEvt/unsubEvt/CbProcEvt behaviors.
+  * LinkStateBusyCbProcEvt is means we are in CbProcEvt callback progress.
+  * LinkStateBusySubEvt is means we are in subEvt progress.
+  * LinkStateBusyUnsubEvt is means we are in unsubEvt progress.
+* Attention:
+  * 1) all LinkState is its main state, and its default substate is LinkSubStateDefault if not specified.
+  * 2) we may postEvt in any main state, which means we may postEvt in LinkStateReady/BusyXXX.

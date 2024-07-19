@@ -65,19 +65,15 @@ typedef uint64_t IOC_LinkID_T;
 typedef enum {
   IOC_LinkStateUndefined = 0,
   IOC_LinkStateReady     = 1,
-  IOC_LinkStateBusy      = 2,
-  // TODO: IOC_LinkStateError = 3,
+  IOC_LinkStateBusyCbProcEvt,
+  IOC_LinkStateBusySubEvt,
+  IOC_LinkStateBusyUnsubEvt,
 } IOC_LinkState_T,
     *IOC_LinkState_pT;
 
 typedef enum {
-    IOC_LinkSubStateUndefined = 0,
+  IOC_LinkSubStateDefault = 0,
 
-    IOC_LinkSubState_ReadyIdle   = 11,
-    IOC_LinkSubState_ReadyLocked = 12,
-
-    IOC_LinkSubState_BusyProcing        = 21,
-    IOC_LinkSubState_BusyProcingPosting = 22,
 } IOC_LinkSubState_T,
     *IOC_LinkSubState_pT;
 

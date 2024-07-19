@@ -383,6 +383,11 @@ static void __IOC_cbProcEvtClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IO
 static _ClsEvtLinkObj_T _mClsEvtLinkObjs[] = {
     {
         .LinkID = IOC_CONLES_MODE_AUTO_LINK_ID,
+        .State =
+            {
+                .Main = IOC_LinkStateReady,
+                .Sub  = IOC_LinkSubState_ReadyIdle,
+            },
     },
 };
 
@@ -492,8 +497,8 @@ IOC_Result_T _IOC_subEVT_inConlesMode(
   __IOC_putClsEvtLinkObj(pLinkObj);
 
   if (IOC_RESULT_SUCCESS == Result) {
-    _IOC_LogDebug("AutoLinkID(%lu) new EvtSuber(CbProcEvt_F=%p,PrivData=%p)", IOC_CONLES_MODE_AUTO_LINK_ID,
-                  pSubEvtArgs->CbProcEvt_F, pSubEvtArgs->pCbPrivData);
+    //_IOC_LogDebug("AutoLinkID(%lu) new EvtSuber(CbProcEvt_F=%p,PrivData=%p)", IOC_CONLES_MODE_AUTO_LINK_ID,
+    //              pSubEvtArgs->CbProcEvt_F, pSubEvtArgs->pCbPrivData);
   } else {
     _IOC_LogWarn("AutoLinkID(%lu) new EvtSuber(CbProcEvt_F=%p,PrivData=%p) failed(%s)", IOC_CONLES_MODE_AUTO_LINK_ID,
                  pSubEvtArgs->CbProcEvt_F, pSubEvtArgs->pCbPrivData, IOC_getResultStr(Result));
@@ -513,8 +518,8 @@ IOC_Result_T _IOC_unsubEVT_inConlesMode(
   __IOC_putClsEvtLinkObj(pLinkObj);
 
   if (IOC_RESULT_SUCCESS == Result) {
-    _IOC_LogDebug("AutoLinkID(%lu) remove EvtSuber(CbProcEvt_F=%p,PrivData=%p)", IOC_CONLES_MODE_AUTO_LINK_ID,
-                  pUnsubEvtArgs->CbProcEvt_F, pUnsubEvtArgs->pCbPrivData);
+    //_IOC_LogDebug("AutoLinkID(%lu) remove EvtSuber(CbProcEvt_F=%p,PrivData=%p)", IOC_CONLES_MODE_AUTO_LINK_ID,
+    //              pUnsubEvtArgs->CbProcEvt_F, pUnsubEvtArgs->pCbPrivData);
   } else {
     _IOC_LogWarn("AutoLinkID(%lu) remove EvtSuber(CbProcEvt_F=%p,PrivData=%p) failed(%s)", IOC_CONLES_MODE_AUTO_LINK_ID,
                  pUnsubEvtArgs->CbProcEvt_F, pUnsubEvtArgs->pCbPrivData, IOC_getResultStr(Result));
