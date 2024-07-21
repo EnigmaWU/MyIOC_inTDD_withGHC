@@ -344,7 +344,7 @@ static IOC_Result_T __IOC_insertClsEvtSuberList(_ClsEvtLinkObj_pT pEvtLinkObj, _
 _returnResult:
   __IOC_transferClsEvtLinkObjStateByBehavior(pEvtLinkObj, Behavior_leaveSubEvt);
   pthread_mutex_unlock(&pEvtSuberList->Mutex);
-  return IOC_RESULT_SUCCESS;
+  return Result;
 }
 // Return: IOC_RESULT_SUCCESS or IOC_RESULT_NO_EVENT_CONSUMER
 static IOC_Result_T __IOC_removeClsEvtSuberList(_ClsEvtLinkObj_pT pEvtLinkObj, _ClsEvtSuberList_pT pEvtSuberList,
@@ -385,7 +385,7 @@ static IOC_Result_T __IOC_removeClsEvtSuberList(_ClsEvtLinkObj_pT pEvtLinkObj, _
 _returnResult:
   __IOC_transferClsEvtLinkObjStateByBehavior(pEvtLinkObj, Behavior_leaveUnsubEvt);
   pthread_mutex_unlock(&pEvtSuberList->Mutex);
-  return IOC_RESULT_SUCCESS;
+  return Result;
 }
 
 static IOC_Result_T __IOC_isEmptyClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList) {
