@@ -407,15 +407,12 @@ TEST(UT_ConlesEventState, Case04_verifyUnsubEvtMayBlock_byPostEVT_ofTestSleep99m
   sem_close(pPrivData->pEnterCbProcEvtSem);
   sem_unlink("/EnterCbProcEvtSem");
   free(pPrivData);
-
-  sleep(1);  // wait maybe Use-After-Free of pPrivData in CbProcEvt_F
 }
 
-#if 0
 /**
  * @[Name]: Case05_verifySubEvtMayBlock_byPostEVT_ofTestSleep99msEvt
  * @[Purpose]: According to LinkState definition in README_ArchDesign::State::EVT::Conles,
- *    ONLY Link's main state is Ready and sub state is Idle, subEVT may be accpeted by IOC.
+ *    ONLY Link's main state is Ready, subEVT may be accpeted by IOC.
  *    SO GIVEN Link is in Busy State,
  *       WHEN call subEVT of that Link,
  *       THEN subEVT may be blocked.
@@ -511,11 +508,9 @@ TEST(UT_ConlesEventState, Case05_verifySubEvtMayBlock_byPostEVT_ofTestSleep99msE
 
   // Step-2.b
   IOC_LinkState_T LinkState       = IOC_LinkStateUndefined;
-  IOC_LinkSubState_T LinkSubState = IOC_LinkSubStateUndefined;
-  Result                          = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &LinkState, &LinkSubState);
+  Result                          = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &LinkState, NULL);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);                  // VerifyPoint
-  ASSERT_EQ(IOC_LinkStateBusy, LinkState);                // KeyVerifyPoint
-  ASSERT_EQ(IOC_LinkSubState_BusyProcing, LinkSubState);  // KeyVerifyPoint
+  ASSERT_EQ(IOC_LinkStateBusyCbProcEvt, LinkState);       // KeyVerifyPoint
 
   // Step-3
   IOC_EvtID_T No2EvtIDs[]        = {IOC_EVTID_TEST_KEEPALIVE};
@@ -559,8 +554,4 @@ TEST(UT_ConlesEventState, Case05_verifySubEvtMayBlock_byPostEVT_ofTestSleep99msE
 
   free(pNo1PrivData);
   free(pNo2PrivData);
-
-  sleep(1);  // wait maybe Use-After-Free of pPrivData in CbProcEvt_F
 }
-
-#endif
