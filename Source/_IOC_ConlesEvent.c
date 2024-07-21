@@ -97,15 +97,8 @@ typedef struct {
 static void __IOC_initClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList);
 static void __IOC_deinitClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList);
 
-// Return: IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_EVENT_CONSUMER or IOC_RESULT_CONFLICT_EVENT_CONSUMER
-static IOC_Result_T __IOC_insertClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_SubEvtArgs_pT pSubEvtArgs);
-// Return: IOC_RESULT_SUCCESS or IOC_RESULT_NO_EVENT_CONSUMER
-static IOC_Result_T __IOC_removeClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_UnsubEvtArgs_pT pUnsubEvtArgs);
-
 // Return: IOC_RESULT_YES or IOC_RESULT_NO
 static IOC_Result_T __IOC_isEmptyClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList);
-
-static void __IOC_cbProcEvtClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_EvtDesc_pT pEvtDesc);
 
 //---------------------------------------------------------------------------------------------------------------------
 /**
@@ -170,6 +163,16 @@ typedef enum {
 
 static void __IOC_transferClsEvtLinkObjStateByBehavior(_ClsEvtLinkObj_pT pLinkObj, _ClsEvtLinkObjBehavior_T Behavior);
 
+// Following EvtSuberList operation need a EvtLinkObj as parent in context to transfer state under EvtSuberList's Mutex.
+//  Return: IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_EVENT_CONSUMER or IOC_RESULT_CONFLICT_EVENT_CONSUMER
+static IOC_Result_T __IOC_insertClsEvtSuberList(_ClsEvtLinkObj_pT pEvtLinkObj, _ClsEvtSuberList_pT pEvtSuberList,
+                                                IOC_SubEvtArgs_pT pSubEvtArgs);
+// Return: IOC_RESULT_SUCCESS or IOC_RESULT_NO_EVENT_CONSUMER
+static IOC_Result_T __IOC_removeClsEvtSuberList(_ClsEvtLinkObj_pT pEvtLinkObj, _ClsEvtSuberList_pT pEvtSuberList,
+                                                IOC_UnsubEvtArgs_pT pUnsubEvtArgs);
+
+static void __IOC_cbProcEvtClsEvtSuberList(_ClsEvtLinkObj_pT pEvtLinkObj, _ClsEvtSuberList_pT pEvtSuberList,
+                                           IOC_EvtDesc_pT pEvtDesc);
 //======>>>>>>END OF DEFINE FOR ConlesEvent>>>>>>======================================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -290,13 +293,17 @@ static void __IOC_deinitClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList) {
 }
 
 // Return: IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_EVENT_CONSUMER or IOC_RESULT_CONFLICT_EVENT_CONSUMER
-static IOC_Result_T __IOC_insertClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_SubEvtArgs_pT pSubEvtArgs) {
+static IOC_Result_T __IOC_insertClsEvtSuberList(_ClsEvtLinkObj_pT pEvtLinkObj, _ClsEvtSuberList_pT pEvtSuberList,
+                                                IOC_SubEvtArgs_pT pSubEvtArgs) {
+  IOC_Result_T Result = IOC_RESULT_BUG;
+
   pthread_mutex_lock(&pEvtSuberList->Mutex);
+  __IOC_transferClsEvtLinkObjStateByBehavior(pEvtLinkObj, Behavior_enterSubEvt);
 
   ULONG_T SuberNum = pEvtSuberList->SuberNum;
   if (SuberNum >= _CONLES_EVENT_MAX_SUBSCRIBER) {
-    pthread_mutex_unlock(&pEvtSuberList->Mutex);
-    return IOC_RESULT_TOO_MANY_EVENT_CONSUMER;
+    Result = IOC_RESULT_TOO_MANY_EVENT_CONSUMER;
+    goto _returnResult;
   }
 
   // check conflict
@@ -306,8 +313,8 @@ static IOC_Result_T __IOC_insertClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberLis
     if (pEvtSuber->State == Subed) {
       // RefComments: IOC_SubEvtArgs_T how to identify a EvtConsumer
       if (pEvtSuber->Args.CbProcEvt_F == pSubEvtArgs->CbProcEvt_F && pEvtSuber->Args.pCbPrivData == pSubEvtArgs->pCbPrivData) {
-        pthread_mutex_unlock(&pEvtSuberList->Mutex);
-        return IOC_RESULT_CONFLICT_EVENT_CONSUMER;
+        Result = IOC_RESULT_CONFLICT_EVENT_CONSUMER;
+        goto _returnResult;
       }
     }
   }
@@ -332,17 +339,25 @@ static IOC_Result_T __IOC_insertClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberLis
     }
   }
 
+  Result = IOC_RESULT_SUCCESS;
+
+_returnResult:
+  __IOC_transferClsEvtLinkObjStateByBehavior(pEvtLinkObj, Behavior_leaveSubEvt);
   pthread_mutex_unlock(&pEvtSuberList->Mutex);
   return IOC_RESULT_SUCCESS;
 }
 // Return: IOC_RESULT_SUCCESS or IOC_RESULT_NO_EVENT_CONSUMER
-static IOC_Result_T __IOC_removeClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_UnsubEvtArgs_pT pUnsubEvtArgs) {
+static IOC_Result_T __IOC_removeClsEvtSuberList(_ClsEvtLinkObj_pT pEvtLinkObj, _ClsEvtSuberList_pT pEvtSuberList,
+                                                IOC_UnsubEvtArgs_pT pUnsubEvtArgs) {
+  IOC_Result_T Result = IOC_RESULT_BUG;
+
   pthread_mutex_lock(&pEvtSuberList->Mutex);
+  __IOC_transferClsEvtLinkObjStateByBehavior(pEvtLinkObj, Behavior_enterUnsubEvt);
 
   ULONG_T SuberNum = pEvtSuberList->SuberNum;
   if (SuberNum == 0) {
-    pthread_mutex_unlock(&pEvtSuberList->Mutex);
-    return IOC_RESULT_NO_EVENT_CONSUMER;
+    Result = IOC_RESULT_NO_EVENT_CONSUMER;
+    goto _returnResult;
   }
 
   // forloop to find the first match slot
@@ -365,6 +380,10 @@ static IOC_Result_T __IOC_removeClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberLis
     }
   }
 
+  Result = IOC_RESULT_SUCCESS;
+
+_returnResult:
+  __IOC_transferClsEvtLinkObjStateByBehavior(pEvtLinkObj, Behavior_leaveUnsubEvt);
   pthread_mutex_unlock(&pEvtSuberList->Mutex);
   return IOC_RESULT_SUCCESS;
 }
@@ -376,7 +395,8 @@ static IOC_Result_T __IOC_isEmptyClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberLi
   return Result;
 }
 
-static void __IOC_cbProcEvtClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_EvtDesc_pT pEvtDesc) {
+static void __IOC_cbProcEvtClsEvtSuberList(_ClsEvtLinkObj_pT pEvtLinkObj, _ClsEvtSuberList_pT pEvtSuberList,
+                                           IOC_EvtDesc_pT pEvtDesc) {
   pthread_mutex_lock(&pEvtSuberList->Mutex);
 
   for (ULONG_T i = 0; i < _CONLES_EVENT_MAX_SUBSCRIBER; i++) {
@@ -385,9 +405,11 @@ static void __IOC_cbProcEvtClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IO
     if (pEvtSuber->State == Subed) {
       for (ULONG_T j = 0; j < pEvtSuber->Args.EvtNum; j++) {
         if (pEvtDesc->EvtID == pEvtSuber->Args.pEvtIDs[j]) {
+          __IOC_transferClsEvtLinkObjStateByBehavior(pEvtLinkObj, Behavior_enterCbProcEvt);
           // FIXME: IF ANY CbProcEvt_F STUCK, IT WILL BLOCK THE WHOLE THREAD, SO WE NEED TO HANDLE THIS CASE.
           // TODO: INSTALL A TIMER TO CATCH TIMEOUT, AND OUTPUT LOG TO INDICATE WHICH CbProcEvt_F STUCK.
           pEvtSuber->Args.CbProcEvt_F(pEvtDesc, pEvtSuber->Args.pCbPrivData);
+          __IOC_transferClsEvtLinkObjStateByBehavior(pEvtLinkObj, Behavior_leaveCbProcEvt);
         }
       }
     }
@@ -485,9 +507,7 @@ static void *__IOC_cbProcClsEvtLinkObjThread(void *arg) {
         break;
       }
 
-      __IOC_transferClsEvtLinkObjStateByBehavior(pLinkObj, Behavior_enterCbProcEvt);
-      __IOC_cbProcEvtClsEvtSuberList(&pLinkObj->EvtSuberList, &EvtDesc);
-      __IOC_transferClsEvtLinkObjStateByBehavior(pLinkObj, Behavior_leaveCbProcEvt);
+      __IOC_cbProcEvtClsEvtSuberList(pLinkObj, &pLinkObj->EvtSuberList, &EvtDesc);
     } while (0x20240714);
     //-----------------------------------------------------------------------------------------------------------------
 
@@ -595,12 +615,7 @@ IOC_Result_T _IOC_subEVT_inConlesMode(
     return IOC_RESULT_BUG;
   }
 
-  __IOC_transferClsEvtLinkObjStateByBehavior(pLinkObj, Behavior_enterSubEvt);
-  IOC_Result_T Result = __IOC_insertClsEvtSuberList(&pLinkObj->EvtSuberList, pSubEvtArgs);
-  __IOC_transferClsEvtLinkObjStateByBehavior(pLinkObj, Behavior_leaveSubEvt);
-
-  __IOC_putClsEvtLinkObj(pLinkObj);
-
+  IOC_Result_T Result = __IOC_insertClsEvtSuberList(pLinkObj, &pLinkObj->EvtSuberList, pSubEvtArgs);
   if (IOC_RESULT_SUCCESS == Result) {
     //_IOC_LogDebug("AutoLinkID(%lu) new EvtSuber(CbProcEvt_F=%p,PrivData=%p)", IOC_CONLES_MODE_AUTO_LINK_ID,
     //              pSubEvtArgs->CbProcEvt_F, pSubEvtArgs->pCbPrivData);
@@ -609,6 +624,7 @@ IOC_Result_T _IOC_subEVT_inConlesMode(
                  pSubEvtArgs->CbProcEvt_F, pSubEvtArgs->pCbPrivData, IOC_getResultStr(Result));
   }
 
+  __IOC_putClsEvtLinkObj(pLinkObj);
   return Result;
 }
 
@@ -619,12 +635,7 @@ IOC_Result_T _IOC_unsubEVT_inConlesMode(
     return IOC_RESULT_BUG;
   }
 
-  __IOC_transferClsEvtLinkObjStateByBehavior(pLinkObj, Behavior_enterUnsubEvt);
-  IOC_Result_T Result = __IOC_removeClsEvtSuberList(&pLinkObj->EvtSuberList, pUnsubEvtArgs);
-  __IOC_transferClsEvtLinkObjStateByBehavior(pLinkObj, Behavior_leaveUnsubEvt);
-
-  __IOC_putClsEvtLinkObj(pLinkObj);
-
+  IOC_Result_T Result = __IOC_removeClsEvtSuberList(pLinkObj, &pLinkObj->EvtSuberList, pUnsubEvtArgs);
   if (IOC_RESULT_SUCCESS == Result) {
     //_IOC_LogDebug("AutoLinkID(%lu) remove EvtSuber(CbProcEvt_F=%p,PrivData=%p)", IOC_CONLES_MODE_AUTO_LINK_ID,
     //              pUnsubEvtArgs->CbProcEvt_F, pUnsubEvtArgs->pCbPrivData);
@@ -633,6 +644,7 @@ IOC_Result_T _IOC_unsubEVT_inConlesMode(
                  pUnsubEvtArgs->CbProcEvt_F, pUnsubEvtArgs->pCbPrivData, IOC_getResultStr(Result));
   }
 
+  __IOC_putClsEvtLinkObj(pLinkObj);
   return Result;
 }
 
@@ -816,7 +828,7 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
     bool IsEmptyEvtDescQueue = _IOC_isEmptyEvtDescQueue(&pLinkObj->EvtDescQueue);
 
     if (IsEmptyEvtDescQueue == IOC_RESULT_YES) {
-      __IOC_cbProcEvtClsEvtSuberList(&pLinkObj->EvtSuberList, pEvtDesc);
+      __IOC_cbProcEvtClsEvtSuberList(pLinkObj, &pLinkObj->EvtSuberList, pEvtDesc);
       //_IOC_LogDebug("SyncMode: AutoLinkID(%llu) proc EvtDesc(%lu,%llu)", LinkID, pEvtDesc->MsgDesc.SeqID,
       //pEvtDesc->EvtID); _IOC_LogNotTested();
       Result = IOC_RESULT_SUCCESS;  // Path@B->1
@@ -839,7 +851,7 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
 
           IsEmptyEvtDescQueue = _IOC_isEmptyEvtDescQueue(&pLinkObj->EvtDescQueue);
           if (IsEmptyEvtDescQueue == IOC_RESULT_YES) {
-            __IOC_cbProcEvtClsEvtSuberList(&pLinkObj->EvtSuberList, pEvtDesc);
+            __IOC_cbProcEvtClsEvtSuberList(pLinkObj, &pLinkObj->EvtSuberList, pEvtDesc);
             _IOC_LogDebug("SyncMayBlockMode: AutoLinkID(%llu) proc EvtDesc(%lu,%llu)", LinkID, pEvtDesc->MsgDesc.SeqID,
                           pEvtDesc->EvtID);
             Result = IOC_RESULT_SUCCESS;  // Path@B->2 MayBlockMode of cbProcEvtSuccess

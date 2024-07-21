@@ -65,6 +65,8 @@ typedef uint64_t IOC_LinkID_T;
 typedef enum {
   IOC_LinkStateUndefined = 0,
   IOC_LinkStateReady     = 1,
+
+  // RefMore ConlesMode subEVT/unsubEVT/cbProcEVT
   IOC_LinkStateBusyCbProcEvt,
   IOC_LinkStateBusySubEvt,
   IOC_LinkStateBusyUnsubEvt,
@@ -73,6 +75,7 @@ typedef enum {
 
 typedef enum {
   IOC_LinkSubStateDefault = 0,
+  IOC_LinkSubStateIdle    = IOC_LinkSubStateDefault,
 
 } IOC_LinkSubState_T,
     *IOC_LinkSubState_pT;

@@ -292,22 +292,21 @@ TEST(UT_ConlesEventState, Case03_verifyLinkStateBusyCbProcEvt_byPostEVT_ofTestSl
   sem_unlink("/LeaveCbProcEvtSem");
 }
 
-#if 0
 /**
  * @[Name]: Case04_verifyUnsubEvtMayBlock_byPostEVT_ofTestSleep99msEvt
  * @[Purpose]: According to LinkState definition in README_ArchDesign::State::EVT::Conles,
- *    ONLY Link's main state is Ready and sub state is Idle, unsubEVT may be accpeted by IOC.
+ *    ONLY Link's main state is Ready, unsubEVT may be accpeted by IOC.
  *    SO GIVEN Link is in Busy State,
  *       WHEN call unsubEVT of that Link,
  *       THEN unsubEVT may be blocked.
  * @[Steps]:
  *    1. subEVT EvtConsumer as SETUP
  *        |-> subEvtArgs(_Case04_CbProcEvt_F_TestSleep99msEvt) with dynamic allocated private data
- *        a)-> getLinkState to make sure LinkStateReadyIdle
+ *        a)-> getLinkState to make sure LinkStateReady
  *    2. postEVT of TestSleep99msEvt as BEHAVIOR
  *        a)-> wait CbProcEvt_F to be called via EnterCbProcEvtSem in private data
  *              |-> in CbProcEvt_F, ONLY process event TestSleep99ms, simusleep 99ms, then ++Sleep99msEvtCnt
- *        b)-> getLinkState to make sure LinkStateBusyProcing
+ *        b)-> getLinkState to make sure LinkStateBusyCbProcEvt
  *    3. unsubEVT EvtConsumer as BEHAVIOR
  *        |-> save begin&end time of calling unsubEVT in private data
  *    4. Calculate the time consumption, its delta time MUST be greater than 99ms as VERIFY
@@ -367,11 +366,9 @@ TEST(UT_ConlesEventState, Case04_verifyUnsubEvtMayBlock_byPostEVT_ofTestSleep99m
 
   // Step-1.a
   IOC_LinkState_T LinkState       = IOC_LinkStateUndefined;
-  IOC_LinkSubState_T LinkSubState = IOC_LinkSubStateUndefined;
-  Result                          = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &LinkState, &LinkSubState);
+  Result                          = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &LinkState, NULL);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);                // KeyVerifyPoint
   ASSERT_EQ(IOC_LinkStateReady, LinkState);             // KeyVerifyPoint
-  ASSERT_EQ(IOC_LinkSubState_ReadyIdle, LinkSubState);  // KeyVerifyPoint
 
   //===BEHAVIOR===
   // Step-2
@@ -385,11 +382,9 @@ TEST(UT_ConlesEventState, Case04_verifyUnsubEvtMayBlock_byPostEVT_ofTestSleep99m
       << "errno=" << errno << ", " << strerror(errno);
 
   // Step-2.b
-  Result = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &LinkState, &LinkSubState);
+  Result = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &LinkState, NULL);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);                  // VerifyPoint
-  ASSERT_EQ(IOC_LinkStateBusy, LinkState);                // KeyVerifyPoint
-  ASSERT_EQ(IOC_LinkSubState_BusyProcing, LinkSubState);  // KeyVerifyPoint
-
+  ASSERT_EQ(IOC_LinkStateBusyCbProcEvt, LinkState);       // KeyVerifyPoint
   // Step-3
   IOC_UnsubEvtArgs_T UnsubEvtArgs = {
       .CbProcEvt_F = _Case04_CbProcEvt_F_TestSleep99msEvt,
@@ -416,6 +411,7 @@ TEST(UT_ConlesEventState, Case04_verifyUnsubEvtMayBlock_byPostEVT_ofTestSleep99m
   sleep(1);  // wait maybe Use-After-Free of pPrivData in CbProcEvt_F
 }
 
+#if 0
 /**
  * @[Name]: Case05_verifySubEvtMayBlock_byPostEVT_ofTestSleep99msEvt
  * @[Purpose]: According to LinkState definition in README_ArchDesign::State::EVT::Conles,
