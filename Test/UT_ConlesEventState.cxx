@@ -28,12 +28,13 @@
  *===> Begin DesignOfTestCase accordint to ACs <===
  *  - Case01_verifyLinkStateReadyIdle_byDoNothing
  *  - Case02_verifyLinkStateBusy_bySubUnsubEvtConcurrently
- *  - Case03_verifyLinkStateBusyProcing_byPostEVT_ofTestSleep99msEvt
+ *  - Case03_verifyLinkStateBusyCbProcEvt_byPostEVT_ofTestSleep99msEvt
  *  - Case04_verifyUnsubEvtMayBlock_byPostEVT_ofTestSleep99msEvt
  *  - Case05_verifySubEvtMayBlock_byPostEVT_ofTestSleep99msEvt
  *===> End DesignOfTestCase <===
  */
 
+#include <sys/_types/_null.h>
 #include <sys/semaphore.h>
 
 #include <cstddef>
@@ -163,13 +164,11 @@ TEST(UT_ConlesEventState, Case02_verifyLinkStateBusySubEvtOrUnsubEvt_bySubUnsubE
   }
 }
 
-#if 0
-
 /**
- * @[Name]: Case03_verifyLinkStateBusyProcing_byPostEVT_ofTestSleep99msEvt
+ * @[Name]: Case03_verifyLinkStateBusyCbProcEvt_byPostEVT_ofTestSleep99msEvt
  * @[Purpose]: According to LinkState definition in README_ArchDesign::State::EVT::Conles
  *      and IOC_LinkState_T/IOC_LinkSubState_T in IOC_Types.h,
- *    verify Link's main state is LinkStateBusy and sub state is LinkStateBusyProcing,
+ *    verify Link's main state is LinkStateBusyCbProcEvt
  *      by postEVT of TestSleep99msEvt and sync state checking via CbProcEvt_F.
  * @[Steps]:
  *    1. subEVT as SETUP
@@ -178,21 +177,21 @@ TEST(UT_ConlesEventState, Case02_verifyLinkStateBusySubEvtOrUnsubEvt_bySubUnsubE
  *      |-> RefAPI: IOC_subEVT_inConlesMode in IOC.h
  *      |-> RefType: IOC_SubEvtArgs_T in IOC_Types.h
  *      |-> RefType: IOC_CbProcEvt_F in IOC_Types.h
- *      a) Call IOC_getLinkState to get the LinkState and LinkSubState
- *           and make sure LinkState is LinkStateReady and LinkSubState is LinkStateReadyIdle as VERIFY
+ *      a) Call IOC_getLinkState to get the LinkState
+ *           and make sure LinkState is LinkStateReady as VERIFY
  *    2. postEVT of TestSleep99msEvt as BEHAVIOR
  *      |-> RefAPI: IOC_postEVT_inConlesMode in IOC.h
  *      |-> RefType: IOC_EvtDesc_T in IOC_Types.h
  *    3. Wait SemEnterCbProcEvt as BEHAVIOR
  *      |-> Post SemEnterCbProcEvt from CbProcEvt_F
- *    4. Call IOC_getLinkState to get the LinkState and LinkSubState as BEHAVIOR
- *    5. Verify the LinkState is LinkStateBusy and sub state is LinkStateBusyProcing as VERIFY
+ *    4. Call IOC_getLinkState to get the LinkState as BEHAVIOR
+ *    5. Verify the LinkState is LinkStateBusyCbProcEvt as VERIFY
  *    6. Post SemLeaveCbProcEvt to CbProcEvt_F as BEHAVIOR
  *      |-> Waiting SemLeaveCbProcEvt in CbProcEvt_F after Step-3
  *    7. Sleep 100ms to assume CbProcEvt_F is return as BEHAVIOR
  *    8. unSubEVT as CLEANUP
- *      a) Call IOC_getLinkState to get the LinkState and LinkSubState
- *           and make sure LinkState is LinkStateReady and LinkSubState is LinkStateReadyIdle as VERIFY
+ *      a) Call IOC_getLinkState to get the LinkState
+ *           and make sure LinkState is LinkStateReady as VERIFY
  * @[Expect]:
  *    Step-1.a is TRUE, Step-5 is TRUE, Step-8.a is TRUE.
  * @[Notes]:
@@ -218,7 +217,7 @@ static IOC_Result_T _Case03_CbProcEvt_F_TestSleep99msEvt(const IOC_EvtDesc_pT pE
   return IOC_RESULT_SUCCESS;
 }
 
-TEST(UT_ConlesEventState, Case03_verifyLinkStateBusyProcing_byPostEVT_ofTestSleep99msEvt) {
+TEST(UT_ConlesEventState, Case03_verifyLinkStateBusyCbProcEvt_byPostEVT_ofTestSleep99msEvt) {
   //===SETUP===
   _Case03_PrivData_T PrivData = {};
 
@@ -246,11 +245,9 @@ TEST(UT_ConlesEventState, Case03_verifyLinkStateBusyProcing_byPostEVT_ofTestSlee
   //===BEHAVIOR===
   // Step-1.a
   IOC_LinkState_T LinkState       = IOC_LinkStateUndefined;
-  IOC_LinkSubState_T LinkSubState = IOC_LinkSubStateUndefined;
-  Result                          = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &LinkState, &LinkSubState);
+  Result                          = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &LinkState, NULL);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);                // KeyVerifyPoint
   ASSERT_EQ(IOC_LinkStateReady, LinkState);             // KeyVerifyPoint
-  ASSERT_EQ(IOC_LinkSubState_ReadyIdle, LinkSubState);  // KeyVerifyPoint
 
   // Step-2
   IOC_EvtDesc_T EvtDesc = {.EvtID = IOC_EVTID_TEST_SLEEP_99MS};
@@ -263,13 +260,12 @@ TEST(UT_ConlesEventState, Case03_verifyLinkStateBusyProcing_byPostEVT_ofTestSlee
       << "errno=" << errno << ", " << strerror(errno);
 
   // Step-4
-  Result = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &LinkState, &LinkSubState);
+  Result = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &LinkState, NULL);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
   //===VERIFY===
   // Step-5
-  ASSERT_EQ(IOC_LinkStateBusy, LinkState);                // KeyVerifyPoint
-  ASSERT_EQ(IOC_LinkSubState_BusyProcing, LinkSubState);  // KeyVerifyPoint
+  ASSERT_EQ(IOC_LinkStateBusyCbProcEvt, LinkState);  // KeyVerifyPoint
 
   // Step-6
   sem_post(PrivData.pLeaveCbProcEvtSem);
@@ -279,10 +275,9 @@ TEST(UT_ConlesEventState, Case03_verifyLinkStateBusyProcing_byPostEVT_ofTestSlee
 
   //===CLEANUP===
   // Step-8.a
-  Result = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &LinkState, &LinkSubState);
+  Result = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &LinkState, NULL);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);                // KeyVerifyPoint
   ASSERT_EQ(IOC_LinkStateReady, LinkState);             // KeyVerifyPoint
-  ASSERT_EQ(IOC_LinkSubState_ReadyIdle, LinkSubState);  // KeyVerifyPoint
 
   IOC_UnsubEvtArgs_T unsubEvtArgs = {
       .CbProcEvt_F = _Case03_CbProcEvt_F_TestSleep99msEvt,
@@ -297,6 +292,7 @@ TEST(UT_ConlesEventState, Case03_verifyLinkStateBusyProcing_byPostEVT_ofTestSlee
   sem_unlink("/LeaveCbProcEvtSem");
 }
 
+#if 0
 /**
  * @[Name]: Case04_verifyUnsubEvtMayBlock_byPostEVT_ofTestSleep99msEvt
  * @[Purpose]: According to LinkState definition in README_ArchDesign::State::EVT::Conles,
@@ -320,7 +316,7 @@ TEST(UT_ConlesEventState, Case03_verifyLinkStateBusyProcing_byPostEVT_ofTestSlee
  * @[Expect]:
  *    Step-4 is TRUE.
  * @[Notes]:
- *    RefCode: TEST(UT_ConlesEventState, Case03_verifyLinkStateBusyProcing_byPostEVT_ofTestSleep99msEvt)
+ *    RefCode: TEST(UT_ConlesEventState, Case03_verifyLinkStateBusyCbProcEvt_byPostEVT_ofTestSleep99msEvt)
  */
 
 typedef struct {

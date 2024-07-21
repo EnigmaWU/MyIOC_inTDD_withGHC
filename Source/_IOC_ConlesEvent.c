@@ -485,7 +485,9 @@ static void *__IOC_cbProcClsEvtLinkObjThread(void *arg) {
         break;
       }
 
+      __IOC_transferClsEvtLinkObjStateByBehavior(pLinkObj, Behavior_enterCbProcEvt);
       __IOC_cbProcEvtClsEvtSuberList(&pLinkObj->EvtSuberList, &EvtDesc);
+      __IOC_transferClsEvtLinkObjStateByBehavior(pLinkObj, Behavior_leaveCbProcEvt);
     } while (0x20240714);
     //-----------------------------------------------------------------------------------------------------------------
 
