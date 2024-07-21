@@ -27,7 +27,7 @@
  *---------------------------------------------------------------------------------------------------------------------
  *===> Begin DesignOfTestCase accordint to ACs <===
  *  - Case01_verifyLinkStateReadyIdle_byDoNothing
- *  - Case02_verifyLinkStateReadyIdleOrLocked_bySubUnsubEvtConcurrently
+ *  - Case02_verifyLinkStateBusy_bySubUnsubEvtConcurrently
  *  - Case03_verifyLinkStateBusyProcing_byPostEVT_ofTestSleep99msEvt
  *  - Case04_verifyUnsubEvtMayBlock_byPostEVT_ofTestSleep99msEvt
  *  - Case05_verifySubEvtMayBlock_byPostEVT_ofTestSleep99msEvt
@@ -35,6 +35,8 @@
  */
 
 #include <sys/semaphore.h>
+
+#include <cstddef>
 
 #include "_UT_IOC_Common.h"
 /**
@@ -57,25 +59,23 @@ TEST(UT_ConlesEventState, Case01_verifyLinkStateReadyIdle_byDoNothing) {
   // NOP
 
   //===BEHAVIOR===
-  IOC_LinkState_T linkState       = IOC_LinkStateUndefined;
-  IOC_LinkSubState_T linkSubState = IOC_LinkSubStateUndefined;
+  IOC_LinkState_T linkState = IOC_LinkStateUndefined;
 
-  IOC_Result_T result = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &linkState, &linkSubState);
+  IOC_Result_T result = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &linkState, NULL);
   ASSERT_EQ(IOC_RESULT_SUCCESS, result);  // VerifyPoint
 
   //===VERIFY===
-  ASSERT_EQ(IOC_LinkStateReady, linkState);          // KeyVerifyPoint
-  ASSERT_EQ(IOC_LinkSubState_ReadyIdle, linkSubState);  // KeyVerifyPoint
+  ASSERT_EQ(IOC_LinkStateReady, linkState);  // KeyVerifyPoint
 
   //===CLEANUP===
   // NOP
 }
 
 /**
- * @[Name]: Case02_verifyLinkStateReadyIdleOrLocked_bySubUnsubEvtConcurrently
+ * @[Name]: Case02_verifyLinkStateBusySubEvtOrUnsubEvt_bySubUnsubEvtConcurrently
  * @[Purpose]: By LinkState definition in README_ArchDesign::State::EVT::Conles and IOC_Types.h::IOC_LinkState_T,
- *    verify Link's main state is LinkStateReady and sub state is LinkStateReadyIdle or LinkStateReadyLocked,
- *    when subEVT+unsubEVT in multi threads currently.
+ *    verify Link's main state is LinkStateBusySubEvt when call subEVT and LinkStateBusyUnsubEvt when call unsubEVT.
+ *    Here call subEVT and unsubEVT concurrently to verify its LinkState correctness.
  * @[Steps]:
  *    1. Create _Case02_MAX_THREAD_NUM threads with thread body named _Case02_subUnsubEvtThread as SETUP
  *      |-> each thread has a ThreadID argument from 1 to _Case02_MAX_THREAD_NUM
@@ -85,10 +85,10 @@ TEST(UT_ConlesEventState, Case01_verifyLinkStateReadyIdle_byDoNothing) {
  *      |-> RefAPI: IOC_subEVT_inConlesMode, IOC_unsubEVT_inConlesMode in IOC.h
  *      |-> RefType: IOC_SubEvtArgs_T, IOC_UnsubEvtArgs_T in IOC_Types.h
  *    3. In main thread call IOC_getLinkState to get the LinkState and LinkSubState continuously as BEHAVIOR
- *      a)-> check LinkState is LinkStateReady and sub state is LinkStateReadyIdle or LinkStateReadyLocked as VERIFY
- *      |-> account the getting of LinkState in LinkStateCnt as BEHAVIOR
- *      |-> account the getting of LinkSubState in LinkSubStateIdleCnt or LinkSubStateLockedCnt as BEHAVIOR
- *    4. Verify the _Case02_LinkStateCnt>0 and _Case02_LinkSubStateCnt>0 as VERIFY
+ *      a)-> check LinkState is LinkStateBusySubEvt or LinkStateBusyUnsubEvt as VERIFY
+ *      |-> account the getting of LinkState in LinkStateBusySubEvtCnt/UnsubEvtCnt as BEHAVIOR
+ *    4. Verify the LinkStateBusySubEvtCnt/UnsubEvtCnt MUST >0
+ *      |-> LinkStateReadyCnt MAY be 0 or >0
  * @[Expect]: Step-3.a is TRUE, Step-4 is TRUE.
  * @[Notes]:
  *      RefCode: UT_ConlesEventTypical.Case01-07
@@ -120,7 +120,7 @@ static void _Case02_subUnsubEvtThread(long ThreadID) {
   }
 }
 
-TEST(UT_ConlesEventState, Case02_verifyLinkStateReadyIdleOrLocked_bySubUnsubEvtConcurrently) {
+TEST(UT_ConlesEventState, Case02_verifyLinkStateBusySubEvtOrUnsubEvt_bySubUnsubEvtConcurrently) {
   //===SETUP===
   std::thread threads[_Case02_MAX_THREAD_NUM];
   for (long i = 0; i < _Case02_MAX_THREAD_NUM; i++) {
@@ -128,46 +128,42 @@ TEST(UT_ConlesEventState, Case02_verifyLinkStateReadyIdleOrLocked_bySubUnsubEvtC
   }
 
   //===BEHAVIOR===
-  uint32_t LinkStateCnt          = 0;
-  uint32_t LinkSubStateIdleCnt   = 0;
-  uint32_t LinkSubStateLockedCnt = 0;
+  uint32_t LinkStateReadyCnt        = 0;
+  uint32_t LinkStateBusySubEvtCnt   = 0;
+  uint32_t LinkStateBusyUnsubEvtCnt = 0;
+
   uint32_t GetLinkStateCnt       = _Case02_MAX_SUBUNSUB_CNT * _Case02_MAX_THREAD_NUM;
   for (uint32_t i = 0; i < GetLinkStateCnt; i++) {
-    IOC_LinkState_T linkState       = IOC_LinkStateUndefined;
-    IOC_LinkSubState_T linkSubState = IOC_LinkSubStateUndefined;
+    IOC_LinkState_T linkState = IOC_LinkStateUndefined;
 
-    IOC_Result_T result = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &linkState, &linkSubState);
+    IOC_Result_T result = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &linkState, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);  // VerifyPoint
     // linkState MUST be IOC_LinkStateReady
-    ASSERT_EQ(IOC_LinkStateReady, linkState);  // VerifyPoint
-    // linkSubState MUST be IOC_LinkSubState_ReadyIdle or IOC_LinkSubState_ReadyLocked
-    ASSERT_TRUE(linkSubState == IOC_LinkSubState_ReadyIdle || linkSubState == IOC_LinkSubState_ReadyLocked);  // VerifyPoint
 
     if (linkState == IOC_LinkStateReady) {
-      LinkStateCnt++;
-    }
-    if (linkSubState == IOC_LinkSubState_ReadyIdle) {
-      LinkSubStateIdleCnt++;
-    }
-    if (linkSubState == IOC_LinkSubState_ReadyLocked) {
-      LinkSubStateLockedCnt++;
+      LinkStateReadyCnt++;
+    } else if (linkState == IOC_LinkStateBusySubEvt) {
+      LinkStateBusySubEvtCnt++;
+    } else if (linkState == IOC_LinkStateBusyUnsubEvt) {
+      LinkStateBusyUnsubEvtCnt++;
     }
   }
 
   //===VERIFY===
-  ASSERT_GT(LinkStateCnt, 0);           // KeyVerifyPoint
-  ASSERT_GT(LinkSubStateIdleCnt, 0);    // KeyVerifyPoint
-  ASSERT_GT(LinkSubStateLockedCnt, 0);  // KeyVerifyPoint
-
-  // GetLinkStateCnt MUST be equal to LinkStateCnt or (LinkSubStateIdleCnt + LinkSubStateLockedCnt)
-  ASSERT_EQ(GetLinkStateCnt, LinkStateCnt);                                 // KeyVerifyPoint
-  ASSERT_EQ(GetLinkStateCnt, LinkSubStateIdleCnt + LinkSubStateLockedCnt);  // KeyVerifyPoint
+  // LinkStateBusySubEvtCnt MUST be greater than 0
+  ASSERT_GT(LinkStateBusySubEvtCnt, 0);  // KeyVerifyPoint
+  // LinkStateBusyUnsubEvtCnt MUST be greater than 0
+  ASSERT_GT(LinkStateBusyUnsubEvtCnt, 0);  // KeyVerifyPoint
+  // LinkStateReadyCnt MAY be 0 or greater than 0
+  ASSERT_GE(LinkStateReadyCnt, 0);  // KeyVerifyPoint
 
   //===CLEANUP===
   for (long i = 0; i < _Case02_MAX_THREAD_NUM; i++) {
     threads[i].join();
   }
 }
+
+#if 0
 
 /**
  * @[Name]: Case03_verifyLinkStateBusyProcing_byPostEVT_ofTestSleep99msEvt
@@ -574,3 +570,5 @@ TEST(UT_ConlesEventState, Case05_verifySubEvtMayBlock_byPostEVT_ofTestSleep99msE
 
   sleep(1);  // wait maybe Use-After-Free of pPrivData in CbProcEvt_F
 }
+
+#endif

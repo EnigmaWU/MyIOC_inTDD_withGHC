@@ -103,7 +103,7 @@ static IOC_Result_T __IOC_insertClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberLis
 static IOC_Result_T __IOC_removeClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_UnsubEvtArgs_pT pUnsubEvtArgs);
 
 // Return: IOC_RESULT_YES or IOC_RESULT_NO
-static IOC_Result_T _IOC_isEmptyClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList);
+static IOC_Result_T __IOC_isEmptyClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList);
 
 static void __IOC_cbProcEvtClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList, IOC_EvtDesc_pT pEvtDesc);
 
@@ -136,13 +136,39 @@ typedef struct {
    *      |-> EVT::Conles
    */
   struct {
+    pthread_mutex_t Mutex;
     IOC_LinkState_T Main;
     IOC_LinkSubState_T Sub;
   } State;
 } _ClsEvtLinkObj_T, *_ClsEvtLinkObj_pT;
 
+// get ClsEvtLinkObj by AutoLinkID, not lock it by Mutex when return, and dont put it after use.
+static _ClsEvtLinkObj_pT __IOC_getClsEvtLinkObjNotLocked(IOC_LinkID_T AutoLinkID);
+
+// get ClsEvtLinkObj by AutoLinkID, lock it by Mutex when return, and put it after use.
+static _ClsEvtLinkObj_pT __IOC_getClsEvtLinkObjLocked(IOC_LinkID_T AutoLinkID);
+static void __IOC_putClsEvtLinkObj(_ClsEvtLinkObj_pT pLinkObj);
+
 static void __IOC_wakeupClsEvtLinkObj(_ClsEvtLinkObj_pT pLinkObj);
 static void __IOC_waitClsEvtLinkObj(_ClsEvtLinkObj_pT pLinkObj);
+
+static void *__IOC_cbProcClsEvtLinkObjThread(void *arg);
+
+// RefDoc: README_ArchDesign.md
+//     |-> State
+//       |-> EVT::Conles
+typedef enum {
+  Behavior_enterCbProcEvt = 1,
+  Behavior_leaveCbProcEvt = 2,
+
+  Behavior_enterSubEvt = 3,
+  Behavior_leaveSubEvt = 4,
+
+  Behavior_enterUnsubEvt = 5,
+  Behavior_leaveUnsubEvt = 6,
+} _ClsEvtLinkObjBehavior_T;
+
+static void __IOC_transferClsEvtLinkObjStateByBehavior(_ClsEvtLinkObj_pT pLinkObj, _ClsEvtLinkObjBehavior_T Behavior);
 
 //======>>>>>>END OF DEFINE FOR ConlesEvent>>>>>>======================================================================
 
@@ -343,7 +369,7 @@ static IOC_Result_T __IOC_removeClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberLis
   return IOC_RESULT_SUCCESS;
 }
 
-static IOC_Result_T _IOC_isEmptyClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList) {
+static IOC_Result_T __IOC_isEmptyClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList) {
   // read SuberNum atomically
   ULONG_T SuberNum    = atomic_load(&pEvtSuberList->SuberNum);
   IOC_Result_T Result = (SuberNum == 0) ? IOC_RESULT_YES : IOC_RESULT_NO;
@@ -386,27 +412,20 @@ static _ClsEvtLinkObj_T _mClsEvtLinkObjs[] = {
         .State =
             {
                 .Main = IOC_LinkStateReady,
-                .Sub  = IOC_LinkSubState_ReadyIdle,
+                .Sub  = IOC_LinkSubStateDefault,
             },
     },
 };
 
-IOC_Result_T _IOC_isAutoLink_inConlesMode(
-    /*ARG_IN*/ IOC_LinkID_T LinkID) {
-  return (LinkID == IOC_CONLES_MODE_AUTO_LINK_ID) ? IOC_RESULT_YES : IOC_RESULT_NO;
-}
-
-static inline void __IOC_lockClsEvtLinkObj(_ClsEvtLinkObj_T *pLinkObj) { pthread_mutex_lock(&pLinkObj->Mutex); }
-static inline void __IOC_unlockClsEvtLinkObj(_ClsEvtLinkObj_T *pLinkObj) { pthread_mutex_unlock(&pLinkObj->Mutex); }
-
-static _ClsEvtLinkObj_pT __IOC_getClsEvtLinkObjLocked(IOC_LinkID_T AutoLinkID) {
+// This is a helper function to get ClsEvtLinkObj by AutoLinkID
+// Because the ClsEvtLinkObj is a static array, so we access it directly without lock.
+__attribute__((no_sanitize_thread)) static _ClsEvtLinkObj_pT __IOC_getClsEvtLinkObjNotLocked(IOC_LinkID_T AutoLinkID) {
   _ClsEvtLinkObj_pT pLinkObj = NULL;
   ULONG_T TotalClsLinkObjNum = IOC_calcArrayElmtCnt(_mClsEvtLinkObjs);
 
   for (ULONG_T i = 0; i < TotalClsLinkObjNum; i++) {
     pLinkObj = &_mClsEvtLinkObjs[i];
     if (pLinkObj->LinkID == AutoLinkID) {
-      __IOC_lockClsEvtLinkObj(pLinkObj);
       return pLinkObj;
     }
   }
@@ -414,7 +433,17 @@ static _ClsEvtLinkObj_pT __IOC_getClsEvtLinkObjLocked(IOC_LinkID_T AutoLinkID) {
   return NULL;
 }
 
-static void __IOC_putClsEvtLinkObj(_ClsEvtLinkObj_pT pLinkObj) { __IOC_unlockClsEvtLinkObj(pLinkObj); }
+static _ClsEvtLinkObj_pT __IOC_getClsEvtLinkObjLocked(IOC_LinkID_T AutoLinkID) {
+  _ClsEvtLinkObj_pT pLinkObj = __IOC_getClsEvtLinkObjNotLocked(AutoLinkID);
+  if (pLinkObj == NULL) {
+    return NULL;
+  }
+
+  pthread_mutex_lock(&pLinkObj->Mutex);
+  return pLinkObj;
+}
+
+static void __IOC_putClsEvtLinkObj(_ClsEvtLinkObj_pT pLinkObj) { pthread_mutex_unlock(&pLinkObj->Mutex); }
 
 static void __IOC_wakeupClsEvtLinkObj(_ClsEvtLinkObj_pT pLinkObj) {
   pthread_mutex_lock(&pLinkObj->CondMutex);
@@ -483,8 +512,79 @@ __attribute__((constructor)) static void __IOC_initClsEvtLinkObj(void) {
   }
 }
 
+// RefDoc: README_ArchDesign.md
+//     |-> State
+//       |-> EVT::Conles
+static void __IOC_transferClsEvtLinkObjStateByBehavior(_ClsEvtLinkObj_pT pLinkObj, _ClsEvtLinkObjBehavior_T Behavior) {
+  pthread_mutex_lock(&pLinkObj->State.Mutex);
+  IOC_LinkState_T MainState = pLinkObj->State.Main;
+
+  switch (Behavior) {
+    case Behavior_enterCbProcEvt: {
+      if (MainState == IOC_LinkStateReady) {
+        pLinkObj->State.Main = IOC_LinkStateBusyCbProcEvt;
+      } else {
+        _IOC_LogBug("Invalid State(Main=%d) to enterCbProcEvt, MUST in State(Main=%d)", MainState, IOC_LinkStateReady);
+      }
+    } break;
+
+    case Behavior_leaveCbProcEvt: {
+      if (MainState == IOC_LinkStateBusyCbProcEvt) {
+        pLinkObj->State.Main = IOC_LinkStateReady;
+      } else {
+        _IOC_LogBug("Invalid State(Main=%d) to leaveCbProcEvt, MUST in State(Main=%d)", MainState,
+                    IOC_LinkStateBusyCbProcEvt);
+      }
+    } break;
+
+    case Behavior_enterSubEvt: {
+      if (MainState == IOC_LinkStateReady) {
+        pLinkObj->State.Main = IOC_LinkStateBusySubEvt;
+      } else {
+        _IOC_LogBug("Invalid State(Main=%d) to enterSubEvt, MUST in State(Main=%d)", MainState, IOC_LinkStateReady);
+      }
+    } break;
+
+    case Behavior_leaveSubEvt: {
+      if (MainState == IOC_LinkStateBusySubEvt) {
+        pLinkObj->State.Main = IOC_LinkStateReady;
+      } else {
+        _IOC_LogBug("Invalid State(Main=%d) to leaveSubEvt, MUST in State(Main=%d)", MainState,
+                    IOC_LinkStateBusySubEvt);
+      }
+    } break;
+
+    case Behavior_enterUnsubEvt: {
+      if (MainState == IOC_LinkStateReady) {
+        pLinkObj->State.Main = IOC_LinkStateBusyUnsubEvt;
+      } else {
+        _IOC_LogBug("Invalid State(Main=%d) to enterUnsubEvt, MUST in State(Main=%d)", MainState, IOC_LinkStateReady);
+      }
+    } break;
+
+    case Behavior_leaveUnsubEvt: {
+      if (MainState == IOC_LinkStateBusyUnsubEvt) {
+        pLinkObj->State.Main = IOC_LinkStateReady;
+      } else {
+        _IOC_LogBug("Invalid State(Main=%d) to leaveUnsubEvt, MUST in State(Main=%d)", MainState,
+                    IOC_LinkStateBusyUnsubEvt);
+      }
+    } break;
+
+    default:
+      _IOC_LogBug("Invalid Behavior(%d)", Behavior);
+  }
+
+  pthread_mutex_unlock(&pLinkObj->State.Mutex);
+}
+
 //===> END IMPLEMENT FOR ClsEvtLinkObj
 //---------------------------------------------------------------------------------------------------------------------
+
+IOC_Result_T _IOC_isAutoLink_inConlesMode(
+    /*ARG_IN*/ IOC_LinkID_T LinkID) {
+  return (LinkID == IOC_CONLES_MODE_AUTO_LINK_ID) ? IOC_RESULT_YES : IOC_RESULT_NO;
+}
 
 IOC_Result_T _IOC_subEVT_inConlesMode(
     /*ARG_IN*/ const IOC_SubEvtArgs_pT pSubEvtArgs) {
@@ -493,7 +593,10 @@ IOC_Result_T _IOC_subEVT_inConlesMode(
     return IOC_RESULT_BUG;
   }
 
+  __IOC_transferClsEvtLinkObjStateByBehavior(pLinkObj, Behavior_enterSubEvt);
   IOC_Result_T Result = __IOC_insertClsEvtSuberList(&pLinkObj->EvtSuberList, pSubEvtArgs);
+  __IOC_transferClsEvtLinkObjStateByBehavior(pLinkObj, Behavior_leaveSubEvt);
+
   __IOC_putClsEvtLinkObj(pLinkObj);
 
   if (IOC_RESULT_SUCCESS == Result) {
@@ -514,7 +617,10 @@ IOC_Result_T _IOC_unsubEVT_inConlesMode(
     return IOC_RESULT_BUG;
   }
 
+  __IOC_transferClsEvtLinkObjStateByBehavior(pLinkObj, Behavior_enterUnsubEvt);
   IOC_Result_T Result = __IOC_removeClsEvtSuberList(&pLinkObj->EvtSuberList, pUnsubEvtArgs);
+  __IOC_transferClsEvtLinkObjStateByBehavior(pLinkObj, Behavior_leaveUnsubEvt);
+
   __IOC_putClsEvtLinkObj(pLinkObj);
 
   if (IOC_RESULT_SUCCESS == Result) {
@@ -537,18 +643,19 @@ IOC_Result_T _IOC_getLinkState_inConlesMode(
     return IOC_RESULT_INVALID_AUTO_LINK_ID;
   }
 
-  _ClsEvtLinkObj_pT pLinkObj = __IOC_getClsEvtLinkObjLocked(LinkID);
+  _ClsEvtLinkObj_pT pLinkObj = __IOC_getClsEvtLinkObjNotLocked(LinkID);
   if (pLinkObj == NULL) {
     _IOC_LogBug("No LinkObj of AutoLinkID(%llu)", LinkID);
     return IOC_RESULT_BUG;
   }
 
+  pthread_mutex_lock(&pLinkObj->State.Mutex);
   *pLinkState = pLinkObj->State.Main;
   if (pLinkSubState != NULL) {
     *pLinkSubState = pLinkObj->State.Sub;
   }
+  pthread_mutex_unlock(&pLinkObj->State.Mutex);
 
-  __IOC_putClsEvtLinkObj(pLinkObj);
   return IOC_RESULT_SUCCESS;
 }
 
@@ -626,7 +733,7 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
     return IOC_RESULT_INVALID_AUTO_LINK_ID;  // Path@C->1
   }
 
-  IOC_Result_T IsEmptyEvtSuberList = _IOC_isEmptyClsEvtSuberList(&pLinkObj->EvtSuberList);
+  IOC_Result_T IsEmptyEvtSuberList = __IOC_isEmptyClsEvtSuberList(&pLinkObj->EvtSuberList);
   if (IsEmptyEvtSuberList == IOC_RESULT_YES) {
     _IOC_LogWarn("No EvtSuber of AutoLinkID(%llu)", LinkID);
     Result = IOC_RESULT_NO_EVENT_CONSUMER;  // Path@C->2
