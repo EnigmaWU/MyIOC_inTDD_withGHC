@@ -25,6 +25,16 @@ enum {
   // TODO(@W): add more event class here
 };
 
+static inline const char *IOC_getEvtClassByID(IOC_EvtID_T EvtID) {
+  IOC_EvtClassID_T EvtClassID = IOC_getEvtClassID(EvtID);
+
+  if (EvtClassID == IOC_EVT_CLASS_TEST) {
+    return "TEST";
+  } else {
+    return "UNKNOWN";
+  }
+}
+
 typedef enum {
   IOC_EVT_NAME_TEST_KEEPALIVE              = 1 << 0ULL,
   IOC_EVT_NAME_TEST_HELLO_FROM_ODD_TO_EVEN = 1 << 1ULL,
@@ -34,6 +44,36 @@ typedef enum {
   IOC_EVT_NAME_TEST_KEEPALIVE_RELAY        = 1 << 5ULL,
   // TODO(@W): add more event name here
 } IOC_EvtNameTest_T;
+
+static inline const char *IOC_getEvtNameOfClassTest(IOC_EvtNameID_T EvtNameID) {
+  switch (EvtNameID) {
+    case IOC_EVT_NAME_TEST_KEEPALIVE:
+      return "KEEPALIVE";
+    case IOC_EVT_NAME_TEST_HELLO_FROM_ODD_TO_EVEN:
+      return "HELLO_FROM_ODD_TO_EVEN";
+    case IOC_EVT_NAME_TEST_HELLO_FROM_EVEN_TO_ODD:
+      return "HELLO_FROM_EVEN_TO_ODD";
+    case IOC_EVT_NAME_TEST_SLEEP_9MS:
+      return "SLEEP_9MS";
+    case IOC_EVT_NAME_TEST_SLEEP_99MS:
+      return "SLEEP_99MS";
+    case IOC_EVT_NAME_TEST_KEEPALIVE_RELAY:
+      return "KEEPALIVE_RELAY";
+    default:
+      return "UNKNOWN";
+  }
+}
+
+static inline const char *IOC_getEvtNameByID(IOC_EvtID_T EvtID) {
+  IOC_EvtNameID_T EvtNameID   = IOC_getEvtNameID(EvtID);
+  IOC_EvtClassID_T EvtClassID = IOC_getEvtClassID(EvtID);
+
+  if (EvtClassID == IOC_EVT_CLASS_TEST) {
+    return IOC_getEvtNameOfClassTest(EvtNameID);
+  } else {
+    return "UNKNOWN";
+  }
+}
 
 #define IOC_EVTID_TEST_KEEPALIVE IOC_defineEvtID(IOC_EVT_CLASS_TEST, IOC_EVT_NAME_TEST_KEEPALIVE)
 #define IOC_EVTID_TEST_HELLO_FROM_ODD_TO_EVEN IOC_defineEvtID(IOC_EVT_CLASS_TEST, IOC_EVT_NAME_TEST_HELLO_FROM_ODD_TO_EVEN)

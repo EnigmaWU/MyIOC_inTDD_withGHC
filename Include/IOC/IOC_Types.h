@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -5,6 +6,7 @@
 #include <string.h>
 #include <sys/errno.h>
 #include <sys/time.h>
+#include <time.h>
 #include <unistd.h>
 
 #ifndef __IOC_TYPES_H__
@@ -168,7 +170,6 @@ typedef struct
     // TOOD(@W): +More..., such as EvtPayload
 } IOC_EvtDesc_T, *IOC_EvtDesc_pT;
 
-#define IOC_calcArrayElmtCnt(array) (sizeof(array) / sizeof(array[0]))
 typedef IOC_Result_T (*IOC_CbProcEvt_F)(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv);
 typedef struct 
 {

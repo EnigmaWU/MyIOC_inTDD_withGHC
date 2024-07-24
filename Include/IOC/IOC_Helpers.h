@@ -1,7 +1,5 @@
 #include <IOC/IOC_Types.h>
-#include <assert.h>
-#include <stdbool.h>
-#include <time.h>
+#include <IOC/IOC_Types_EvtID.h>
 
 #ifndef __IOC_HELPERS_H__
 #define __IOC_HELPERS_H__
@@ -152,4 +150,13 @@ static inline ULONG_T IOC_deltaTimevalInMS(const struct timeval *pFromTV, const 
     return diffResult;
 }
 
+#define IOC_calcArrayElmtCnt(array) (sizeof(array) / sizeof(array[0]))
+
+static inline const char *IOC_getEvtDescStr(IOC_EvtDesc_pT pEvtDesc) {
+    static char strEvtDesc[256] = {0};
+    snprintf(strEvtDesc, sizeof(strEvtDesc), "EvtDesc(SeqID=%lu, ID=%llu(%s,%s), Value=%lu)", pEvtDesc->MsgDesc.SeqID,
+             pEvtDesc->EvtID, IOC_getEvtClassByID(pEvtDesc->EvtID), IOC_getEvtNameByID(pEvtDesc->EvtID),
+             pEvtDesc->EvtValue);
+    return strEvtDesc;
+}
 #endif  // __IOC_HELPERS_H__

@@ -772,17 +772,18 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
     Result = _IOC_enqueueEvtDescQueueLast(&pLinkObj->EvtDescQueue, pEvtDesc);
     if (Result == IOC_RESULT_SUCCESS) {
       __IOC_wakeupClsEvtLinkObj(pLinkObj);
-      //_IOC_LogDebug("AsyncMode: AutoLinkID(%llu) enqueued EvtDesc(SeqID=%lu,EvtID=(%lu,%lu))", LinkID,
-      //              pEvtDesc->MsgDesc.SeqID, IOC_getEvtClassID(pEvtDesc->EvtID), IOC_getEvtNameID(pEvtDesc->EvtID));
+      //_IOC_LogDebug("AsyncMode: AutoLinkID(%llu) enqueued EvtDesc(%s)", LinkID, IOC_getEvtDescStr(pEvtDesc));
+
       //_IOC_LogNotTested();
+      Result = IOC_RESULT_SUCCESS;
       goto _returnResult;  // Path@A->1
     } else if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
       if (IsNonBlockMode) {
-        //_IOC_LogDebug("ASyncNonBlockMode: AutoLinkID(%llu) enqueue EvtDesc(SeqID=%lu,EvtID(%lu,%lu)) failed(%s)",
-        //              LinkID, pEvtDesc->MsgDesc.SeqID, IOC_getEvtClassID(pEvtDesc->EvtID),
-        //              IOC_getEvtNameID(pEvtDesc->EvtID), IOC_getResultStr(Result));
-        Result = IOC_RESULT_TOO_MANY_QUEUING_EVTDESC;  // Path@A->3 of NonBlockMode
+        //_IOC_LogDebug("ASyncNonBlockMode: AutoLinkID(%llu) enqueue EvtDesc(%s) failed(%s)", LinkID,
+        //              IOC_getEvtDescStr(pEvtDesc), IOC_getResultStr(Result));
+
         //_IOC_LogNotTested();
+        Result = IOC_RESULT_TOO_MANY_QUEUING_EVTDESC;  // Path@A->3 of NonBlockMode
         goto _returnResult;
       } else /* MayBlockMode */ {
         ULONG_T RetryUS = 9;  // 9us
@@ -798,9 +799,8 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
           Result = _IOC_enqueueEvtDescQueueLast(&pLinkObj->EvtDescQueue, pEvtDesc);
           if (Result == IOC_RESULT_SUCCESS) {
             __IOC_wakeupClsEvtLinkObj(pLinkObj);
-            //_IOC_LogDebug("ASyncMayBlockMode: AutoLinkID(%llu) enqueued EvtDesc(SeqID=%lu,EvtID(%lu,%lu))", LinkID,
-            //              pEvtDesc->MsgDesc.SeqID, IOC_getEvtClassID(pEvtDesc->EvtID),
-            //              IOC_getEvtNameID(pEvtDesc->EvtID));
+            //_IOC_LogDebug("ASyncMayBlockMode: AutoLinkID(%llu) enqueued EvtDesc(%s)", LinkID,
+            //              IOC_getEvtDescStr(pEvtDesc));
             break;  // Path@A->2 MayBlockMode of enqueueSuccess
           } else if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
             if (TimeoutUS > RetryUS) {
@@ -809,8 +809,8 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
               RetryUS = TimeoutUS;  // last retry
               TimeoutUS = 0;
             } else {
-              _IOC_LogWarn("ASyncMayBlockMode: AutoLinkID(%llu) enqueue EvtDesc(%lu,%llu) failed(%s)", LinkID,
-                           pEvtDesc->MsgDesc.SeqID, pEvtDesc->EvtID, IOC_getResultStr(Result));
+              _IOC_LogWarn("ASyncMayBlockMode: AutoLinkID(%llu) enqueue EvtDesc(%s) failed(%s)", LinkID,
+                           IOC_getEvtDescStr(pEvtDesc), IOC_getResultStr(Result));
               Result = IOC_RESULT_TOO_MANY_QUEUING_EVTDESC;  // Path@A->3 of Timeout
               IsLastRetry = true;
               break;
@@ -818,8 +818,8 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
 
             __IOC_wakeupClsEvtLinkObj(pLinkObj);  // try wakeup and try enqueue again
           } else {
-            _IOC_LogBug("UnExceptError: AutoLinkID(%llu) enqueue EvtDesc(%lu,%llu) failed(%s)", LinkID, pEvtDesc->MsgDesc.SeqID,
-                        pEvtDesc->EvtID, IOC_getResultStr(Result));
+            _IOC_LogBug("UnExceptError: AutoLinkID(%llu) enqueue EvtDesc(%s) failed(%s)", LinkID,
+                        IOC_getEvtDescStr(pEvtDesc), IOC_getResultStr(Result));
             Result = IOC_RESULT_BUG;  // Path@A->4
             break;
           }
@@ -830,10 +830,13 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
         goto _returnResult;
       }
     } else {
-      _IOC_LogBug("UnExceptError: AutoLinkID(%llu) enqueue EvtDesc(%lu,%llu) failed(%s)", LinkID, pEvtDesc->MsgDesc.SeqID,
-                  pEvtDesc->EvtID, IOC_getResultStr(Result));
-      Result = IOC_RESULT_BUG;  // Path@A->4
+      _IOC_LogBug("UnExceptError: AutoLinkID(%llu) enqueue EvtDesc(%s) failed(%s)", LinkID, IOC_getEvtDescStr(pEvtDesc),
+                  IOC_getResultStr(Result));
+
+      // Use this path to catch unexpected result from _IOC_enqueueEvtDescQueueLast,
+      //   as currently we have only 3 expected results: SUCCESS, TOO_MANY_QUEUING_EVTDESC, BUG
       _IOC_LogNotTested();      // TODO: check this path, comment out after test
+      Result = IOC_RESULT_BUG;  // Path@A->4
       goto _returnResult;
     }
   } else /*SyncMode*/ {
@@ -841,8 +844,9 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
 
     if (IsEmptyEvtDescQueue == IOC_RESULT_YES) {
       __IOC_cbProcEvtClsEvtSuberList(pLinkObj, &pLinkObj->EvtSuberList, pEvtDesc);
-      //_IOC_LogDebug("SyncMode: AutoLinkID(%llu) proc EvtDesc(%lu,%llu)", LinkID, pEvtDesc->MsgDesc.SeqID,
-      //pEvtDesc->EvtID); _IOC_LogNotTested();
+      //_IOC_LogDebug("SyncMode: AutoLinkID(%llu) procEvtDesc(%s)", LinkID, IOC_getEvtDescStr(pEvtDesc));
+
+      //_IOC_LogNotTested();
       Result = IOC_RESULT_SUCCESS;  // Path@B->1
     } else {
       if (IsNonBlockMode) {
@@ -864,8 +868,8 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
           IsEmptyEvtDescQueue = _IOC_isEmptyEvtDescQueue(&pLinkObj->EvtDescQueue);
           if (IsEmptyEvtDescQueue == IOC_RESULT_YES) {
             __IOC_cbProcEvtClsEvtSuberList(pLinkObj, &pLinkObj->EvtSuberList, pEvtDesc);
-            _IOC_LogDebug("SyncMayBlockMode: AutoLinkID(%llu) proc EvtDesc(%lu,%llu)", LinkID, pEvtDesc->MsgDesc.SeqID,
-                          pEvtDesc->EvtID);
+            _IOC_LogDebug("SyncMayBlockMode: AutoLinkID(%llu) procEvtDesc(%s)", LinkID, IOC_getEvtDescStr(pEvtDesc));
+
             Result = IOC_RESULT_SUCCESS;  // Path@B->2 MayBlockMode of cbProcEvtSuccess
             break;
           } else {
