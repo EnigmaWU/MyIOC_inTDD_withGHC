@@ -735,7 +735,6 @@ void _IOC_forceProcEvt_inConlesMode(void) {
  *   - 1) cbProcEvtSuccess
  *   - 2) MayBlockMode + waitEmptyCbProcEvtSuccess
  *   - 3) NonBlockOrTimeoutMode + failWithTooLongEmptyingEvtDescQueue
- *   - 4) UnExceptError: failWithLogBug
  * - C) BugLikeError
  *   - 1) invalidAutoLinkID if no LinkObj
  *   - 2) noEvtSuber if no EvtSuber of LinkObj
