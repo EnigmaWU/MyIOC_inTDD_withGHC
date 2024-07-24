@@ -707,28 +707,43 @@ void _IOC_forceProcEvt_inConlesMode(void) {
     }
   }
 }
-
 /**
- * RefDiagram: _IOC_ConlesEvent.md
- *   |-> FlowChart Diagram
- *     |-> _IOC_postEVT_inConlesMode
+ * @brief Implementation of the _IOC_postEVT_inConlesMode function.
  *
- * Path:
- *  A) 1) AsyncMode + enqueueSuccess
- *        2) MayBlockMode + waitSpaceEnqueueSuccess
- *        3) NonBlockOrTimeoutMode + failTooManyQueuingEvtDesc
- *        4) UnExceptError: failWithLogBug
- *  B) 1)SyncMode + cbProcEvtSuccess
- *        2) MayBlockMode + waitEmptyCbProcEvtSuccess
- *        3) NonBlockOrTimeoutMode + failTooLongEmptyingEvtDescQueue
- *  C) BugLikeError:
- *     1) invalidAutoLinkID if no LinkObj
- *     2) noEvtSuber if no EvtSuber of LinkObj
+ * This file contains the implementation of the _IOC_postEVT_inConlesMode function, which is responsible for posting
+ * events in the Conles mode.
  *
- * @note:
- *  a) SUCCESS result with LogDebug, FAIL result with LogWarn or LogError or LogBug
- *  b) Each Result setting point comment with 'Path@[A/B/C]->[1/2/3]' and goto _returnResult
- *  c) Each Result of Path add _IOC_LogNotTested() to indicate need to check this path, comment out after test
+ * The function takes three arguments:
+ * - LinkID: The ID of the link object.
+ * - pEvtDesc: A pointer to the event descriptor.
+ * - pOption: An optional pointer to the options.
+ *
+ * The function returns an IOC_Result_T value, which indicates the result of the operation.
+ *
+ * The function follows the following flowchart diagram:
+ * - RefDiagram: _IOC_ConlesEvent.md
+ *   - FlowChart Diagram
+ *     - _IOC_postEVT_inConlesMode
+ *
+ * The function follows the following paths:
+ * - A) AsyncMode
+ *   - 1) enqueueSuccess
+ *   - 2) MayBlockMode + waitSpaceEnqueueSuccess
+ *   - 3) NonBlockOrTimeoutMode + failWithTooManyQueuingEvtDesc
+ *   - 4) UnExceptError: failWithLogBug
+ * - B) SyncMode
+ *   - 1) cbProcEvtSuccess
+ *   - 2) MayBlockMode + waitEmptyCbProcEvtSuccess
+ *   - 3) NonBlockOrTimeoutMode + failWithTooLongEmptyingEvtDescQueue
+ *   - 4) UnExceptError: failWithLogBug
+ * - C) BugLikeError
+ *   - 1) invalidAutoLinkID if no LinkObj
+ *   - 2) noEvtSuber if no EvtSuber of LinkObj
+ *
+ * @note
+ * - SUCCESS result with LogDebug, FAIL result with LogWarn or LogError or LogBug.
+ * - Each Result setting point comment with 'Path@[A/B/C]->[1/2/3]' and goto _returnResult.
+ * - Each Result of Path add _IOC_LogNotTested() to indicate the need to check this path, comment out after test.
  */
 IOC_Result_T _IOC_postEVT_inConlesMode(
     /*ARG_IN*/ IOC_LinkID_T LinkID,
