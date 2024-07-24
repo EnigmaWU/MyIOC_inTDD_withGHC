@@ -7,10 +7,12 @@
 
 #include <IOC/IOC.h>  //Module IOC's public header file
 #include <pthread.h>
+#include <semaphore.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #ifndef __INTER_OBJECT_COMMUNICATION_INTERNAL_H__
 #define __INTER_OBJECT_COMMUNICATION_INTERNAL_H__

@@ -34,11 +34,6 @@
  *===> End DesignOfTestCase <===
  */
 
-#include <sys/_types/_null.h>
-#include <sys/semaphore.h>
-
-#include <cstddef>
-
 #include "_UT_IOC_Common.h"
 /**
  * @section ImplOfUT ConlesEventStateReady
@@ -197,9 +192,6 @@ TEST(UT_ConlesEventState, Case02_verifyLinkStateBusySubEvtOrUnsubEvt_bySubUnsubE
  * @[Notes]:
  *      RefCode:
  */
-#include <fcntl.h> /* For O_* constants */
-#include <semaphore.h>
-#include <sys/stat.h> /* For mode constants */
 
 typedef struct {
   sem_t *pEnterCbProcEvtSem;

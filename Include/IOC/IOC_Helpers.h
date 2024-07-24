@@ -132,4 +132,24 @@ static inline ULONG_T IOC_diffTimeSpecInNS(const struct timespec *pFromTS, const
     return diffResult;
 }
 
+static inline ULONG_T IOC_deltaTimevalInMS(const struct timeval *pFromTV, const struct timeval *pToTV) {
+    ULONG_T diffResult = 0;
+
+    // 确保起始时间不晚于结束时间
+    if (pFromTV->tv_sec <= pToTV->tv_sec) {
+      // 计算秒数差异并转换为毫秒
+      ULONG_T diffSec = pToTV->tv_sec - pFromTV->tv_sec;
+      diffResult      = diffSec * 1000;  // 秒转毫秒
+
+      // 将微秒差异转换为毫秒并加到总差异中
+      diffResult += pToTV->tv_usec / 1000;  // 微秒转毫秒
+      diffResult -= pFromTV->tv_usec / 1000;
+    } else {
+      // 如果起始时间晚于结束时间，触发断言指示错误
+      assert(true == false);  // BUG: 此处使用 assert(true == false) 来明确标记逻辑错误。
+    }
+
+    return diffResult;
+}
+
 #endif  // __IOC_HELPERS_H__

@@ -21,23 +21,10 @@
 //[Others]: any other cases, not have clear category, but still has value to verify.
 //===>RefMore: TEMPLATE OF UT CASE in UT_FreelyDrafts.cxx
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/semaphore.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <time.h>
-#include <unistd.h>
-
+#include <cstddef>
 #include <thread>
+
+#include "../Source/_IOC.h"
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #define GTEST_HAS_PTHREAD 1
 #include <gtest/gtest.h>
-
-#include <IOC/IOC.h>
-
-static inline uint32_t IOC_deltaTimevalInMS(const struct timeval *pFromTV, const struct timeval *pToTV) {
-  return (pToTV->tv_sec - pFromTV->tv_sec) * 1000 + pToTV->tv_usec / 1000 - pFromTV->tv_usec / 1000;
-}

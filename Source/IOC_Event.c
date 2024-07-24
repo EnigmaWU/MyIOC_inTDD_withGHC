@@ -1,13 +1,3 @@
-#include <IOC/IOC.h>
-#include <pthread.h>
-#include <stdatomic.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/_pthread/_pthread_mutex_t.h>
-#include <sys/semaphore.h>
-#include <unistd.h>
-
 #include "_IOC.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

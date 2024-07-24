@@ -132,11 +132,10 @@ static inline ULONG_T IOC_Option_getTimeoutUS(IOC_Options_pT pOption) {
     return TimeoutUS;
 }
 
-#define IOC_Option_defineNonBlock(OptVarName) \
-  IOC_Options_T OptVarName = {                \
-      .IDs               = IOC_OPTID_TIMEOUT, \
-      .Payload.TimeoutUS = 0,                 \
-  }
+#define IOC_Option_defineNonBlock(OptVarName)       \
+  IOC_Options_T OptVarName     = {};                \
+  OptVarName.IDs               = IOC_OPTID_TIMEOUT; \
+  OptVarName.Payload.TimeoutUS = 0;
 
 //---------------------------------------------------------------------------------------------------------------------
 #if 0
