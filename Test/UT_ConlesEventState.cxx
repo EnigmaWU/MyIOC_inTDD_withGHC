@@ -29,7 +29,7 @@
  *  - Case01_verifyLinkStateReadyIdle_byDoNothing
  *  - Case02_verifyLinkStateBusy_bySubUnsubEvtConcurrently
  *  - Case03_verifyLinkStateBusyCbProcEvt_byPostEVT_ofTestSleep99msEvt
- *  - Case04_verifyUnsubEvtMayBlock_byPostEVT_ofTestSleep99msEvt
+ *  - Case04_verifyUnsubEvtMayBlock_bySleepWhenCbProcEvt
  *  - Case05_verifySubEvtMayBlock_bySleepWhenCbProcEvt
  *===> End DesignOfTestCase <===
  */
@@ -285,14 +285,14 @@ TEST(UT_ConlesEventState, Case03_verifyLinkStateBusyCbProcEvt_byPostEVT_ofTestSl
 }
 
 /**
- * @[Name]: Case04_verifyUnsubEvtMayBlock_byPostEVT_ofTestSleep99msEvt
+ * @[Name]: Case04_verifyUnsubEvtMayBlock_bySleepWhenCbProcEvt
  * @[Purpose]: According to LinkState definition in README_ArchDesign::State::EVT::Conles,
  *    ONLY Link's main state is Ready, unsubEVT may be accpeted by IOC.
  *    SO GIVEN Link is in Busy State,
  *       WHEN call unsubEVT of that Link,
  *       THEN unsubEVT may be blocked.
- * @[Steps]:
- *    1. subEVT EvtConsumer as SETUP
+ * @[Steps]: RefFlow in UT_ConlesEventState.md::FlowChat::Case04
+ *    1. EvtConsumer call subEVT as SETUP
  *        |-> subEvtArgs(_Case04_CbProcEvt_F_TestSleep99msEvt) with dynamic allocated private data
  *        a)-> getLinkState to make sure LinkStateReady
  *    2. postEVT of TestSleep99msEvt as BEHAVIOR
@@ -333,7 +333,7 @@ static IOC_Result_T _Case04_CbProcEvt_F_TestSleep99msEvt(const IOC_EvtDesc_pT pE
   return IOC_RESULT_SUCCESS;
 }
 
-TEST(UT_ConlesEventState, Case04_verifyUnsubEvtMayBlock_byPostEVT_ofTestSleep99msEvt) {
+TEST(UT_ConlesEventState, Case04_verifyUnsubEvtMayBlock_bySleepWhenCbProcEvt) {
   //===SETUP===
   _Case04_PrivData_pT pPrivData = (_Case04_PrivData_pT)malloc(sizeof(_Case04_PrivData_T));
   ASSERT_NE(nullptr, pPrivData);  // VerifyPoint
@@ -357,15 +357,17 @@ TEST(UT_ConlesEventState, Case04_verifyUnsubEvtMayBlock_byPostEVT_ofTestSleep99m
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
   // Step-1.a
-  IOC_LinkState_T LinkState       = IOC_LinkStateUndefined;
-  Result                          = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &LinkState, NULL);
+  IOC_LinkState_T LinkState = IOC_LinkStateUndefined;
+  Result                    = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &LinkState, NULL);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);                // KeyVerifyPoint
   ASSERT_EQ(IOC_LinkStateReady, LinkState);             // KeyVerifyPoint
 
   //===BEHAVIOR===
   // Step-2
-  IOC_EvtDesc_T EvtDesc = {.EvtID = IOC_EVTID_TEST_SLEEP_99MS};
-  Result                = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
+  IOC_EvtDesc_T EvtDesc = {
+      .EvtID = IOC_EVTID_TEST_SLEEP_99MS,
+  };
+  Result = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
   // Step-2.a
@@ -415,7 +417,7 @@ TEST(UT_ConlesEventState, Case04_verifyUnsubEvtMayBlock_byPostEVT_ofTestSleep99m
  * @[Expect]:
  *    Case04's Step-4, corresponding to Case05's Step-b is TRUE.
  * @[Notes]:
- *    RefCode: TEST(UT_ConlesEventState, Case04_verifyUnsubEvtMayBlock_byPostEVT_ofTestSleep99msEvt)
+ *    RefCode: TEST(UT_ConlesEventState, Case04_verifyUnsubEvtMayBlock_bySleepWhenCbProcEvt)
  *    RefFlow: UT_ConlesEventState.md::FlowChat::Case05
  */
 
