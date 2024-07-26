@@ -30,7 +30,7 @@
  *  - Case02_verifyLinkStateBusy_bySubUnsubEvtConcurrently
  *  - Case03_verifyLinkStateBusyCbProcEvt_byPostEVT_ofTestSleep99msEvt
  *  - Case04_verifyUnsubEvtMayBlock_byPostEVT_ofTestSleep99msEvt
- *  - Case05_verifySubEvtMayBlock_byPostEVT_ofTestSleep99msEvt
+ *  - Case05_verifySubEvtMayBlock_bySleepWhenCbProcEvt
  *===> End DesignOfTestCase <===
  */
 
@@ -402,7 +402,7 @@ TEST(UT_ConlesEventState, Case04_verifyUnsubEvtMayBlock_byPostEVT_ofTestSleep99m
 }
 
 /**
- * @[Name]: Case05_verifySubEvtMayBlock_byPostEVT_ofTestSleep99msEvt
+ * @[Name]: Case05_verifySubEvtMayBlock_bySleepWhenCbProcEvt
  * @[Purpose]: According to LinkState definition in README_ArchDesign::State::EVT::Conles,
  *    ONLY Link's main state is Ready, subEVT may be accpeted by IOC.
  *    SO GIVEN Link is in Busy State,
@@ -416,6 +416,7 @@ TEST(UT_ConlesEventState, Case04_verifyUnsubEvtMayBlock_byPostEVT_ofTestSleep99m
  *    Case04's Step-4, corresponding to Case05's Step-b is TRUE.
  * @[Notes]:
  *    RefCode: TEST(UT_ConlesEventState, Case04_verifyUnsubEvtMayBlock_byPostEVT_ofTestSleep99msEvt)
+ *    RefFlow: UT_ConlesEventState.md::FlowChat::Case05
  */
 
 typedef struct {
@@ -462,7 +463,7 @@ static IOC_Result_T _Case05_CbProcEvt_F_TestKeepAlive(const IOC_EvtDesc_pT pEvtD
   return IOC_RESULT_SUCCESS;
 }
 
-TEST(UT_ConlesEventState, Case05_verifySubEvtMayBlock_byPostEVT_ofTestSleep99msEvt) {
+TEST(UT_ConlesEventState, Case05_verifySubEvtMayBlock_bySleepWhenCbProcEvt) {
   //===SETUP===
   _Case05_PrivData_pT pNo1PrivData = (_Case05_PrivData_pT)malloc(sizeof(_Case05_PrivData_T));
   ASSERT_NE(nullptr, pNo1PrivData);  // VerifyPoint
