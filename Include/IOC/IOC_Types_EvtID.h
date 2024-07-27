@@ -1,6 +1,6 @@
 #include <stdint.h>
 
-#include "IOC_Types.h"
+// #include "IOC_Types.h"
 
 #ifndef __IOC_TYPES_EVTID_H__
 #define __IOC_TYPES_EVTID_H__
@@ -8,8 +8,9 @@
 extern "C" {
 #endif
 
-typedef ULONG_T IOC_EvtNameID_T;
-typedef ULONG_T IOC_EvtClassID_T;
+typedef uint64_t IOC_EvtID_T;
+typedef uint64_t IOC_EvtNameID_T;
+typedef uint64_t IOC_EvtClassID_T;
 
 /**
  * @brief EvtID is IOC_EvtID_T which = EvtClass | EvtName

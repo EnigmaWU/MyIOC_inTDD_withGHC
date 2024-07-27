@@ -45,6 +45,8 @@ typedef enum {
 
 const char *IOC_getResultStr(IOC_Result_T Result);
 
+#include "IOC_Types_EvtID.h"
+
 /**
  * @brief LinkID is a unique ID to identify a link between two objects in communication.
  *     In ConlesMode, LinkID is predefined as IOC_CONLES_MODE_AUTO_LINK_ID.
@@ -83,21 +85,21 @@ typedef enum {
     *IOC_LinkSubState_pT;
 
 typedef enum {
-  IOC_OPTID_TIMEOUT = 1 << 0,    // set this IDs and Payload.TimeoutUS>=0, to set timeout for execCMD,waitCMD,sendDAT,recvDAT,...
+  IOC_OPTID_TIMEOUT =
+      1 << 0,  // set this IDs and Payload.TimeoutUS>=0, to set timeout for execCMD,waitCMD,sendDAT,recvDAT,...
   IOC_OPTID_SYNC_MODE = 1 << 1,  // set this IDs and Payload.RZVD=0, to set SYNC mode for postEVT.
   // TODO(@W): +More...
 } IOC_OptionsID_T;
 
-typedef struct 
-{
-    IOC_OptionsID_T IDs;
+typedef struct {
+  IOC_OptionsID_T IDs;
 
-    union {
-      uint64_t RZVD[8];  // reserve for MAX payload size.
-      ULONG_T TimeoutUS;
-    } Payload;
+  union {
+    uint64_t RZVD[8];  // reserve for MAX payload size.
+    ULONG_T TimeoutUS;
+  } Payload;
 
-} IOC_Options_T, *IOC_Options_pT;
+ } IOC_Options_T, *IOC_Options_pT;
 
 static inline bool IOC_Option_isAsyncMode(IOC_Options_pT pOption) {
     bool IsAsyncMode = true;  // Default is AsyncMode
@@ -156,8 +158,6 @@ typedef struct
     // IOC_MsgFlags_T Flags;
 } IOC_MsgDesc_T, *IOC_MsgDesc_pT;
 
-
-typedef     uint64_t      IOC_EvtID_T;
 typedef struct 
 {
     //MsgCommon
