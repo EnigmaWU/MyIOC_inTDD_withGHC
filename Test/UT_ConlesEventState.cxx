@@ -364,7 +364,7 @@ TEST(UT_ConlesEventState, Case04_verifyUnsubEvtMayBlock_bySleepWhenCbProcEvt) {
   ASSERT_EQ(IOC_LinkStateReady, LinkState);             // KeyVerifyPoint
 
   //===BEHAVIOR===
-  // Step-2
+  // Step-2: postEVT of TestSleep99msEvt to simulate the processing of TestSleep99msEvt
   IOC_EvtDesc_T EvtDesc = {
       .EvtID = IOC_EVTID_TEST_SLEEP_99MS,
   };
@@ -413,9 +413,16 @@ TEST(UT_ConlesEventState, Case04_verifyUnsubEvtMayBlock_bySleepWhenCbProcEvt) {
  *       WHEN call subEVT of that Link,
  *       THEN subEVT may be blocked.
  * @[Steps]:
- *    0. RefSteps in Case04, Except:
- *      a) 2x EvtConsumer, No1 subEVT(TestSleep99msEvt) and No2 subEVT(TestKeepAlive) as SETUP
- *      b) do subEVT(KeeaAlive) instead of unsubEVT which may be blocked as VERIFY.
+ *    0) RefSteps in Case04, Except we have 2xEvtConsumer named No1 and No2
+ *        |-> No1 is same with Case04's EvtConsumer
+ *        |-> No2 is a new EvtConsumer do subEVT of KeepAliveEvt which may be blocked
+ *    X) No1 call subEVT(TestSleep99msEvt) as SETUP
+ *        a) No2 waiting for No1 enter into process TestSleep99msEvt
+ *        b) getLinkState to make sure LinkStateBusyCbProcEvt as a small VERIFY
+ *    Y) No2 call subEVT(KeeaAlive) which may be blocked as VERIFY
+ *        |-> because No1 is processing TestSleep99msEvt
+ *        a) calculate the time consumption of subEVT(KeeaAlive) as VERIFY
+ *    Z) No1 and No2 call unsubEVT as CLEANUP
  * @[Expect]:
  *    Case04's Step-4, corresponding to Case05's Step-b is TRUE.
  * @[Notes]:
@@ -424,24 +431,20 @@ TEST(UT_ConlesEventState, Case04_verifyUnsubEvtMayBlock_bySleepWhenCbProcEvt) {
  */
 
 typedef struct {
-  union {
-    struct {
-      sem_t *pEnterCbProcEvtSem;
-    } No1;
+  sem_t *pEnterCbProcEvtSem;
+} _Case05_No1PrivData_T, *_Case05_No1PrivData_pT;
 
-    struct {
-      struct timeval BeginTime, EndTime;  // for subEVT time consumption
-      uint32_t KeepAliveEvtCnt;
-    } No2;
-  };
-} _Case05_PrivData_T, *_Case05_PrivData_pT;
+typedef struct {
+  struct timeval BeginTime, EndTime;  // for subEVT time consumption
+  uint32_t KeepAliveEvtCnt;           // for verifying KeepAliveEvtCnt==0, because no postEVT of KeepAlive
+} _Case05_No2PrivData_T, *_Case05_No2PrivData_pT;
 
-static IOC_Result_T _Case05_CbProcEvt_F_TestSleep99msEvt(const IOC_EvtDesc_pT pEvtDesc, void *pCbPrivData) {
-  _Case05_PrivData_pT pPrivData = (_Case05_PrivData_pT)pCbPrivData;
+static IOC_Result_T _Case05_No1CbProcEvt_F_TestSleep99msEvt(const IOC_EvtDesc_pT pEvtDesc, void *pCbPrivData) {
+  _Case05_No1PrivData_pT pPrivData = (_Case05_No1PrivData_pT)pCbPrivData;
 
   switch (pEvtDesc->EvtID) {
     case IOC_EVTID_TEST_SLEEP_99MS:
-      sem_post(pPrivData->No1.pEnterCbProcEvtSem);
+      sem_post(pPrivData->pEnterCbProcEvtSem);
       // Sleep 99ms to simulate the processing of TestSleep99msEvt
       usleep(99 * 1000);
       break;
@@ -452,13 +455,12 @@ static IOC_Result_T _Case05_CbProcEvt_F_TestSleep99msEvt(const IOC_EvtDesc_pT pE
   return IOC_RESULT_SUCCESS;
 }
 
-static IOC_Result_T _Case05_CbProcEvt_F_TestKeepAlive(const IOC_EvtDesc_pT pEvtDesc, void *pCbPrivData) {
-  _Case05_PrivData_pT pPrivData = (_Case05_PrivData_pT)pCbPrivData;
+static IOC_Result_T _Case05_No2CbProcEvt_F_KeepAlive(const IOC_EvtDesc_pT pEvtDesc, void *pCbPrivData) {
+  _Case05_No2PrivData_pT pPrivData = (_Case05_No2PrivData_pT)pCbPrivData;
 
   switch (pEvtDesc->EvtID) {
     case IOC_EVTID_TEST_KEEPALIVE:
-      gettimeofday(&pPrivData->No2.BeginTime, NULL);
-      pPrivData->No2.KeepAliveEvtCnt++;
+      pPrivData->KeepAliveEvtCnt++;
       break;
     default:
       EXPECT_FALSE(1) << "Unexpected EvtID=" << pEvtDesc->EvtID;
@@ -469,22 +471,24 @@ static IOC_Result_T _Case05_CbProcEvt_F_TestKeepAlive(const IOC_EvtDesc_pT pEvtD
 
 TEST(UT_ConlesEventState, Case05_verifySubEvtMayBlock_bySleepWhenCbProcEvt) {
   //===SETUP===
-  _Case05_PrivData_pT pNo1PrivData = (_Case05_PrivData_pT)malloc(sizeof(_Case05_PrivData_T));
+  _Case05_No1PrivData_pT pNo1PrivData = (_Case05_No1PrivData_pT)malloc(sizeof(_Case05_No1PrivData_T));
   ASSERT_NE(nullptr, pNo1PrivData);  // VerifyPoint
-
+  // Init private data
   sem_unlink("/EnterCbProcEvtSem");
-  pNo1PrivData->No1.pEnterCbProcEvtSem = sem_open("/EnterCbProcEvtSem", O_CREAT | O_EXCL, 0644, 0);
-  ASSERT_NE(SEM_FAILED, pNo1PrivData->No1.pEnterCbProcEvtSem)  // VerifyPoint
+  pNo1PrivData->pEnterCbProcEvtSem = sem_open("/EnterCbProcEvtSem", O_CREAT | O_EXCL, 0644, 0);
+  ASSERT_NE(SEM_FAILED, pNo1PrivData->pEnterCbProcEvtSem)  // VerifyPoint
       << "errno=" << errno << ", " << strerror(errno);
 
-  _Case05_PrivData_pT pNo2PrivData = (_Case05_PrivData_pT)malloc(sizeof(_Case05_PrivData_T));
+  _Case05_No2PrivData_pT pNo2PrivData = (_Case05_No2PrivData_pT)malloc(sizeof(_Case05_No2PrivData_T));
   ASSERT_NE(nullptr, pNo2PrivData);  // VerifyPoint
+  // Init private data
+  pNo2PrivData->KeepAliveEvtCnt = 0;
 
-  pNo2PrivData->No2.KeepAliveEvtCnt = 0;
-
-  IOC_EvtID_T No1EvtIDs[]        = {IOC_EVTID_TEST_SLEEP_99MS};
+  IOC_EvtID_T No1EvtIDs[] = {
+      IOC_EVTID_TEST_SLEEP_99MS,
+  };
   IOC_SubEvtArgs_T No1SubEvtArgs = {
-      .CbProcEvt_F = _Case05_CbProcEvt_F_TestSleep99msEvt,
+      .CbProcEvt_F = _Case05_No1CbProcEvt_F_TestSleep99msEvt,
       .pCbPrivData = pNo1PrivData,
       .EvtNum      = IOC_calcArrayElmtCnt(No1EvtIDs),
       .pEvtIDs     = No1EvtIDs,
@@ -492,63 +496,71 @@ TEST(UT_ConlesEventState, Case05_verifySubEvtMayBlock_bySleepWhenCbProcEvt) {
   IOC_Result_T Result = IOC_subEVT_inConlesMode(&No1SubEvtArgs);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
+  // Step-1.a: getLinkState to make sure LinkStateReady as a small VERIFY
+  IOC_LinkState_T LinkState = IOC_LinkStateUndefined;
+  Result                    = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &LinkState, NULL);
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);     // VerifyPoint
+  ASSERT_EQ(IOC_LinkStateReady, LinkState);  // KeyVerifyPoint
+
   //===BEHAVIOR===
-  // Step-2
-  IOC_EvtDesc_T EvtDesc = {.EvtID = IOC_EVTID_TEST_SLEEP_99MS};
-  Result                = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
+  // Step-2: postEVT of TestSleep99msEvt to simulate the processing of TestSleep99msEvt
+  IOC_EvtDesc_T No1EvtDesc = {
+      .EvtID = IOC_EVTID_TEST_SLEEP_99MS,
+  };
+  Result = IOC_postEVT_inConlesMode(&No1EvtDesc, NULL);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
-  // Step-2.a
-  int RetPSX = sem_wait(pNo1PrivData->No1.pEnterCbProcEvtSem);
+  // Step-2.a: wait CbProcEvt_F to be called via EnterCbProcEvtSem in private data
+  int RetPSX = sem_wait(pNo1PrivData->pEnterCbProcEvtSem);
   ASSERT_EQ(0, RetPSX)  // VerifyPoint
       << "errno=" << errno << ", " << strerror(errno);
 
-  // Step-2.b
-  IOC_LinkState_T LinkState       = IOC_LinkStateUndefined;
-  Result                          = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &LinkState, NULL);
+  // Step-2.b: getLinkState to make sure LinkStateBusyCbProcEvt
+  Result = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &LinkState, NULL);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);                  // VerifyPoint
   ASSERT_EQ(IOC_LinkStateBusyCbProcEvt, LinkState);       // KeyVerifyPoint
 
-  // Step-3
-  IOC_EvtID_T No2EvtIDs[]        = {IOC_EVTID_TEST_KEEPALIVE};
+  // Step-3: subEVT of KeepAliveEvt which may be blocked as BEHAVIOR
+  IOC_EvtID_T No2EvtIDs[] = {
+      IOC_EVTID_TEST_KEEPALIVE,
+  };
   IOC_SubEvtArgs_T No2SubEvtArgs = {
-      .CbProcEvt_F = _Case05_CbProcEvt_F_TestKeepAlive,
+      .CbProcEvt_F = _Case05_No2CbProcEvt_F_KeepAlive,
       .pCbPrivData = pNo2PrivData,
       .EvtNum      = IOC_calcArrayElmtCnt(No2EvtIDs),
       .pEvtIDs     = No2EvtIDs,
   };
-
-  gettimeofday(&pNo2PrivData->No2.BeginTime, NULL);
+  gettimeofday(&pNo2PrivData->BeginTime, NULL);
   Result = IOC_subEVT_inConlesMode(&No2SubEvtArgs);
-  ASSERT_EQ(Result, IOC_RESULT_SUCCESS) << "IOC_subEVT_inConlesMode failed Result=" << Result;
-  gettimeofday(&pNo2PrivData->No2.EndTime, NULL);
+  gettimeofday(&pNo2PrivData->EndTime, NULL);
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
   //===VERIFY===
-  // Step-4
-  uint32_t TimeConsumption = IOC_deltaTimevalInMS(&pNo2PrivData->No2.BeginTime, &pNo2PrivData->No2.EndTime);
+  // Step-4: Calculate the time consumption, its delta time MUST be >=99ms as VERIFY to indicate subEVT is blocked
+  uint32_t TimeConsumption = IOC_deltaTimevalInMS(&pNo2PrivData->BeginTime, &pNo2PrivData->EndTime);
   ASSERT_GT(TimeConsumption, 99 - 1)  // KeyVerifyPoint
-      << "TimeConsumption=" << TimeConsumption << "ms, KeepAliveEvtCnt=" << pNo2PrivData->No2.KeepAliveEvtCnt;
+      << "TimeConsumption=" << TimeConsumption << "ms, KeepAliveEvtCnt=" << pNo2PrivData->KeepAliveEvtCnt;
 
-  ASSERT_EQ(0, pNo2PrivData->No2.KeepAliveEvtCnt);  // KeyVerifyPoint
+  ASSERT_EQ(0, pNo2PrivData->KeepAliveEvtCnt);  // KeyVerifyPoint
 
   //===CLEANUP===
+  // Step-5: unsubEVT EvtConsumer which may be blocked as CLEANUP
   IOC_UnsubEvtArgs_T No1UnsubEvtArgs = {
-      .CbProcEvt_F = _Case05_CbProcEvt_F_TestSleep99msEvt,
+      .CbProcEvt_F = _Case05_No1CbProcEvt_F_TestSleep99msEvt,
       .pCbPrivData = pNo1PrivData,
   };
   Result = IOC_unsubEVT_inConlesMode(&No1UnsubEvtArgs);
-  ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "IOC_unsubEVT_inConlesMode failed Result=" << Result;
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
   IOC_UnsubEvtArgs_T No2UnsubEvtArgs = {
-      .CbProcEvt_F = _Case05_CbProcEvt_F_TestKeepAlive,
+      .CbProcEvt_F = _Case05_No2CbProcEvt_F_KeepAlive,
       .pCbPrivData = pNo2PrivData,
   };
   Result = IOC_unsubEVT_inConlesMode(&No2UnsubEvtArgs);
-  ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "IOC_unsubEVT_inConlesMode failed Result=" << Result;
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
-  sem_close(pNo1PrivData->No1.pEnterCbProcEvtSem);
+  sem_close(pNo1PrivData->pEnterCbProcEvtSem);
   sem_unlink("/EnterCbProcEvtSem");
-
   free(pNo1PrivData);
   free(pNo2PrivData);
 }
