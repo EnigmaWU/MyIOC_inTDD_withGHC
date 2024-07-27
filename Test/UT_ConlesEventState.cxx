@@ -28,7 +28,7 @@
  *===> Begin DesignOfTestCase accordint to ACs <===
  *  - Case01_verifyLinkStateReadyIdle_byDoNothing
  *  - Case02_verifyLinkStateBusy_bySubUnsubEvtConcurrently
- *  - Case03_verifyLinkStateBusyCbProcEvt_byPostEVT_ofTestSleep99msEvt
+ *  - Case03_verifyLinkStateBusyCbProcEvt_bySleepWhenCbProcEvt
  *  - Case04_verifyUnsubEvtMayBlock_bySleepWhenCbProcEvt
  *  - Case05_verifySubEvtMayBlock_bySleepWhenCbProcEvt
  *===> End DesignOfTestCase <===
@@ -160,7 +160,7 @@ TEST(UT_ConlesEventState, Case02_verifyLinkStateBusySubEvtOrUnsubEvt_bySubUnsubE
 }
 
 /**
- * @[Name]: Case03_verifyLinkStateBusyCbProcEvt_byPostEVT_ofTestSleep99msEvt
+ * @[Name]: Case03_verifyLinkStateBusyCbProcEvt_bySleepWhenCbProcEvt
  * @[Purpose]: According to LinkState definition in README_ArchDesign::State::EVT::Conles
  *      and IOC_LinkState_T/IOC_LinkSubState_T in IOC_Types.h,
  *    verify Link's main state is LinkStateBusyCbProcEvt
@@ -209,7 +209,7 @@ static IOC_Result_T _Case03_CbProcEvt_F_TestSleep99msEvt(const IOC_EvtDesc_pT pE
   return IOC_RESULT_SUCCESS;
 }
 
-TEST(UT_ConlesEventState, Case03_verifyLinkStateBusyCbProcEvt_byPostEVT_ofTestSleep99msEvt) {
+TEST(UT_ConlesEventState, Case03_verifyLinkStateBusyCbProcEvt_bySleepWhenCbProcEvt) {
   //===SETUP===
   _Case03_PrivData_T PrivData = {};
 
@@ -294,7 +294,7 @@ TEST(UT_ConlesEventState, Case03_verifyLinkStateBusyCbProcEvt_byPostEVT_ofTestSl
  * @[Steps]: RefFlow in UT_ConlesEventState.md::FlowChat::Case04
  *    1. EvtConsumer call subEVT as SETUP
  *        |-> subEvtArgs(_Case04_CbProcEvt_F_TestSleep99msEvt) with dynamic allocated private data
- *        a)-> getLinkState to make sure LinkStateReady
+ *        a)-> getLinkState to make sure LinkStateReady as a small VERIFY
  *    2. postEVT of TestSleep99msEvt as BEHAVIOR
  *        a)-> wait CbProcEvt_F to be called via EnterCbProcEvtSem in private data
  *              |-> in CbProcEvt_F, ONLY process event TestSleep99ms, simusleep 99ms, then ++Sleep99msEvtCnt
@@ -303,11 +303,11 @@ TEST(UT_ConlesEventState, Case03_verifyLinkStateBusyCbProcEvt_byPostEVT_ofTestSl
  *        |-> save begin&end time of calling unsubEVT in private data
  *    4. Calculate the time consumption, its delta time MUST be greater than 99ms as VERIFY
  *        |-> Sleep99msEvtCnt in private data MUST be 1 as VERIFY
- *        |-> free the private data immediately after this step
+ *        |-> free the private data immediately after this step as CLEANUP
  * @[Expect]:
  *    Step-4 is TRUE.
  * @[Notes]:
- *    RefCode: TEST(UT_ConlesEventState, Case03_verifyLinkStateBusyCbProcEvt_byPostEVT_ofTestSleep99msEvt)
+ *    RefCode: TEST(UT_ConlesEventState, Case03_verifyLinkStateBusyCbProcEvt_bySleepWhenCbProcEvt)
  */
 
 typedef struct {
@@ -345,8 +345,9 @@ TEST(UT_ConlesEventState, Case04_verifyUnsubEvtMayBlock_bySleepWhenCbProcEvt) {
   ASSERT_NE(SEM_FAILED, pPrivData->pEnterCbProcEvtSem)  // VerifyPoint
       << "errno=" << errno << ", " << strerror(errno);
 
-  IOC_EvtID_T EvtIDs[] = {IOC_EVTID_TEST_SLEEP_99MS};
-
+  IOC_EvtID_T EvtIDs[] = {
+      IOC_EVTID_TEST_SLEEP_99MS,
+  };
   IOC_SubEvtArgs_T SubEvtArgs = {
       .CbProcEvt_F = _Case04_CbProcEvt_F_TestSleep99msEvt,
       .pCbPrivData = pPrivData,
@@ -356,10 +357,10 @@ TEST(UT_ConlesEventState, Case04_verifyUnsubEvtMayBlock_bySleepWhenCbProcEvt) {
   IOC_Result_T Result = IOC_subEVT_inConlesMode(&SubEvtArgs);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
-  // Step-1.a
+  // Step-1.a: getLinkState to make sure LinkStateReady as a small VERIFY
   IOC_LinkState_T LinkState = IOC_LinkStateUndefined;
   Result                    = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &LinkState, NULL);
-  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);                // KeyVerifyPoint
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);                // VerifyPoint
   ASSERT_EQ(IOC_LinkStateReady, LinkState);             // KeyVerifyPoint
 
   //===BEHAVIOR===
@@ -370,16 +371,17 @@ TEST(UT_ConlesEventState, Case04_verifyUnsubEvtMayBlock_bySleepWhenCbProcEvt) {
   Result = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
-  // Step-2.a
+  // Step-2.a: wait CbProcEvt_F to be called via EnterCbProcEvtSem in private data
   int RetPSX = sem_wait(pPrivData->pEnterCbProcEvtSem);
   ASSERT_EQ(0, RetPSX)  // VerifyPoint
       << "errno=" << errno << ", " << strerror(errno);
 
-  // Step-2.b
+  // Step-2.b: getLinkState to make sure LinkStateBusyCbProcEvt
   Result = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &LinkState, NULL);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);                  // VerifyPoint
   ASSERT_EQ(IOC_LinkStateBusyCbProcEvt, LinkState);       // KeyVerifyPoint
-  // Step-3
+
+  // Step-3: unsubEVT EvtConsumer which may be blocked as BEHAVIOR
   IOC_UnsubEvtArgs_T UnsubEvtArgs = {
       .CbProcEvt_F = _Case04_CbProcEvt_F_TestSleep99msEvt,
       .pCbPrivData = pPrivData,
@@ -390,7 +392,7 @@ TEST(UT_ConlesEventState, Case04_verifyUnsubEvtMayBlock_bySleepWhenCbProcEvt) {
   gettimeofday(&pPrivData->EndTime, NULL);
 
   //===VERIFY===
-  // Step-4
+  // Step-4: Calculate the time consumption, its delta time MUST be >=99ms as VERIFY to indicate unsubEVT is blocked
   uint32_t TimeConsumption = IOC_deltaTimevalInMS(&pPrivData->BeginTime, &pPrivData->EndTime);
   ASSERT_GT(TimeConsumption, 99 - 1)  // KeyVerifyPoint
       << "TimeConsumption=" << TimeConsumption << "ms, Sleep99msEvtCnt=" << pPrivData->Sleep99msEvtCnt;
