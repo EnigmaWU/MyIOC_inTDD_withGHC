@@ -661,7 +661,7 @@ static void *__Case01_ThreadFunc_simuVidCap(void *arg) {
                 << "postEvt(BizOriVidFrmCapturedEvent) fail, Result=" << IOC_getResultStr(Result);
 
             // 2: updateStatistics
-            pVidCapObj->TotalPostEvents.BizOriVidFrmCapturedEvent++;
+            pVidCapObj->TotalPostEvents.BizOriVidFrmCapturedEvent++;  // postEvt: BizOriVidFrmCapturedEvent
             LastCaptureTime = CurrentTime;
 
             // 3: tell ModMgr Iam alive
@@ -945,7 +945,7 @@ static void *__Case01_ThreadFunc_simuAudCap(void *arg) {
                 << "postEvt(BizOriAudFrmCapturedEvent) fail, Result=" << IOC_getResultStr(Result);
 
             // 2: updateStatistics
-            pAudCapObj->TotalPostEvents.BizOriAudFrmCapturedEvent++;
+            pAudCapObj->TotalPostEvents.BizOriAudFrmCapturedEvent++;  // postEvt: BizOriAudFrmCapturedEvent
             LastCaptureTime = CurrentTime;
 
             // 3: tell ModMgr Iam alive
@@ -1102,8 +1102,8 @@ static IOC_Result_T __Case01_cbProcEvt_AudEncObj(IOC_EvtDesc_pT pEvtDesc, void *
                 EXPECT_EQ(IOC_RESULT_SUCCESS, Result);
 
                 // 2: updateStatistics
-                pAudEncObj->TotalPostEvents.BizAudStrmBitsEncodedEvent++;
-                pAudEncObj->TotalSubEvents.BizOriAudFrmCapturedEvent++;
+                pAudEncObj->TotalSubEvents.BizOriAudFrmCapturedEvent++;    // subEvt: BizOriAudFrmCapturedEvent
+                pAudEncObj->TotalPostEvents.BizAudStrmBitsEncodedEvent++;  // postEvt: BizAudStrmBitsEncodedEvent
 
                 // 3: tell ModMgr Iam alive
                 __postKeepAliveEvt(&pAudEncObj->Base);
@@ -1230,7 +1230,7 @@ static IOC_Result_T __Case01_cbProcEvt_VidResizeObj(IOC_EvtDesc_pT pEvtDesc, voi
 
         case IOC_EVTID_BizLoResVidFrmRecycled: {
             if (VidResizeObj->Base.State == ObjState_Running) {
-                VidResizeObj->TotalSubEvents.BizLoResVidFrmRecycledEvent++;
+                VidResizeObj->TotalSubEvents.BizLoResVidFrmRecycledEvent++;  // procEvt: BizLoResVidFrmRecycled
 
                 Result = IOC_RESULT_SUCCESS;
             } else {
@@ -1361,7 +1361,8 @@ static IOC_Result_T __Case01_cbProcEvt_LoResVidEncObj(IOC_EvtDesc_pT pEvtDesc, v
 
         case IOC_EVTID_BizLoResVidStrmBitsRecycled: {
             if (LoResVidEncObj->Base.State == ObjState_Running) {
-                LoResVidEncObj->TotalSubEvents.BizLoResVidStrmBitsRecycledEvent++;
+                LoResVidEncObj->TotalSubEvents
+                    .BizLoResVidStrmBitsRecycledEvent++;  // procEvt: BizLoResVidStrmBitsRecycled
                 Result = IOC_RESULT_SUCCESS;
             } else {
                 // BUG: expect running state, but ??? state
@@ -1475,10 +1476,12 @@ static IOC_Result_T __Case01_cbProcEvt_LoResStrmMuxObj(IOC_EvtDesc_pT pEvtDesc, 
                 EXPECT_EQ(IOC_RESULT_SUCCESS, Result);
 
                 // 2 update statistics
-                pLoResStrmMuxObj->TotalSubEvents.BizLoResVidStrmBitsEncodedEvent++;
+                pLoResStrmMuxObj->TotalSubEvents
+                    .BizLoResVidStrmBitsEncodedEvent++;  // procEvt: BizLoResVidStrmBitsEncoded
 
-                pLoResStrmMuxObj->TotalPostEvents.BizLoResStrmBitsMuxedEvent++;
-                pLoResStrmMuxObj->TotalPostEvents.BizLoResVidStrmBitsRecycledEvent++;
+                pLoResStrmMuxObj->TotalPostEvents.BizLoResStrmBitsMuxedEvent++;  // postEvt: BizLoResStrmBitsMuxed
+                pLoResStrmMuxObj->TotalPostEvents
+                    .BizLoResVidStrmBitsRecycledEvent++;  // postEvt: BizLoResVidStrmBitsRecycled
 
                 // 3 tell ModMgr Iam alive
                 __postKeepAliveEvt(&pLoResStrmMuxObj->Base);
@@ -1493,7 +1496,7 @@ static IOC_Result_T __Case01_cbProcEvt_LoResStrmMuxObj(IOC_EvtDesc_pT pEvtDesc, 
         case IOC_EVTID_BizAudStrmBitsEncoded: {
             if (pLoResStrmMuxObj->Base.State == ObjState_Running) {
                 // AudStrmBits update statistics only
-                pLoResStrmMuxObj->TotalSubEvents.BizAudStrmBitsEncodedEvent++;
+                pLoResStrmMuxObj->TotalSubEvents.BizAudStrmBitsEncodedEvent++;  // procEvt: BizAudStrmBitsEncoded
                 Result = IOC_RESULT_SUCCESS;
             } else {
                 // BUG: expect running state, but ??? state
@@ -1620,9 +1623,10 @@ static IOC_Result_T __Case01_cbProcEvt_SrvObj(IOC_EvtDesc_pT pEvtDesc, void *pCb
                 EXPECT_EQ(IOC_RESULT_SUCCESS, Result);
 
                 // 2: updateStatistics
-                pSrvObj->TotalPostEvents.BizLoResStrmBitsSentEvent++;
-                pSrvObj->TotalPostEvents.BizLoResStrmBitsRecycledEvent++;
-                pSrvObj->TotalSubEvents.BizLoResStrmBitsMuxedEvent++;
+                pSrvObj->TotalSubEvents.BizLoResStrmBitsMuxedEvent++;  // procEvt: BizLoResStrmBitsMuxed
+
+                pSrvObj->TotalPostEvents.BizLoResStrmBitsSentEvent++;      // postEvt: BizLoResStrmBitsSent
+                pSrvObj->TotalPostEvents.BizLoResStrmBitsRecycledEvent++;  // postEvt: BizLoResStrmBitsRecycled
 
                 // 3: tell ModMgr Iam alive
                 __postKeepAliveEvt(&pSrvObj->Base);
