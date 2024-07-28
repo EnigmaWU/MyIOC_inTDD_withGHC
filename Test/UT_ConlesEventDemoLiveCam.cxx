@@ -1215,8 +1215,10 @@ static IOC_Result_T __Case01_cbProcEvt_VidResizeObj(IOC_EvtDesc_pT pEvtDesc, voi
                 EXPECT_EQ(IOC_RESULT_SUCCESS, Result);
 
                 // 2: updateStatistics
-                VidResizeObj->TotalPostEvents.BizOriVidFrmRecycledEvent++;
-                VidResizeObj->TotalSubEvents.BizOriVidFrmCapturedEvent++;
+                VidResizeObj->TotalSubEvents.BizOriVidFrmCapturedEvent++;  // procEvt: BizOriVidFrmCaptured
+
+                VidResizeObj->TotalPostEvents.BizLoResVidFrmResizedEvent++;  // postEvt: BizLoResVidFrmResized
+                VidResizeObj->TotalPostEvents.BizOriVidFrmRecycledEvent++;   // postEvt: BizOriVidFrmRecycled
 
                 // 3: tell ModMgr Iam alive
                 __postKeepAliveEvt(&VidResizeObj->Base);
@@ -1288,7 +1290,9 @@ static void __Case01_verifyVidResizeObj(_LiveCamVidResizeObj_pT VidResizeObj) {
     EXPECT_EQ(ObjState_Stopped, VidResizeObj->Base.State);
     EXPECT_EQ(_CASE01_DURATION, VidResizeObj->Base.KeepAliveCnt);
 
+    EXPECT_EQ(_CASE01_VIDCAP_FRM_CNT, VidResizeObj->TotalPostEvents.BizLoResVidFrmResizedEvent);
     EXPECT_EQ(_CASE01_VIDCAP_FRM_CNT, VidResizeObj->TotalPostEvents.BizOriVidFrmRecycledEvent);
+
     EXPECT_EQ(_CASE01_VIDCAP_FRM_CNT, VidResizeObj->TotalSubEvents.BizOriVidFrmCapturedEvent);
     EXPECT_EQ(_CASE01_VIDCAP_FRM_CNT, VidResizeObj->TotalSubEvents.BizLoResVidFrmRecycledEvent);
 
