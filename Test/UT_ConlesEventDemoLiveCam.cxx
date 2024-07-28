@@ -1339,13 +1339,25 @@ static IOC_Result_T __Case01_cbProcEvt_LoResVidEncObj(IOC_EvtDesc_pT pEvtDesc, v
                 Result        = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
 
                 // 2: updateStatistics
-                LoResVidEncObj->TotalPostEvents.BizLoResVidStrmBitsEncodedEvent++;
-                LoResVidEncObj->TotalPostEvents.BizLoResVidFrmRecycledEvent++;
-                LoResVidEncObj->TotalSubEvents.BizLoResVidFrmResizedEvent++;
+                LoResVidEncObj->TotalSubEvents.BizLoResVidFrmResizedEvent++;  // procEvt: BizLoResVidFrmResized
+
+                LoResVidEncObj->TotalPostEvents
+                    .BizLoResVidStrmBitsEncodedEvent++;                         // postEvt: BizLoResVidStrmBitsEncoded
+                LoResVidEncObj->TotalPostEvents.BizLoResVidFrmRecycledEvent++;  // postEvt: BizLoResVidFrmRecycled
 
                 // 3: tell ModMgr Iam alive
                 __postKeepAliveEvt(&LoResVidEncObj->Base);
 
+                Result = IOC_RESULT_SUCCESS;
+            } else {
+                // BUG: expect running state, but ??? state
+                EXPECT_FALSE(true) << "BUG: expect running state, but " << LoResVidEncObj->Base.State;
+            }
+        } break;
+
+        case IOC_EVTID_BizLoResVidStrmBitsRecycled: {
+            if (LoResVidEncObj->Base.State == ObjState_Running) {
+                LoResVidEncObj->TotalSubEvents.BizLoResVidStrmBitsRecycledEvent++;
                 Result = IOC_RESULT_SUCCESS;
             } else {
                 // BUG: expect running state, but ??? state
@@ -1406,7 +1418,9 @@ static void __Case01_verifyLoResVidEncObj(_LiveCamLoResVidEncObj_pT LoResVidEncO
 
     EXPECT_EQ(_CASE01_VIDCAP_FRM_CNT, LoResVidEncObj->TotalPostEvents.BizLoResVidStrmBitsEncodedEvent);
     EXPECT_EQ(_CASE01_VIDCAP_FRM_CNT, LoResVidEncObj->TotalPostEvents.BizLoResVidFrmRecycledEvent);
+
     EXPECT_EQ(_CASE01_VIDCAP_FRM_CNT, LoResVidEncObj->TotalSubEvents.BizLoResVidFrmResizedEvent);
+    EXPECT_EQ(_CASE01_VIDCAP_FRM_CNT, LoResVidEncObj->TotalSubEvents.BizLoResVidStrmBitsRecycledEvent);
 
     EXPECT_EQ(1, LoResVidEncObj->TotalSubEvents.ModuleStartEvent);
     EXPECT_EQ(1, LoResVidEncObj->TotalSubEvents.ModuleStopEvent);
@@ -1444,7 +1458,7 @@ static IOC_Result_T __Case01_cbProcEvt_LoResStrmMuxObj(IOC_EvtDesc_pT pEvtDesc, 
 
         case IOC_EVTID_BizLoResVidStrmBitsEncoded: {
             if (pLoResStrmMuxObj->Base.State == ObjState_Running) {
-                // 1 VidStrmBits post BizLoResStrmBitsMuxedEvent
+                // 1 VidStrmBits post BizLoResStrmBitsMuxedEvent and BizLoResStrmBitsRecycledEvent
                 IOC_EvtDesc_T EvtDesc = {
                     .EvtID    = IOC_EVTID_BizLoResStrmBitsMuxed,
                     .EvtValue = pEvtDesc->EvtValue,
@@ -1452,8 +1466,15 @@ static IOC_Result_T __Case01_cbProcEvt_LoResStrmMuxObj(IOC_EvtDesc_pT pEvtDesc, 
                 Result = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
                 EXPECT_EQ(IOC_RESULT_SUCCESS, Result);
 
+                EvtDesc.EvtID = IOC_EVTID_BizLoResVidStrmBitsRecycled;
+                Result        = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
+                EXPECT_EQ(IOC_RESULT_SUCCESS, Result);
+
                 // 2 update statistics
+                pLoResStrmMuxObj->TotalSubEvents.BizLoResVidStrmBitsEncodedEvent++;
+
                 pLoResStrmMuxObj->TotalPostEvents.BizLoResStrmBitsMuxedEvent++;
+                pLoResStrmMuxObj->TotalPostEvents.BizLoResVidStrmBitsRecycledEvent++;
 
                 // 3 tell ModMgr Iam alive
                 __postKeepAliveEvt(&pLoResStrmMuxObj->Base);
@@ -1539,8 +1560,11 @@ static void __Case01_verifyLoResStrmMuxObj(_LiveCamLoResStrmMuxObj_pT pLoResStrm
     EXPECT_EQ(_CASE01_DURATION, pLoResStrmMuxObj->Base.KeepAliveCnt);
 
     EXPECT_EQ(_CASE01_VIDCAP_FRM_CNT, pLoResStrmMuxObj->TotalPostEvents.BizLoResStrmBitsMuxedEvent);
+    EXPECT_EQ(_CASE01_VIDCAP_FRM_CNT, pLoResStrmMuxObj->TotalPostEvents.BizLoResVidStrmBitsRecycledEvent);
+
     EXPECT_EQ(_CASE01_AUDCAP_FRM_CNT, pLoResStrmMuxObj->TotalSubEvents.BizAudStrmBitsEncodedEvent);
     EXPECT_EQ(_CASE01_VIDCAP_FRM_CNT, pLoResStrmMuxObj->TotalSubEvents.BizLoResStrmBitsRecycledEvent);
+    EXPECT_EQ(_CASE01_VIDCAP_FRM_CNT, pLoResStrmMuxObj->TotalSubEvents.BizLoResVidStrmBitsEncodedEvent);
 
     EXPECT_EQ(1, pLoResStrmMuxObj->TotalSubEvents.ModuleStartEvent);
     EXPECT_EQ(1, pLoResStrmMuxObj->TotalSubEvents.ModuleStopEvent);
