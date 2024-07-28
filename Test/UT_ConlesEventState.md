@@ -13,22 +13,22 @@ sequenceDiagram
     participant IOC as IOC::AutoLink
     participant EvtSuber
 
-    UTB->>IOC: postEVT(TEST_SLEEP_99MS)
-    IOC->>EvtSuber: enterCbProcEvt->StateBusyCbProcEvt
+    UTB->>IOC: 【1】postEVT(TEST_SLEEP_99MS)
+    IOC->>EvtSuber: 【2】enterCbProcEvt->StateBusyCbProcEvt
 
-    EvtSuber -->> UTB: notifyEnterCbProcEvt
+    EvtSuber -->> UTB: 【3】notifyEnterCbProcEvt
 
     activate EvtSuber
-    EvtSuber->>EvtSuber: usleep(99000)
+    EvtSuber->>EvtSuber: 【4】usleep(99000)
 
-    UTB ->> IOC: EvtSuber::unsubEVT(…)
+    UTB ->> IOC: 【5】EvtSuber::unsubEVT(TEST_SLEEP_99MS)
     activate IOC
-    IOC -->> IOC: BLOCKED::waitStateReady
+    IOC -->> IOC: 【6】BLOCKED::waitStateReady
 
-    EvtSuber -->> IOC: StateReady <- leaveCbProcEvt
+    EvtSuber -->> IOC: 【7】StateReady <- leaveCbProcEvt
     deactivate EvtSuber
 
-    IOC -->> UTB: unsubSucceed(…)
+    IOC -->> UTB: 【8】unsubEvtSucceed(…)
     deactivate IOC
 ```
 
@@ -55,7 +55,7 @@ sequenceDiagram
     No1Suber -->> IOC: 【7】StateReady <- leaveCbProcEvt
     deactivate No1Suber
 
-    IOC -->> UTB: 【8】subEvtSucceed(TEST_KEEPALIVE)
+    IOC -->> UTB: 【8】subEvtSucceed(...)
     deactivate IOC
 
 ```

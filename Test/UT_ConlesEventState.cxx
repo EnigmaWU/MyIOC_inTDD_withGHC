@@ -424,7 +424,7 @@ TEST(UT_ConlesEventState, Case04_verifyUnsubEvtMayBlock_bySleepWhenCbProcEvt) {
  *        a) calculate the time consumption of subEVT(KeeaAlive) as VERIFY
  *    Z) No1 and No2 call unsubEVT as CLEANUP
  * @[Expect]:
- *    Case04's Step-4, corresponding to Case05's Step-b is TRUE.
+ *    Case04's Step-4, corresponding to Case05's Step-Y-a is TRUE.
  * @[Notes]:
  *    RefCode: TEST(UT_ConlesEventState, Case04_verifyUnsubEvtMayBlock_bySleepWhenCbProcEvt)
  *    RefFlow: UT_ConlesEventState.md::FlowChat::Case05
