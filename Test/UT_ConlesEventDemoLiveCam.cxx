@@ -1435,6 +1435,7 @@ static IOC_Result_T __Case01_cbProcEvt_LoResStrmMuxObj(IOC_EvtDesc_pT pEvtDesc, 
     _LiveCamLoResStrmMuxObj_pT pLoResStrmMuxObj = (_LiveCamLoResStrmMuxObj_T *)pCbPriv;
     IOC_Result_T Result                         = IOC_RESULT_BUG;
     IOC_EvtID_T EvtID                           = pEvtDesc->EvtID;
+    IOC_EvtDesc_T EvtDesc                       = {};
 
     __Case01_verifyFromPostEvt2CbProcEvtPerfMeets(pEvtDesc);
 
@@ -1464,15 +1465,9 @@ static IOC_Result_T __Case01_cbProcEvt_LoResStrmMuxObj(IOC_EvtDesc_pT pEvtDesc, 
         case IOC_EVTID_BizLoResVidStrmBitsEncoded: {
             if (pLoResStrmMuxObj->Base.State == ObjState_Running) {
                 // 1 VidStrmBits post BizLoResStrmBitsMuxedEvent and BizLoResStrmBitsRecycledEvent
-                IOC_EvtDesc_T EvtDesc = {
-                    .EvtID    = IOC_EVTID_BizLoResStrmBitsMuxed,
-                    .EvtValue = pEvtDesc->EvtValue,
-                };
-                Result = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
-                EXPECT_EQ(IOC_RESULT_SUCCESS, Result);
 
-                EvtDesc.EvtID = IOC_EVTID_BizLoResVidStrmBitsRecycled;
-                Result        = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
+                EvtDesc.EvtID = IOC_EVTID_BizLoResStrmBitsMuxed;
+                Result = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
                 EXPECT_EQ(IOC_RESULT_SUCCESS, Result);
 
                 // 2 update statistics
@@ -1480,8 +1475,6 @@ static IOC_Result_T __Case01_cbProcEvt_LoResStrmMuxObj(IOC_EvtDesc_pT pEvtDesc, 
                     .BizLoResVidStrmBitsEncodedEvent++;  // procEvt: BizLoResVidStrmBitsEncoded
 
                 pLoResStrmMuxObj->TotalPostEvents.BizLoResStrmBitsMuxedEvent++;  // postEvt: BizLoResStrmBitsMuxed
-                pLoResStrmMuxObj->TotalPostEvents
-                    .BizLoResVidStrmBitsRecycledEvent++;  // postEvt: BizLoResVidStrmBitsRecycled
 
                 // 3 tell ModMgr Iam alive
                 __postKeepAliveEvt(&pLoResStrmMuxObj->Base);
@@ -1507,6 +1500,15 @@ static IOC_Result_T __Case01_cbProcEvt_LoResStrmMuxObj(IOC_EvtDesc_pT pEvtDesc, 
         case IOC_EVTID_BizLoResStrmBitsRecycled: {
             if (pLoResStrmMuxObj->Base.State == ObjState_Running) {
                 pLoResStrmMuxObj->TotalSubEvents.BizLoResStrmBitsRecycledEvent++;
+
+                // relay LoResStrmBitsRecycled -> LoResVidStrmBitsRecycled
+                EvtDesc.EvtID = IOC_EVTID_BizLoResVidStrmBitsRecycled;
+                Result        = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
+                EXPECT_EQ(IOC_RESULT_SUCCESS, Result);
+
+                pLoResStrmMuxObj->TotalPostEvents
+                    .BizLoResVidStrmBitsRecycledEvent++;  // postEvt: BizLoResVidStrmBitsRecycled
+
                 Result = IOC_RESULT_SUCCESS;
             } else {
                 // BUG: expect running state, but ??? state

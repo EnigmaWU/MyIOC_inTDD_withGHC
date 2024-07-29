@@ -57,15 +57,12 @@ sequenceDiagram
     VidResizeObj->>LoResVidEncObj: BizLoResVidFrmResizedEvent
     LoResVidEncObj->>VidResizeObj: BizLoResVidFrmRecycledEvent
     LoResVidEncObj->>LoResStrmMuxObj: BizLoResVidStrmBitsEncodedEvent
-    LoResStrmMuxObj->>LoResVidEncObj: BizLoResVidStrmBitsRecycledEvent
     
-
     AudEncObj->>LoResStrmMuxObj: BizAudStrmBitsEncodedEvent
-
-
 
     LoResStrmMuxObj->>SrvObj: BizLoResStrmBitsMuxedEvent
     SrvObj->>LoResStrmMuxObj: BizLoResStrmBitsRecycledEvent
+    LoResStrmMuxObj->>LoResVidEncObj: BizLoResVidStrmBitsRecycledEvent
 ```
 
 ### From Management Viewpoint
