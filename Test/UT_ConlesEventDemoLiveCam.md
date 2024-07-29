@@ -1,3 +1,5 @@
+[[_TOC_]]
+
 # UT_ConlesEventDemoLiveCam
 
 * Use this file to write and preview module objects in the UT_ConlesEventDemoLiveCam.
@@ -24,7 +26,7 @@ flowchart LR
     SrvObj -- LoResStrmBits --> CliObj
 ```
 
-## Event flow of service side module objects
+## Event sequence flow of service side module objects
 
 ### From Biz Viewpoint
 
@@ -43,6 +45,12 @@ sequenceDiagram
     HiResVidEncObj->>VidCapObj: BizOriVidFrmRecycledEvent
     HiResVidEncObj->>HiResStrmMuxObj: BizHiResVidStrmBitsEncodedEvent
     HiResStrmMuxObj->>HiResVidEncObj: BizHiResVidStrmBitsRecycledEvent
+
+    AudCapObj->>AudEncObj: BizOriAudFrmCapturedEvent
+    AudEncObj->>HiResStrmMuxObj: BizAudStrmBitsEncodedEvent
+
+    HiResStrmMuxObj->>SrvObj: BizHiResStrmBitsMuxedEvent
+    SrvObj->>HiResStrmMuxObj: BizHiResStrmBitsRecycledEvent
     
     VidCapObj->>VidResizeObj: BizOriVidFrmCapturedEvent
     VidResizeObj->>VidCapObj: BizOriVidFrmRecycledEvent
@@ -51,12 +59,10 @@ sequenceDiagram
     LoResVidEncObj->>LoResStrmMuxObj: BizLoResVidStrmBitsEncodedEvent
     LoResStrmMuxObj->>LoResVidEncObj: BizLoResVidStrmBitsRecycledEvent
     
-    AudCapObj->>AudEncObj: BizOriAudFrmCapturedEvent
-    AudEncObj->>HiResStrmMuxObj: BizAudStrmBitsEncodedEvent
+
     AudEncObj->>LoResStrmMuxObj: BizAudStrmBitsEncodedEvent
 
-    HiResStrmMuxObj->>SrvObj: BizHiResStrmBitsMuxedEvent
-    SrvObj->>HiResStrmMuxObj: BizHiResStrmBitsRecycledEvent
+
 
     LoResStrmMuxObj->>SrvObj: BizLoResStrmBitsMuxedEvent
     SrvObj->>LoResStrmMuxObj: BizLoResStrmBitsRecycledEvent
@@ -74,6 +80,45 @@ sequenceDiagram
         XyzObj->>MgrObj: ModuleKeepAliveEvent
     end
     MgrObj->>XyzObj: ModuleStopEvent
+```
+
+## Event processing flow of service side module objects
+
+### LoResStrmMuxObj
+
+```mermaid
+graph TD
+    A[__Case01_cbProcEvt_LoResStrmMuxObj] -->|EVTID_ModStart| B{IsStateStopped?}
+    B -->|Yes| C[setStateRunning]
+    C --> D[ModuleStartEventCnt++]
+    D --> E[IOC_RESULT_SUCCESS]
+    B -->|No| F[BUG]
+    
+    A -->|EVTID_ModStop| G{IsStateRunning?}
+    G -->|Yes| H[setStateStopped]
+    H --> I[ModuleStopEventCnt++]
+    I --> E[IOC_RESULT_SUCCESS]
+    G -->|No| F[BUG]
+    
+    A -->|EVTID_BizLoResVidStrmBitsEncoded| L{IsStateRunning?}
+    L -->|Yes| M[postBizLoResStrmBitsMuxedEvent]
+    M --> N[postBizLoResVidStrmBitsRecycledEvent]
+    N --> O[BizLoResVidStrmBitsEncodedEventCnt++\nBizLoResStrmBitsMuxedEventCnt++\nBizLoResVidStrmBitsRecycledEventCnt++]
+    O --> P[postKeepAliveEvt>=1]
+    P --> E[IOC_RESULT_SUCCESS]
+    L -->|No| F[BUG]
+    
+    A -->|EVTID_BizAudStrmBitsEncoded| S{IsStateRunning?}
+    S -->|Yes| T[BizAudStrmBitsEncodedEventCnt++]
+    T --> E[IOC_RESULT_SUCCESS]
+    S -->|No| F[BUG]
+    
+    A -->|EVTID_BizLoResStrmBitsRecycled| W{IsStateRunning?}
+    W -->|Yes| X[BizLoResStrmBitsRecycledEventCnt++]
+    X --> E[IOC_RESULT_SUCCESS]
+    W -->|No| F[BUG]
+    
+    A -->|default| F[BUG]
 ```
 
 ## Event flow between service side and client side module objects
