@@ -85,37 +85,32 @@ sequenceDiagram
 
 ```mermaid
 graph TD
+    A -->|EVTID_NOT_SUPPORT| F[BUG]
     A[__Case01_cbProcEvt_LoResStrmMuxObj] -->|EVTID_ModStart| B{IsStateStopped?}
     B -->|Yes| C[setStateRunning]
     C --> D[ModuleStartEventCnt++]
     D --> E[IOC_RESULT_SUCCESS]
     B -->|No| F[BUG]
     
-    A -->|EVTID_ModStop| G{IsStateRunning?}
-    G -->|Yes| H[setStateStopped]
+    A -->|EVTID_IS_SUPPORT| G{IsStateRunning?}
+
+    G -->|Yes:EVTID_ModStop| H[setStateStopped]
     H --> I[ModuleStopEventCnt++]
     I --> E[IOC_RESULT_SUCCESS]
     G -->|No| F[BUG]
     
-    A -->|EVTID_BizLoResVidStrmBitsEncoded| L{IsStateRunning?}
-    L -->|Yes| M[postBizLoResStrmBitsMuxedEvent]
+    G -->|Yes:EVTID_BizLoResVidStrmBitsEncoded| M[postBizLoResStrmBitsMuxedEvent]
     M --> N[postBizLoResVidStrmBitsRecycledEvent]
-    N --> O[BizLoResVidStrmBitsEncodedEventCnt++\nBizLoResStrmBitsMuxedEventCnt++\nBizLoResVidStrmBitsRecycledEventCnt++]
+    N --> O[BizLoResVidStrmBitsEncodedEventCnt++\nBizLoResStrmBitsMuxedEventCnt++]
     O --> P[postKeepAliveEvt>=1]
     P --> E[IOC_RESULT_SUCCESS]
-    L -->|No| F[BUG]
     
-    A -->|EVTID_BizAudStrmBitsEncoded| S{IsStateRunning?}
-    S -->|Yes| T[BizAudStrmBitsEncodedEventCnt++]
+    G -->|Yes:EVTID_BizAudStrmBitsEncoded| T[BizAudStrmBitsEncodedEventCnt++]
     T --> E[IOC_RESULT_SUCCESS]
-    S -->|No| F[BUG]
     
-    A -->|EVTID_BizLoResStrmBitsRecycled| W{IsStateRunning?}
-    W -->|Yes| X[BizLoResStrmBitsRecycledEventCnt++]
+    G -->|Ye:EVTID_BizLoResStrmBitsRecycled| X[BizLoResStrmBitsRecycledEventCnt++\nBizLoResVidStrmBitsRecycledEventCnt++]
     X --> E[IOC_RESULT_SUCCESS]
-    W -->|No| F[BUG]
     
-    A -->|default| F[BUG]
 ```
 
 ## Event flow between service side and client side module objects
