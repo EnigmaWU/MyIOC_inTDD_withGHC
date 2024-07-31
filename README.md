@@ -7,13 +7,24 @@
     * RefMore: [README_LLMSE](README_LLMSE.md)
 
 * **module** MEANS a static library with C/C++ API implemented all functions in IOC.
-* **Inter-Object** MEANS the communication between objects in a thread/process/machine.
+  * also MEANS it may be used by nnKB~nnMB scale embedded systems.
+* **Inter-Object** MEANS the communication between objects in a thread/process/operating system/machine.
   * **Object** MEANS an object of struct/class with OO abstraction, named as ObjA/ObjB/ObjC/... in IOC.
 * **Communication** MEANS ObjA post event to ObjB/C/...(a.k.a EVT) 
-    * OR ObjA execute command over ObjB(a.k.a CMD) 
-    * OR ObjA send data to ObjB(a.k.a DAT).
+  * OR ObjA execute command over ObjB(a.k.a CMD)
+  * OR ObjA send data to ObjB(a.k.a DAT).
+
+## Role As
+
+* **USER** MEANS the user who will use the IOC in a specific context.
+  * read [README_UseCase](./README_UseCase.md) to know what the IOC can do,
+    * and then read [README_UserGuide](./README_UserGuide.md) to know how to use the IOC,
+      * don't need to read the following sections.
+* **DEV** MEANS the developer who will develop the IOC.
+  * keep reading the following sections to deep dive into the IOC.
 
 # Glossary
+
 * [README_Glossary](./README_Glossary.md)
 
 # Requirement and Analysis
@@ -29,7 +40,7 @@
     * Including functional/non-functional requirements, constraints, assumptions, and acceptance criteria, etc.
   * RefPDF: [IEEE 29148-2011](https://github.com/Orthant/IEEE/blob/master/29148-2011.pdf)
 
-* [UserStories](./README_UserStories.md)      
+* [UserStories](./README_UserStories.md)
   * BETWEEN: IOC's team tech leader and team members such as normal developers following Specification and referencing Use Case.
     * Sometimes discuss with PM or End User.
   * ABOUT: How to decompose the requirements into team member's monthly/weekly/daily development pieces.
