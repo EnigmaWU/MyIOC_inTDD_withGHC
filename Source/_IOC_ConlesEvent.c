@@ -52,10 +52,13 @@
 typedef struct _EvtDescQueueStru {
   pthread_mutex_t Mutex;  // Used to protect QueuedEvtNum, ProcedEvtNum, QueuedEvtDescs
   /**
-   * IF QueuedEvtNum == ProcedEvtNum, the queue is empty;
+   * IF QueuedEvtNum == ProcedEvtNum, the queue is empty.
+   * IF QueuedEvtNum > ProcedEvtNum, the queue is not empty.
+   * IF QueuedEvtNum - ProcedEvtNum == _CONLES_EVENT_MAX_QUEUING_EVTDESC, the queue is full.
+   *
    * WHEN postEVT new EvtDesc, DO copy&save enqueuing EvtDesc in
    *    QueuedEvtDescs[QueuedEvtNum%_CONLES_EVENT_MAX_QUEUING_EVTDESC] and QueuedEvtNum++;
-   * WHILE QueuedEvtNum > ProcedEvtNum, DO wakeup/loop the EvtProcThread, read one EvtDesc from
+   * WHILE QueuedEvtNum > ProcedEvtNum, DO wakeup/loop the EvtProcThread, who will read one EvtDesc from
    *    QueuedEvtDescs[ProcedEvtNum%_CONLES_EVENT_MAX_QUEUING_EVTDESC], proc one EvtDesc and ProcedEvtNum++;
    */
   ULONG_T QueuedEvtNum, ProcedEvtNum;  // ULONG_T type is long lone enough to avoid overflow even one event per nanosecond.
