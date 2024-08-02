@@ -3,7 +3,7 @@
 Language:        Cpp
 BasedOnStyle:  Google
 
-ColumnLimit: 120
+ColumnLimit: 100
 AlignConsecutiveAssignments: true
 AlignConsecutiveDeclarations: false
 #IndentWidth: 4

@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/_types/_null.h>
 #include <sys/errno.h>
 #include <sys/time.h>
 #include <time.h>
@@ -140,79 +141,6 @@ static inline ULONG_T IOC_Option_getTimeoutUS(IOC_Options_pT pOption) {
   OptVarName.Payload.TimeoutUS = 0;
 
 //---------------------------------------------------------------------------------------------------------------------
-#include "IOC_Types_EvtID.h"
-#if 0
-typedef enum {
-  IOC_MSGFLAG_MAYDROP = 1 << 0,  // set this flag to allow drop this message if no enough resource.
-} IOC_MsgFlags_T;
-#endif
-
-//MSG is Common Head of Evt and Cmd
-typedef struct
-{
-    // TODO: ULONG_T MagicID;  // MagicID is used to identify the message type.
-    ULONG_T SeqID;
-    struct timespec TimeStamp;  // when call IOC_postEVT set value from IOC_getCurrentTimeSpec
-
-    // IOC_MsgFlags_T Flags;
-} IOC_MsgDesc_T, *IOC_MsgDesc_pT;
-
-typedef struct 
-{
-    //MsgCommon
-    IOC_MsgDesc_T MsgDesc;
-
-    //EvtSpecific
-    IOC_EvtID_T EvtID;
-    ULONG_T EvtValue;
-
-    // TOOD(@W): +More..., such as EvtPayload
-} IOC_EvtDesc_T, *IOC_EvtDesc_pT;
-
-static inline ULONG_T IOC_EvtDesc_getSeqID(IOC_EvtDesc_pT pEvtDesc) { return pEvtDesc->MsgDesc.SeqID; }
-static inline IOC_EvtID_T IOC_EvtDesc_getEvtID(IOC_EvtDesc_pT pEvtDesc) { return pEvtDesc->EvtID; }
-static inline ULONG_T IOC_EvtDesc_getEvtValue(IOC_EvtDesc_pT pEvtDesc) { return pEvtDesc->EvtValue; }
-
-static inline const char *IOC_EvtDesc_getEvtClassStr(IOC_EvtDesc_pT pEvtDesc) {
-    IOC_EvtID_T EvtID = IOC_EvtDesc_getEvtID(pEvtDesc);
-    return IOC_getEvtClassStr(EvtID);
-}
-
-static inline const char *IOC_EvtDesc_getEvtNameStr(IOC_EvtDesc_pT pEvtDesc) {
-    IOC_EvtID_T EvtID = IOC_EvtDesc_getEvtID(pEvtDesc);
-    return IOC_getEvtNameStr(EvtID);
-}
-
-static inline const char *IOC_EvtDesc_getEvtFullNameStr(IOC_EvtDesc_pT pEvtDesc, char *EvtFullNameStr,
-                                                        size_t EvtFullNameStrSize) {
-    snprintf(EvtFullNameStr, EvtFullNameStrSize, "%s:%s", IOC_EvtDesc_getEvtClassStr(pEvtDesc),
-             IOC_EvtDesc_getEvtNameStr(pEvtDesc));
-    return EvtFullNameStr;
-}
-
-typedef IOC_Result_T (*IOC_CbProcEvt_F)(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv);
-typedef struct 
-{
-    /**
-     * @brief CbProcEvt_F + pCbPrivData is used to IDENTIFY one EvtConsumer.
-     *    RefMore: IOC_UnsubEvtArgs_T
-     */
-    IOC_CbProcEvt_F CbProcEvt_F;  // Callback function for processing the event
-    void *pCbPrivData;  // Callback private context data
-
-    ULONG_T EvtNum;  // number of EvtIDs, IOC_calcArrayElmtCnt(SubEvtIDs)
-    IOC_EvtID_T *pEvtIDs;  // EvtIDs to subscribe
-
-    // TODO: AutoLinkID
-} IOC_SubEvtArgs_T, *IOC_SubEvtArgs_pT;
-
-typedef struct {
-    IOC_CbProcEvt_F CbProcEvt_F;
-    union {
-      void *pCbPrivData;
-      void *pCbPriv;  // Deprecated
-    };
-} IOC_UnsubEvtArgs_T, *IOC_UnsubEvtArgs_pT;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //===>Capabilty
