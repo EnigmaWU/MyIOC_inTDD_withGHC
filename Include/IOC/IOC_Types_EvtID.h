@@ -26,7 +26,7 @@ enum {
   // TODO(@W): add more event class here
 };
 
-static inline const char *IOC_getEvtClassStrByID(IOC_EvtID_T EvtID) {
+static inline const char *IOC_getEvtClassStr(IOC_EvtID_T EvtID) {
   IOC_EvtClassID_T EvtClassID = IOC_getEvtClassID(EvtID);
 
   if (EvtClassID == IOC_EVT_CLASS_TEST) {
@@ -46,7 +46,7 @@ typedef enum {
   // TODO(@W): add more event name here
 } IOC_EvtNameTest_T;
 
-static inline const char *IOC_getEvtNameStrOfClassTest(IOC_EvtNameID_T EvtNameID) {
+static inline const char *IOC_getTestClassEvtNameStr(IOC_EvtNameID_T EvtNameID) {
   switch (EvtNameID) {
     case IOC_EVT_NAME_TEST_KEEPALIVE:
       return "KEEPALIVE";
@@ -65,12 +65,12 @@ static inline const char *IOC_getEvtNameStrOfClassTest(IOC_EvtNameID_T EvtNameID
   }
 }
 
-static inline const char *IOC_getEvtNameStrByID(IOC_EvtID_T EvtID) {
+static inline const char *IOC_getEvtNameStr(IOC_EvtID_T EvtID) {
   IOC_EvtNameID_T EvtNameID   = IOC_getEvtNameID(EvtID);
   IOC_EvtClassID_T EvtClassID = IOC_getEvtClassID(EvtID);
 
   if (EvtClassID == IOC_EVT_CLASS_TEST) {
-    return IOC_getEvtNameStrOfClassTest(EvtNameID);
+    return IOC_getTestClassEvtNameStr(EvtNameID);
   } else {
     return "UNKNOWN";
   }
