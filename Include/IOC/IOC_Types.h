@@ -170,6 +170,20 @@ typedef struct
     // TOOD(@W): +More..., such as EvtPayload
 } IOC_EvtDesc_T, *IOC_EvtDesc_pT;
 
+static inline ULONG_T IOC_getSeqID_ofEvtDesc(IOC_EvtDesc_pT pEvtDesc) { return pEvtDesc->MsgDesc.SeqID; }
+static inline IOC_EvtID_T IOC_getEvtID_ofEvtDesc(IOC_EvtDesc_pT pEvtDesc) { return pEvtDesc->EvtID; }
+static inline ULONG_T IOC_getEvtValue_ofEvtDesc(IOC_EvtDesc_pT pEvtDesc) { return pEvtDesc->EvtValue; }
+
+static inline const char *IOC_getEvtClassStr_ofEvtDesc(IOC_EvtDesc_pT pEvtDesc) {
+    IOC_EvtID_T EvtID = IOC_getEvtID_ofEvtDesc(pEvtDesc);
+    return IOC_getEvtClassStrByID(EvtID);
+}
+
+static inline const char *IOC_getEvtNameStr_ofEvtDesc(IOC_EvtDesc_pT pEvtDesc) {
+    IOC_EvtID_T EvtID = IOC_getEvtID_ofEvtDesc(pEvtDesc);
+    return IOC_getEvtNameStrByID(EvtID);
+}
+
 typedef IOC_Result_T (*IOC_CbProcEvt_F)(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv);
 typedef struct 
 {
@@ -193,8 +207,6 @@ typedef struct {
       void *pCbPriv;  // Deprecated
     };
 } IOC_UnsubEvtArgs_T, *IOC_UnsubEvtArgs_pT;
-
-#include "IOC_Types_EvtID.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //===>Capabilty
