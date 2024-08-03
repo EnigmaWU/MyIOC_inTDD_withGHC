@@ -751,20 +751,21 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
     /*ARG_IN*/ IOC_LinkID_T LinkID,
     /*ARG_IN*/ const IOC_EvtDesc_pT pEvtDesc,
     /*ARG_IN_OPTIONAL*/ const IOC_Options_pT pOption) {
+  char EvtDescBuf[IOC_EVTDESC_PRINTABLE_BUF_SIZE];
   IOC_Result_T Result = IOC_RESULT_BUG;
   bool IsAsyncMode    = IOC_Option_isAsyncMode(pOption);
   bool IsNonBlockMode = IOC_Option_isNonBlockMode(pOption);
 
   _ClsEvtLinkObj_pT pLinkObj = __IOC_getClsEvtLinkObjLocked(LinkID);
   if (pLinkObj == NULL) {
-    _IOC_LogError("Invalid AutoLinkID(%llu)", LinkID);
+    _IOC_LogError("[ConlesEvent]: Invalid AutoLinkID(%llu)", LinkID);
     _IOC_LogNotTested();                     // TODO: check this path, comment out after test
     return IOC_RESULT_INVALID_AUTO_LINK_ID;  // Path@C->1
   }
 
   IOC_Result_T IsEmptyEvtSuberList = __IOC_isEmptyClsEvtSuberList(&pLinkObj->EvtSuberList);
   if (IsEmptyEvtSuberList == IOC_RESULT_YES) {
-    _IOC_LogWarn("No EvtSuber of AutoLinkID(%llu)", LinkID);
+    _IOC_LogWarn("[ConlesEvent] No EvtSuber of AutoLinkID(%llu)", LinkID);
     Result = IOC_RESULT_NO_EVENT_CONSUMER;  // Path@C->2
     //_IOC_LogNotTested();
     goto _returnResult;
@@ -775,20 +776,25 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
     Result = _IOC_enqueueEvtDescQueueLast(&pLinkObj->EvtDescQueue, pEvtDesc);
     if (Result == IOC_RESULT_SUCCESS) {
       __IOC_wakeupClsEvtLinkObj(pLinkObj);
-      //_IOC_LogDebug("AsyncMode: AutoLinkID(%llu) enqueued EvtDesc(%s)", LinkID, IOC_getEvtDescStr(pEvtDesc));
+      _IOC_LogDebug("[ConlesEvent<Async>]: AutoLinkID(%llu) enqueued %s", LinkID,
+                    IOC_EvtDesc_printReadableFormat(pEvtDesc, EvtDescBuf, sizeof(EvtDescBuf)));
 
       //_IOC_LogNotTested();
       Result = IOC_RESULT_SUCCESS;
       goto _returnResult;  // Path@A->1
     } else if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
       if (IsNonBlockMode) {
-        //_IOC_LogDebug("ASyncNonBlockMode: AutoLinkID(%llu) enqueue EvtDesc(%s) failed(%s)", LinkID,
-        //              IOC_getEvtDescStr(pEvtDesc), IOC_getResultStr(Result));
+        _IOC_LogWarn("[ConlesEvent<AsyncNonBlock>]: AutoLinkID(%llu) enqueue %s failed(%s)", LinkID,
+                     IOC_EvtDesc_printReadableFormat(pEvtDesc, EvtDescBuf, sizeof(EvtDescBuf)),
+                     IOC_getResultStr(Result));
 
         //_IOC_LogNotTested();
         Result = IOC_RESULT_TOO_MANY_QUEUING_EVTDESC;  // Path@A->3 of NonBlockMode
         goto _returnResult;
       } else /* MayBlockMode */ {
+        _IOC_LogDebug("[ConlesEvent<AsyncMayBlock>]: AutoLinkID(%llu) %s block retrying...", LinkID,
+                      IOC_EvtDesc_printReadableFormat(pEvtDesc, EvtDescBuf, sizeof(EvtDescBuf)));
+
         ULONG_T RetryUS = 9;  // 9us
         // MayBlockMode: calculate timeout, then retry enqueue every RetryUS until success or timeout
         ULONG_T TimeoutUS = IOC_Option_getTimeoutUS(pOption);
@@ -802,8 +808,9 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
           Result = _IOC_enqueueEvtDescQueueLast(&pLinkObj->EvtDescQueue, pEvtDesc);
           if (Result == IOC_RESULT_SUCCESS) {
             __IOC_wakeupClsEvtLinkObj(pLinkObj);
-            //_IOC_LogDebug("ASyncMayBlockMode: AutoLinkID(%llu) enqueued EvtDesc(%s)", LinkID,
-            //              IOC_getEvtDescStr(pEvtDesc));
+            _IOC_LogDebug(
+                "[ConlesEvent<AsyncMayBlock>]: AutoLinkID(%llu) enqueued %s", LinkID,
+                IOC_EvtDesc_printReadableFormat(pEvtDesc, EvtDescBuf, sizeof(EvtDescBuf)));
             break;  // Path@A->2 MayBlockMode of enqueueSuccess
           } else if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
             if (TimeoutUS > RetryUS) {
@@ -812,17 +819,20 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
               RetryUS = TimeoutUS;  // last retry
               TimeoutUS = 0;
             } else {
-              _IOC_LogWarn("ASyncMayBlockMode: AutoLinkID(%llu) enqueue EvtDesc(%s) failed(%s)", LinkID,
-                           IOC_getEvtDescStr(pEvtDesc), IOC_getResultStr(Result));
+              _IOC_LogWarn(
+                  "[ConlesEvent<AsyncMayBlock>]: AutoLinkID(%llu) enqueue %s timeout", LinkID,
+                  IOC_EvtDesc_printReadableFormat(pEvtDesc, EvtDescBuf, sizeof(EvtDescBuf)));
               Result = IOC_RESULT_TOO_MANY_QUEUING_EVTDESC;  // Path@A->3 of Timeout
               IsLastRetry = true;
               break;
             }
 
             __IOC_wakeupClsEvtLinkObj(pLinkObj);  // try wakeup and try enqueue again
-          } else {
-            _IOC_LogBug("UnExceptError: AutoLinkID(%llu) enqueue EvtDesc(%s) failed(%s)", LinkID,
-                        IOC_getEvtDescStr(pEvtDesc), IOC_getResultStr(Result));
+          } else /*!Success,!TooMany*/ {
+            _IOC_LogBug(
+                "[ConlesEvent<AsyncMayBlock>]: AutoLinkID(%llu) enqueue %s buggy failed(%s)",
+                LinkID, IOC_EvtDesc_printReadableFormat(pEvtDesc, EvtDescBuf, sizeof(EvtDescBuf)),
+                IOC_getResultStr(Result));
             Result = IOC_RESULT_BUG;  // Path@A->4
             break;
           }
@@ -832,8 +842,9 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
         //_IOC_LogNotTested();
         goto _returnResult;
       }
-    } else {
-      _IOC_LogBug("UnExceptError: AutoLinkID(%llu) enqueue EvtDesc(%s) failed(%s)", LinkID, IOC_getEvtDescStr(pEvtDesc),
+    } else /*!Success,!TooMany*/ {
+      _IOC_LogBug("[ConlesEvent<Async>]: AutoLinkID(%llu) enqueue %s buggy failed(%s)", LinkID,
+                  IOC_EvtDesc_printReadableFormat(pEvtDesc, EvtDescBuf, sizeof(EvtDescBuf)),
                   IOC_getResultStr(Result));
 
       // Use this path to catch unexpected result from _IOC_enqueueEvtDescQueueLast,
@@ -847,13 +858,17 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
 
     if (IsEmptyEvtDescQueue == IOC_RESULT_YES) {
       __IOC_cbProcEvtClsEvtSuberList(pLinkObj, &pLinkObj->EvtSuberList, pEvtDesc);
-      //_IOC_LogDebug("SyncMode: AutoLinkID(%llu) procEvtDesc(%s)", LinkID, IOC_getEvtDescStr(pEvtDesc));
+      _IOC_LogDebug("[ConlesEvent<Sync>]: AutoLinkID(%llu) procEvent(%s) success", LinkID,
+                    IOC_EvtDesc_printReadableFormat(pEvtDesc, EvtDescBuf, sizeof(EvtDescBuf)));
 
       //_IOC_LogNotTested();
       Result = IOC_RESULT_SUCCESS;  // Path@B->1
     } else {
       if (IsNonBlockMode) {
-        _IOC_LogWarn("SyncNonBlockMode: AutoLinkID(%llu) emptying EvtDescQueue failed(%s)", LinkID, IOC_getResultStr(Result));
+        _IOC_LogDebug(
+            "[ConlesEvent<SyncNonBlock]: AutoLinkID(%llu) %s don't wait emptying EvtDescQueue",
+            LinkID, IOC_EvtDesc_printReadableFormat(pEvtDesc, EvtDescBuf, sizeof(EvtDescBuf)));
+
         Result = IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE;  // Path@B->3 of NonBlockMode
         _IOC_LogNotTested();                                  // TODO: check this path, comment out after test
         goto _returnResult;
@@ -871,7 +886,9 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
           IsEmptyEvtDescQueue = _IOC_isEmptyEvtDescQueue(&pLinkObj->EvtDescQueue);
           if (IsEmptyEvtDescQueue == IOC_RESULT_YES) {
             __IOC_cbProcEvtClsEvtSuberList(pLinkObj, &pLinkObj->EvtSuberList, pEvtDesc);
-            _IOC_LogDebug("SyncMayBlockMode: AutoLinkID(%llu) procEvtDesc(%s)", LinkID, IOC_getEvtDescStr(pEvtDesc));
+            _IOC_LogDebug(
+                "[ConlesEvent<SyncMayBlock>]: AutoLinkID(%llu) procEvent(%s) success", LinkID,
+                IOC_EvtDesc_printReadableFormat(pEvtDesc, EvtDescBuf, sizeof(EvtDescBuf)));
 
             Result = IOC_RESULT_SUCCESS;  // Path@B->2 MayBlockMode of cbProcEvtSuccess
             break;
@@ -882,8 +899,10 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
               RetryUS   = TimeoutUS;  // last retry
               TimeoutUS = 0;
             } else {
-              _IOC_LogWarn("SyncMayBlockMode: AutoLinkID(%llu) emptying EvtDescQueue failed(%s)", LinkID,
-                           IOC_getResultStr(Result));
+              _IOC_LogWarn(
+                  "[ConlesEvent<SyncMayBlock>]: AutoLinkID(%llu) procEvent(%s) timeout", LinkID,
+                  IOC_EvtDesc_printReadableFormat(pEvtDesc, EvtDescBuf, sizeof(EvtDescBuf)));
+
               Result      = IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE;  // Path@B->3 of Timeout
               IsLastRetry = true;
               break;

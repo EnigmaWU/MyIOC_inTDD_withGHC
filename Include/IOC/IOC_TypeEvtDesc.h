@@ -53,10 +53,12 @@ static inline const char *IOC_EvtDesc_getEvtFullNameStr(IOC_EvtDesc_pT pEvtDesc,
   return EvtFullNameBuf;
 }
 
+#define IOC_EVTDESC_PRINTABLE_BUF_SIZE 64
 static inline const char *IOC_EvtDesc_printReadableFormat(IOC_EvtDesc_pT pEvtDesc, char *EvtDescBuf,
                                                           size_t EvtDescBufSize) {
-  static char _mEvtDescBuf[64];  // Use static buffer if EvtDescBuf is NULL,
-                                 // for easy use but not thread-safe.
+  // Use static buffer if EvtDescBuf is NULL,
+  // for easy use but not thread-safe.
+  static char _mEvtDescBuf[IOC_EVTDESC_PRINTABLE_BUF_SIZE];
 
   //---------------------------------------------------------------------------------------------
   char EvtFullNameBuf[32] = {0};
