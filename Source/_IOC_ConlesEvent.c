@@ -717,7 +717,7 @@ void _IOC_forceProcEvt_inConlesMode(void) {
  * - LinkID: use predefined AutoID.
  * - pEvtDesc: A pointer to the readonly event descriptor.
  * - pOption: An optional pointer to the options.
- *    such as Async or Sync, Block or NonBlock/Timeout.
+ *    such as Async or Sync, MayBlock or NonBlock or Timeout.
  *
  * @return see following function flowchart diagram and paths.
  *-------------------------------------------------------------------------------------------------
