@@ -37,7 +37,7 @@ IOC_Result_T _IOC_getCapabilty_inConlesMode(
 
 void _IOC_forceProcEvt_inConlesMode(void);
 
-IOC_Result_T _IOC_isAutoLink_inConlesMode(
+IOC_BoolResult_T _IOC_isAutoLink_inConlesMode(
     /*ARG_IN*/ IOC_LinkID_T LinkID);
 
 #ifdef __cplusplus

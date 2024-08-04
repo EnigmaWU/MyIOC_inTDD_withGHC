@@ -69,7 +69,7 @@ void _IOC_initEvtDescQueue(_IOC_EvtDescQueue_pT pEvtDescQueue);
 void _IOC_deinitEvtDescQueue(_IOC_EvtDescQueue_pT pEvtDescQueue);
 
 // Return: IOC_RESULT_YES or IOC_RESULT_NO
-IOC_Result_T _IOC_isEmptyEvtDescQueue(_IOC_EvtDescQueue_pT pEvtDescQueue);
+IOC_BoolResult_T _IOC_isEmptyEvtDescQueue(_IOC_EvtDescQueue_pT pEvtDescQueue);
 
 // Return: IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_QUEUING_EVTDESC
 IOC_Result_T _IOC_enqueueEvtDescQueueLast(_IOC_EvtDescQueue_pT pEvtDescQueue, /*ARG_IN*/ IOC_EvtDesc_pT pEvtDesc);
@@ -99,7 +99,7 @@ static void __IOC_initClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList);
 static void __IOC_deinitClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList);
 
 // Return: IOC_RESULT_YES or IOC_RESULT_NO
-static IOC_Result_T __IOC_isEmptyClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList);
+static IOC_BoolResult_T __IOC_isEmptyClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList);
 
 //---------------------------------------------------------------------------------------------------------------------
 /**
@@ -199,9 +199,10 @@ void _IOC_deinitEvtDescQueue(_IOC_EvtDescQueue_pT pEvtDescQueue) {
   }
 }
 
-IOC_Result_T _IOC_isEmptyEvtDescQueue(_IOC_EvtDescQueue_pT pEvtDescQueue) {
+IOC_BoolResult_T _IOC_isEmptyEvtDescQueue(_IOC_EvtDescQueue_pT pEvtDescQueue) {
   pthread_mutex_lock(&pEvtDescQueue->Mutex);
-  IOC_Result_T Result = (pEvtDescQueue->QueuedEvtNum == pEvtDescQueue->ProcedEvtNum) ? IOC_RESULT_YES : IOC_RESULT_NO;
+  IOC_BoolResult_T Result =
+      (pEvtDescQueue->QueuedEvtNum == pEvtDescQueue->ProcedEvtNum) ? IOC_RESULT_YES : IOC_RESULT_NO;
   pthread_mutex_unlock(&pEvtDescQueue->Mutex);
   return Result;
 }
@@ -389,10 +390,10 @@ _returnResult:
   return Result;
 }
 
-static IOC_Result_T __IOC_isEmptyClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList) {
+static IOC_BoolResult_T __IOC_isEmptyClsEvtSuberList(_ClsEvtSuberList_pT pEvtSuberList) {
   // read SuberNum atomically
   ULONG_T SuberNum    = atomic_load(&pEvtSuberList->SuberNum);
-  IOC_Result_T Result = (SuberNum == 0) ? IOC_RESULT_YES : IOC_RESULT_NO;
+  IOC_BoolResult_T Result = (SuberNum == 0) ? IOC_RESULT_YES : IOC_RESULT_NO;
   return Result;
 }
 
@@ -604,7 +605,7 @@ static void __IOC_transferClsEvtLinkObjStateByBehavior(_ClsEvtLinkObj_pT pLinkOb
 //===> END IMPLEMENT FOR ClsEvtLinkObj
 //---------------------------------------------------------------------------------------------------------------------
 
-IOC_Result_T _IOC_isAutoLink_inConlesMode(
+IOC_BoolResult_T _IOC_isAutoLink_inConlesMode(
     /*ARG_IN*/ IOC_LinkID_T LinkID) {
   return (LinkID == IOC_CONLES_MODE_AUTO_LINK_ID) ? IOC_RESULT_YES : IOC_RESULT_NO;
 }
@@ -703,7 +704,7 @@ void _IOC_forceProcEvt_inConlesMode(void) {
       __IOC_wakeupClsEvtLinkObj(pLinkObj);
 
       usleep(1000);  // 1ms
-      IOC_Result_T IsEmptyEvtDescQueue = _IOC_isEmptyEvtDescQueue(&pLinkObj->EvtDescQueue);
+      IOC_BoolResult_T IsEmptyEvtDescQueue = _IOC_isEmptyEvtDescQueue(&pLinkObj->EvtDescQueue);
       if (IsEmptyEvtDescQueue == IOC_RESULT_YES) {
         break;
       }
@@ -771,7 +772,7 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
     return IOC_RESULT_INVALID_AUTO_LINK_ID;  // Path@C->1
   }
 
-  IOC_Result_T IsEmptyEvtSuberList = __IOC_isEmptyClsEvtSuberList(&pLinkObj->EvtSuberList);
+  IOC_BoolResult_T IsEmptyEvtSuberList = __IOC_isEmptyClsEvtSuberList(&pLinkObj->EvtSuberList);
   if (IsEmptyEvtSuberList == IOC_RESULT_YES) {
     _IOC_LogWarn("[ConlesEvent] No EvtSuber of AutoLinkID(%llu)", LinkID);
     Result = IOC_RESULT_NO_EVENT_CONSUMER;  // Path@C->2

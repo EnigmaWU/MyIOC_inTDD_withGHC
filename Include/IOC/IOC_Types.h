@@ -115,7 +115,9 @@ typedef struct {
  }
 
 static inline IOC_BoolResult_T IOC_Option_isSyncMode(IOC_Options_pT pOption) {
-    return !IOC_Option_isAsyncMode(pOption);
+  IOC_BoolResult_T IsAsyncMode = IOC_Option_isAsyncMode(pOption);
+  return (IsAsyncMode == IOC_RESULT_YES) ? IOC_RESULT_NO  // SyncMode is opposite to AsyncMode
+                                         : IOC_RESULT_YES;
 }
 
 static inline IOC_BoolResult_T IOC_Option_isNonBlockMode(IOC_Options_pT pOption) {
@@ -159,7 +161,11 @@ static inline IOC_BoolResult_T IOC_Option_isMayBlockMode(IOC_Options_pT pOption)
     IOC_BoolResult_T IsNonBlock = IOC_Option_isNonBlockMode(pOption);
     IOC_BoolResult_T IsTimeout  = IOC_Option_isTimeoutMode(pOption);
 
-    return (IsNonBlock == IOC_RESULT_NO && IsTimeout == IOC_RESULT_NO);
+    if (IsNonBlock == IOC_RESULT_NO && IsTimeout == IOC_RESULT_NO) {
+      return IOC_RESULT_YES;  // MayBlock means not NonBlock and not Timeout
+    }
+
+    return IOC_RESULT_NO;
 }
 
 //---------------------------------------------------------------------------------------------------------------------

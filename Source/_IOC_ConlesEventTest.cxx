@@ -41,8 +41,8 @@ TEST(_IOC_ConlesEvent_EvtDescQueue, verifyEnqueueSuccessOrTooMany_byEnqueueingUp
   ASSERT_EQ(0, SUT_EvtDescQueue.ProcedEvtNum);                  // KeyVerifyPoint
 
   //===EXTRA BEHAVIOR&VERIFY===
-  Result = _IOC_isEmptyEvtDescQueue(&SUT_EvtDescQueue);
-  ASSERT_EQ(IOC_RESULT_NO, Result);  // KeyVerifyPoint
+  IOC_BoolResult_T IsEmptyEvtDescQueue = _IOC_isEmptyEvtDescQueue(&SUT_EvtDescQueue);
+  ASSERT_EQ(IOC_RESULT_NO, IsEmptyEvtDescQueue);  // KeyVerifyPoint
 
   //===CLEANUP===
   // deinit WILL fail because not dequeue all enqueued, this is known issue of this SUT.
@@ -87,8 +87,8 @@ TEST(_IOC_ConlesEvent_EvtDescQueue, verifyDequeueSuccessOrEmpty_byDequeueingUpto
   ASSERT_EQ(MaxQueuingEvtDesc, SUT_EvtDescQueue.QueuedEvtNum);  // KeyVerifyPoint
 
   //===EXTRA BEHAVIOR&VERIFY===
-  Result = _IOC_isEmptyEvtDescQueue(&SUT_EvtDescQueue);
-  ASSERT_EQ(IOC_RESULT_YES, Result);  // KeyVerifyPoint
+  IOC_BoolResult_T IsEmpty = _IOC_isEmptyEvtDescQueue(&SUT_EvtDescQueue);
+  ASSERT_EQ(IOC_RESULT_YES, IsEmpty);  // KeyVerifyPoint
 
   //===CLEANUP===
   _IOC_deinitEvtDescQueue(&SUT_EvtDescQueue);
