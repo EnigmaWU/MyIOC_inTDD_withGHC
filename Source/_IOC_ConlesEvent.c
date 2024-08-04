@@ -745,7 +745,9 @@ void _IOC_forceProcEvt_inConlesMode(void) {
  *   - 4) UnExceptError: failWithLogBug
  * - C) BugLikeError
  *   - 1) invalidAutoLinkID if no LinkObj
+ *        |-> return IOC_RESULT_INVALID_AUTO_LINK_ID
  *   - 2) noEvtSuber if no EvtSuber of LinkObj
+ *        |-> return IOC_RESULT_NO_EVENT_CONSUMER
  *
  * @note
  * - SUCCESS result with LogDebug, FAIL result with LogWarn or LogError or LogBug.
