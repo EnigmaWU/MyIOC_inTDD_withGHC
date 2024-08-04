@@ -732,7 +732,7 @@ void _IOC_forceProcEvt_inConlesMode(void) {
  *          |-> return IOC_RESULT_SUCCESS
  *   - 2) MayBlockMode_waitUntilHasSpaceAndEnqueueSuccess
  *          |-> return IOC_RESULT_SUCCESS OR BLOCK_FOREVER
- *   - 3) NonBlockOrTimeout_returnImmediatelyOrWaitTimeoutOrEnqueueSuccess
+ *   - 3) NonBlockOrTimeoutMode_returnImmediatelyOrWaitTimeoutOrEnqueueSuccess
  *          -> return IOC_RESULT_TOO_MANY_QUEUING_EVTDESC OR IOC_RESULT_SUCCESS
  *   - 4) UnExceptError: failWithLogBugMsg
  * - B) SyncMode
