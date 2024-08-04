@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -111,6 +112,10 @@ static inline bool IOC_Option_isAsyncMode(IOC_Options_pT pOption) {
     return IsAsyncMode;
 }
 
+static inline bool IOC_Option_isSyncMode(IOC_Options_pT pOption) {
+    return !IOC_Option_isAsyncMode(pOption);
+}
+
 static inline bool IOC_Option_isNonBlockMode(IOC_Options_pT pOption) {
     bool IsNonBlockMode = false;  // Default is BlockMode
     if (pOption) {
@@ -124,8 +129,13 @@ static inline bool IOC_Option_isNonBlockMode(IOC_Options_pT pOption) {
     return IsNonBlockMode;
 }
 
+#define IOC_Option_defineNonBlock(OptVarName)       \
+  IOC_Options_T OptVarName     = {};                \
+  OptVarName.IDs               = IOC_OPTID_TIMEOUT; \
+  OptVarName.Payload.TimeoutUS = 0;
+
 static inline ULONG_T IOC_Option_getTimeoutUS(IOC_Options_pT pOption) {
-    ULONG_T TimeoutUS = 0xFFFFFFFFFFFFFFFFULL;  // Default is Infinite
+    ULONG_T TimeoutUS = ULONG_MAX;  // Default is Infinite
     if (pOption) {
       if (pOption->IDs & IOC_OPTID_TIMEOUT) {
         TimeoutUS = pOption->Payload.TimeoutUS;
@@ -135,10 +145,20 @@ static inline ULONG_T IOC_Option_getTimeoutUS(IOC_Options_pT pOption) {
     return TimeoutUS;
 }
 
-#define IOC_Option_defineNonBlock(OptVarName)       \
-  IOC_Options_T OptVarName     = {};                \
-  OptVarName.IDs               = IOC_OPTID_TIMEOUT; \
-  OptVarName.Payload.TimeoutUS = 0;
+static inline bool IOC_Option_isTimeoutMode(IOC_Options_pT pOption) {
+    ULONG_T TimeoutUS = IOC_Option_getTimeoutUS(pOption);
+    if (0 < TimeoutUS && TimeoutUS < ULONG_MAX) {
+      return true;
+    }
+    return false;
+}
+
+static inline bool IOC_Option_isMayBlockMode(IOC_Options_pT pOption) {
+    bool IsNonBlock = IOC_Option_isNonBlockMode(pOption);
+    bool IsTimeout  = IOC_Option_isTimeoutMode(pOption);
+
+    return !IsNonBlock && !IsTimeout;
+}
 
 //---------------------------------------------------------------------------------------------------------------------
 
