@@ -713,21 +713,14 @@ void _IOC_forceProcEvt_inConlesMode(void) {
 /**
  * @brief Implementation of the _IOC_postEVT_inConlesMode.
  *
- * This file contains the implementation of the _IOC_postEVT_inConlesMode function, which is
- * responsible for posting events in the Conles mode.
- *
  * @param
- * - LinkID: The ID of the link object.
- * - pEvtDesc: A pointer to the event descriptor.
+ * - LinkID: use predefined AutoID.
+ * - pEvtDesc: A pointer to the readonly event descriptor.
  * - pOption: An optional pointer to the options.
+ *    such as Async or Sync, Block or NonBlock/Timeout.
  *
- * @return
- * - IOC_RESULT_SUCCESS: The event was successfully posted.
- * - IOC_RESULT_INVALID_AUTO_LINK_ID: The auto link ID is invalid.
- * - IOC_RESULT_NO_EVENT_CONSUMER: There are no event consumers.
- * - IOC_RESULT_TOO_MANY_QUEUING_EVTDESC: There are too many queuing event descriptors.
- * - IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE: The event descriptor queue is too long to empty.
- *
+ * @return see following function flowchart diagram and paths.
+ *-------------------------------------------------------------------------------------------------
  * The function follows the following flowchart diagram:
  * - RefDiagram: _IOC_ConlesEvent.md
  *   - FlowChart Diagram
@@ -756,7 +749,7 @@ void _IOC_forceProcEvt_inConlesMode(void) {
  *
  * @note
  * - SUCCESS result with LogDebug, FAIL result with LogWarn or LogError or LogBug.
- * - Each Result setting point comment with 'Path@[A/B/C]->[1/2/3]' and goto _returnResult.
+ * - Each Result setting point comment with 'Path@[A/B/C]->[1/2/3/4]' and goto _returnResult.
  * - Each Result of Path add _IOC_LogNotTested() to indicate further testing of this path,
  *    and comment out after test covered.
  */
