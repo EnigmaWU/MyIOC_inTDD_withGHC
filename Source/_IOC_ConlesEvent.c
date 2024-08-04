@@ -711,17 +711,22 @@ void _IOC_forceProcEvt_inConlesMode(void) {
   }
 }
 /**
- * @brief Implementation of the _IOC_postEVT_inConlesMode function.
+ * @brief Implementation of the _IOC_postEVT_inConlesMode.
  *
- * This file contains the implementation of the _IOC_postEVT_inConlesMode function, which is responsible for posting
- * events in the Conles mode.
+ * This file contains the implementation of the _IOC_postEVT_inConlesMode function, which is
+ * responsible for posting events in the Conles mode.
  *
- * The function takes three arguments:
+ * @param
  * - LinkID: The ID of the link object.
  * - pEvtDesc: A pointer to the event descriptor.
  * - pOption: An optional pointer to the options.
  *
- * The function returns an IOC_Result_T value, which indicates the result of the operation.
+ * @return
+ * - IOC_RESULT_SUCCESS: The event was successfully posted.
+ * - IOC_RESULT_INVALID_AUTO_LINK_ID: The auto link ID is invalid.
+ * - IOC_RESULT_NO_EVENT_CONSUMER: There are no event consumers.
+ * - IOC_RESULT_TOO_MANY_QUEUING_EVTDESC: There are too many queuing event descriptors.
+ * - IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE: The event descriptor queue is too long to empty.
  *
  * The function follows the following flowchart diagram:
  * - RefDiagram: _IOC_ConlesEvent.md
@@ -730,14 +735,21 @@ void _IOC_forceProcEvt_inConlesMode(void) {
  *
  * The function follows the following paths:
  * - A) AsyncMode
- *   - 1) enqueueSuccess
- *   - 2) MayBlockMode + waitSpaceEnqueueSuccess
- *   - 3) NonBlockOrTimeoutMode + failWithTooManyQueuingEvtDesc
- *   - 4) UnExceptError: failWithLogBug
+ *   - 1) enqueueSuccess_ifHasSpaceInEvtDescQueue
+ *          |-> return IOC_RESULT_SUCCESS
+ *   - 2) MayBlockMode_waitUntilHasSpaceAndEnqueueSuccess
+ *          |-> return IOC_RESULT_SUCCESS OR BLOCK_FOREVER
+ *   - 3) NonBlockOrTimeout_returnImmediatelyOrWaitTimeoutOrEnqueueSuccess
+ *          -> return IOC_RESULT_TOO_MANY_QUEUING_EVTDESC OR IOC_RESULT_SUCCESS
+ *   - 4) UnExceptError: failWithLogBugMsg
  * - B) SyncMode
- *   - 1) cbProcEvtSuccess
- *   - 2) MayBlockMode + waitEmptyCbProcEvtSuccess
- *   - 3) NonBlockOrTimeoutMode + failWithTooLongEmptyingEvtDescQueue
+ *   - 1) cbProcEvt_ifIsEmptyEvtDescQueue
+ *        |-> return IOC_RESULT_SUCCESS
+ *   - 2) MayBlockMode_waitEvtDescQueueBecomeEmptyThenCbProcEvt
+ *        |-> return IOC_RESULT_SUCCESS OR BLOCK_FOREVER
+ *   - 3) NonBlockOrTimeoutMode_returnImmediatelyOrWaitTimeoutOrCbProcEvt
+ *        |-> return IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE OR IOC_RESULT_SUCCESS
+ *   - 4) UnExceptError: failWithLogBug
  * - C) BugLikeError
  *   - 1) invalidAutoLinkID if no LinkObj
  *   - 2) noEvtSuber if no EvtSuber of LinkObj
@@ -745,7 +757,8 @@ void _IOC_forceProcEvt_inConlesMode(void) {
  * @note
  * - SUCCESS result with LogDebug, FAIL result with LogWarn or LogError or LogBug.
  * - Each Result setting point comment with 'Path@[A/B/C]->[1/2/3]' and goto _returnResult.
- * - Each Result of Path add _IOC_LogNotTested() to indicate the need to check this path, comment out after test.
+ * - Each Result of Path add _IOC_LogNotTested() to indicate further testing of this path,
+ *    and comment out after test covered.
  */
 IOC_Result_T _IOC_postEVT_inConlesMode(
     /*ARG_IN*/ IOC_LinkID_T LinkID,
