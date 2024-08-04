@@ -23,9 +23,6 @@ typedef enum {
   IOC_RESULT_SUCCESS = 0,
   IOC_RESULT_FAILURE = -1,
 
-  IOC_RESULT_YES = 1,
-  IOC_RESULT_NO  = 0,
-
   // POSIX's Result (errno.h)
   IOC_RESULT_POSIX_ENOMEM  = -ENOMEM,
   IOC_RESULT_INVALID_PARAM = -EINVAL,
@@ -46,6 +43,11 @@ typedef enum {
 } IOC_Result_T;
 
 const char *IOC_getResultStr(IOC_Result_T Result);
+
+typedef enum {
+  IOC_RESULT_NO  = 0,  // False
+  IOC_RESULT_YES = 1,  // True
+} IOC_BoolResult_T;
 
 /**
  * @brief LinkID is a unique ID to identify a link between two objects in communication.
@@ -101,27 +103,27 @@ typedef struct {
 
  } IOC_Options_T, *IOC_Options_pT;
 
-static inline bool IOC_Option_isAsyncMode(IOC_Options_pT pOption) {
-    bool IsAsyncMode = true;  // Default is AsyncMode
-    if (pOption) {
-      if (pOption->IDs & IOC_OPTID_SYNC_MODE) {
-        IsAsyncMode = false;
-      }
+ static inline IOC_BoolResult_T IOC_Option_isAsyncMode(IOC_Options_pT pOption) {
+  IOC_BoolResult_T IsAsyncMode = IOC_RESULT_YES;  // Default is AsyncMode
+  if (pOption) {
+    if (pOption->IDs & IOC_OPTID_SYNC_MODE) {
+      IsAsyncMode = IOC_RESULT_NO;
     }
+  }
 
-    return IsAsyncMode;
-}
+  return IsAsyncMode;
+ }
 
-static inline bool IOC_Option_isSyncMode(IOC_Options_pT pOption) {
+static inline IOC_BoolResult_T IOC_Option_isSyncMode(IOC_Options_pT pOption) {
     return !IOC_Option_isAsyncMode(pOption);
 }
 
-static inline bool IOC_Option_isNonBlockMode(IOC_Options_pT pOption) {
-    bool IsNonBlockMode = false;  // Default is BlockMode
+static inline IOC_BoolResult_T IOC_Option_isNonBlockMode(IOC_Options_pT pOption) {
+    IOC_BoolResult_T IsNonBlockMode = IOC_RESULT_NO;  // Default is BlockMode
     if (pOption) {
       if (pOption->IDs & IOC_OPTID_TIMEOUT) {
         if (pOption->Payload.TimeoutUS == 0) {
-          IsNonBlockMode = true;
+          IsNonBlockMode = IOC_RESULT_YES;
         }
       }
     }
@@ -145,19 +147,19 @@ static inline ULONG_T IOC_Option_getTimeoutUS(IOC_Options_pT pOption) {
     return TimeoutUS;
 }
 
-static inline bool IOC_Option_isTimeoutMode(IOC_Options_pT pOption) {
+static inline IOC_BoolResult_T IOC_Option_isTimeoutMode(IOC_Options_pT pOption) {
     ULONG_T TimeoutUS = IOC_Option_getTimeoutUS(pOption);
     if (0 < TimeoutUS && TimeoutUS < ULONG_MAX) {
-      return true;
+      return IOC_RESULT_YES;
     }
-    return false;
+    return IOC_RESULT_NO;
 }
 
-static inline bool IOC_Option_isMayBlockMode(IOC_Options_pT pOption) {
-    bool IsNonBlock = IOC_Option_isNonBlockMode(pOption);
-    bool IsTimeout  = IOC_Option_isTimeoutMode(pOption);
+static inline IOC_BoolResult_T IOC_Option_isMayBlockMode(IOC_Options_pT pOption) {
+    IOC_BoolResult_T IsNonBlock = IOC_Option_isNonBlockMode(pOption);
+    IOC_BoolResult_T IsTimeout  = IOC_Option_isTimeoutMode(pOption);
 
-    return !IsNonBlock && !IsTimeout;
+    return (IsNonBlock == IOC_RESULT_NO && IsTimeout == IOC_RESULT_NO);
 }
 
 //---------------------------------------------------------------------------------------------------------------------
