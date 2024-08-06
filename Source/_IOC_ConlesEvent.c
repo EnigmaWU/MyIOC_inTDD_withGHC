@@ -752,9 +752,9 @@ void _IOC_forceProcEvt_inConlesMode(void) {
  *
  * @note
  * - SUCCESS result with LogDebug, FAIL result with LogWarn or LogError or LogBug.
- * - Each Result setting point comment with 'Path@[A/B/C]->[1/2/3/4]' and goto _returnResult.
- * - Each Result of Path add _IOC_LogNotTested() to indicate further testing of this path,
- *    and comment out after test covered.
+ * - Each Result return value set and comment with 'Path@[A/B/C]->[1/2/3/4]',
+ *    and add _IOC_LogNotTested() next line for later comment out by unit testing of this path,
+ *      and then goto _returnResult lable to clean up and return Result.
  */
 IOC_Result_T _IOC_postEVT_inConlesMode(
     /*ARG_IN*/ IOC_LinkID_T LinkID,
