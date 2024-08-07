@@ -54,8 +54,8 @@ static inline const char *IOC_EvtDesc_getEvtFullNameStr(IOC_EvtDesc_pT pEvtDesc,
 }
 
 #define IOC_EVTDESC_PRINTABLE_BUF_SIZE 64
-static inline const char *IOC_EvtDesc_printReadableFormat(IOC_EvtDesc_pT pEvtDesc, char *EvtDescBuf,
-                                                          size_t EvtDescBufSize) {
+static inline const char *IOC_EvtDesc_printDetail(IOC_EvtDesc_pT pEvtDesc, char *EvtDescBuf,
+                                                  size_t EvtDescBufSize) {
   // Use static buffer if EvtDescBuf is NULL,
   // for easy use but not thread-safe.
   static char _mEvtDescBuf[IOC_EVTDESC_PRINTABLE_BUF_SIZE];
@@ -68,7 +68,7 @@ static inline const char *IOC_EvtDesc_printReadableFormat(IOC_EvtDesc_pT pEvtDes
     EvtDescBufSize = sizeof(_mEvtDescBuf);
   }
 
-  snprintf(EvtDescBuf, EvtDescBufSize, "EvtDesc(SeqID=%lu, ID=%llu(%s), Value=%lu)",
+  snprintf(EvtDescBuf, EvtDescBufSize, "SeqID=%lu, ID=%llu(%s), Value=%lu",
            IOC_EvtDesc_getSeqID(pEvtDesc), IOC_EvtDesc_getEvtID(pEvtDesc),
            IOC_EvtDesc_getEvtFullNameStr(pEvtDesc, EvtFullNameBuf, sizeof(EvtFullNameBuf)),
            IOC_EvtDesc_getEvtValue(pEvtDesc));
