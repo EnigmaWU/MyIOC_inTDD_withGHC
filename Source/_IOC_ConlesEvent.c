@@ -731,18 +731,18 @@ void _IOC_forceProcEvt_inConlesMode(void) {
  * - A) AsyncMode
  *   - 1) enqueueSuccess_ifHasSpaceInEvtDescQueue
  *          |-> return IOC_RESULT_SUCCESS
- *   - 2) MayBlockMode_waitUntilHasSpaceAndEnqueueSuccess
- *          |-> return IOC_RESULT_SUCCESS OR BLOCK_FOREVER
- *   - 3) NonBlockOrTimeoutMode_returnImmediatelyOrWaitTimeoutOrEnqueueSuccess
+ *   - 2) NonBlockOrTimeoutMode_returnImmediatelyOrWaitTimeoutOrEnqueueSuccess
  *          -> return IOC_RESULT_TOO_MANY_QUEUING_EVTDESC OR IOC_RESULT_SUCCESS
+ *   - 3) MayBlockMode_waitUntilHasSpaceAndEnqueueSuccess
+ *          |-> return IOC_RESULT_SUCCESS OR BLOCK_FOREVER
  *   - 4) UnExceptError: failWithLogBugMsg
  * - B) SyncMode
  *   - 1) cbProcEvt_ifIsEmptyEvtDescQueue
  *        |-> return IOC_RESULT_SUCCESS
- *   - 2) MayBlockMode_waitEvtDescQueueBecomeEmptyThenCbProcEvt
- *        |-> return IOC_RESULT_SUCCESS OR BLOCK_FOREVER
- *   - 3) NonBlockOrTimeoutMode_returnImmediatelyOrWaitTimeoutOrCbProcEvt
+ *   - 2) NonBlockOrTimeoutMode_returnImmediatelyOrWaitTimeoutOrCbProcEvt
  *        |-> return IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE OR IOC_RESULT_SUCCESS
+ *   - 3) MayBlockMode_waitEvtDescQueueBecomeEmptyThenCbProcEvt
+ *        |-> return IOC_RESULT_SUCCESS OR BLOCK_FOREVER
  *   - 4) UnExceptError: failWithLogBug
  * - C) BugLikeError
  *   - 1) invalidAutoLinkID or notExistLinkObj
