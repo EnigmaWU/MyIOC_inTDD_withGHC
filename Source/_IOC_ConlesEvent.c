@@ -37,6 +37,9 @@
 
 #include "_IOC_ConlesEvent.h"
 
+#include <sys/_types/_nlink_t.h>
+#include <sys/_types/_null.h>
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //======>>>>>>BEGIN OF DEFINE FOR ConlesEvent>>>>>>====================================================================
 #define _CONLES_EVENT_MAX_SUBSCRIBER 16
@@ -711,6 +714,27 @@ void _IOC_forceProcEvt_inConlesMode(void) {
     }
   }
 }
+
+static IOC_Result_T __IOC_postEVT_inConlesModeAsyncTimed(
+    /*ARG_IN*/ _ClsEvtLinkObj_pT pLinkObj,
+    /*ARG_IN*/ const IOC_EvtDesc_pT pEvtDesc,
+    /*ARG_IN*/ ULONG_T TimeoutUS);
+static IOC_Result_T __IOC_postEVT_inConlesModeAsyncBlocked(
+    /*ARG_IN*/ _ClsEvtLinkObj_pT pLinkObj,
+    /*ARG_IN*/ const IOC_EvtDesc_pT pEvtDesc) {
+  return __IOC_postEVT_inConlesModeAsyncTimed(pLinkObj, pEvtDesc, ULONG_MAX);
+}
+
+static IOC_Result_T __IOC_postEVT_inConlesModeSyncTimed(
+    /*ARG_IN*/ _ClsEvtLinkObj_pT pLinkObj,
+    /*ARG_IN*/ const IOC_EvtDesc_pT pEvtDesc,
+    /*ARG_IN*/ ULONG_T TimeoutUS);
+static IOC_Result_T __IOC_postEVT_inConlesModeSyncBlocked(
+    /*ARG_IN*/ _ClsEvtLinkObj_pT pLinkObj,
+    /*ARG_IN*/ const IOC_EvtDesc_pT pEvtDesc) {
+  return __IOC_postEVT_inConlesModeSyncTimed(pLinkObj, pEvtDesc, ULONG_MAX);
+}
+
 /**
  * @brief Implementation of the _IOC_postEVT_inConlesMode.
  *
@@ -760,176 +784,225 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
     /*ARG_IN*/ IOC_LinkID_T LinkID,
     /*ARG_IN*/ const IOC_EvtDesc_pT pEvtDesc,
     /*ARG_IN_OPTIONAL*/ const IOC_Options_pT pOption) {
-  char EvtDescBuf[IOC_EVTDESC_PRINTABLE_BUF_SIZE];
-  IOC_Result_T Result = IOC_RESULT_BUG;
-  bool IsAsyncMode    = IOC_Option_isAsyncMode(pOption);
-  bool IsNonBlockMode = IOC_Option_isNonBlockMode(pOption);
+  IOC_Result_T Result          = IOC_RESULT_BUG;
+  IOC_BoolResult_T IsAsyncMode = IOC_Option_isAsyncMode(pOption);
+  IOC_BoolResult_T IsAutoLink  = _IOC_isAutoLink_inConlesMode(LinkID);
+
+  if (IsAutoLink == IOC_RESULT_NO) {
+    _IOC_LogError("[ConlesEvent]: Not-Support LinkID(%llu)", LinkID);
+    _IOC_LogNotTested();                     // comment out by unit testing
+    return IOC_RESULT_INVALID_AUTO_LINK_ID;  // Path@C->[1]
+  }
 
   _ClsEvtLinkObj_pT pLinkObj = __IOC_getClsEvtLinkObjLocked(LinkID);
   if (pLinkObj == NULL) {
-    _IOC_LogError("[ConlesEvent]: Invalid AutoLinkID(%llu)", LinkID);
-    _IOC_LogNotTested();                     // TODO: check this path, comment out after test
-    return IOC_RESULT_INVALID_AUTO_LINK_ID;  // Path@C->1
+    _IOC_LogBug("[ConlesEvent]: No LinkObj of AutoLinkID(%llu)", LinkID);
+    _IOC_LogNotTested();    // comment out by unit testing
+    return IOC_RESULT_BUG;  // Path@C->[1]
   }
 
-  IOC_BoolResult_T IsEmptyEvtSuberList = __IOC_isEmptyClsEvtSuberList(&pLinkObj->EvtSuberList);
-  if (IsEmptyEvtSuberList == IOC_RESULT_YES) {
-    _IOC_LogWarn("[ConlesEvent] No EvtSuber of AutoLinkID(%llu)", LinkID);
-    Result = IOC_RESULT_NO_EVENT_CONSUMER;  // Path@C->2
-    //_IOC_LogNotTested();
+  IOC_BoolResult_T IsEmptySuberList = __IOC_isEmptyClsEvtSuberList(&pLinkObj->EvtSuberList);
+  if (IsEmptySuberList == IOC_RESULT_YES) {
+    _IOC_LogWarn("[ConlesEvent]: No EvtSuber of AutoLinkID(%llu)", LinkID);
+    // _IOC_LogNotTested();
+    Result = IOC_RESULT_NO_EVENT_CONSUMER;  // Path@C->[2]
     goto _returnResult;
   }
 
-  //---------------------------------------------------------------------------
+  //-------------------------------------------------------------------------------------------------------------------
   if (IsAsyncMode) {
+    // 1) enqueueSuccess_ifHasSpaceInEvtDescQueue
     Result = _IOC_enqueueEvtDescQueueLast(&pLinkObj->EvtDescQueue, pEvtDesc);
     if (Result == IOC_RESULT_SUCCESS) {
       __IOC_wakeupClsEvtLinkObj(pLinkObj);
-      _IOC_LogDebug("[ConlesEvent<Async>]: AutoLinkID(%llu) enqueued %s", LinkID,
-                    IOC_EvtDesc_printDetail(pEvtDesc, EvtDescBuf, sizeof(EvtDescBuf)));
 
+      // _IOC_LogDebug("[ConlesEvent::ASync]: AutoLinkID(%llu) postEvtDesc(%s) success", LinkID,
+      //               IOC_EvtDesc_printDetail(pEvtDesc, NULL, 0));
+      Result = IOC_RESULT_SUCCESS;  // Path@A->[1]
       //_IOC_LogNotTested();
-      Result = IOC_RESULT_SUCCESS;
-      goto _returnResult;  // Path@A->1
-    } else if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
-      if (IsNonBlockMode) {
-        _IOC_LogWarn("[ConlesEvent<AsyncNonBlock>]: AutoLinkID(%llu) enqueue %s failed(%s)", LinkID,
-                     IOC_EvtDesc_printDetail(pEvtDesc, EvtDescBuf, sizeof(EvtDescBuf)),
-                     IOC_getResultStr(Result));
-
-        //_IOC_LogNotTested();
-        Result = IOC_RESULT_TOO_MANY_QUEUING_EVTDESC;  // Path@A->3 of NonBlockMode
-        goto _returnResult;
-      } else /* MayBlockMode */ {
-        _IOC_LogDebug("[ConlesEvent<AsyncMayBlock>]: AutoLinkID(%llu) %s block retrying...", LinkID,
-                      IOC_EvtDesc_printDetail(pEvtDesc, EvtDescBuf, sizeof(EvtDescBuf)));
-
-        ULONG_T RetryUS = 9;  // 9us
-        // MayBlockMode: calculate timeout, then retry enqueue every RetryUS until success or timeout
-        ULONG_T TimeoutUS = IOC_Option_getTimeoutUS(pOption);
-        // sanity check TimeoutUS>0
-        _IOC_LogAssert(TimeoutUS > 0);
-        bool IsLastRetry = false;
-
-        while (!IsLastRetry) {
-          usleep(RetryUS);
-
-          Result = _IOC_enqueueEvtDescQueueLast(&pLinkObj->EvtDescQueue, pEvtDesc);
-          if (Result == IOC_RESULT_SUCCESS) {
-            __IOC_wakeupClsEvtLinkObj(pLinkObj);
-            _IOC_LogDebug("[ConlesEvent<AsyncMayBlock>]: AutoLinkID(%llu) enqueued %s", LinkID,
-                          IOC_EvtDesc_printDetail(pEvtDesc, EvtDescBuf, sizeof(EvtDescBuf)));
-            break;  // Path@A->2 MayBlockMode of enqueueSuccess
-          } else if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
-            if (TimeoutUS > RetryUS) {
-              TimeoutUS -= RetryUS;  // retry
-            } else if (TimeoutUS > 0) {
-              RetryUS = TimeoutUS;  // last retry
-              TimeoutUS = 0;
-            } else {
-              _IOC_LogWarn("[ConlesEvent<AsyncMayBlock>]: AutoLinkID(%llu) enqueue %s timeout",
-                           LinkID,
-                           IOC_EvtDesc_printDetail(pEvtDesc, EvtDescBuf, sizeof(EvtDescBuf)));
-              Result = IOC_RESULT_TOO_MANY_QUEUING_EVTDESC;  // Path@A->3 of Timeout
-              IsLastRetry = true;
-              break;
-            }
-
-            __IOC_wakeupClsEvtLinkObj(pLinkObj);  // try wakeup and try enqueue again
-          } else /*!Success,!TooMany*/ {
-            _IOC_LogBug(
-                "[ConlesEvent<AsyncMayBlock>]: AutoLinkID(%llu) enqueue %s buggy failed(%s)",
-                LinkID, IOC_EvtDesc_printDetail(pEvtDesc, EvtDescBuf, sizeof(EvtDescBuf)),
-                IOC_getResultStr(Result));
-            Result = IOC_RESULT_BUG;  // Path@A->4
-            break;
-          }
-        }  // END of while(TimeoutUS>0)
-
-        _IOC_LogAssert((Result == IOC_RESULT_SUCCESS) || (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC));
-        //_IOC_LogNotTested();
-        goto _returnResult;
-      }
-    } else /*!Success,!TooMany*/ {
-      _IOC_LogBug("[ConlesEvent<Async>]: AutoLinkID(%llu) enqueue %s buggy failed(%s)", LinkID,
-                  IOC_EvtDesc_printDetail(pEvtDesc, EvtDescBuf, sizeof(EvtDescBuf)),
-                  IOC_getResultStr(Result));
-
-      // Use this path to catch unexpected result from _IOC_enqueueEvtDescQueueLast,
-      //   as currently we have only 3 expected results: SUCCESS, TOO_MANY_QUEUING_EVTDESC, BUG
-      _IOC_LogNotTested();      // TODO: check this path, comment out after test
-      Result = IOC_RESULT_BUG;  // Path@A->4
       goto _returnResult;
     }
-  } else /*SyncMode*/ {
-    bool IsEmptyEvtDescQueue = _IOC_isEmptyEvtDescQueue(&pLinkObj->EvtDescQueue);
 
-    if (IsEmptyEvtDescQueue == IOC_RESULT_YES) {
-      __IOC_cbProcEvtClsEvtSuberList(pLinkObj, &pLinkObj->EvtSuberList, pEvtDesc);
-      _IOC_LogDebug("[ConlesEvent<Sync>]: AutoLinkID(%llu) procEvent(%s) success", LinkID,
-                    IOC_EvtDesc_printDetail(pEvtDesc, EvtDescBuf, sizeof(EvtDescBuf)));
+    // 2.1) NonBlock_returnImmediately
+    if (IOC_Option_isNonBlockMode(pOption)) {
+      _IOC_LogWarn("[ConlesEvent::ASync::NonBlock]: AutoLinkID(%llu) postEvtDesc(%s) failed",
+                   LinkID, IOC_EvtDesc_printDetail(pEvtDesc, NULL, 0));
+      Result = IOC_RESULT_TOO_MANY_QUEUING_EVTDESC;  // Path@A->[2]
+      _IOC_LogNotTested();                           // comment out by unit testing
+      goto _returnResult;
+    }
 
-      //_IOC_LogNotTested();
-      Result = IOC_RESULT_SUCCESS;  // Path@B->1
-    } else {
-      if (IsNonBlockMode) {
-        _IOC_LogDebug(
-            "[ConlesEvent<SyncNonBlock]: AutoLinkID(%llu) %s don't wait emptying EvtDescQueue",
-            LinkID, IOC_EvtDesc_printDetail(pEvtDesc, EvtDescBuf, sizeof(EvtDescBuf)));
+    // 2.2) TimeoutMode_waitTimeoutOrEnqueueSuccess
+    if (IOC_Option_isTimeoutMode(pOption)) {
+      ULONG_T TimeoutUS = IOC_Option_getTimeoutUS(pOption);
 
-        Result = IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE;  // Path@B->3 of NonBlockMode
-        _IOC_LogNotTested();                                  // TODO: check this path, comment out after test
-        goto _returnResult;
-      } else /* MayBlockMode */ {
-        ULONG_T RetryUS = 9;  // 9us
-        // MayBlockMode: calculate timeout, then retry emptying every RetryUS until success or timeout
-        ULONG_T TimeoutUS = IOC_Option_getTimeoutUS(pOption);
-        // sanity check TimeoutUS>0
-        _IOC_LogAssert(TimeoutUS > 0);
-        bool IsLastRetry = false;
+      Result = __IOC_postEVT_inConlesModeAsyncTimed(pLinkObj, pEvtDesc, TimeoutUS);  // Path@A->[2]
+      _IOC_LogAssert(Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC || Result == IOC_RESULT_SUCCESS);
 
-        while (!IsLastRetry) {
-          usleep(RetryUS);
-
-          IsEmptyEvtDescQueue = _IOC_isEmptyEvtDescQueue(&pLinkObj->EvtDescQueue);
-          if (IsEmptyEvtDescQueue == IOC_RESULT_YES) {
-            __IOC_cbProcEvtClsEvtSuberList(pLinkObj, &pLinkObj->EvtSuberList, pEvtDesc);
-            _IOC_LogDebug("[ConlesEvent<SyncMayBlock>]: AutoLinkID(%llu) procEvent(%s) success",
-                          LinkID,
-                          IOC_EvtDesc_printDetail(pEvtDesc, EvtDescBuf, sizeof(EvtDescBuf)));
-
-            Result = IOC_RESULT_SUCCESS;  // Path@B->2 MayBlockMode of cbProcEvtSuccess
-            break;
-          } else {
-            if (TimeoutUS > RetryUS) {
-              TimeoutUS -= RetryUS;  // retry
-            } else if (TimeoutUS > 0) {
-              RetryUS   = TimeoutUS;  // last retry
-              TimeoutUS = 0;
-            } else {
-              _IOC_LogWarn("[ConlesEvent<SyncMayBlock>]: AutoLinkID(%llu) procEvent(%s) timeout",
-                           LinkID,
-                           IOC_EvtDesc_printDetail(pEvtDesc, EvtDescBuf, sizeof(EvtDescBuf)));
-
-              Result      = IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE;  // Path@B->3 of Timeout
-              IsLastRetry = true;
-              break;
-            }
-          }
-        }  // END of while(TimeoutUS>0)
-
-        _IOC_LogAssert((Result == IOC_RESULT_SUCCESS) || (Result == IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE));
-        _IOC_LogNotTested();  // TODO: check this path, comment out after test
-        goto _returnResult;
+      if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
+        _IOC_LogWarn("[ConlesEvent::ASync::Timeout]: AutoLinkID(%llu) postEvtDesc(%s) failed",
+                     LinkID, IOC_EvtDesc_printDetail(pEvtDesc, NULL, 0));
       }
+
+      if (Result == IOC_RESULT_SUCCESS) {
+        _IOC_LogDebug("[ConlesEvent::ASync::Timeout]: AutoLinkID(%llu) postEvtDesc(%s) success",
+                      LinkID, IOC_EvtDesc_printDetail(pEvtDesc, NULL, 0));
+      }
+
+      _IOC_LogNotTested();  // comment out by unit testing
+      goto _returnResult;
+    }
+
+    // 3) MayBlockMode_waitUntilHasSpaceAndEnqueueSuccess
+    if (IOC_Option_isMayBlockMode(pOption)) {
+      Result = __IOC_postEVT_inConlesModeAsyncBlocked(pLinkObj, pEvtDesc);  // Path@A->[3]
+      _IOC_LogAssert(Result == IOC_RESULT_SUCCESS);
+
+      // _IOC_LogDebug("[ConlesEvent::ASync::MayBlock]: AutoLinkID(%llu) postEvtDesc(%s) success",
+      //               LinkID, IOC_EvtDesc_printDetail(pEvtDesc, NULL, 0));
+      //_IOC_LogNotTested();
+      goto _returnResult;
+    } else {
+      _IOC_LogBug("[ConlesEvent]: BUG");
+      Result = IOC_RESULT_BUG;  // Path@A->[4]
+      _IOC_LogNotTested();      // comment out by unit testing
+      goto _returnResult;
+    }
+
+  } else /*SyncMode*/
+  {
+    // 1) cbProcEvt_ifIsEmptyEvtDescQueue
+    if (_IOC_isEmptyEvtDescQueue(&pLinkObj->EvtDescQueue) == IOC_RESULT_YES) {
+      __IOC_cbProcEvtClsEvtSuberList(pLinkObj, &pLinkObj->EvtSuberList, pEvtDesc);
+
+      // _IOC_LogDebug("[ConlesEvent::Sync]: AutoLinkID(%llu) postEvtDesc(%s) success", LinkID,
+      //               IOC_EvtDesc_printDetail(pEvtDesc, NULL, 0));
+      Result = IOC_RESULT_SUCCESS;  // Path@B->[1]
+      //_IOC_LogNotTested();
+      goto _returnResult;
+    }
+
+    // 2.1) NonBlock_returnImmediately
+    if (IOC_Option_isNonBlockMode(pOption)) {
+      _IOC_LogWarn("[ConlesEvent::Sync::NonBlock]: AutoLinkID(%llu) postEvtDesc(%s) failed", LinkID,
+                   IOC_EvtDesc_printDetail(pEvtDesc, NULL, 0));
+      Result = IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE;  // Path@B->[2]
+      _IOC_LogNotTested();                                  // comment out by unit testing
+      goto _returnResult;
+    }
+
+    // 2.2) TimeoutMode_waitTimeoutOrCbProcEvt
+    if (IOC_Option_isTimeoutMode(pOption)) {
+      ULONG_T TimeoutUS = IOC_Option_getTimeoutUS(pOption);
+
+      Result = __IOC_postEVT_inConlesModeSyncTimed(pLinkObj, pEvtDesc, TimeoutUS);  // Path@B->[2]
+      _IOC_LogAssert(Result == IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE ||
+                     Result == IOC_RESULT_SUCCESS);
+
+      if (Result == IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE) {
+        _IOC_LogWarn("[ConlesEvent::Sync::Timeout]: AutoLinkID(%llu) postEvtDesc(%s) failed",
+                     LinkID, IOC_EvtDesc_printDetail(pEvtDesc, NULL, 0));
+      }
+
+      if (Result == IOC_RESULT_SUCCESS) {
+        _IOC_LogDebug("[ConlesEvent::Sync::Timeout]: AutoLinkID(%llu) postEvtDesc(%s) success",
+                      LinkID, IOC_EvtDesc_printDetail(pEvtDesc, NULL, 0));
+      }
+
+      _IOC_LogNotTested();  // comment out by
+      goto _returnResult;
+    }
+
+    // 3) MayBlockMode_waitEvtDescQueueBecomeEmptyThenCbProcEvt
+    if (IOC_Option_isMayBlockMode(pOption)) {
+      Result = __IOC_postEVT_inConlesModeSyncBlocked(pLinkObj, pEvtDesc);  // Path@B->[3]
+      _IOC_LogAssert(Result == IOC_RESULT_SUCCESS);
+
+      _IOC_LogDebug("[ConlesEvent::Sync::MayBlock]: AutoLinkID(%llu) postEvtDesc(%s) success",
+                    LinkID, IOC_EvtDesc_printDetail(pEvtDesc, NULL, 0));
+
+      _IOC_LogNotTested();  // comment out by unit testing
+      goto _returnResult;
+    } else {
+      _IOC_LogBug("[ConlesEvent]: BUG");
+      Result = IOC_RESULT_BUG;  // Path@B->[4]
+      _IOC_LogNotTested();      // comment out by unit testing
+      goto _returnResult;
     }
   }
 
-//-----------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
 _returnResult:
-  _IOC_LogAssert(pLinkObj != NULL);
   __IOC_putClsEvtLinkObj(pLinkObj);
+  return Result;
+}
+
+static IOC_Result_T __IOC_postEVT_inConlesModeAsyncTimed(
+    /*ARG_IN*/ _ClsEvtLinkObj_pT pLinkObj,
+    /*ARG_IN*/ const IOC_EvtDesc_pT pEvtDesc,
+    /*ARG_IN*/ ULONG_T TimeoutUS) {
+  IOC_Result_T Result = IOC_RESULT_BUG;
+
+  struct timespec TS_Begin;
+  clock_gettime(CLOCK_REALTIME, &TS_Begin);
+
+  do {
+    Result = _IOC_enqueueEvtDescQueueLast(&pLinkObj->EvtDescQueue, pEvtDesc);
+    if (Result == IOC_RESULT_SUCCESS) {
+      __IOC_wakeupClsEvtLinkObj(pLinkObj);
+      //_IOC_LogNotTested();
+      break;
+    }
+
+    struct timespec TS_End;
+    clock_gettime(CLOCK_REALTIME, &TS_End);
+
+    ULONG_T ElapsedUS = IOC_diffTimeSpecInUS(&TS_Begin, &TS_End);
+    if (ElapsedUS >= TimeoutUS) {
+      Result = IOC_RESULT_TOO_MANY_QUEUING_EVTDESC;
+      _IOC_LogNotTested();  // comment out by unit testing
+      break;
+    }
+
+    usleep(1000);  // 1ms
+  } while (0x20240810);
 
   return Result;
 }
+
+static IOC_Result_T __IOC_postEVT_inConlesModeSyncTimed(
+    /*ARG_IN*/ _ClsEvtLinkObj_pT pLinkObj,
+    /*ARG_IN*/ const IOC_EvtDesc_pT pEvtDesc,
+    /*ARG_IN*/ ULONG_T TimeoutUS) {
+  IOC_Result_T Result = IOC_RESULT_BUG;
+
+  struct timespec TS_Begin;
+  clock_gettime(CLOCK_REALTIME, &TS_Begin);
+
+  do {
+    if (_IOC_isEmptyEvtDescQueue(&pLinkObj->EvtDescQueue) == IOC_RESULT_YES) {
+      __IOC_cbProcEvtClsEvtSuberList(pLinkObj, &pLinkObj->EvtSuberList, pEvtDesc);
+      _IOC_LogNotTested();  // comment out by unit testing
+      Result = IOC_RESULT_SUCCESS;
+      break;
+    } else {
+      __IOC_wakeupClsEvtLinkObj(pLinkObj);
+    }
+
+    struct timespec TS_End;
+    clock_gettime(CLOCK_REALTIME, &TS_End);
+
+    ULONG_T ElapsedUS = IOC_diffTimeSpecInUS(&TS_Begin, &TS_End);
+    if (ElapsedUS >= TimeoutUS) {
+      Result = IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE;
+      _IOC_LogNotTested();  // comment out by unit testing
+      break;
+    }
+
+    usleep(1000);  // 1ms
+  } while (0x20240810);
+
+  return Result;
+}
+
 //======>>>>>>END OF IMPLEMENT FOR ConlesEvent>>>>>>===================================================================

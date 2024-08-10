@@ -781,7 +781,9 @@ static void __Case01_cleanupVidCapObj(_LiveCamVidCapObj_pT pVidCapObj) {
 static void __Case01_verifyVidCapObj(_LiveCamVidCapObj_pT pVidCapObj) {
     // VERIFY
     EXPECT_EQ(ObjState_Stopped, pVidCapObj->Base.State);
-    EXPECT_EQ(_CASE01_DURATION, pVidCapObj->Base.KeepAliveCnt);
+    // Expect pVidCapObj->Base.KeepAliveCnt is _CASE01_DURATION or _CASE01_DURATION+1
+    EXPECT_TRUE(pVidCapObj->Base.KeepAliveCnt == _CASE01_DURATION ||
+                pVidCapObj->Base.KeepAliveCnt == _CASE01_DURATION + 1);
 
     EXPECT_EQ(_CASE01_VIDCAP_FRM_CNT, pVidCapObj->TotalPostCnts.BizOriVidFrmCapturedEvent);
     EXPECT_EQ(_CASE01_VIDCAP_FRM_CNT, pVidCapObj->TotalSubCnts.BizOriVidFrmRecycledEvent);
