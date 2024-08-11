@@ -96,7 +96,7 @@ TEST(_IOC_ConlesEvent_EvtDescQueue, verifyDequeueSuccessOrEmpty_byDequeueingUpto
 
 TEST(_IOC_ConlesEvent_ClsEvtSuberList, verifySubSuccessOrTooMany_bySubingUptoMaxSuber) {
   //===SETUP===
-  _ClsEvtLinkObj_T STUB_ClsEvtLinkObj = {
+  _ClsEvtLinkObj_T SUT_ClsEvtLinkObj = {
       .LinkID = IOC_CONLES_MODE_AUTO_LINK_ID,
       .State =
           {
@@ -104,8 +104,8 @@ TEST(_IOC_ConlesEvent_ClsEvtSuberList, verifySubSuccessOrTooMany_bySubingUptoMax
               .Sub  = IOC_LinkSubStateDefault,
           },
   };
-  _ClsEvtSuberList_T SUT_ClsEvtSuberList;
-  __IOC_initClsEvtSuberList(&SUT_ClsEvtSuberList);
+  _ClsEvtSuberList_pT pSUT_ClsEvtSuberList = &SUT_ClsEvtLinkObj.EvtSuberList;
+  __IOC_ClsEvt_initSuberList(pSUT_ClsEvtSuberList);
 
   ULONG_T MaxSuber = _CONLES_EVENT_MAX_SUBSCRIBER;
 
@@ -116,10 +116,10 @@ TEST(_IOC_ConlesEvent_ClsEvtSuberList, verifySubSuccessOrTooMany_bySubingUptoMax
     };
 
     //===BEHAVIOR===
-    IOC_Result_T Result = __IOC_insertClsEvtSuberList(&STUB_ClsEvtLinkObj, &SUT_ClsEvtSuberList, &SubEvtArgs);
+    IOC_Result_T Result = __IOC_ClsEvt_insertSuberIntoLinkObj(&SUT_ClsEvtLinkObj, &SubEvtArgs);
     //===VERIFY===
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);           // KeyVerifyPoint
-    ASSERT_EQ(i + 1, SUT_ClsEvtSuberList.SuberNum);  // KeyVerifyPoint
+    ASSERT_EQ(i + 1, pSUT_ClsEvtSuberList->SuberNum);  // KeyVerifyPoint
   }
 
   IOC_SubEvtArgs_T SubEvtArgs = {
@@ -128,19 +128,19 @@ TEST(_IOC_ConlesEvent_ClsEvtSuberList, verifySubSuccessOrTooMany_bySubingUptoMax
   };
 
   //===BEHAVIOR===
-  IOC_Result_T Result = __IOC_insertClsEvtSuberList(&STUB_ClsEvtLinkObj, &SUT_ClsEvtSuberList, &SubEvtArgs);
+  IOC_Result_T Result = __IOC_ClsEvt_insertSuberIntoLinkObj(&SUT_ClsEvtLinkObj, &SubEvtArgs);
   //===VERIFY===
   ASSERT_EQ(IOC_RESULT_TOO_MANY_EVENT_CONSUMER, Result);  // KeyVerifyPoint
-  ASSERT_EQ(MaxSuber, SUT_ClsEvtSuberList.SuberNum);      // KeyVerifyPoint
+  ASSERT_EQ(MaxSuber, pSUT_ClsEvtSuberList->SuberNum);    // KeyVerifyPoint
 
   //===CLEANUP===
   // deinit WILL fail because not remove all added, this is known issue of this SUT.
-  // so don't call __IOC_deinitClsEvtSuberList(&SUT_ClsEvtSuberList);
+  // so don't call __IOC_ClsEvt_deinitSuberList(&SUT_ClsEvtSuberList);
 }
 
 TEST(_IOC_ConlesEvent_ClsEvtSuberList, verifySubConflict_bySubingSameConsumerIdentify) {
   //===SETUP===
-  _ClsEvtLinkObj_T STUB_ClsEvtLinkObj = {
+  _ClsEvtLinkObj_T SUT_ClsEvtLinkObj = {
       .LinkID = IOC_CONLES_MODE_AUTO_LINK_ID,
       .State =
           {
@@ -148,8 +148,8 @@ TEST(_IOC_ConlesEvent_ClsEvtSuberList, verifySubConflict_bySubingSameConsumerIde
               .Sub  = IOC_LinkSubStateDefault,
           },
   };
-  _ClsEvtSuberList_T SUT_ClsEvtSuberList;
-  __IOC_initClsEvtSuberList(&SUT_ClsEvtSuberList);
+  _ClsEvtSuberList_pT pSUT_ClsEvtSuberList = &SUT_ClsEvtLinkObj.EvtSuberList;
+  __IOC_ClsEvt_initSuberList(pSUT_ClsEvtSuberList);
 
   IOC_SubEvtArgs_T SubEvtArgs = {
       .CbProcEvt_F = (IOC_CbProcEvt_F)0x12345678,
@@ -157,25 +157,25 @@ TEST(_IOC_ConlesEvent_ClsEvtSuberList, verifySubConflict_bySubingSameConsumerIde
   };
 
   //===BEHAVIOR===
-  IOC_Result_T Result = __IOC_insertClsEvtSuberList(&STUB_ClsEvtLinkObj, &SUT_ClsEvtSuberList, &SubEvtArgs);
+  IOC_Result_T Result = __IOC_ClsEvt_insertSuberIntoLinkObj(&SUT_ClsEvtLinkObj, &SubEvtArgs);
   //===VERIFY===
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);       // KeyVerifyPoint
-  ASSERT_EQ(1, SUT_ClsEvtSuberList.SuberNum);  // KeyVerifyPoint
+  ASSERT_EQ(1, pSUT_ClsEvtSuberList->SuberNum);  // KeyVerifyPoint
 
   //===BEHAVIOR===
-  Result = __IOC_insertClsEvtSuberList(&STUB_ClsEvtLinkObj, &SUT_ClsEvtSuberList, &SubEvtArgs);
+  Result = __IOC_ClsEvt_insertSuberIntoLinkObj(&SUT_ClsEvtLinkObj, &SubEvtArgs);
   //===VERIFY===
   ASSERT_EQ(IOC_RESULT_CONFLICT_EVENT_CONSUMER, Result);  // KeyVerifyPoint
-  ASSERT_EQ(1, SUT_ClsEvtSuberList.SuberNum);             // KeyVerifyPoint
+  ASSERT_EQ(1, pSUT_ClsEvtSuberList->SuberNum);           // KeyVerifyPoint
 
   //===CLEANUP===
   // deinit WILL fail because not remove all added, this is known issue of this SUT.
-  // so don't call __IOC_deinitClsEvtSuberList(&SUT_ClsEvtSuberList);
+  // so don't call __IOC_ClsEvt_deinitSuberList(&SUT_ClsEvtSuberList);
 }
 
 TEST(_IOC_ConlesEvent_ClsEvtSuberList, verifyUnsubSuccessOrNot_byUnsubTwice) {
   //===SETUP===
-  _ClsEvtLinkObj_T STUB_ClsEvtLinkObj = {
+  _ClsEvtLinkObj_T SUT_ClsEvtLinkObj = {
       .LinkID = IOC_CONLES_MODE_AUTO_LINK_ID,
       .State =
           {
@@ -183,8 +183,8 @@ TEST(_IOC_ConlesEvent_ClsEvtSuberList, verifyUnsubSuccessOrNot_byUnsubTwice) {
               .Sub  = IOC_LinkSubStateDefault,
           },
   };
-  _ClsEvtSuberList_T SUT_ClsEvtSuberList;
-  __IOC_initClsEvtSuberList(&SUT_ClsEvtSuberList);
+  _ClsEvtSuberList_pT pSUT_ClsEvtSuberList = &SUT_ClsEvtLinkObj.EvtSuberList;
+  __IOC_ClsEvt_initSuberList(pSUT_ClsEvtSuberList);
 
   IOC_EvtID_T EvtIDs[]        = {IOC_EVTID_TEST_KEEPALIVE, IOC_EVTID_TEST_KEEPALIVE_RELAY};
   IOC_SubEvtArgs_T SubEvtArgs = {
@@ -194,26 +194,26 @@ TEST(_IOC_ConlesEvent_ClsEvtSuberList, verifyUnsubSuccessOrNot_byUnsubTwice) {
       .pEvtIDs     = EvtIDs,
   };
 
-  IOC_Result_T Result = __IOC_insertClsEvtSuberList(&STUB_ClsEvtLinkObj, &SUT_ClsEvtSuberList, &SubEvtArgs);
+  IOC_Result_T Result = __IOC_ClsEvt_insertSuberIntoLinkObj(&SUT_ClsEvtLinkObj, &SubEvtArgs);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
-  ASSERT_EQ(1, SUT_ClsEvtSuberList.SuberNum);
+  ASSERT_EQ(1, pSUT_ClsEvtSuberList->SuberNum);
 
   //===BEHAVIOR===
   IOC_UnsubEvtArgs_T UnsubEvtArgs = {
       .CbProcEvt_F = (IOC_CbProcEvt_F)0x12345678,
       .pCbPrivData = (void *)0x87654321,
   };
-  Result = __IOC_removeClsEvtSuberList(&STUB_ClsEvtLinkObj, &SUT_ClsEvtSuberList, &UnsubEvtArgs);
+  Result = __IOC_ClsEvt_removeSuberFromLinkObj(&SUT_ClsEvtLinkObj, &UnsubEvtArgs);
   //===VERIFY===
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);       // KeyVerifyPoint
-  ASSERT_EQ(0, SUT_ClsEvtSuberList.SuberNum);  // KeyVerifyPoint
+  ASSERT_EQ(0, pSUT_ClsEvtSuberList->SuberNum);  // KeyVerifyPoint
 
   //===BEHAVIOR===
-  Result = __IOC_removeClsEvtSuberList(&STUB_ClsEvtLinkObj, &SUT_ClsEvtSuberList, &UnsubEvtArgs);
+  Result = __IOC_ClsEvt_removeSuberFromLinkObj(&SUT_ClsEvtLinkObj, &UnsubEvtArgs);
   //===VERIFY===
   ASSERT_EQ(IOC_RESULT_NO_EVENT_CONSUMER, Result);  // KeyVerifyPoint
-  ASSERT_EQ(0, SUT_ClsEvtSuberList.SuberNum);       // KeyVerifyPoint
+  ASSERT_EQ(0, pSUT_ClsEvtSuberList->SuberNum);     // KeyVerifyPoint
 
   //===CLEANUP===
-  __IOC_deinitClsEvtSuberList(&SUT_ClsEvtSuberList);
+  __IOC_ClsEvt_deinitSuberList(pSUT_ClsEvtSuberList);
 }
