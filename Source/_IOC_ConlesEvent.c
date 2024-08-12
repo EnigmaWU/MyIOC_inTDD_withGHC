@@ -2,9 +2,12 @@
  * @file _IOC_ConlesEvent.c
  * @brief This is ConlesEvent internal Design&Define&Implement file.
  *      And this file only implement interfaces defined in _IOC_ConlesEvent.h.
+ *  ConlesEvent is short of ConnectionLessEvent, a.k.a ClsEvt in current file.
+ *
  * @attention
- *  Design is in current file's comments and _IOC_ConlesEvent.md which focus on graph of sequence and state machine.
- *  Define and Implement is in current file's following design comments.
+ *  Detail Design is in current file's comments and
+ *    in _IOC_ConlesEvent.md which focus on graph of sequence and state machine.
+ *  Type Define and Code Implement is in current file's following design comments.
  * @version
  *   - SPECv2
  */
@@ -37,44 +40,12 @@
 
 #include "_IOC_ConlesEvent.h"
 
+#include "_IOC_EvtDescQueue.h"
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //======>>>>>>BEGIN OF DEFINE FOR ConlesEvent>>>>>>====================================================================
 #define _CONLES_EVENT_MAX_SUBSCRIBER 16
-#define _CONLES_EVENT_MAX_QUEUING_EVTDESC 64
 
-//---------------------------------------------------------------------------------------------------------------------
-/**
- * @brief DataType of EvtDescQueue
- *    A FIFO queue to save all EvtDesc.
- * @note
- *    May this queue be IOC's common queue in future?
- */
-typedef struct _EvtDescQueueStru {
-  pthread_mutex_t Mutex;  // Used to protect QueuedEvtNum, ProcedEvtNum, QueuedEvtDescs
-  /**
-   * IF QueuedEvtNum == ProcedEvtNum, the queue is empty.
-   * IF QueuedEvtNum > ProcedEvtNum, the queue is not empty.
-   * IF QueuedEvtNum - ProcedEvtNum == _CONLES_EVENT_MAX_QUEUING_EVTDESC, the queue is full.
-   *
-   * WHEN postEVT new EvtDesc, DO copy&save enqueuing EvtDesc in
-   *    QueuedEvtDescs[QueuedEvtNum%_CONLES_EVENT_MAX_QUEUING_EVTDESC] and QueuedEvtNum++;
-   * WHILE QueuedEvtNum > ProcedEvtNum, DO wakeup/loop the EvtProcThread, who will read one EvtDesc from
-   *    QueuedEvtDescs[ProcedEvtNum%_CONLES_EVENT_MAX_QUEUING_EVTDESC], proc one EvtDesc and ProcedEvtNum++;
-   */
-  ULONG_T QueuedEvtNum, ProcedEvtNum;  // ULONG_T type is long lone enough to avoid overflow even one event per nanosecond.
-  IOC_EvtDesc_T QueuedEvtDescs[_CONLES_EVENT_MAX_QUEUING_EVTDESC];
-} _IOC_EvtDescQueue_T, *_IOC_EvtDescQueue_pT;
-
-void _IOC_initEvtDescQueue(_IOC_EvtDescQueue_pT pEvtDescQueue);
-void _IOC_deinitEvtDescQueue(_IOC_EvtDescQueue_pT pEvtDescQueue);
-
-// Return: IOC_RESULT_YES or IOC_RESULT_NO
-IOC_BoolResult_T _IOC_isEmptyEvtDescQueue(_IOC_EvtDescQueue_pT pEvtDescQueue);
-
-// Return: IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_QUEUING_EVTDESC
-IOC_Result_T _IOC_enqueueEvtDescQueueLast(_IOC_EvtDescQueue_pT pEvtDescQueue, /*ARG_IN*/ IOC_EvtDesc_pT pEvtDesc);
-// Return: IOC_RESULT_SUCCESS or IOC_RESULT_EVENT_QUEUE_EMPTY
-IOC_Result_T _IOC_dequeueEvtDescQueueFirst(_IOC_EvtDescQueue_pT pEvtDescQueue, /*ARG_OUT*/ IOC_EvtDesc_pT pEvtDesc);
 //---------------------------------------------------------------------------------------------------------------------
 typedef enum {
   UnSubed = 0,
@@ -178,103 +149,8 @@ static void __IOC_ClsEvt_callbackProcEvtOverSuberList(_ClsEvtLinkObj_pT pEvtLink
 //======>>>>>>END OF DEFINE FOR ConlesEvent>>>>>>======================================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//======>>>>>>BEGIN OF IMPLEMENT FOR ConlesEvent>>>>>>=================================================================
-void _IOC_initEvtDescQueue(_IOC_EvtDescQueue_pT pEvtDescQueue) {
-  pthread_mutex_init(&pEvtDescQueue->Mutex, NULL);
-  pEvtDescQueue->QueuedEvtNum = 0;
-  pEvtDescQueue->ProcedEvtNum = 0;
-
-  // clear all EvtDesc in QueuedEvtDescs
-  memset(pEvtDescQueue->QueuedEvtDescs, 0, sizeof(pEvtDescQueue->QueuedEvtDescs));
-}
-
-void _IOC_deinitEvtDescQueue(_IOC_EvtDescQueue_pT pEvtDescQueue) {
-  // deinit all checkable members only
-
-  // check conditions which matching destoriability
-  _IOC_LogAssert(pEvtDescQueue->QueuedEvtNum == pEvtDescQueue->ProcedEvtNum);
-
-  int PosixResult = pthread_mutex_destroy(&pEvtDescQueue->Mutex);
-  if (PosixResult != 0) {
-    _IOC_LogAssert(PosixResult == 0);
-  }
-}
-
-IOC_BoolResult_T _IOC_isEmptyEvtDescQueue(_IOC_EvtDescQueue_pT pEvtDescQueue) {
-  pthread_mutex_lock(&pEvtDescQueue->Mutex);
-  IOC_BoolResult_T Result =
-      (pEvtDescQueue->QueuedEvtNum == pEvtDescQueue->ProcedEvtNum) ? IOC_RESULT_YES : IOC_RESULT_NO;
-  pthread_mutex_unlock(&pEvtDescQueue->Mutex);
-  return Result;
-}
-
-IOC_Result_T _IOC_enqueueEvtDescQueueLast(_IOC_EvtDescQueue_pT pEvtDescQueue, IOC_EvtDesc_pT pEvtDesc) {
-  pthread_mutex_lock(&pEvtDescQueue->Mutex);
-
-  ULONG_T QueuedEvtNum  = pEvtDescQueue->QueuedEvtNum;
-  ULONG_T ProcedEvtNum  = pEvtDescQueue->ProcedEvtNum;
-  ULONG_T QueuingEvtNum = QueuedEvtNum - ProcedEvtNum;
-
-  // sanity check QueuingEvtNum
-  _IOC_LogAssert(QueuingEvtNum >= 0);
-  _IOC_LogAssert(QueuingEvtNum <= _CONLES_EVENT_MAX_QUEUING_EVTDESC);
-
-  if (QueuingEvtNum == _CONLES_EVENT_MAX_QUEUING_EVTDESC) {
-    pthread_mutex_unlock(&pEvtDescQueue->Mutex);
-    return IOC_RESULT_TOO_MANY_QUEUING_EVTDESC;
-  }
-
-  //---------------------------------------------------------------------------
-  // sanity check
-  _IOC_LogAssert(pEvtDescQueue->QueuedEvtNum >= pEvtDescQueue->ProcedEvtNum);
-
-  ULONG_T NextQueuingPos         = QueuedEvtNum % _CONLES_EVENT_MAX_QUEUING_EVTDESC;
-  IOC_EvtDesc_pT pNextQueuingBuf = &pEvtDescQueue->QueuedEvtDescs[NextQueuingPos];
-
-  memcpy(pNextQueuingBuf, pEvtDesc, sizeof(IOC_EvtDesc_T));
-  pEvtDescQueue->QueuedEvtNum++;
-  QueuedEvtNum = pEvtDescQueue->QueuedEvtNum;
-  pthread_mutex_unlock(&pEvtDescQueue->Mutex);
-
-  //_IOC_LogDebug("Enqueued EvtDesc(SeqID=%lu, EvtID(%lu,%lu)) to EvtDescQueue(Pos=%lu,Proced=%lu <= Queued=%lu)",
-  //              pEvtDesc->MsgDesc.SeqID, IOC_getEvtClassID(pEvtDesc->EvtID), IOC_getEvtNameID(pEvtDesc->EvtID),
-  //              NextQueuingPos, ProcedEvtNum, QueuedEvtNum);
-
-  return IOC_RESULT_SUCCESS;
-}
-
-IOC_Result_T _IOC_dequeueEvtDescQueueFirst(_IOC_EvtDescQueue_pT pEvtDescQueue, IOC_EvtDesc_pT pEvtDesc) {
-  pthread_mutex_lock(&pEvtDescQueue->Mutex);
-
-  ULONG_T QueuedEvtNum  = pEvtDescQueue->QueuedEvtNum;
-  ULONG_T ProcedEvtNum  = pEvtDescQueue->ProcedEvtNum;
-  ULONG_T QueuingEvtNum = QueuedEvtNum - ProcedEvtNum;
-
-  // sanity check QueuingEvtNum
-  _IOC_LogAssert(QueuingEvtNum >= 0);
-  _IOC_LogAssert(QueuingEvtNum <= _CONLES_EVENT_MAX_QUEUING_EVTDESC);
-
-  if (QueuingEvtNum == 0) {
-    pthread_mutex_unlock(&pEvtDescQueue->Mutex);
-    return IOC_RESULT_EVTDESC_QUEUE_EMPTY;
-  }
-
-  //---------------------------------------------------------------------------
-  ULONG_T NextProcingPos         = ProcedEvtNum % _CONLES_EVENT_MAX_QUEUING_EVTDESC;
-  IOC_EvtDesc_pT pNextProcingBuf = &pEvtDescQueue->QueuedEvtDescs[NextProcingPos];
-
-  memcpy(pEvtDesc, pNextProcingBuf, sizeof(IOC_EvtDesc_T));
-  pEvtDescQueue->ProcedEvtNum++;
-  ProcedEvtNum = pEvtDescQueue->ProcedEvtNum;
-
-  pthread_mutex_unlock(&pEvtDescQueue->Mutex);
-
-  //_IOC_LogDebug("Dequeued EvtDesc(SeqID=%lu, EvtID(%lu,%lu)) from EvtDescQueue(Pos=%lu,Proced=%lu <= Queued=%lu)",
-  //              pEvtDesc->MsgDesc.SeqID, IOC_getEvtClassID(pEvtDesc->EvtID), IOC_getEvtNameID(pEvtDesc->EvtID),
-  //              NextProcingPos, ProcedEvtNum, QueuedEvtNum);
-
-  return IOC_RESULT_SUCCESS;
-}
+//======>>>>>>BEGIN OF IMPLEMENT FOR
+//ConlesEvent>>>>>>=================================================================
 
 //---------------------------------------------------------------------------------------------------------------------
 //===> BEGIN IMPLEMENT FOR ClsEvtSuberList
@@ -502,7 +378,7 @@ static void *__IOC_ClsEvt_callbackProcEvtThread(void *arg) {
   /**
    * Steps:
    *  1) __IOC_ClsEvt_waitLinkObjNewEvtDesc
-   *  2) __IOC_dequeueEvtDescQueueFirst
+   *  2) __IOC_EvtDescQueue_dequeueElementFirst
    *    |-> if IOC_RESULT_EVTDESC_QUEUE_EMPTY, goto 1)
    *  3) __IOC_ClsEvt_callbackProcEvtOverSuberList
    */
@@ -512,7 +388,8 @@ static void *__IOC_ClsEvt_callbackProcEvtThread(void *arg) {
     //-----------------------------------------------------------------------------------------------------------------
     do {
       IOC_EvtDesc_T EvtDesc = {};
-      IOC_Result_T Result = _IOC_dequeueEvtDescQueueFirst(&pLinkObj->EvtDescQueue, &EvtDesc);
+      IOC_Result_T Result =
+          _IOC_EvtDescQueue_dequeueElementFirst(&pLinkObj->EvtDescQueue, &EvtDesc);
       if (Result == IOC_RESULT_EVTDESC_QUEUE_EMPTY) {
         break;
       }
@@ -533,7 +410,7 @@ __attribute__((constructor)) static void __IOC_initClsEvtLinkObj(void) {
   for (ULONG_T i = 0; i < TotalClsLinkObjNum; i++) {
     _ClsEvtLinkObj_pT pLinkObj = &_mClsEvtLinkObjs[i];
 
-    _IOC_initEvtDescQueue(&pLinkObj->EvtDescQueue);
+    _IOC_EvtDescQueue_initOne(&pLinkObj->EvtDescQueue);
     __IOC_ClsEvt_initSuberList(&pLinkObj->EvtSuberList);
 
     pthread_mutex_init(&pLinkObj->Mutex, NULL);
@@ -713,7 +590,7 @@ void _IOC_forceProcEvt_inConlesMode(void) {
       __IOC_ClsEvt_wakeupLinkObjThread(pLinkObj);
 
       usleep(1000);  // 1ms
-      IOC_BoolResult_T IsEmptyEvtDescQueue = _IOC_isEmptyEvtDescQueue(&pLinkObj->EvtDescQueue);
+      IOC_BoolResult_T IsEmptyEvtDescQueue = _IOC_EvtDescQueue_isEmpty(&pLinkObj->EvtDescQueue);
       if (IsEmptyEvtDescQueue == IOC_RESULT_YES) {
         break;
       }
@@ -818,7 +695,7 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
   //-------------------------------------------------------------------------------------------------------------------
   if (IsAsyncMode) {
     // 1) enqueueSuccess_ifHasSpaceInEvtDescQueue
-    Result = _IOC_enqueueEvtDescQueueLast(&pLinkObj->EvtDescQueue, pEvtDesc);
+    Result = _IOC_EvtDescQueue_enqueueElementLast(&pLinkObj->EvtDescQueue, pEvtDesc);
     if (Result == IOC_RESULT_SUCCESS) {
       __IOC_ClsEvt_wakeupLinkObjThread(pLinkObj);
 
@@ -878,7 +755,7 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
   } else /*SyncMode*/
   {
     // 1) cbProcEvt_ifIsEmptyEvtDescQueue
-    if (_IOC_isEmptyEvtDescQueue(&pLinkObj->EvtDescQueue) == IOC_RESULT_YES) {
+    if (_IOC_EvtDescQueue_isEmpty(&pLinkObj->EvtDescQueue) == IOC_RESULT_YES) {
       __IOC_ClsEvt_callbackProcEvtOverSuberList(pLinkObj, pEvtDesc);
 
       // _IOC_LogDebug("[ConlesEvent::Sync]: AutoLinkID(%llu) postEvtDesc(%s) success", LinkID,
@@ -953,7 +830,7 @@ static IOC_Result_T __IOC_postEVT_inConlesModeAsyncTimed(
   clock_gettime(CLOCK_REALTIME, &TS_Begin);
 
   do {
-    Result = _IOC_enqueueEvtDescQueueLast(&pLinkObj->EvtDescQueue, pEvtDesc);
+    Result = _IOC_EvtDescQueue_enqueueElementLast(&pLinkObj->EvtDescQueue, pEvtDesc);
     if (Result == IOC_RESULT_SUCCESS) {
       __IOC_ClsEvt_wakeupLinkObjThread(pLinkObj);
       //_IOC_LogNotTested();
@@ -986,7 +863,7 @@ static IOC_Result_T __IOC_postEVT_inConlesModeSyncTimed(
   clock_gettime(CLOCK_REALTIME, &TS_Begin);
 
   do {
-    if (_IOC_isEmptyEvtDescQueue(&pLinkObj->EvtDescQueue) == IOC_RESULT_YES) {
+    if (_IOC_EvtDescQueue_isEmpty(&pLinkObj->EvtDescQueue) == IOC_RESULT_YES) {
       __IOC_ClsEvt_callbackProcEvtOverSuberList(pLinkObj, pEvtDesc);
       _IOC_LogNotTested();  // comment out by unit testing
       Result = IOC_RESULT_SUCCESS;
