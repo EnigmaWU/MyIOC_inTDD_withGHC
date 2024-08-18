@@ -87,8 +87,9 @@ typedef enum {
     *IOC_LinkSubState_pT;
 
 typedef enum {
-  IOC_OPTID_TIMEOUT =
-      1 << 0,  // set this IDs and Payload.TimeoutUS>=0, to set timeout for execCMD,waitCMD,sendDAT,recvDAT,...
+  IOC_OPTID_NONE    = 0,
+  IOC_OPTID_TIMEOUT = 1 << 0,    // set this IDs and Payload.TimeoutUS>=0, to set timeout for
+                                 // execCMD,waitCMD,sendDAT,recvDAT,...
   IOC_OPTID_SYNC_MODE = 1 << 1,  // set this IDs and Payload.RZVD=0, to set SYNC mode for postEVT.
   // TODO(@W): +More...
 } IOC_OptionsID_T;
@@ -137,6 +138,25 @@ static inline IOC_BoolResult_T IOC_Option_isNonBlockMode(IOC_Options_pT pOption)
   IOC_Options_T OptVarName     = {};                \
   OptVarName.IDs               = IOC_OPTID_TIMEOUT; \
   OptVarName.Payload.TimeoutUS = 0;
+
+#define IOC_Option_defineASyncNonBlock IOC_Option_defineNonBlock
+
+#define IOC_Option_defineTimeout(OptVarName, TimeoutUS) \
+  IOC_Options_T OptVarName     = {};                    \
+  OptVarName.IDs               = IOC_OPTID_TIMEOUT;     \
+  OptVarName.Payload.TimeoutUS = TimeoutUS;
+
+#define IOC_Option_defineASyncTimeout IOC_Option_defineTimeout
+
+#define IOC_Option_defineSyncNonBlock(OptVarName)                                            \
+  IOC_Options_T OptVarName     = {};                                                         \
+  OptVarName.IDs               = (IOC_OptionsID_T)(IOC_OPTID_SYNC_MODE | IOC_OPTID_TIMEOUT); \
+  OptVarName.Payload.TimeoutUS = 0;
+
+#define IOC_Option_defineSyncTimeout(OptVarName, TimeoutUS)                                  \
+  IOC_Options_T OptVarName     = {};                                                         \
+  OptVarName.IDs               = (IOC_OptionsID_T)(IOC_OPTID_SYNC_MODE | IOC_OPTID_TIMEOUT); \
+  OptVarName.Payload.TimeoutUS = TimeoutUS;
 
 static inline ULONG_T IOC_Option_getTimeoutUS(IOC_Options_pT pOption) {
     ULONG_T TimeoutUS = ULONG_MAX;  // Default is Infinite

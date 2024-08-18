@@ -174,3 +174,103 @@ TEST(UT_ConlesEventConcurrency, verifyASyncNonblock_byPostOneMoreEVT_whenEvtDesc
   Result = _IOC_unsubEVT_inConlesMode(&UnsubArgs);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
 }
+
+/**
+ * @[Name]: <TC-2>verifySyncNonblock_byPostOneMoreEVT_whenEvtDescQueueNotEmpty
+ * @[Purpose]: According to AC-2, verify EvtProducer can return immediately without waiting for a
+ *    moment IF IOC's EvtDescQueue is not empty in SyncMode.
+ * @[Steps]:
+ *   1) call IOC_subEVT(TEST_KEEPALIVE) with __TC2_cbProcEvt as SETUP
+ *   2) call first IOC_postEVT(TEST_KEEPALIVE) in ASyncMode as BEHAVIOR
+ *    a) wait for __TC2_cbProcEvt to be called and block it, to indicate EvtDescQueue is not empty.
+ *   3) call one more IOC_postEVT(TEST_KEEPALIVE) in SyncMode as VERIFY
+ *    a) check the return value is IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE
+ *   4) call IOC_unsubEVT(TEST_KEEPALIVE) as CLEANUP
+ * @[Expect]: Step 3) return value is IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE.
+ * @[Notes]:
+ */
+
+typedef struct {
+  ULONG_T KeepAliveCnt;
+
+  // Main lockIT+postEVT+lockIT, ...until..., Cb unlockIT, Main continue
+  // which means: Main know Cb is called.
+  pthread_mutex_t FirstCbEnterMutex;
+
+  // Main lockIT, ..., Cb lockIT, ...untile..., Main lastly postEVT+unlockIT
+  // which means: Cb will be blocked by Main until Main post last EvtDesc.
+  pthread_mutex_t WaitMainLastPostEvtMutex;  // Last=1
+
+} _TC2_PrivData_T, *_TC2_PrivData_pT;
+
+// TC-2's callback function(RefAPI: IOC_CbProcEvt_F in IOC_EvtAPI.h)
+static IOC_Result_T __TC2_cbProcEvt(IOC_EvtDesc_pT pEvtDesc, void *pCbPrivData) {
+  _TC2_PrivData_pT pTC2PrivData = (_TC2_PrivData_pT)pCbPrivData;
+
+  if (pEvtDesc->EvtID == IOC_EVTID_TEST_KEEPALIVE) {
+    pTC2PrivData->KeepAliveCnt++;
+  } else {
+    EXPECT_FALSE(true) << "Unexpected EvtID: " << pEvtDesc->EvtID;
+  }
+
+  if (pTC2PrivData->KeepAliveCnt == 1) {
+    // RefStep: 2.a) wait for __TC2_cbProcEvt to be called and block it.
+    pthread_mutex_unlock(&pTC2PrivData->FirstCbEnterMutex);
+    pthread_mutex_lock(&pTC2PrivData->WaitMainLastPostEvtMutex);
+  }
+
+  return IOC_RESULT_SUCCESS;
+}
+
+TEST(UT_ConlesEventConcurrency, verifySyncNonblock_byPostOneMoreEVT_whenEvtDescQueueNotEmpty) {
+  //===SETUP===
+  _TC2_PrivData_T TC2PrivData = {
+      .KeepAliveCnt = 0,
+  };
+  IOC_EvtID_T SubEvtIDs[] = {
+      IOC_EVTID_TEST_KEEPALIVE,
+  };
+  IOC_SubEvtArgs_T SubArgs = {
+      .CbProcEvt_F = __TC2_cbProcEvt,
+      .pCbPrivData = &TC2PrivData,
+      .EvtNum      = IOC_calcArrayElmtCnt(SubEvtIDs),
+      .pEvtIDs     = SubEvtIDs,
+  };
+
+  IOC_Result_T Result = _IOC_subEVT_inConlesMode(&SubArgs);
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+  //===BEHAVIOR===
+  pthread_mutex_lock(&TC2PrivData.FirstCbEnterMutex);
+  pthread_mutex_lock(&TC2PrivData.WaitMainLastPostEvtMutex);
+
+  IOC_EvtDesc_T EvtDesc = {
+      .EvtID = IOC_EVTID_TEST_KEEPALIVE,
+  };
+
+  Result = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+  // RefStep: 2.a) wait for __TC2_cbProcEvt to be called and block it.
+  pthread_mutex_lock(&TC2PrivData.FirstCbEnterMutex);
+
+  //===VERIFY===
+  // RefStep: 3.a) check the return value is IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE.
+  IOC_Option_defineSyncNonBlock(OptSyncNonBlock);
+  Result = IOC_postEVT_inConlesMode(&EvtDesc, &OptSyncNonBlock);
+  ASSERT_EQ(IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE, Result);  // KeyVerifyPoint
+
+  //===CLEANUP===
+  // RefStep: 2.a) wait for __TC2_cbProcEvt to be called and block it.
+  pthread_mutex_unlock(&TC2PrivData.WaitMainLastPostEvtMutex);
+
+  IOC_forceProcEVT();  // force all EvtDesc in IOC's EvtDescQueue to be processed.
+  ASSERT_EQ(1, TC2PrivData.KeepAliveCnt);
+
+  IOC_UnsubEvtArgs_T UnsubArgs = {
+      .CbProcEvt_F = __TC2_cbProcEvt,
+      .pCbPrivData = &TC2PrivData,
+  };
+  Result = _IOC_unsubEVT_inConlesMode(&UnsubArgs);
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+}
