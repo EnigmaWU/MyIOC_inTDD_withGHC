@@ -131,12 +131,16 @@ TEST(ConlesEventUseBoundary, verifyForceProcEVT_willWaitForLastBlockedCbProcEvtR
     Result = IOC_postEVT_inConlesMode(&EvtDesc999Ms, NULL);
     ASSERT_EQ(Result, IOC_RESULT_SUCCESS) << "IOC_postEVT_inConlesMode failed Result=" << Result;
 
+    // post 999ms again to trigger warning message
+    Result = IOC_postEVT_inConlesMode(&EvtDesc999Ms, NULL);
+    ASSERT_EQ(Result, IOC_RESULT_SUCCESS) << "IOC_postEVT_inConlesMode failed Result=" << Result;
+
     //===VERIFY===
     IOC_forceProcEVT();  // force to process event
 
     ASSERT_EQ(C02PrivData.Sleep99MsCnt, 1) << "Sleep99MsCnt is MUST==1, while Sleep99MsCnt="
                                            << C02PrivData.Sleep99MsCnt;  // KeyVerifyPoint
-    ASSERT_EQ(C02PrivData.Sleep999MsCnt, 1) << "Sleep999MsCnt is MUST==1, while Sleep999MsCnt="
+    ASSERT_EQ(C02PrivData.Sleep999MsCnt, 2) << "Sleep999MsCnt is MUST==1, while Sleep999MsCnt="
                                             << C02PrivData.Sleep999MsCnt;  // KeyVerifyPoint
 
     //===CLEANUP===

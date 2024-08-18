@@ -613,6 +613,10 @@ void _IOC_forceProcEvt_inConlesMode(void) {
   //    until EvtDescQueue is empty, then unlock
   ULONG_T TotalClsLinkObjNum = IOC_calcArrayElmtCnt(_mClsEvtLinkObjs);
 
+  struct timespec TS_TickBegin, TS_TickLastWarn, TS_TickNow;
+  clock_gettime(CLOCK_REALTIME, &TS_TickBegin);
+  TS_TickLastWarn = TS_TickBegin;
+
   for (ULONG_T i = 0; i < TotalClsLinkObjNum; i++) {
     _ClsEvtLinkObj_pT pLinkObj = &_mClsEvtLinkObjs[i];
 
@@ -625,6 +629,15 @@ void _IOC_forceProcEvt_inConlesMode(void) {
       if (HasEvtDesc == IOC_RESULT_NO) {
         break;
       }
+
+      clock_gettime(CLOCK_REALTIME, &TS_TickNow);
+      ULONG_T ElapsedMS = IOC_diffTimeSpecInMS(&TS_TickLastWarn, &TS_TickNow);
+      if (ElapsedMS >= 1000) {
+        _IOC_LogWarn("AutoLinkID(%llu) still HAS EvtDesc, keep waiting +1s", pLinkObj->LinkID);
+        TS_TickLastWarn = TS_TickNow;
+      }
+
+      // check if forceProcEvt is too long to bug&abort
     }
   }
 }
