@@ -119,7 +119,9 @@ TEST(UT_ConlesEventConcurrency, verifyASyncNonblock_byPostOneMoreEVT_whenEvtDesc
 
   //---------------------------------------------------------------------------
   _TC1_PrivData_T TC1PrivData = {
-      .KeepAliveCnt = 0,
+      .KeepAliveCnt             = 0,
+      .FirstCbEnterMutex        = PTHREAD_MUTEX_INITIALIZER,
+      .WaitMainLastPostEvtMutex = PTHREAD_MUTEX_INITIALIZER,
   };
   IOC_EvtID_T SubEvtIDs[] = {
       IOC_EVTID_TEST_KEEPALIVE,
@@ -150,7 +152,7 @@ TEST(UT_ConlesEventConcurrency, verifyASyncNonblock_byPostOneMoreEVT_whenEvtDesc
   pthread_mutex_lock(&TC1PrivData.FirstCbEnterMutex);
 
   // RefStep: 3.2) call more IOC_postEVT(TEST_KEEPALIVE) in ASyncMode to fullfill the EvtDescQueue.
-  for (ULONG_T i = 0; i < QUEUE_DEPTH - 1; i++) {
+  for (ULONG_T i = 0; i < QUEUE_DEPTH; i++) {
     Result = IOC_postEVT_inConlesMode(&EvtDesc, &OptNonBlock);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
   }
@@ -165,7 +167,7 @@ TEST(UT_ConlesEventConcurrency, verifyASyncNonblock_byPostOneMoreEVT_whenEvtDesc
   pthread_mutex_unlock(&TC1PrivData.WaitMainLastPostEvtMutex);
 
   IOC_forceProcEVT();  // force all EvtDesc in IOC's EvtDescQueue to be processed.
-  ASSERT_EQ(QUEUE_DEPTH, TC1PrivData.KeepAliveCnt);
+  ASSERT_EQ(QUEUE_DEPTH + 1, TC1PrivData.KeepAliveCnt);
 
   IOC_UnsubEvtArgs_T UnsubArgs = {
       .CbProcEvt_F = __TC1_cbProcEvt,
@@ -225,7 +227,9 @@ static IOC_Result_T __TC2_cbProcEvt(IOC_EvtDesc_pT pEvtDesc, void *pCbPrivData) 
 TEST(UT_ConlesEventConcurrency, verifySyncNonblock_byPostOneMoreEVT_whenEvtDescQueueNotEmpty) {
   //===SETUP===
   _TC2_PrivData_T TC2PrivData = {
-      .KeepAliveCnt = 0,
+      .KeepAliveCnt             = 0,
+      .FirstCbEnterMutex        = PTHREAD_MUTEX_INITIALIZER,
+      .WaitMainLastPostEvtMutex = PTHREAD_MUTEX_INITIALIZER,
   };
   IOC_EvtID_T SubEvtIDs[] = {
       IOC_EVTID_TEST_KEEPALIVE,
