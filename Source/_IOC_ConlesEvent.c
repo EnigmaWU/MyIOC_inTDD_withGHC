@@ -620,9 +620,9 @@ void _IOC_forceProcEvt_inConlesMode(void) {
       __IOC_ClsEvt_wakeupLinkObjThread(pLinkObj);
 
       usleep(1000);  // 1ms
-      IOC_BoolResult_T IsEmptyEvtDescQueue = _IOC_EvtDescQueue_isEmpty(&pLinkObj->EvtDescQueue);
-      if (IsEmptyEvtDescQueue == IOC_RESULT_YES) {
-        // FIXME: IF last EvtDesc is callbacking by EvtProcThread while blcked, empty is YES.
+
+      IOC_BoolResult_T HasEvtDesc = __IOC_ClsEvt_hasEvtDescInLinkObj(pLinkObj);
+      if (HasEvtDesc == IOC_RESULT_NO) {
         break;
       }
     }
