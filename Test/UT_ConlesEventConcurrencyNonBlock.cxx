@@ -1,14 +1,12 @@
 #include <pthread.h>
-#include <sys/_pthread/_pthread_attr_t.h>
-#include <sys/_pthread/_pthread_mutex_t.h>
 
 #include "_UT_IOC_Common.h"
 
 /**
  * NonBlock here means EvtPrducer call postEVT WON'T wait for a moment IF:
- *  IOC's EvtDescQueue full in ASync.
+ *  IOC AutoLink's internal EvtDescQueue is full in ASyncMode.
  *    OR
- *  IOC's EvtDescQueue is not empty in Sync.
+ *  IOC AutoLink's internal EvtDescQueue is not empty in SyncMode.
  *
  * RefDoc:
  *  1) README_UseCase.md
@@ -20,8 +18,8 @@
  * @brief 【User Story】
  *
  *  US-1: AS an EvtProducer calling IOC_postEVT_inConlesMode,
- *    I want to return immediately without waiting for a moment IF:
- *      AutoLink's internal EvtDescQueue in IOC is full in ASyncMode OR is not empty in SyncMode,
+ *        I want to return immediately without waiting for a moment IF:
+ *          AutoLink's internal EvtDescQueue is full in ASyncMode OR is not empty in SyncMode,
  *        SO THAT I can continue my work without blocking.
  *
  */
@@ -30,7 +28,7 @@
  * @brief 【Acceptance Criteria】
  *
  * AC-1: GIVEN EvtProducer calling IOC_postEVT_inConlesMode,
- *         WHEN IOC's EvtDescQueue is full in ASyncMode,
+ *         WHEN IOC's EvtDescQueue is full in ASyncMode by a blocking EvtConsumer cbProcEvt,
  *         THEN EvtProducer can return immediately without waiting for a moment,
  *           AND the posting EvtDesc will never be processed by IOC.
  * AC-2: GIVEN EvtProducer calling IOC_postEVT_inConlesMode,
@@ -66,7 +64,7 @@
  *   1) call IOC_getCapability to know QUEUE_DEPTH of AutoLink's EvtDescQueue, as SETUP
  *   2) call IOC_subEVT(TEST_KEEPALIVE) with __TC1_cbProcEvt as SETUP
  *   3) call first IOC_postEVT(TEST_KEEPALIVE) in ASyncMode as BEHAVIOR
- *      3.1) wait for __TC1_cbProcEvt to be called and block it.
+ *      3.1) wait for __TC1_cbProcEvt to be called and block it, to avoid further event processing.
  *      3.2) call more IOC_postEVT(TEST_KEEPALIVE) in ASyncMode to fullfill the EvtDescQueue.
  *   4) call one more IOC_postEVT(TEST_KEEPALIVE) in ASyncMode as VERIFY
  *      4.1) check the return value is IOC_RESULT_TOO_MANY_QUEUING_EVTDESC.
@@ -80,9 +78,11 @@ typedef struct {
   ULONG_T KeepAliveCnt;
 
   // Main lockIT+postEVT+lockIT, ...until..., Cb unlockIT, Main continue
+  // which means: Main know Cb is called.
   pthread_mutex_t FirstCbEnterMutex;
 
   // Main lockIT, ..., Cb lockIT, ...untile..., Main lastly postEVT+unlockIT
+  // which means: Cb will be blocked by Main until Main post last EvtDesc.
   pthread_mutex_t WaitMainLastPostEvtMutex;  // Last=QUEUE_DEPTH+1
 
 } _TC1_PrivData_T, *_TC1_PrivData_pT;
