@@ -567,8 +567,10 @@ IOC_Result_T _IOC_getCapabilty_inConlesMode(
 
   switch (pCapDesc->CapID) {
     case IOC_CAPID_CONLES_MODE_EVENT: {
-      pCapDesc->ConlesModeEvent.MaxEvtConsumer = _CONLES_EVENT_MAX_SUBSCRIBER;
-      Result                                   = IOC_RESULT_SUCCESS;
+      pCapDesc->ConlesModeEvent.MaxEvtConsumer    = _CONLES_EVENT_MAX_SUBSCRIBER;
+      pCapDesc->ConlesModeEvent.DepthEvtDescQueue = _CONLES_EVENT_MAX_QUEUING_EVTDESC;
+
+      Result = IOC_RESULT_SUCCESS;
     } break;
     default:
       _IOC_LogError("Not-Support CapID(%d)", pCapDesc->CapID);
@@ -711,7 +713,7 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
       _IOC_LogWarn("[ConlesEvent::ASync::NonBlock]: AutoLinkID(%llu) postEvtDesc(%s) failed",
                    LinkID, IOC_EvtDesc_printDetail(pEvtDesc, NULL, 0));
       Result = IOC_RESULT_TOO_MANY_QUEUING_EVTDESC;  // Path@A->[2]
-      _IOC_LogNotTested();                           // comment out by unit testing
+      //_IOC_LogNotTested();
       goto _returnResult;
     }
 

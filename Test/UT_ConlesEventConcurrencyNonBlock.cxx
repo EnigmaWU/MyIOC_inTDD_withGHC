@@ -115,6 +115,7 @@ TEST(UT_ConlesEventConcurrency, verifyASyncNonblock_byPostOneMoreEVT_whenEvtDesc
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
 
   ULONG_T QUEUE_DEPTH = CapDesc.ConlesModeEvent.DepthEvtDescQueue;
+  ASSERT_GT(QUEUE_DEPTH, 1);
 
   //---------------------------------------------------------------------------
   _TC1_PrivData_T TC1PrivData = {
@@ -149,7 +150,7 @@ TEST(UT_ConlesEventConcurrency, verifyASyncNonblock_byPostOneMoreEVT_whenEvtDesc
   pthread_mutex_lock(&TC1PrivData.FirstCbEnterMutex);
 
   // RefStep: 3.2) call more IOC_postEVT(TEST_KEEPALIVE) in ASyncMode to fullfill the EvtDescQueue.
-  for (ULONG_T i = 0; i < QUEUE_DEPTH; i++) {
+  for (ULONG_T i = 0; i < QUEUE_DEPTH - 1; i++) {
     Result = IOC_postEVT_inConlesMode(&EvtDesc, &OptNonBlock);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
   }
@@ -164,7 +165,7 @@ TEST(UT_ConlesEventConcurrency, verifyASyncNonblock_byPostOneMoreEVT_whenEvtDesc
   pthread_mutex_unlock(&TC1PrivData.WaitMainLastPostEvtMutex);
 
   IOC_forceProcEVT();  // force all EvtDesc in IOC's EvtDescQueue to be processed.
-  ASSERT_EQ(QUEUE_DEPTH + 1, TC1PrivData.KeepAliveCnt);
+  ASSERT_EQ(QUEUE_DEPTH, TC1PrivData.KeepAliveCnt);
 
   IOC_UnsubEvtArgs_T UnsubArgs = {
       .CbProcEvt_F = __TC1_cbProcEvt,
