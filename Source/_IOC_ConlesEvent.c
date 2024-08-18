@@ -772,7 +772,7 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
       _IOC_LogWarn("[ConlesEvent::Sync::NonBlock]: AutoLinkID(%llu) postEvtDesc(%s) failed", LinkID,
                    IOC_EvtDesc_printDetail(pEvtDesc, NULL, 0));
       Result = IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE;  // Path@B->[2]
-      _IOC_LogNotTested();                                  // comment out by unit testing
+      //_IOC_LogNotTested();
       goto _returnResult;
     }
 
