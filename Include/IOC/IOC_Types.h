@@ -181,10 +181,13 @@ typedef enum {
 
 typedef struct {
     uint16_t MaxEvtConsumer;  // How many EvtConsumer can be subEVT in ConlesMode.
+    uint16_t DepthEvtDescQueue;  // How many EvtDesc can be queued in IOC's EvtDescQueue.
 } IOC_ConlesModeEventCapabilty_T, *IOC_ConlesModeEventCapabilty_pT;
 
 typedef struct {
-    IOC_CapabiltyID_T CapID;
+    // set this CapID and get the capability description.
+    IOC_CapabiltyID_T CapID;  // RefType: IOC_CapabiltyID_T
+
     union {
       ULONG_T RZVD[8];  // reserve for MAX payload size.
       IOC_ConlesModeEventCapabilty_T ConlesModeEvent;
