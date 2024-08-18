@@ -26,6 +26,7 @@
   * 8)IF ObjA's CbProcEvt using too many CPU cycles, ObjB posted too many events, THEN ObjB's postEVT will get TOO_MANY_EVENTS by default, or blocked if OptID=MayBlock is ON, or block a while then get TIMEOUT if OptID=Timeout/withMS is SET.
   * 9) IF ObjA postEVT to ObjB as fast as possible, in ObjB's CbProcEvt_F post another twice or more event to ObjC/x2/x4/..., THEN ObjA/... get TOO_MANY_QUEUING_EVTDESC by default in NonBlock or block until return SUCCESS if MayBlock option on.
   * 10) IF ObjA is cbProcEvting, then postEVT to ObjB in SyncMode, it will return FORBIDEN.
+  * 11) IF call forceProcEVT, while last EvtDesc is blocked in CbProcEvt, wait as long as with warning message, or too long with error message, or too too long with bug&abort message.
 
 # 【vN】Pending ideas
 
