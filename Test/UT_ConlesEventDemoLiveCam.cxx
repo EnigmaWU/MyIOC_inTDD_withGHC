@@ -340,7 +340,7 @@ static void __postKeepAliveEvt(_LiveCamObjBase_T *pBaseObj) {
     // post ModuleKeepAliveEvent to ModMgrObj in 1s interval.
 
     struct timespec Now = IOC_getCurrentTimeSpec();
-    if (IOC_diffTimeSpecInSec(&pBaseObj->LastKeepAliveTime, &Now) >= 1) {
+    if (IOC_deltaTimeSpecInSec(&pBaseObj->LastKeepAliveTime, &Now) >= 1) {
       IOC_EvtDesc_T EvtDesc = {
           .EvtID    = IOC_EVTID_ModKeepAlive,
           .EvtValue = static_cast<ULONG_T>(pBaseObj->ObjID),
@@ -636,7 +636,7 @@ typedef struct {
 static void __Case01_verifyFromPostEvt2CbProcEvtPerfMeets(IOC_EvtDesc_pT pEvtDesc) {
     struct timespec CurrentTime = IOC_getCurrentTimeSpec();
 
-    ULONG_T TimeCost = IOC_diffTimeSpecInUS(&pEvtDesc->MsgDesc.TimeStamp, &CurrentTime);
+    ULONG_T TimeCost = IOC_deltaTimeSpecInUS(&pEvtDesc->MsgDesc.TimeStamp, &CurrentTime);
     EXPECT_LE(TimeCost, _CASE01_PERF_LE_3000US)
         << "TimeCost=" << TimeCost << "us, expect less than " << _CASE01_PERF_LE_3000US << "us";
 }
@@ -649,23 +649,24 @@ static void *__Case01_ThreadFunc_simuVidCap(void *arg) {
 
     while (pVidCapObj->Base.State == ObjState_Running) {
         clock_gettime(CLOCK_MONOTONIC, &CurrentTime);
-        if (IOC_diffTimeSpecInMS(&LastCaptureTime, &CurrentTime) >= 40) {
-            // simulate capture video frame in 1920x1080@25fps
-            // 1: post the BizOriVidFrmCapturedEvent
-            IOC_EvtDesc_T EvtDesc = {
-                .EvtID = IOC_EVTID_BizOriVidFrmCaptured,
-            };
+        if (IOC_deltaTimeSpecInMS(&LastCaptureTime, &CurrentTime) >= 40) {
+          // simulate capture video frame in 1920x1080@25fps
+          // 1: post the BizOriVidFrmCapturedEvent
+          IOC_EvtDesc_T EvtDesc = {
+              .EvtID = IOC_EVTID_BizOriVidFrmCaptured,
+          };
 
-            IOC_Result_T Result = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
-            EXPECT_EQ(IOC_RESULT_SUCCESS, Result)
-                << "postEvt(BizOriVidFrmCapturedEvent) fail, Result=" << IOC_getResultStr(Result);
+          IOC_Result_T Result = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
+          EXPECT_EQ(IOC_RESULT_SUCCESS, Result)
+              << "postEvt(BizOriVidFrmCapturedEvent) fail, Result=" << IOC_getResultStr(Result);
 
-            // 2: updateStatistics
-            pVidCapObj->TotalPostCnts.BizOriVidFrmCapturedEvent++;  // postEvt: BizOriVidFrmCapturedEvent
-            LastCaptureTime = CurrentTime;
+          // 2: updateStatistics
+          pVidCapObj->TotalPostCnts
+              .BizOriVidFrmCapturedEvent++;  // postEvt: BizOriVidFrmCapturedEvent
+          LastCaptureTime = CurrentTime;
 
-            // 3: tell ModMgr Iam alive
-            __postKeepAliveEvt(&pVidCapObj->Base);
+          // 3: tell ModMgr Iam alive
+          __postKeepAliveEvt(&pVidCapObj->Base);
         }
 
         if (pVidCapObj->TotalPostCnts.BizOriVidFrmCapturedEvent >= _CASE01_VIDCAP_FRM_CNT) {
@@ -935,7 +936,7 @@ static void *__Case01_ThreadFunc_simuAudCap(void *arg) {
 
     while (pAudCapObj->Base.State == ObjState_Running) {
         clock_gettime(CLOCK_MONOTONIC, &CurrentTime);
-        if (IOC_diffTimeSpecInMS(&LastCaptureTime, &CurrentTime) >= 20) {
+        if (IOC_deltaTimeSpecInMS(&LastCaptureTime, &CurrentTime) >= 20) {
             // simulate capture audio frame in 8KHz@16bit
             // 1: post the BizOriAudFrmCapturedEvent
             IOC_EvtDesc_T EvtDesc = {
