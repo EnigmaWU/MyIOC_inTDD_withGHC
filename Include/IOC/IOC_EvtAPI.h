@@ -1,4 +1,5 @@
 #include "IOC_TypeEvtDesc.h"
+#include "IOC_TypeOption.h"
 
 #ifndef __IOC_EVENT_API_H__
 #define __IOC_EVENT_API_H__
