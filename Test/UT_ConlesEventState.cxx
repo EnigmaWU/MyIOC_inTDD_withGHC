@@ -454,12 +454,13 @@ static IOC_Result_T _Case05_No1CbProcEvt_F_TestSleep99msEvt(const IOC_EvtDesc_pT
 
   return IOC_RESULT_SUCCESS;
 }
-
 static IOC_Result_T _Case05_No2CbProcEvt_F_KeepAlive(const IOC_EvtDesc_pT pEvtDesc, void *pCbPrivData) {
+  // Get a pointer to the private data for this event
   _Case05_No2PrivData_pT pPrivData = (_Case05_No2PrivData_pT)pCbPrivData;
 
   switch (pEvtDesc->EvtID) {
     case IOC_EVTID_TEST_KEEPALIVE:
+      // Increment the KeepAliveEvtCnt each time this event is received
       pPrivData->KeepAliveEvtCnt++;
       break;
     default:
