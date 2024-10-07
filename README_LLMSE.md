@@ -48,3 +48,4 @@ graph
 
 * [SWEBOKv3](https://www.computer.org/education/bodies-of-knowledge/software-engineering)
 * X8X: AI based Software Engineering([link](https://time.geekbang.org/column/intro/100755401?tab=intro))
+* Coursera: GenAI4SwDev([link](https://www.coursera.org/professional-certificates/generative-ai-for-software-development))
