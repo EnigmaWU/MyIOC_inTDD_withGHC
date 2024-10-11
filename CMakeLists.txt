@@ -54,6 +54,10 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/Include)
 if(CONFIG_BUILD_UNIT_TESTING)
     enable_testing()
 
+    if(APPLE)
+        include_directories(/Library/Developer/CommandLineTools/SDKs/MacOSX15.0.sdk/usr/include/c++/v1)
+    endif()
+
     # Find the googletest headers
     find_path(INCGTST gtest/gtest.h)
     # Find the googletest library
