@@ -1,24 +1,49 @@
 #include "_UT_IOC_Common.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+//======BEGIN OF BRIEF MODULE DESIGN===============================================================
+/**
+ * @brief ${What's this submodule for?}
+ *  ${Relationship with module or other submodules}
+ *
+ *  ${What's the functionality/interface/data structure/operation/... of this submodule?}
+ *
+ */
+//======END OF BRIEF MODULE DESIGN=================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 //======BEGIN OF UNIT TESTING DESIGN===============================================================
+/**
+ * At least one User Story(a.k.a US),
+ *    and at least one Acceptance Criteria(a.k.a AC) for each US,
+ *      and at least one Test Case(a.k.a TC) for each AC.
+ *
+ * US takes VALUE from USR perspective.
+ * AC clear CONDITIONS may relate to the USR.
+ * TC details each condition's STEPS to verify.
+ */
+//-------------------------------------------------------------------------------------------------
 /**
  * @brief 【User Story】
  *
- *  US-1: As a ..., I want to ..., so that ...
+ *  US-1: As a ..., I WANT to ..., SO THAT ...
  *
  */
 
+//-------------------------------------------------------------------------------------------------
 /**
  * @brief 【Acceptance Criteria】
  *
+ * [@US-n]
  * AC-1: GIVEN ..., WHEN ..., THEN ...
  *
  */
 
+//-------------------------------------------------------------------------------------------------
 /**
  * @brief 【Test Cases】
  *
+ * [@AC-n]
  * TC-1: verifyBehivorX_byDoABC
  *
  */
