@@ -424,6 +424,11 @@ __attribute__((no_sanitize_thread)) static _ClsEvtLinkObj_pT __IOC_ClsEvt_getLin
 }
 
 static _ClsEvtLinkObj_pT __IOC_ClsEvt_getLinkObjLocked(IOC_LinkID_T AutoLinkID) {
+  IOC_BoolResult_T IsAutoLink = _IOC_isAutoLink_inConlesMode(AutoLinkID);
+  if (IsAutoLink == IOC_RESULT_NO) {
+    return NULL;
+  }
+
   _ClsEvtLinkObj_pT pLinkObj = __IOC_ClsEvt_getLinkObjNotLocked(AutoLinkID);
   if (pLinkObj == NULL) {
     return NULL;
@@ -714,19 +719,12 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
     /*ARG_IN_OPTIONAL*/ const IOC_Options_pT pOption) {
   IOC_Result_T Result          = IOC_RESULT_BUG;
   IOC_BoolResult_T IsAsyncMode = IOC_Option_isAsyncMode(pOption);
-  IOC_BoolResult_T IsAutoLink  = _IOC_isAutoLink_inConlesMode(LinkID);
-
-  if (IsAutoLink == IOC_RESULT_NO) {
-    _IOC_LogError("[ConlesEvent]: Not-Support LinkID(%llu)", LinkID);
-    //_IOC_LogNotTested();
-    return IOC_RESULT_INVALID_AUTO_LINK_ID;  // Path@C->[1]
-  }
 
   _ClsEvtLinkObj_pT pLinkObj = __IOC_ClsEvt_getLinkObjLocked(LinkID);
   if (pLinkObj == NULL) {
-    _IOC_LogBug("[ConlesEvent]: No LinkObj of AutoLinkID(%llu)", LinkID);
-    _IOC_LogNotTested();    // comment out by unit testing
-    return IOC_RESULT_BUG;  // Path@C->[1]
+    _IOC_LogError("[ConlesEvent]: No LinkObj of LinkID(%llu)", LinkID);
+    //_IOC_LogNotTested();
+    return IOC_RESULT_INVALID_AUTO_LINK_ID;  // Path@C->[1]
   }
 
   IOC_BoolResult_T IsEmptySuberList = __IOC_ClsEvt_isEmptySuberList(&pLinkObj->EvtSuberList);
