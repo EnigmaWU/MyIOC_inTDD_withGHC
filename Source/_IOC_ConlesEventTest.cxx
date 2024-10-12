@@ -125,3 +125,18 @@ TEST(_IOC_ConlesEvent_ClsEvtSuberList, verifyUnsubSuccessOrNot_byUnsubTwice) {
   //===CLEANUP===
   __IOC_ClsEvt_deinitSuberList(pSUT_ClsEvtSuberList);
 }
+
+// ValidAutoLinkID=[IOC_CONLES_MODE_AUTO_LINK_ID_0, IOC_CONLES_MODE_AUTO_LINK_ID_MAX)
+TEST(_IOC_postEVT_inConlesMode, verifyAutoLinkID_byInvalidAutoLinkID) {
+  IOC_LinkID_T InvalidAutoLinkID = IOC_CONLES_MODE_AUTO_LINK_ID_MAX + 1;
+  IOC_Result_T Result            = _IOC_postEVT_inConlesMode(InvalidAutoLinkID, NULL, NULL);
+  ASSERT_EQ(IOC_RESULT_INVALID_AUTO_LINK_ID, Result);
+
+  InvalidAutoLinkID = IOC_CONLES_MODE_AUTO_LINK_ID_MAX;
+  Result            = _IOC_postEVT_inConlesMode(InvalidAutoLinkID, NULL, NULL);
+  ASSERT_EQ(IOC_RESULT_INVALID_AUTO_LINK_ID, Result);
+
+  InvalidAutoLinkID = IOC_CONLES_MODE_AUTO_LINK_ID_MAX - 1;
+  Result            = _IOC_postEVT_inConlesMode(InvalidAutoLinkID, NULL, NULL);
+  ASSERT_EQ(IOC_RESULT_INVALID_AUTO_LINK_ID, Result);
+}

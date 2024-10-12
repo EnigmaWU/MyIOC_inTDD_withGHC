@@ -52,15 +52,21 @@ typedef enum {
  * @brief LinkID is a unique ID to identify a link between two objects in communication.
  *     In ConlesMode, LinkID is predefined as IOC_CONLES_MODE_AUTO_LINK_ID.
  *     In ConetMode, LinkID is dynamically extablished,
- *      then get it from connect API in ClientSide, or accept API in ServerSide.
+ *      which get from connect API in ClientSide, or accept API in ServerSide.
  *---------------------------------------------------------------------------------------------------------------------
  * Design::FSM
  *    RefReadme::MSG::EVT::Conles/Conet
  *    RefType::IOC_LinkState_T
  */
 typedef uint64_t IOC_LinkID_T;
-#define IOC_CONLES_MODE_AUTO_LINK_ID 0UL
-// TODO: IOC_CONLES_MODE_AUTO_LINK_ID_0<DFT>/_1/_2/...
+
+enum IOC_AutoLinkID_enum {
+  IOC_CONLES_MODE_AUTO_LINK_ID_0 = 0U,
+  IOC_CONLES_MODE_AUTO_LINK_ID   = IOC_CONLES_MODE_AUTO_LINK_ID_0,  // Default
+
+  // TODO: +More AutoLinkID_1/_2/...MAX
+  IOC_CONLES_MODE_AUTO_LINK_ID_MAX = 1024U
+};
 
 /**
  * RefMore README_ArchDesign::State
