@@ -1,15 +1,15 @@
-#include "_UT_IOC_Common.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======BEGIN OF BRIEF MODULE DESIGN===============================================================
+//======BEGIN OF OVERVIEW OF THIS UT FILE==========================================================
 /**
  * @brief ${What's this submodule for?}
  *  ${Relationship with module or other submodules}
+ *  ${What's the key point or concept of this submodule?}
  *
  *  ${What's the functionality/interface/data structure/operation/... of this submodule?}
  *
  */
-//======END OF BRIEF MODULE DESIGN=================================================================
+//======END OF OVERVIEW OF THIS UT FILE============================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======BEGIN OF UNIT TESTING DESIGN===============================================================
@@ -50,7 +50,10 @@
 
 //======END OF UNIT TESTING DESIGN=================================================================
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======BEGIN OF UNIT TESTING IMPLEMENTATION=======================================================
+#include "_UT_IOC_Common.h"
+
 //===TEMPLATE OF UT CASE===
 /**
  * @[Name]: ${verifyBehivorX_byDoABC}
@@ -95,6 +98,9 @@ TEST_F(UT_NameofCategoryFixture, CaseNN_verifyBehivorX_byDoABC) {
   //===VERIFY===
   //@KeyVerifyPoint<=3(each case SHOULD has less than 3 key 'ASSERT_XYZ' verify points)
 }
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// TODO(@W): Freely start a new UT first from here, and then refine it later, just keep smooth mind and low resistance.
+//======END OF UNIT TESTING IMPLEMENTATION=========================================================
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+// TODO(@W): Freely start a new UT just from here, if you have a idea in mind,
+//  and then refine it later, JUST keep smooth mind and low resistance.
