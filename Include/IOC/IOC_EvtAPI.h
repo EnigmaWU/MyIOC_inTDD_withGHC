@@ -46,6 +46,7 @@ typedef struct {
  * @return IOC_RESULT_NO_EVENT_CONSUMER: no EvtConsumer for this event.
  *      RefUT: UT_ConlesEventMisuse.Case01_verifyNoEvtConsumer_byNotSubEvtButPostEvtDirectly
  * @return IOC_RESULT_TOO_MANY_QUEUING_EVTDESC: too many event description in IOC's queue.
+ * @return IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE: too long time to emptying the event description
  *      RefUT: UT_ConlesEventXXX
  * @return IOC_RESULT_XXX
  * @return IOC_RESULT_BUG: IOC internal bug.
