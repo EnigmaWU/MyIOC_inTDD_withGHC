@@ -1,15 +1,17 @@
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======BEGIN OF OVERVIEW OF THIS UT FILE==========================================================
+//======BEGIN OF OVERVIEW OF THIS UNIT TESTING FILE================================================
 /**
- * @brief ${What's this submodule for?}
+ * @brief
+ *  ${What VERIFICATIONS to do in this UTF for which PART of current module.}
+ *
+ *-------------------------------------------------------------------------------------------------
+ *++Some context or background related to this UTF for better understanding and GenAisTNT.
  *  ${Relationship with module or other submodules}
  *  ${What's the key point or concept of this submodule?}
- *
  *  ${What's the functionality/interface/data structure/operation/... of this submodule?}
- *
  */
-//======END OF OVERVIEW OF THIS UT FILE============================================================
+//======END OF OVERVIEW OF THIS UNIT TESTING FILE==================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======BEGIN OF UNIT TESTING DESIGN===============================================================
