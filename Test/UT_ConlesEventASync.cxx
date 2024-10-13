@@ -2,21 +2,21 @@
 //===>RefMore: TEMPLATE OF UT CASE in UT_FreelyDrafts.cxx
 //===>RefMore: ConsoleEventTypical UT_ConlesEventTypical.cxx
 //===>RefMore: ConsoleEventCapabilty UT_ConlesEventCapabilty.cxx
-//===>RefMore: SPECv2 in README.md
+//===>RefMore: SPECv2 in README_Specification.md
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
- * @brief Summary of UT_ConlesEventConcurrency
- * 1) verifyASync_bySingleEvtProducerPostTestSleep9ms99msEvtEvery10ms_whileProcedAsyncInDifferentEvtConsumerCallback
+ * @brief Summary of UT_ConlesEventASync
+ * 1) verifyEachPostEvtCall_LT1ms_bySingleEvtProducerPostSleep9ms99msEvtEvery10ms
  */
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Define a test case to verify SPECv2-z.5 in README.md
 
 /**
- * @[Name]: verifyASync_bySingleEvtProducerPostTestSleep9ms99msEvtEvery10ms_whileProcedAsyncInDifferentEvtConsumerCallback
+ * @[Name]: verifyEachPostEvtCall_LT1ms_bySingleEvtProducerPostSleep9ms99msEvtEvery10ms
  * @[Purpose]: accord SPECv2-z.5 in README.md, use this case to verify postEVT in ASync mode,
- *    by ObjA's call postEVT time cost(<1ms) is much less than ObjB/ObjC's CbProcEvt of each sleep 9ms/99ms.
+ *    by ObjA's call postEVT time COST(<1ms) is much less than ObjB/ObjC's CbProcEvt of each SLEEP 9ms/99ms.
  * @[Steps]:
  *   1) ObjB as EvtConsumer subEVT(TEST_SLEEP_9MS), ObjC as EvtConsumer subEVT(TEST_SLEEP_99MS)
  *   2) ObjA as EvtPrducer postEVT(TEST_SLEEP_9MS) every 10ms and postEVT(TEST_SLEEP_99MS) every 100ms
@@ -61,8 +61,7 @@ _Case01_CbProcEvt_doSleepByEvtID(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
   return IOC_RESULT_SUCCESS;
 }
 
-TEST(UT_ConlesEventConcurrency,
-     Case01_verifyASync_bySingleEvtProducerPostTestSleep9ms99msEvtEvery10ms_whileProcedAsyncInDifferentEvtConsumerCallback) {
+TEST(UT_ConlesEventASync, verifyEachPostEvtCall_LT1ms_bySingleEvtProducerPostSleep9ms99msEvtEvery10ms) {
   //===SETUP===
   _Case01_PrivData_T ObjB_CbProcedPrivData = {
       .TestSleep9msEvtCnt  = 0,
