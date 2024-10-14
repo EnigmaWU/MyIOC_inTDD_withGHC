@@ -50,10 +50,14 @@
  * [@US-1]
  * AC-1: GIVEN EvtProducer posts an event with TIMEOUT Option in ASync Mode,
  *        WHEN the queue is FULL,
- *        THEN the result value should be IOC_RESULT_FULL_QUEUING_EVTDESC.
+ *          THEN the result value should be IOC_RESULT_FULL_QUEUING_EVTDESC.
+ *        WHEN the queue is NOT FULL,
+ *          THEN the result value should be IOC_RESULT_SUCCESS.
  * AC-2: GIVEN EvtProducer posts an event with TIMEOUT Option in Sync Mode,
  *        WHEN the queue is NOT EMPTY,
- *        THEN the result value should be IOC_RESULT_NOT_EMPTY_EVTDESC_QUEUE.
+ *          THEN the result value should be IOC_RESULT_NOT_EMPTY_EVTDESC_QUEUE.
+ *        WHEN the queue is EMPTY,
+ *          THEN the result value should be IOC_RESULT_SUCCESS.
  *
  */
 
