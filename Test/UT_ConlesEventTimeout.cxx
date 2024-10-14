@@ -39,7 +39,7 @@
  * @brief 【User Story】
  *
  *  US-1: As a EvtProducer, I WANT to post an event with TIMEOUT Option, whenver in ASync or Sync Mode,
- *        SO THAT I will not be blocked forever or wait too long time to do my next job.
+ *        SO THAT I will not be blocked forever or wait too long time to do my next job if IOC is BUSY.
  *
  */
 
@@ -50,14 +50,18 @@
  * [@US-1]
  * AC-1: GIVEN EvtProducer posts an event with TIMEOUT Option in ASync Mode,
  *        WHEN the queue is FULL,
- *          THEN the result value should be IOC_RESULT_FULL_QUEUING_EVTDESC.
+ *          THEN the result value MUST be IOC_RESULT_FULL_QUEUING_EVTDESC.
+ *            AND the wait cost time SHOULD be equal to the TIMEOUT value.
  *        WHEN the queue is NOT FULL,
- *          THEN the result value should be IOC_RESULT_SUCCESS.
+ *          THEN the result value MUST be IOC_RESULT_SUCCESS.
+ *            AND the wait cost time SHOULD be LT the TIMEOUT value or almost 0.
  * AC-2: GIVEN EvtProducer posts an event with TIMEOUT Option in Sync Mode,
  *        WHEN the queue is NOT EMPTY,
- *          THEN the result value should be IOC_RESULT_NOT_EMPTY_EVTDESC_QUEUE.
+ *          THEN the result value MUST be IOC_RESULT_NOT_EMPTY_EVTDESC_QUEUE.
+ *            AND the wait cost time SHOULD be equal to the TIMEOUT value.
  *        WHEN the queue is EMPTY,
- *          THEN the result value should be IOC_RESULT_SUCCESS.
+ *          THEN the result value MUST be IOC_RESULT_SUCCESS.
+ *            AND the wait cost time SHOULD be LT the TIMEOUT value or almost 0.
  *
  */
 
