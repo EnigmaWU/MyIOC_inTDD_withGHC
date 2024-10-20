@@ -38,9 +38,13 @@
 /**
  * @brief 【User Story】
  *
- *  US-1: As a EvtProducer, I WANT to post an event with TIMEOUT Option, whenver in ASync or Sync Mode,
- *        SO THAT I will not be blocked forever or wait too long time to do my next job if IOC is BUSY.
- *
+ *  US-1: AS a EvtProducer,
+ *          I WANT to post an event with TIMEOUT Option, whenver in ASync or Sync Mode,
+ *            SO THAT I will not be blocked forever or wait too long time to do my next job if IOC is BUSY.
+ *  US-2  and I WANT the timeout value range from 0us to SOME_MAX_ENOUGH_TIMEOUT_VALUE(such as 1-day)
+ *            SO THAT I can easyly control the timeout value such as 0us is NonBlockMode, and 1-day is almost forever.
+ *  US-3  and I WANT to get the OUT_OF_TIMEOUT_RANGE error when the timeout value is out of range,
+ *            SO THAT I can know the timeout value is invalid to cacth my programming error.
  */
 
 //-------------------------------------------------------------------------------------------------
