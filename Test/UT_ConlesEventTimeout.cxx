@@ -74,14 +74,39 @@
  * @brief 【Test Cases】
  *
  * [@AC-1]
- * TC-1: verifyASyncTimeout_byQueueFromEmptyToFullToEmpty_inTenTimes
+ * TC-1:
+ *  @[Name]: verifyASyncDifferentTimeoutValue_byQueueFromEmptyToFullToEmpty_inAtLeastTenTimes
+ *  @[Purpose]: According to AC-1, we need to VERIFY the behavior of IOC_postEVT_inConlesMode when the queue is full and
+ * then empty, with different timeout values.
  *
- */
-
-/**
- * @detail 【Test Cases】
- *
- * [TC-1]: TODO
  */
 
 //======END OF UNIT TESTING DESIGN=================================================================
+
+//======BEGIN OF UNIT TESTING IMPLEMENTATION=======================================================
+#include "_UT_IOC_Common.h"
+
+/**
+ * @[Name]: verifyASyncDifferentTimeoutValue_byQueueFromEmptyToFullToEmpty_inAtLeastTenTimes
+ * @[Steps]:
+ *   1) Get DepthEvtDescQueue by IOC_getCapabilty as SETUP
+ *   2) EvtConsumer call IOC_subEVT_inConlesMode with CbProcEvt_F of:
+ *      a) block on the first event, until wake up by EvtProducer.
+ *      b) don't block following events.
+ *        as SETUP.
+ *   3) EvtProducer call IOC_postEVT_inConlesMode with different timeout values by IOC_Option_defineASyncTimeout
+ *     a) random select (0us,1us,10us,100us,1ms,10ms,100ms,1s) as timeout value as BEHAVIOR
+ *     b) check from 1 to (DepthEvtDescQueue-1)'s result is IOC_RESULT_SUCCESS as VERIFY
+ *     c) check the DepthEvtDescQueue's result is IOC_RESULT_FULL_QUEUING_EVTDESC as VERIFY
+ *        repeat all above timeout value as BEHAVIOR
+ *     d) wake up EvtConsumer
+ *     e) check from (DepthEvtDescQueue-1) to 1's result is IOC_RESULT_SUCCESS as VERIFY
+ *   4) EvtConsumer call IOC_unsubEVT_inConlesMode as CLEANUP
+ *   5) Repeat 2) to 4) at _MAX_REPEAT_TIMES
+ * @[Expect]: ${how to verify}
+ * @[Notes]:
+ */
+TEST(UT_ConlesEventTimeout, verifyASyncDifferentTimeoutValue_byQueueFromEmptyToFullToEmpty_inAtLeastTenTimes) {}
+
+//======END OF UNIT TESTING IMPLEMENTATION=========================================================
+///////////////////////////////////////////////////////////////////////////////////////////////////
