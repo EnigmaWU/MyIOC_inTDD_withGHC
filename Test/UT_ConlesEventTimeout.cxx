@@ -84,8 +84,10 @@
 //======END OF UNIT TESTING DESIGN=================================================================
 
 //======BEGIN OF UNIT TESTING IMPLEMENTATION=======================================================
-#include "_UT_IOC_Common.h"
+#include <semaphore.h>
+#include <sys/semaphore.h>
 
+#include "_UT_IOC_Common.h"
 /**
  * @[Name]: verifyASyncDifferentTimeoutValue_byQueueFromEmptyToFullToEmpty_inAtLeastTenTimes
  * @[Steps]:
@@ -103,10 +105,61 @@
  *     e) check from (DepthEvtDescQueue-1) to 1's result is IOC_RESULT_SUCCESS as VERIFY
  *   4) EvtConsumer call IOC_unsubEVT_inConlesMode as CLEANUP
  *   5) Repeat 2) to 4) at _MAX_REPEAT_TIMES
- * @[Expect]: ${how to verify}
+ * @[Expect]: all VERIFY steps are passed.
  * @[Notes]:
+ *    TC01 is short of Test Case 01 to distinguish from other Test Cases.
  */
-TEST(UT_ConlesEventTimeout, verifyASyncDifferentTimeoutValue_byQueueFromEmptyToFullToEmpty_inAtLeastTenTimes) {}
+
+typedef struct {
+  uint32_t ProcedEvtCount;  // 0=block, 1=non-block
+  sem_t *pBlockSem;         // block semaphore for ProcEvtNum=0
+} _TC01_EvtConsumerPriv_T, *_TC01_EvtConsumerPriv_pT;
+
+static IOC_Result_T _TC01_CbProcEvt_F(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
+  _TC01_EvtConsumerPriv_pT pEvtConsumerPriv = (_TC01_EvtConsumerPriv_pT)pCbPriv;
+  if (0 == pEvtConsumerPriv->ProcedEvtCount) {
+    sem_post(pEvtConsumerPriv->pBlockSem);
+  }
+
+  pEvtConsumerPriv->ProcedEvtCount++;
+  return IOC_RESULT_SUCCESS;
+}
+
+TEST(UT_ConlesEventTimeout, verifyASyncDifferentTimeoutValue_byQueueFromEmptyToFullToEmpty_inAtLeastTenTimes) {
+  //===SETUP===
+  IOC_CapabiltyDescription_T CapDesc = {
+      .CapID = IOC_CAPID_CONLES_MODE_EVENT,
+  };
+  IOC_Result_T Result = IOC_getCapabilty(&CapDesc);
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+  uint16_t DepthEvtDescQueue = CapDesc.ConlesModeEvent.DepthEvtDescQueue;
+
+//===BEHAVIOR & VERIFY & CLEANUP===
+#define _MAX_REPEAT_TIMES 10
+  for (uint16_t i = 0; i < _MAX_REPEAT_TIMES; i++) {
+    // 2) EvtConsumer call IOC_subEVT_inConlesMode with CbProcEvt_F of:
+    //      a) block on the first event, until wake up by EvtProducer.
+    //      b) don't block following events.
+    //        as SETUP.
+    IOC_EvtID_T EvtIDs[]                    = {IOC_EVTID_TEST_KEEPALIVE};
+    _TC01_EvtConsumerPriv_T EvtConsumerPriv = {
+        .ProcedEvtCount = 0,
+    };
+
+    sem_unlink("UT_ConlesEventTimeout_TC01");
+    EvtConsumerPriv.pBlockSem = sem_open("UT_ConlesEventTimeout_TC01", O_CREAT, 0644, 0);
+
+    IOC_SubEvtArgs_T SubEvtArgs = {
+        .CbProcEvt_F = _TC01_CbProcEvt_F,
+        .pCbPrivData = &EvtConsumerPriv,
+        .EvtNum      = IOC_calcArrayElmtCnt(EvtIDs),
+        .pEvtIDs     = EvtIDs,
+    };
+    Result = IOC_subEVT_inConlesMode(&SubEvtArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+  }
+}
 
 //======END OF UNIT TESTING IMPLEMENTATION=========================================================
 ///////////////////////////////////////////////////////////////////////////////////////////////////
