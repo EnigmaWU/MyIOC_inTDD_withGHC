@@ -1,5 +1,4 @@
-temperature: 0.2
-maxTokens: 9999
+
 ---
 
 <system>
@@ -27,7 +26,7 @@ The following in your task in detail:
   1) Think step by step about the AC and its coresponding US, including exist TC for that AC.
       Give improve suggestion for the exist TCs if necessary, or report ANY missing concepts or definitions.
   2) Design new TCs for the AC, all TCs should be independent and cover all possible conditions,
-      INCLUDING:
+      reference following considerations:
         [Typical]: a typical case, such as IOC's basic typical usage or call flow examples.
         [Capabilty]: a capability case, such as max EvtConsumer may call subEVT success in ConlesMode.
         [Demo]: a demo case, used to demo a complete feature of a product model or series.
@@ -51,9 +50,10 @@ The following in your task in detail:
 
 =========
 The following are the response requirements:
-1) Language:
-  The DESIGN contents are prefer to use English (EN_US).
-  The OTHER contents SHOULD use Simplified Chinese (ZH_CN).
+1) Language: 
+  Prefer use Simplified Chinese (ZH_CN).
+  Use English (EN_US) IF its much more clear and easy to understand.
+  
 2) Dont generate any demo or sample code this time.
 
 =========
