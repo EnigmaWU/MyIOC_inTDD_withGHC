@@ -777,7 +777,7 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
                       LinkID, IOC_EvtDesc_printDetail(pEvtDesc, NULL, 0));
       }
 
-      _IOC_LogNotTested();  // comment out by unit testing
+      //_IOC_LogNotTested();
       goto _returnResult;
     }
 
@@ -890,7 +890,7 @@ static IOC_Result_T __IOC_postEVT_inConlesModeAsyncTimed(
     ULONG_T ElapsedUS = IOC_deltaTimeSpecInUS(&TS_Begin, &TS_End);
     if (ElapsedUS >= TimeoutUS) {
       Result = IOC_RESULT_TOO_MANY_QUEUING_EVTDESC;
-      _IOC_LogNotTested();  // comment out by unit testing
+      //_IOC_LogNotTested();
       break;
     }
 
