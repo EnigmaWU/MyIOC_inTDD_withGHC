@@ -14,6 +14,10 @@ typedef enum {
   // TODO(@W): +More...
 } IOC_OptionsID_T;
 
+#define IOC_TIMEOUT_INFINITE ULONG_MAX
+#define IOC_TIMEOUT_IMMEDIATE 0
+#define IOC_TIMEOUT_MAX 86400000000  // 24*60*60*1000ms*1000us
+
 typedef struct {
   IOC_OptionsID_T IDs;
 
@@ -79,7 +83,7 @@ static inline IOC_BoolResult_T IOC_Option_isNonBlockMode(IOC_Options_pT pOption)
   OptVarName.Payload.TimeoutUS = ArgTimeoutUS;
 
 static inline ULONG_T IOC_Option_getTimeoutUS(IOC_Options_pT pOption) {
-  ULONG_T TimeoutUS = ULONG_MAX;  // Default is Infinite
+  ULONG_T TimeoutUS = IOC_TIMEOUT_INFINITE;  // Default is Infinite
   if (pOption) {
     if (pOption->IDs & IOC_OPTID_TIMEOUT) {
       TimeoutUS = pOption->Payload.TimeoutUS;
@@ -91,7 +95,7 @@ static inline ULONG_T IOC_Option_getTimeoutUS(IOC_Options_pT pOption) {
 
 static inline IOC_BoolResult_T IOC_Option_isTimeoutMode(IOC_Options_pT pOption) {
   ULONG_T TimeoutUS = IOC_Option_getTimeoutUS(pOption);
-  if (0 < TimeoutUS && TimeoutUS < ULONG_MAX) {
+  if (0 < TimeoutUS && TimeoutUS < IOC_TIMEOUT_MAX) {
     return IOC_RESULT_YES;
   }
   return IOC_RESULT_NO;
