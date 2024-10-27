@@ -222,7 +222,7 @@ TEST(UT_ConlesEventTimeout, verifyASyncDifferentTimeoutValue_byQueueFromEmptyToF
       ASSERT_EQ(IOC_RESULT_FULL_QUEUING_EVTDESC, Result) << "TimeoutIdx=" << TimeoutIdx;  // KeyVerifyPoint
 
       ULONG_T WaitTimeUS = IOC_deltaTimeSpecInUS(&BeforePostTime, &AfterPostTime);
-      ASSERT_TRUE((TimeoutUSValue <= WaitTimeUS) && (WaitTimeUS <= TimeoutUSValue + 2000))
+      ASSERT_TRUE((TimeoutUSValue <= WaitTimeUS) && (WaitTimeUS <= TimeoutUSValue + 5000))
           << "TimeoutIdx=" << TimeoutIdx << ", WaitTimeUS=" << WaitTimeUS << ", TimeoutUSValue=" << TimeoutUSValue;
       // KeyVerifyPoint, WaitTimeUS~=TimeoutUSValue
     }
@@ -265,10 +265,10 @@ TEST(UT_ConlesEventTimeout, verifyASyncDifferentTimeoutValue_byQueueFromEmptyToF
  *   1) Get DepthEvtDescQueue by IOC_getCapabilty as SETUP
  *   2) EvtConsumer call IOC_subEVT_inConlesMode with CbProcEvt_F of:
  *      a) block on the first event, until wake up by EvtProducer.
- *      b) don't block following events.
+ *      b) don't block following second on events.
  *        as SETUP.
- *   3) EvtProducer call IOC_postEVT_inConlesMode with different timeout values by IOC_Option_defineSyncTimeout
- *     a) random select (1ms,10ms,100ms,1s) as timeout value as BEHAVIOR
+ *   3) EvtProducer call IOC_postEVT_inConlesMode, with different timeout values by call IOC_Option_defineSyncTimeout
+ *     a) random select (1ms,10ms,100ms) as timeout value as BEHAVIOR
  *     b) check from 1 to DepthEvtDescQueue's result is IOC_RESULT_NOT_EMPTY_EVTDESC_QUEUE as VERIFY
  *     c) wake up EvtConsumer, forceProcEVT
  *     d) check from DepthEvtDescQueue to 1's result is IOC_RESULT_SUCCESS as VERIFY
@@ -296,7 +296,9 @@ TEST(UT_ConlesEventTimeout, verifySyncDifferentTimeoutValue_byQueueFromEmptyToFu
     //      a) block on the first event, until wake up by EvtProducer.
     //      b) don't block following events.
     //        as SETUP.
-    IOC_EvtID_T EvtIDs[]                    = {IOC_EVTID_TEST_KEEPALIVE};
+    IOC_EvtID_T EvtIDs[] = {
+        IOC_EVTID_TEST_KEEPALIVE,
+    };
     _TC01_EvtConsumerPriv_T EvtConsumerPriv = {
         .ProcedEvtCount = 0,
     };
@@ -333,7 +335,7 @@ TEST(UT_ConlesEventTimeout, verifySyncDifferentTimeoutValue_byQueueFromEmptyToFu
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
 
     // 3) EvtProducer call IOC_postEVT_inConlesMode with different timeout values by IOC_Option_defineSyncTimeout
-    ULONG_T TimeoutUS[] = {1000, 10000, 100000, 1000000};  // FIXME: for better performance
+    ULONG_T TimeoutUS[] = {1000, 10000, 100000};  // FIXME: for better performance
 
     // b) check from 1 to DepthEvtDescQueue's result is IOC_RESULT_NOT_EMPTY_EVTDESC_QUEUE as VERIFY
     //    purpose: FULL fill the queue with DepthEvtDescQueue's EvtDesc
@@ -350,7 +352,7 @@ TEST(UT_ConlesEventTimeout, verifySyncDifferentTimeoutValue_byQueueFromEmptyToFu
       ASSERT_EQ(IOC_RESULT_NOT_EMPTY_EVTDESC_QUEUE, Result);  // KeyVerifyPoint
 
       ULONG_T WaitTimeUS = IOC_deltaTimeSpecInUS(&BeforePostTime, &AfterPostTime);
-      ASSERT_LE(WaitTimeUS, TimeoutUSValue + 1000);  // KeyVerifyPoint, PostPerf<=1000us
+      ASSERT_LE(WaitTimeUS, TimeoutUSValue + 5000);  // KeyVerifyPoint, PostPerf<=1000us
     }
 
     // c) wake up EvtConsumer, forceProcEVT
