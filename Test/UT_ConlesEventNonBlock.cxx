@@ -17,32 +17,24 @@
 /**
  * @brief 【User Story】
  *
- *  US-1: AS an EvtProducer calling IOC_postEVT_inConlesMode,
- *        I want to return immediately without waiting for a moment IF:
- *          AutoLink's internal EvtDescQueue is full in ASyncMode OR is not empty in SyncMode,
- *        SO THAT I can continue my work without blocking.
+ *  US-1: AS an EvtProducer when I'm calling IOC_postEVT_inConlesMode,
+ *        I WANT TO return immediately without waiting for a moment IF:
+ *          AutoLink's internal EvtDescQueue is FULL in ASyncMode OR is NOT EMPTY in SyncMode,
+ *        SO THAT I can continue my work without accidential BLOCKING.
  *
  */
 
 /**
  * @brief 【Acceptance Criteria】
  *
- * AC-1: GIVEN EvtProducer calling IOC_postEVT_inConlesMode,
+ * AC-1@US-1: GIVEN EvtProducer calling IOC_postEVT_inConlesMode,
  *         WHEN IOC's EvtDescQueue is full in ASyncMode by a blocking EvtConsumer cbProcEvt,
  *         THEN EvtProducer can return immediately without waiting for a moment,
  *           AND the posting EvtDesc will never be processed by IOC.
- * AC-2: GIVEN EvtProducer calling IOC_postEVT_inConlesMode,
+ * AC-2@US-1: GIVEN EvtProducer calling IOC_postEVT_inConlesMode,
  *         WHEN IOC's EvtDescQueue is not empty in SyncMode,
  *         THEN EvtProducer can return immediately without waiting for a moment.
  *          AND the posting EvtDesc will never be processed by IOC.
- * AC-3: GIVEN EvtProducer calling IOC_postEVT_inConlesMode,
- *         WHEN IOC's EvtDescQueue is not full in ASyncMode,
- *         THEN EvtProducer can return immediately without waiting for a moment,
- *           AND the posting EvtDesc will be processed by IOC.
- * AC-4: GIVEN EvtProducer calling IOC_postEVT_inConlesMode,
- *         WHEN IOC's EvtDescQueue is empty in SyncMode,
- *         THEN EvtProducer can return immediately without waiting for a moment,
- *           AND the posting EvtDesc will be processed by IOC.
  *
  */
 
@@ -51,6 +43,7 @@
  *
  * TC-1: verifyASyncNonblock_byPostOneMoreEVT_whenEvtDescQueueFull
  * TC-2: verifySyncNonblock_byPostOneMoreEVT_whenEvtDescQueueNotEmpty
+ * TC-3: verifyHybridNonblock_byAlternatelyCbProcEvtBlockedOrNot_withHighConcurrency
  *
  */
 
