@@ -75,14 +75,14 @@
  *
  * [@AC-1]
  * TC-1.1:
- *  @[Name]: verifyASyncDifferentTimeoutValue_byQueueFromEmptyToFullToEmpty_inAtLeastTenTimes
+ *  @[Name]: verifyASyncTimeout_byQueueFromEmptyToFullToEmpty_withDifferentTimeValue_inAtLeastTenTimes
  *  @[Purpose]: VERIFY the behavior of IOC_postEVT_inConlesMode when the queue is FULL and
  *    then empty, with different timeout values.
  *
  * [@AC-2]
  * TC-2.1:
- *  @[Name]: verifySyncDifferentTimeoutValue_byQueueFromEmptyToFullToEmpty_inAtLeastTenTimes
- *  @[Purpose]: Verify the behavior of IOC_postEVT_inConlesMode when the queue is NOT EMPTY,
+ *  @[Name]: verifySyncTimeout_byQueueFromEmptyToFullToEmpty_withDifferentTimeValue_inAtLeastTenTimes
+ *  @[Purpose]: VERIFY the behavior of IOC_postEVT_inConlesMode when the queue is NOT EMPTY,
  *    with different timeout values in Sync Mode.
  *
  */
@@ -98,7 +98,7 @@
 
 #include "_UT_IOC_Common.h"
 /**
- * @[Name]: verifyASyncDifferentTimeoutValue_byQueueFromEmptyToFullToEmpty_inAtLeastTenTimes
+ * @[Name]: verifyASyncTimeout_byQueueFromEmptyToFullToEmpty_withDifferentTimeValue_inAtLeastTenTimes
  * @[Steps]:
  *   1) Get DepthEvtDescQueue by IOC_getCapabilty as SETUP
  *   2) EvtConsumer call IOC_subEVT_inConlesMode with CbProcEvt_F of:
@@ -138,7 +138,7 @@ static IOC_Result_T _TC01_CbProcEvt_F(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
   return IOC_RESULT_SUCCESS;
 }
 
-TEST(UT_ConlesEventTimeout, verifyASyncDifferentTimeoutValue_byQueueFromEmptyToFullToEmpty_inAtLeastTenTimes) {
+TEST(UT_ConlesEventTimeout, verifyASyncTimeout_byQueueFromEmptyToFullToEmpty_withDifferentTimeValue_inAtLeastTenTimes) {
   //===SETUP===
   IOC_CapabiltyDescription_T CapDesc = {
       .CapID = IOC_CAPID_CONLES_MODE_EVENT,
@@ -260,7 +260,7 @@ TEST(UT_ConlesEventTimeout, verifyASyncDifferentTimeoutValue_byQueueFromEmptyToF
 
 //-------------------------------------------------------------------------------------------------
 /**
- * @[Name]: verifySyncDifferentTimeoutValue_byQueueFromEmptyToFullToEmpty_inAtLeastTenTimes
+ * @[Name]: verifySyncTimeout_byQueueFromEmptyToFullToEmpty_withDifferentTimeValue_inAtLeastTenTimes
  * @[Steps]:
  *   1) Get DepthEvtDescQueue by IOC_getCapabilty as SETUP
  *   2) EvtConsumer call IOC_subEVT_inConlesMode with CbProcEvt_F of:
@@ -279,7 +279,7 @@ TEST(UT_ConlesEventTimeout, verifyASyncDifferentTimeoutValue_byQueueFromEmptyToF
  *    TC02 is short of Test Case 02 to distinguish from other Test Cases.
  */
 
-TEST(UT_ConlesEventTimeout, verifySyncDifferentTimeoutValue_byQueueFromEmptyToFullToEmpty_inAtLeastTenTimes) {
+TEST(UT_ConlesEventTimeout, verifySyncTimeout_byQueueFromEmptyToFullToEmpty_withDifferentTimeValue_inAtLeastTenTimes) {
   //===SETUP===
   IOC_CapabiltyDescription_T CapDesc = {
       .CapID = IOC_CAPID_CONLES_MODE_EVENT,
