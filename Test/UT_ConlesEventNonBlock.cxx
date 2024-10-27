@@ -36,6 +36,11 @@
  *         THEN EvtProducer can return immediately without waiting for a moment.
  *          AND the posting EvtDesc will never be processed by IOC.
  *
+ * AC-3@US-1: GIVEN EvtConsumer's CbProcEvt_F MAY be blocked accedentially,
+ *          WHEN many EvtProducer call IOC_postEVT_inConlesMode both in ASyncMode or SyncMode,
+ *          THEN EvtProducer WILL return immediately without waiting for a moment IF:
+ *            IOC's EvtDescQueue is FULL in ASyncMode OR is NOT EMPTY in SyncMode.
+ *
  */
 
 /**
@@ -43,7 +48,10 @@
  *
  * TC-1: verifyASyncNonblock_byPostOneMoreEVT_whenEvtDescQueueFull
  * TC-2: verifySyncNonblock_byPostOneMoreEVT_whenEvtDescQueueNotEmpty
- * TC-3: verifyHybridNonblock_byAlternatelyCbProcEvtBlockedOrNot_withHighConcurrency
+ * TC-3:
+ *    @[Name]: verifyHybridNonblock_byAlternatelyCbProcEvtBlockedOrNot_withHighConcurrency
+ *    @[Purpose]: According to AC-3 verify EvtProducer will return immediately without waiting for a moment when IOC's
+ * EvtDescQueue is FULL in ASyncMode OR is NOT EMPTY in SyncMode.
  *
  */
 
