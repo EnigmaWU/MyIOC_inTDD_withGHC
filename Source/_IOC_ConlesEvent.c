@@ -752,8 +752,8 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
 
     // 2.1) NonBlock_returnImmediately
     if (IOC_Option_isNonBlockMode(pOption)) {
-      _IOC_LogWarn("[ConlesEvent::ASync::NonBlock]: AutoLinkID(%llu) postEvtDesc(%s) failed",
-                   LinkID, IOC_EvtDesc_printDetail(pEvtDesc, NULL, 0));
+      _IOC_LogDebug("[ConlesEvent::ASync::NonBlock]: AutoLinkID(%llu) postEvtDesc(%s) failed", LinkID,
+                    IOC_EvtDesc_printDetail(pEvtDesc, NULL, 0));
       Result = IOC_RESULT_TOO_MANY_QUEUING_EVTDESC;  // Path@A->[2]
       //_IOC_LogNotTested();
       goto _returnResult;
@@ -767,8 +767,8 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
       _IOC_LogAssert(Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC || Result == IOC_RESULT_SUCCESS);
 
       if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
-        _IOC_LogWarn("[ConlesEvent::ASync::Timeout]: AutoLinkID(%llu) postEvtDesc(%s) failed",
-                     LinkID, IOC_EvtDesc_printDetail(pEvtDesc, NULL, 0));
+        _IOC_LogDebug("[ConlesEvent::ASync::Timeout]: AutoLinkID(%llu) postEvtDesc(%s) failed", LinkID,
+                      IOC_EvtDesc_printDetail(pEvtDesc, NULL, 0));
       }
 
       if (Result == IOC_RESULT_SUCCESS) {
@@ -814,8 +814,8 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
 
     // 2.1) NonBlock_returnImmediately
     if (IOC_Option_isNonBlockMode(pOption)) {
-      _IOC_LogWarn("[ConlesEvent::Sync::NonBlock]: AutoLinkID(%llu) postEvtDesc(%s) failed", LinkID,
-                   IOC_EvtDesc_printDetail(pEvtDesc, NULL, 0));
+      _IOC_LogDebug("[ConlesEvent::Sync::NonBlock]: AutoLinkID(%llu) postEvtDesc(%s) failed", LinkID,
+                    IOC_EvtDesc_printDetail(pEvtDesc, NULL, 0));
       Result = IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE;  // Path@B->[2]
       //_IOC_LogNotTested();
       goto _returnResult;
@@ -830,8 +830,8 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
                      Result == IOC_RESULT_SUCCESS);
 
       if (Result == IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE) {
-        _IOC_LogWarn("[ConlesEvent::Sync::Timeout]: AutoLinkID(%llu) postEvtDesc(%s) failed",
-                     LinkID, IOC_EvtDesc_printDetail(pEvtDesc, NULL, 0));
+        _IOC_LogDebug("[ConlesEvent::Sync::Timeout]: AutoLinkID(%llu) postEvtDesc(%s) failed", LinkID,
+                      IOC_EvtDesc_printDetail(pEvtDesc, NULL, 0));
       }
 
       if (Result == IOC_RESULT_SUCCESS) {
