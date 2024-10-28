@@ -12,7 +12,7 @@
 extern "C" {
 #endif
 
-#define _IOC_LogDebug(fmt, ...) printf("[DEBUG] " fmt "\n", ##__VA_ARGS__)
+#define _IOC_LogDebug(fmt, ...)  // printf("[DEBUG] " fmt "\n", ##__VA_ARGS__)
 #define _IOC_LogInfo(fmt, ...) printf("[INFO] " fmt "\n", ##__VA_ARGS__)
 #define _IOC_LogWarn(fmt, ...) printf("[WARN] " fmt "\n", ##__VA_ARGS__)
 #define _IOC_LogError(fmt, ...) printf("[ERROR] " fmt "\n", ##__VA_ARGS__)
