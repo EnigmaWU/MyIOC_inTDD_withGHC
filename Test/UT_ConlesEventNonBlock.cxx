@@ -279,3 +279,221 @@ TEST(UT_ConlesEventConcurrency, verifySyncNonblock_byPostOneMoreEVT_whenEvtDescQ
   Result = _IOC_unsubEVT_inConlesMode(&UnsubArgs);
   ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
 }
+
+/**
+ * @[Name]: <TC-3>verifyHybridNonblock_byAlternatelyCbProcEvtBlockedOrNot_withHighConcurrency
+ * @[Steps]:
+ *  1) call IOC_subEVT(TEST_KEEPALIVE and TEST_SLEEP_9US) with __TC3_cbProcEvt as SETUP
+ *      |-> in __TC3_cbProcEvt,
+ *          |-> if EvtID is TEST_KEEPALIVE, then CbKeepAliveCnt++.
+ *          |-> if EvtID is TEST_SLEEP_9US, then sleep 9us and CbSleep9USCnt++.
+ *  2) create _TC3_MAX_N_ASYNC_THREADS and _TC3_MAX_M_SYNC_THREADS as SETUP
+ *  3) In each async thread, call _TC3_MAX_NN_EVENTS(>=10M) postEVT in ASyncMode as BEHAVIOR
+ *      |-> TEST_KEEPALIVE by default, and TEST_SLEEP_9US every 10000 events.
+ *      |-> if IOC_RESULT_SUCCESS, then ASyncPostSuccessCnt++.
+ *      |-> if IOC_RESULT_TOO_MANY_QUEUING_EVTDESC, then ASyncPostNonBlockCnt++.
+ *  4) In each sync thread, call _TC3_MAX_MM_EVENTS(>=10M) postEVT in SyncMode as BEHAVIOR
+ *      RefStep: 3) for each async thread.
+ *  5) check ASyncPostSuccessCnt, ASyncPostNonBlockCnt, SyncPostSuccessCnt, SyncPostNonBlockCnt as VERIFY
+ *      |-> TotalASyncSuccessPostCnt = SUM(ASyncPostSuccessCnt) in each _TC3_MAX_N_ASYNC_THREADS
+ *      |-> TotalSyncPostSuccessCnt = SUM(SyncPostSuccessCnt) in each _TC3_MAX_M_SYNC_THREADS
+ *      |-> TotalPostSuccessCnt = TotalASyncSuccessPostCnt + TotalSyncPostSuccessCnt
+ *      |-> TotalPostSuccessCnt = CbKeepAliveCnt + CbSleep9USCnt
+ *  6) call IOC_unsubEVT(TEST_KEEPALIVE and TEST_SLEEP_9US) as CLEANUP
+ *
+ */
+
+#define _TC3_MAX_N_ASYNC_THREADS 16
+#define _TC3_MAX_M_SYNC_THREADS 16
+#define _TC3_MAX_NN_EVENTS 1000000
+#define _TC3_MAX_MM_EVENTS 1000000
+
+typedef struct {
+  ULONG_T CbKeepAliveCnt;
+  ULONG_T CbSleep9USCnt;
+} _TC3_CbPrivData_T, *_TC3_CbPrivData_pT;
+
+static IOC_Result_T __TC3_cbProcEvt(IOC_EvtDesc_pT pEvtDesc, void *pCbPrivData) {
+  _TC3_CbPrivData_pT pTC3PrivData = (_TC3_CbPrivData_pT)pCbPrivData;
+
+  if (pEvtDesc->EvtID == IOC_EVTID_TEST_KEEPALIVE) {
+    pTC3PrivData->CbKeepAliveCnt++;
+  } else if (pEvtDesc->EvtID == IOC_EVTID_TEST_SLEEP_9US) {
+    usleep(9);
+    pTC3PrivData->CbSleep9USCnt++;
+  } else {
+    EXPECT_FALSE(true) << "Unexpected EvtID: " << pEvtDesc->EvtID;
+  }
+
+  return IOC_RESULT_SUCCESS;
+}
+
+typedef struct {
+  ULONG_T ASyncPostSuccessCnt;
+  ULONG_T ASyncPostNonBlockCnt;
+} _TC3_ASyncPostStat_T, *_TC3_ASyncPostStat_pT;
+
+static void *__TC3_AsyncPostThread(void *pArg) {
+  _TC3_ASyncPostStat_pT pASyncPostStat = (_TC3_ASyncPostStat_pT)pArg;
+
+  IOC_EvtDesc_T EvtDescKeepAlive = {
+      .EvtID = IOC_EVTID_TEST_KEEPALIVE,
+  };
+  IOC_EvtDesc_T EvtDescSleep9US = {
+      .EvtID = IOC_EVTID_TEST_SLEEP_9US,
+  };
+
+  IOC_Option_defineNonBlock(OptNonBlock);
+  IOC_Result_T Result;
+
+  for (ULONG_T i = 0; i < _TC3_MAX_NN_EVENTS; i++) {
+    Result = IOC_postEVT_inConlesMode(&EvtDescKeepAlive, &OptNonBlock);
+    if (Result == IOC_RESULT_SUCCESS) {
+      pASyncPostStat->ASyncPostSuccessCnt++;
+    } else if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
+      pASyncPostStat->ASyncPostNonBlockCnt++;
+    } else {
+      EXPECT_FALSE(true) << "Unexpected Result: " << Result;
+    }
+
+    if (i % 10000 == 0) {
+      Result = IOC_postEVT_inConlesMode(&EvtDescSleep9US, &OptNonBlock);
+      if (Result == IOC_RESULT_SUCCESS) {
+        pASyncPostStat->ASyncPostSuccessCnt++;
+      } else if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
+        pASyncPostStat->ASyncPostNonBlockCnt++;
+      } else {
+        EXPECT_FALSE(true) << "Unexpected Result: " << Result;
+      }
+    }
+  }
+
+  return NULL;
+}
+
+typedef struct {
+  ULONG_T SyncPostSuccessCnt;
+  ULONG_T SyncPostNonBlockCnt;
+} _TC3_SyncPostStat_T, *_TC3_SyncPostStat_pT;
+
+static void *__TC3_SyncPostThread(void *pArg) {
+  _TC3_SyncPostStat_pT pSyncPostStat = (_TC3_SyncPostStat_pT)pArg;
+
+  IOC_EvtDesc_T EvtDescKeepAlive = {
+      .EvtID = IOC_EVTID_TEST_KEEPALIVE,
+  };
+  IOC_EvtDesc_T EvtDescSleep9US = {
+      .EvtID = IOC_EVTID_TEST_SLEEP_9US,
+  };
+
+  IOC_Option_defineSyncNonBlock(OptSyncNonBlock);
+  IOC_Result_T Result;
+
+  for (ULONG_T i = 0; i < _TC3_MAX_MM_EVENTS; i++) {
+    Result = IOC_postEVT_inConlesMode(&EvtDescKeepAlive, &OptSyncNonBlock);
+    if (Result == IOC_RESULT_SUCCESS) {
+      pSyncPostStat->SyncPostSuccessCnt++;
+    } else if (Result == IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE) {
+      pSyncPostStat->SyncPostNonBlockCnt++;
+    } else {
+      EXPECT_FALSE(true) << "Unexpected Result: " << Result;
+    }
+
+    if (i % 10000 == 0) {
+      Result = IOC_postEVT_inConlesMode(&EvtDescSleep9US, &OptSyncNonBlock);
+      if (Result == IOC_RESULT_SUCCESS) {
+        pSyncPostStat->SyncPostSuccessCnt++;
+      } else if (Result == IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE) {
+        pSyncPostStat->SyncPostNonBlockCnt++;
+      } else {
+        EXPECT_FALSE(true) << "Unexpected Result: " << Result;
+      }
+    }
+  }
+
+  return NULL;
+}
+
+TEST(UT_ConlesEventConcurrency, verifyHybridNonblock_byAlternatelyCbProcEvtBlockedOrNot_withHighConcurrency) {
+  //===SETUP===
+  _TC3_CbPrivData_T TC3PrivData = {
+      .CbKeepAliveCnt = 0,
+      .CbSleep9USCnt  = 0,
+  };
+  IOC_EvtID_T SubEvtIDs[] = {
+      IOC_EVTID_TEST_KEEPALIVE,
+      IOC_EVTID_TEST_SLEEP_9US,
+  };
+  IOC_SubEvtArgs_T SubArgs = {
+      .CbProcEvt_F = __TC3_cbProcEvt,
+      .pCbPrivData = &TC3PrivData,
+      .EvtNum      = IOC_calcArrayElmtCnt(SubEvtIDs),
+      .pEvtIDs     = SubEvtIDs,
+  };
+
+  IOC_Result_T Result = _IOC_subEVT_inConlesMode(&SubArgs);
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+  //===BEHAVIOR===
+  _TC3_ASyncPostStat_T ASyncPostStat[_TC3_MAX_N_ASYNC_THREADS] = {0};
+  _TC3_SyncPostStat_T SyncPostStat[_TC3_MAX_M_SYNC_THREADS]    = {0};
+
+  pthread_t ASyncThreads[_TC3_MAX_N_ASYNC_THREADS];
+  pthread_t SyncThreads[_TC3_MAX_M_SYNC_THREADS];
+
+  int PosixResult;
+
+  for (ULONG_T i = 0; i < _TC3_MAX_N_ASYNC_THREADS; i++) {
+    PosixResult = pthread_create(&ASyncThreads[i], NULL, __TC3_AsyncPostThread, &ASyncPostStat[i]);
+    ASSERT_EQ(0, PosixResult);
+  }
+
+  for (ULONG_T i = 0; i < _TC3_MAX_M_SYNC_THREADS; i++) {
+    PosixResult = pthread_create(&SyncThreads[i], NULL, __TC3_SyncPostThread, &SyncPostStat[i]);
+    ASSERT_EQ(0, PosixResult);
+  }
+
+  for (ULONG_T i = 0; i < _TC3_MAX_N_ASYNC_THREADS; i++) {
+    PosixResult = pthread_join(ASyncThreads[i], NULL);
+    ASSERT_EQ(0, PosixResult);
+  }
+
+  for (ULONG_T i = 0; i < _TC3_MAX_M_SYNC_THREADS; i++) {
+    PosixResult = pthread_join(SyncThreads[i], NULL);
+    ASSERT_EQ(0, PosixResult);
+  }
+
+  IOC_forceProcEVT();  // force all EvtDesc in IOC's EvtDescQueue to be processed.
+
+  //===VERIFY===
+  ULONG_T TotalASyncSuccessPostCnt  = 0;
+  ULONG_T TotalASyncNonBlockPostCnt = 0;
+  for (ULONG_T i = 0; i < _TC3_MAX_N_ASYNC_THREADS; i++) {
+    ASSERT_NE(0, ASyncPostStat[i].ASyncPostSuccessCnt) << "ASyncPostSuccessCnt is 0 in ASyncThread[" << i << "]";
+    TotalASyncSuccessPostCnt += ASyncPostStat[i].ASyncPostSuccessCnt;
+
+    ASSERT_NE(0, ASyncPostStat[i].ASyncPostNonBlockCnt) << "ASyncPostNonBlockCnt is 0 in ASyncThread[" << i << "]";
+    TotalASyncNonBlockPostCnt += ASyncPostStat[i].ASyncPostNonBlockCnt;
+  }
+
+  ULONG_T TotalSyncSuccessPostCnt  = 0;
+  ULONG_T TotalSyncNonBlockPostCnt = 0;
+  for (ULONG_T i = 0; i < _TC3_MAX_M_SYNC_THREADS; i++) {
+    ASSERT_NE(0, SyncPostStat[i].SyncPostSuccessCnt) << "SyncPostSuccessCnt is 0 in SyncThread[" << i << "]";
+    TotalSyncSuccessPostCnt += SyncPostStat[i].SyncPostSuccessCnt;
+
+    ASSERT_NE(0, SyncPostStat[i].SyncPostNonBlockCnt) << "SyncPostNonBlockCnt is 0 in SyncThread[" << i << "]";
+    TotalSyncNonBlockPostCnt += SyncPostStat[i].SyncPostNonBlockCnt;
+  }
+
+  ULONG_T TotalPostSuccessCnt = TotalASyncSuccessPostCnt + TotalSyncSuccessPostCnt;
+  ASSERT_EQ(TotalPostSuccessCnt, TC3PrivData.CbKeepAliveCnt + TC3PrivData.CbSleep9USCnt);  // KeyVerifyPoint
+
+  //===CLEANUP===
+  IOC_UnsubEvtArgs_T UnsubArgs = {
+      .CbProcEvt_F = __TC3_cbProcEvt,
+      .pCbPrivData = &TC3PrivData,
+  };
+  Result = _IOC_unsubEVT_inConlesMode(&UnsubArgs);
+  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+}
