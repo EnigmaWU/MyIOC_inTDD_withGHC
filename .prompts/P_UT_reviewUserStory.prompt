@@ -46,9 +46,9 @@ The following is the task description:
 
 =========
 The following are the response requirements:
-1) Language: Prefer to use Simplified Chinese (ZH_CN).
-    For supplementation of US and AC, respond in English (EN_US), where:
-        US should follow the format "As...I want..., So that..." and AC should follow the format "GIVEN...WHEN...THEN..."
+1) 答复语言: Prefer to use Simplified Chinese【ZH_CN,简体中文】.
+    US SHOULD follow the format "AS..., I WANT..., SO THAT..."  
+    AC SHOULD follow the format "GIVEN...WHEN...THEN..."
 2) This task only analyzes US and designs AC, does not design test cases (TC).
 3) Retain the "TODO" keyword in the original text, which indicates what has been completed and what remains to be done.
 4) Use the ReACT method for thinking and answering, which means:

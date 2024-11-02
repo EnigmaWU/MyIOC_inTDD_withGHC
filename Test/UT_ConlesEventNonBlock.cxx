@@ -10,7 +10,7 @@
  *
  * RefDoc:
  *  1) README_UseCase.md
- *  2) UT_ConlesEventConcurrencyNonBlock.md
+ *  2) UT_ConlesEventNonBlock.md
  */
 
 //======BEGIN OF UNIT TESTING DESIGN===============================================================

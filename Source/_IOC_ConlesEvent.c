@@ -648,6 +648,13 @@ void _IOC_forceProcEvt_inConlesMode(void) {
   }
 }
 
+void _IOC_wakeupProcEvt_inConlesMode() {
+    for (ULONG_T i = 0; i < IOC_calcArrayElmtCnt(_mClsEvtLinkObjs); i++) {
+        _ClsEvtLinkObj_pT pLinkObj = &_mClsEvtLinkObjs[i];
+        __IOC_ClsEvt_wakeupLinkObjThread(pLinkObj);
+    }
+}
+
 static IOC_Result_T __IOC_postEVT_inConlesModeAsyncTimed(
     /*ARG_IN*/ _ClsEvtLinkObj_pT pLinkObj,
     /*ARG_IN*/ const IOC_EvtDesc_pT pEvtDesc,

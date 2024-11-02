@@ -36,6 +36,7 @@ IOC_Result_T _IOC_getCapabilty_inConlesMode(
     /*ARG_INOUT*/ IOC_CapabiltyDescription_pT pCapDesc);
 
 void _IOC_forceProcEvt_inConlesMode(void);
+void _IOC_wakeupProcEvt_inConlesMode(void);
 
 IOC_BoolResult_T _IOC_isAutoLink_inConlesMode(
     /*ARG_IN*/ IOC_LinkID_T LinkID);

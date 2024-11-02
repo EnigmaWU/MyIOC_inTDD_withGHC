@@ -54,6 +54,11 @@ void IOC_forceProcEVT(void) {
   // TODO: forceProcEvt_inConetMode
 }
 
+void IOC_wakeupProcEVT(void) {
+    _IOC_wakeupProcEvt_inConlesMode();
+    // TODO: wakeupProcEvt_inConetMode
+}
+
 IOC_Result_T IOC_getCapabilty(
     /*ARG_INOUT*/ IOC_CapabiltyDescription_pT pCapDesc) {
   IOC_Result_T Result = _IOC_getCapabilty_inConlesMode(pCapDesc);

@@ -112,6 +112,7 @@ IOC_Result_T IOC_unsubEVT(
  *  So, this API is a blocking API, and IOC may use current thread to process the event.
  */
 void IOC_forceProcEVT(void);
+void IOC_wakeupProcEVT(void);
 // TODO: add IOC_forceProcEVT_byLinkID
 // TODO: add IOC_forceProcEVT_withOptionTimeout
 #ifdef __cplusplus
