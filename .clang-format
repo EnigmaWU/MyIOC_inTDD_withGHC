@@ -4,6 +4,7 @@ Language:        Cpp
 BasedOnStyle:  Google
 
 ColumnLimit: 120
+IndentWidth: 4
+
 AlignConsecutiveAssignments: true
 AlignConsecutiveDeclarations: false
-#IndentWidth: 4
