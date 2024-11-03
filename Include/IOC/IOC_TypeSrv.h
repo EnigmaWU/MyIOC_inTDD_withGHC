@@ -59,14 +59,17 @@ typedef enum {
      *  Which means:
      *    <DFT> SrvLinkID <--> ConnLinkIDs
      *          e.g. postEVT(SrvLinkID) --> ALL ConnLinkIDs will CbProcEvt
+     *          e.g. postEVT(ConnLinkID) --> SrvLinkID and ALL OTHER ConnLinkIDs will CbProcEvt
      *    <P2P> AcptLinkID <--> ConnLinkID
      *          e.g. postEVT(AcptLinkID) --> ONLY ConnLinkID will CbProcEvt
+     *          e.g. postEVT(ConnLinkID) --> ONLY AcptLinkID will CbProcEvt
      */
     IOC_SRVFLAG_P2P = 1 << 0,
 } IOC_SrvFlags_T;
 
 typedef struct {
     IOC_SrvURI_T SrvURI;
+    IOC_SrvFlags_T Flags;
 } IOC_SrvArgs_T, *IOC_SrvArgs_pT;
 
 typedef struct {
