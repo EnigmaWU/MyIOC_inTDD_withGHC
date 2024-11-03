@@ -130,18 +130,40 @@ void PostEvent() {
 }
 ```
 
-### 完整示例
-  
+### 2. 强制事件处理
+作为事件生产者，您可以使用 IOC_forceProcEVT 函数来强制处理所有挂起的事件。此函数会阻塞当前线程，直到所有事件都被处理完毕。
+
 ```c
-void PostEvent() {
+void PostAndForceProcessEvent() {
+    // 发布事件
     IOC_EvtDesc_T EvtDesc = {
         .EvtID = IOC_EVTID_TEST_KEEPALIVE,
     };
-
     IOC_Result_T Result = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
     if (Result != IOC_RESULT_SUCCESS) {
         // 处理发布失败
     }
+
+    // 强制处理事件
+    IOC_forceProcEVT();
 }
 ```
 
+### 3. 唤醒事件处理
+作为事件生产者，您可以使用 IOC_wakeupProcEVT 函数来唤醒事件处理。此函数会唤醒事件处理线程，处理所有挂起的事件。
+
+```c
+void PostAndWakeupProcessEvent() {
+    // 发布事件
+    IOC_EvtDesc_T EvtDesc = {
+        .EvtID = IOC_EVTID_TEST_KEEPALIVE,
+    };
+    IOC_Result_T Result = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
+    if (Result != IOC_RESULT_SUCCESS) {
+        // 处理发布失败
+    }
+
+    // 唤醒事件处理
+    IOC_wakeupProcEVT();
+}
+```
