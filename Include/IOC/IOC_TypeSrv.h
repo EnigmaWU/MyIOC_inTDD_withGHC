@@ -44,6 +44,27 @@ typedef struct {
 
 #define IOC_SRV_HOST_LOOPBACK "Loopback"
 
+typedef enum {
+    IOC_SRVFLAG_NONE = 0,
+
+    /**
+     * @brief P2P==Link2Link
+     *  P2P means Point to Point, which is a direct link between two objects.
+     *  WHEN service online on server side, it has a SrvID, and MAY get LinkID from this SrvID,
+     *      we name this LinkID as SrvLinkID.
+     *    WHEN client connect, it has a pair of LinkID both in client and server side,
+     *      we name these LinkIDs as ConnLinkID and AcptLinkID.
+     *  ByDefault: Srvice is not P2P, we use SrvLinkID and ConnLinkID to communicate.
+     *  If service is P2P, we use AcptLinkID and ConnLinkID to communicate.
+     *  Which means:
+     *    <DFT> SrvLinkID <--> ConnLinkIDs
+     *          e.g. postEVT(SrvLinkID) --> ALL ConnLinkIDs will CbProcEvt
+     *    <P2P> AcptLinkID <--> ConnLinkID
+     *          e.g. postEVT(AcptLinkID) --> ONLY ConnLinkID will CbProcEvt
+     */
+    IOC_SRVFLAG_P2P = 1 << 0,
+} IOC_SrvFlags_T;
+
 typedef struct {
     IOC_SrvURI_T SrvURI;
 } IOC_SrvArgs_T, *IOC_SrvArgs_pT;
