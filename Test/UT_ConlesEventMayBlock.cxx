@@ -51,9 +51,15 @@
  *
  * 【@AC-1】
  *   TC-1.1:
- *    @[Name]: verifyASyncBlock_byPostOneMoreEVT_whenEvtDescQueueFull
- *    @[Purpose]: According to AC-1, verify EvtProducer will wait for a moment,
- *       when IOC's EvtDescQueue is FULL in ASyncMode.
+ *      @[Name]: verifyASyncBlock_byPostOneMoreEVT_whenEvtDescQueueFull
+ *      @[Purpose]: According to AC-1, verify EvtProducer will wait for a moment,
+ *          when IOC's EvtDescQueue is FULL in ASyncMode.
+ *
+ * 【@AC-2】
+ *   TC-2.1:
+ *      @[Name]: verifySyncBlock_byPostOneMoreEVT_whenEvtDescQueueNotEmpty
+ *      @[Purpose]: According to AC-2, verify EvtProducer will wait for a moment,
+ *          when IOC's EvtDescQueue is NOT EMPTY in SyncMode.
  *
  */
 
@@ -172,6 +178,118 @@ TEST(UT_ConlesEventMayBlock, verifyASyncBlock_byPostOneMoreEVT_whenEvtDescQueueF
 
     IOC_UnsubEvtArgs_T UnsubArgs = {
         .CbProcEvt_F = _TC01_CbProcEvt_F,
+        .pCbPrivData = &EvtConsumerPriv,
+    };
+    Result = _IOC_unsubEVT_inConlesMode(&UnsubArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+}
+
+/**
+ * @[Name]: <TC-2.1>verifySyncBlock_byPostOneMoreEVT_whenEvtDescQueueNotEmpty
+ * @[Steps]:
+ *  1) Call IOC_subEVT(TEST_KEEPALIVE and TEST_SLEEP_999MS) with __TC21_cbProcEvt as SETUP
+ *      |-> post semaphore to wake up EvtProducer before SimuSleep999MS
+ *  2) EvtProducer call 1x IOC_postEVT(TEST_SLEEP_999MS) in ASyncMode as BEHAVIOR
+ *      |-> return value MUST be IOC_RESULT_SUCCESS as VERIFY
+ *      |-> wait semaphore which will be posted by EvtConsumer before SimuSleep999MS
+ *      |-> post time MUST be LT 9us as VERIFY
+ *  3) EvtProduct call 1x IOC_postEVT(TEST_KEEPALIVE) in ASyncMode as BEHAVIOR
+ *      |-> return value MUST be IOC_RESULT_SUCCESS as VERIFY
+ *      |-> this event will be queued to make the EvtDescQueue NOT EMPTY as BEHAVIOR
+ *      |-> post time MUST be LT 9us as VERIFY
+ *  4) EvtProducer call 1x IOC_postEVT(TEST_KEEPALIVE) in SyncMode as BEHAVIOR
+ *      |-> with OptSyncMayBlock defined with IOC_Option_defineSyncMayBlock
+ *      |-> return value MUST be IOC_RESULT_SUCCESS as KEYVERIFY
+ *      |-> post time MUST be GT 999ms as KEYVERIFY
+ *  5) Call IOC_unsubEVT(TEST_KEEPALIVE and TEST_SLEEP_999MS) as CLEANUP
+ */
+
+typedef struct {
+    ULONG_T ProcedSleep999MSCnt;
+    ULONG_T ProcedKeepAliveCnt;
+    sem_t *pSemSleep999MS;
+} _TC21_EvtConsumerPriv_T, *_TC21_EvtConsumerPriv_pT;
+
+static IOC_Result_T _TC21_CbProcEvt_F(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
+    _TC21_EvtConsumerPriv_pT pEvtConsumerPriv = (_TC21_EvtConsumerPriv_pT)pCbPriv;
+
+    if (IOC_EVTID_TEST_SLEEP_999MS == pEvtDesc->EvtID) {
+        pEvtConsumerPriv->ProcedSleep999MSCnt++;
+        sem_post(pEvtConsumerPriv->pSemSleep999MS);
+        usleep(999 * 1000);
+    } else if (IOC_EVTID_TEST_KEEPALIVE == pEvtDesc->EvtID) {
+        pEvtConsumerPriv->ProcedKeepAliveCnt++;
+    } else {
+        EXPECT_FALSE(true) << "Unexpected EvtID: " << pEvtDesc->EvtID;
+    }
+
+    return IOC_RESULT_SUCCESS;
+}
+
+TEST(UT_ConlesEventMayBlock, verifySyncBlock_byPostOneMoreEVT_whenEvtDescQueueNotEmpty) {
+    //===SETUP===
+    IOC_EvtID_T SubEvtIDs[] = {
+        IOC_EVTID_TEST_SLEEP_999MS,
+        IOC_EVTID_TEST_KEEPALIVE,
+    };
+    _TC21_EvtConsumerPriv_T EvtConsumerPriv = {};
+
+    sem_unlink("UT_ConlesEventMayBlock_TC21");
+    EvtConsumerPriv.pSemSleep999MS = sem_open("UT_ConlesEventMayBlock_TC21", O_CREAT, 0644, 0);
+    ASSERT_NE(SEM_FAILED, EvtConsumerPriv.pSemSleep999MS);
+
+    IOC_SubEvtArgs_T SubArgs = {
+        .CbProcEvt_F = _TC21_CbProcEvt_F,
+        .pCbPrivData = &EvtConsumerPriv,
+        .EvtNum      = IOC_calcArrayElmtCnt(SubEvtIDs),
+        .pEvtIDs     = SubEvtIDs,
+    };
+
+    IOC_Result_T Result = _IOC_subEVT_inConlesMode(&SubArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    //===BEHAVIOR & VERIFY & CLEANUP===
+    struct timespec TS_Begin, TS_End;
+
+    // 2) EvtProducer call 1x IOC_postEVT(TEST_SLEEP_999MS) in SyncMode
+    IOC_EvtDesc_T EvtDescSleep999MS = {
+        .EvtID = IOC_EVTID_TEST_SLEEP_999MS,
+    };
+    IOC_Option_defineASyncMode(OptASync);
+
+    TS_Begin                      = IOC_getCurrentTimeSpec();
+    IOC_Result_T ResultSleep999MS = IOC_postEVT_inConlesMode(&EvtDescSleep999MS, &OptASync);
+    TS_End                        = IOC_getCurrentTimeSpec();
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultSleep999MS);
+    EXPECT_LT(IOC_deltaTimeSpecInUS(&TS_Begin, &TS_End), 9);
+
+    sem_wait(EvtConsumerPriv.pSemSleep999MS);
+
+    // 3) EvtProduct call 1x IOC_postEVT(TEST_KEEPALIVE) in SyncMode
+    IOC_EvtDesc_T EvtDescKeepAlive = {
+        .EvtID = IOC_EVTID_TEST_KEEPALIVE,
+    };
+    TS_Begin = IOC_getCurrentTimeSpec();
+    Result   = IOC_postEVT_inConlesMode(&EvtDescKeepAlive, &OptASync);
+    TS_End   = IOC_getCurrentTimeSpec();
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    EXPECT_LT(IOC_deltaTimeSpecInUS(&TS_Begin, &TS_End), 9);
+
+    // 4) EvtProducer call 1x IOC_postEVT(TEST_KEEPALIVE) in SyncMode
+    IOC_Option_defineSyncMayBlock(OptSyncMayBlock);
+    TS_Begin = IOC_getCurrentTimeSpec();
+    Result   = IOC_postEVT_inConlesMode(&EvtDescKeepAlive, &OptSyncMayBlock);
+    TS_End   = IOC_getCurrentTimeSpec();
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    EXPECT_GE(IOC_deltaTimeSpecInMS(&TS_Begin, &TS_End), 999);
+
+    //===CLEANUP===
+    IOC_forceProcEVT();  // force all EvtDesc in IOC's EvtDescQueue to be processed.
+    ASSERT_EQ(1, EvtConsumerPriv.ProcedSleep999MSCnt);
+    ASSERT_EQ(2, EvtConsumerPriv.ProcedKeepAliveCnt);
+
+    IOC_UnsubEvtArgs_T UnsubArgs = {
+        .CbProcEvt_F = _TC21_CbProcEvt_F,
         .pCbPrivData = &EvtConsumerPriv,
     };
     Result = _IOC_unsubEVT_inConlesMode(&UnsubArgs);
