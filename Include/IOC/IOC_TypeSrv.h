@@ -67,7 +67,7 @@ typedef enum {
      *          e.g. postEVT(SrvLinkID) --> ALL ConnLinkIDs will CbProcEvt
      *          e.g. postEVT(ConnLinkID) --> SrvLinkID and ALL OTHER ConnLinkIDs will CbProcEvt
      */
-    IOC_SRVFLAG_BROADCAST = 1 << 0,
+    // TODO: IOC_SRVFLAG_BROADCAST = 1 << 0,
 } IOC_SrvFlags_T;
 
 typedef struct {
