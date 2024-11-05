@@ -31,13 +31,13 @@ typedef struct {
 
     char *pHost;
     uint16_t Port;
+    char *pPath;
 
-    // TODO: char *pPath;
     // TODO: char *pQuery;
     // TODO: char *pFragment;
 } IOC_SrvURI_T, *IOC_SrvURI_pT;
 
-#define IOC_SRV_PROTO_AUTO "auto"
+#define IOC_SRV_PROTO_AUTO "auto"  // transport protocol is auto selected by IOC
 // TODO: #define IOC_SRV_PROTO_TCP "tcp"
 // TODO: #define IOC_SRV_PROTO_UDP "udp"
 // TODO: #define IOC_SRV_PROTO_HTTP "http"
