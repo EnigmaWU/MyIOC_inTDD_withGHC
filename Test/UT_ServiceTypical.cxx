@@ -81,7 +81,7 @@
  * @brief 【Test Cases】
  *
  * [@AC-1 of US-1.a]
- * TC-1: verifyBehivorX_byDoABC
+ * TC-1: verifySingleServiceOnePairLink_byEvtProducerAtServerSide_andEvtConsumerAtClientSide
  *
  */
 
