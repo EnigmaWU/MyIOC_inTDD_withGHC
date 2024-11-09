@@ -81,7 +81,9 @@
  * @brief 【Test Cases】
  *
  * [@AC-1 of US-1.a]
- * TC-1: verifySingleServiceOnePairLink_byEvtProducerAtServerSide_andEvtConsumerAtClientSide
+ * TC-1:
+ *  @[Name]:verifySingleServiceOnePairLink_byEvtProducerAtServerSide_andEvtConsumerAtClientSide
+ *  @[Purpose]: verify simple but still typical scenario of one EvtProducer as server, one EvtConsumer as client.
  *
  */
 
