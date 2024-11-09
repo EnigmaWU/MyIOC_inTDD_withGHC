@@ -4,8 +4,8 @@
  *
  */
 
+#include "IOC_SrvTypes.h"
 #include "IOC_TypeOption.h"
-#include "IOC_TypeSrv.h"
 
 #ifndef __IOC_SRV_API_H__
 #define __IOC_SRV_API_H__
