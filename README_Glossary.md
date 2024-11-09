@@ -25,9 +25,11 @@
 * DatReceiver: Data Receiver（数据接收者）.
 
 ## Service vs Link
-* Service: online/accept new incoming Linkes.
-* Link: connect to Service, establish a pair of Linkes, and communicate with each other of CMD/EVT/DAT.
+* Service: online/accept new incoming Links on server side.
+* Link: connect to Service on client side.
+* Each accept/connect will establish a pair Link, and take communication of CMD/EVT/DAT in `Half-Duplex` mode:
+  * which means the pair link MUST SELECT ONE USAGE of CMD/EVT/DAT, either from client to server or from server to client.
 
 ## Conet vs Conles
 * Conet: Connect Mode, explicit connect and disconnect to Service.
-* Conles: Connectless Mode, implicit auto established Linkes.
+* Conles: Connectless Mode, implicit auto established Links.
