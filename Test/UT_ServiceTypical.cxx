@@ -6,7 +6,19 @@
  *  Verify typical/classic usage/example of IOC's Service APIs.
  *
  *-------------------------------------------------------------------------------------------------
- *
+ * @note
+ *     Service APIs are defiend in IOC_SrvAPI.h, and it types are defined in IOC_SrvTypes.h.
+ *     On the server side, we call:
+ *         IOC_onlineService() to online a service, IOC_offlineService() to offline a service,
+ *         IOC_acceptLink() to accept a link from client,
+ *         IOC_closeLink() to close a link.
+ *     On the client side, we call:
+ *         IOC_connectLink() to connect to a service,
+ *         IOC_closeLink() to close a link.
+ *     On both sides, we can call:
+ *         IOC_postEVT() to post an event, IOC_CbProcEvt_F() to process an event.
+ *         IOC_execCMD() to execute a command, IOC_CbExecCmd_F() to execute a command.
+ *         IOC_sendDAT() to send data, IOC_CbRecvDat_F() to receive data.
  */
 //======END OF OVERVIEW OF THIS UNIT TESTING FILE==================================================
 
@@ -68,7 +80,7 @@
 /**
  * @brief 【Test Cases】
  *
- * [@AC-n]
+ * [@AC-1 of US-1.a]
  * TC-1: verifyBehivorX_byDoABC
  *
  */
