@@ -23,15 +23,21 @@ typedef IOC_SrvID_T *IOC_SrvID_pT;
 typedef struct {
     union {
         char *pScheme;
-        char *pProtocol;  // e.g. "auto", "tcp", "udp", "http", "https", "ftp"
+        char *pProtocol;  // RefMacro: IOC_SRV_PROTO_*
     };
 
     // TODO: char *pUser;
     // TODO: char *pPwd;
 
-    char *pHost;
-    uint16_t Port;
-    char *pPath;
+    char *pHost;  // RefMacro: IOC_SRV_HOST_*
+
+    union {
+        char *pPath;
+        char *pSrvName;
+        char *pTopic;
+    };
+
+    uint16_t Port;  // IF protocol=udp/tcp/http/... THEN Port is required
 
     // TODO: char *pQuery;
     // TODO: char *pFragment;
@@ -42,7 +48,9 @@ typedef struct {
 // TODO: #define IOC_SRV_PROTO_UDP "udp"
 // TODO: #define IOC_SRV_PROTO_HTTP "http"
 
-#define IOC_SRV_HOST_LOOPBACK "Loopback"
+#define IOC_SRV_HOST_LOCAL_PROCESS "localprocess"  //=inter-thread communication
+#define IOC_SRV_HOST_LOCAL_HOST "localhost"        //=inter-process communication
+#define IOC_SRV_HOST_IPV4_ANY "0.0.0.0"            //=inter-host communication
 
 typedef enum {
     IOC_SRVFLAG_NONE = 0,
