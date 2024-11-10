@@ -94,6 +94,24 @@ typedef enum {
 } IOC_LinkSubState_T,
     *IOC_LinkSubState_pT;
 
+/**
+ * @brief LinkUsage is a bit mask to identify the usage of a link, or the capability of a service.
+ *  As a Service, it MAY have multiple usage, e.g. <EvtProducer and CmdExecutor and ...>.
+ *  As a Link, it MAY ONLY have a single pair of usage, e.g. <EvtProducer vs EvtConsumer>,
+ *      or <CmdInitiator vs CmdExecutor>, or <DatSender vs DatReceiver>,
+ *      AND a single usage at each side, e.g. <EvtProducer or EvtConsumer>.
+ */
+typedef enum {
+    IOC_LinkUsageUndefined = 0,
+
+    IOC_LinkUsageEvtProducer  = (1U << 0),
+    IOC_LinkUsageEvtConsumer  = (1U << 1),
+    IOC_LinkUsageCmdInitiator = (1U << 2),
+    IOC_LinkUsageCmdExecutor  = (1U << 3),
+    IOC_LinkUsageDatSender    = (1U << 4),
+    IOC_LinkUsageDatReceiver  = (1U << 5),
+} IOC_LinkUsage_T;
+
 //---------------------------------------------------------------------------------------------------------------------
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
