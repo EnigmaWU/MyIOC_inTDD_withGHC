@@ -22,19 +22,19 @@ typedef IOC_SrvID_T *IOC_SrvID_pT;
 // Client use URI to connect to the service.
 typedef struct {
     union {
-        char *pScheme;
-        char *pProtocol;  // RefMacro: IOC_SRV_PROTO_*
+        const char *pScheme;
+        const char *pProtocol;  // RefMacro: IOC_SRV_PROTO_*
     };
 
     // TODO: char *pUser;
     // TODO: char *pPwd;
 
-    char *pHost;  // RefMacro: IOC_SRV_HOST_*
+    const char *pHost;  // RefMacro: IOC_SRV_HOST_*
 
     union {
-        char *pPath;
-        char *pSrvName;
-        char *pTopic;
+        const char *pPath;
+        const char *pSrvName;
+        const char *pTopic;
     };
 
     uint16_t Port;  // IF protocol=udp/tcp/http/... THEN Port is required
