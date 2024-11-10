@@ -66,25 +66,25 @@
 ### EVT
 
 * [EVT] is ASYNC and DGRAM defined by IOC identified by EvtID;
-  * Its default property is ASYNC+MAYBLOCK+NODROP, and may be changed by setLinkParams or IOC_Options_T.
+  * Its default property is 【ASYNC+NONBLOCK+MAYDROP】, and may be changed by setLinkParams or IOC_Options_T.
 * [ASYNC]：means ObjX in its current context postEVT to LinkID,
       then ObjY's CbProcEvt_F will be callbacked in IOC's context, not in ObjX's context.
       Here IOC's context is designed&implemented by IOC, may be a standalone thread or a thread pool.
       USE setLinkParams to change Link's each postEvt to SYNC,
       USE IOC_Options_T to change Link's current postEvt to SYNC,
           which means ObjY's CbProcEvt_F callbacked in ObjX's context.
-* [MAYBLOCK]: means ObjX's postEVT may be blocked if not enough resource to postEVT,
-      such as no free space to queuing the pEvtDesc.
-      USE setLinkParams to change Link's each postEvt to NONBLOCK,
-      USE IOC_Options_T to change Link's current postEvt to NONBLOCK,
-          by set enable timeout checking and with timeout value '0',
-          which means ObjX's postEVT will return TOS_RESULT_TIMEOUT if not enough resource to postEVT.
-* [NODROP]: means after ObjX's postEVT success, if IOC's internal MAY drop this EVT,
+* [NONBLOCK]: means ObjX's postEVT may not be blocked if not enough resource to postEVT,
+      such as no free space to queuing the EvtDesc.
+      USE setLinkParams to change Link's each postEvt to MAYBLOCK,
+      USE IOC_Options_T to change Link's current postEvt to MAYBLOCK,
+          by set enable timeout checking and with timeout value 'ULONG_MAX',
+          which means ObjX's postEVT will block until has resource to postEVT.
+* [MAYDROP]: means after ObjX's postEVT success, if IOC's internal MAY drop this EVT,
       such as IOC's internal subsystem or submodule is busy or not enough resource to process this EVT.
       Here assume IOC is a complex system, such as ObjX vs ObjY is inter-process or inter-machine communication.
-      USE setLinkParams to change Link's each postEvt to MAYDROP,
-      USE IOC_Options_T to change Link's current postEvt to MAYDROP,
-          which means ObjX's postEVT success, but sometimes ObjY never get this EVT.
+      USE setLinkParams to change Link's each postEvt to NODROP,
+      USE IOC_Options_T to change Link's current postEvt to NODROP,
+          which means ObjX's postEVT success, IOC will try best effect to make the EVT to be processed by ObjY, including save to local persistent storage before transfer the EVT to remote machine's ObjY.
 
 # Object
 
