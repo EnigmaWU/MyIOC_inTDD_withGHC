@@ -33,7 +33,7 @@ IOC_Result_T IOC_acceptLink(
     /*ARG_OUT*/ IOC_LinkID_pT pLinkID,
     /*ARG_IN_OPTIONAL*/ const IOC_Options_pT pOption);
 
-IOC_Result_T IOC_connectLink(
+IOC_Result_T IOC_connectService(
     /*ARG_OUT*/ IOC_LinkID_pT pLinkID,
     /*ARG_IN*/ const IOC_ConnArgs_pT pConnArgs,
     /*ARG_IN_OPTIONAL*/ const IOC_Options_pT pOption);
