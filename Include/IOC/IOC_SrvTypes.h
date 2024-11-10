@@ -81,10 +81,25 @@ typedef enum {
 typedef struct {
     IOC_SrvURI_T SrvURI;
     IOC_SrvFlags_T Flags;
+    /**
+     * @brief what usage capabilities the service has, which means what new links can be accepted.
+     *  SUCH AS:
+     *      IF: UsageCapabilites = IOC_LINK_USAGE_EVT_PRODUCER | IOC_LINK_USAGE_CMD_EXECUTOR;
+     *      THEN: Service can accept a new link with usage IOC_LINK_USAGE_EVT_CONSUMER or IOC_LINK_USAGE_CMD_INITIATOR.
+     */
+    IOC_LinkUsage_T UsageCapabilites;
 } IOC_SrvArgs_T, *IOC_SrvArgs_pT;
 
 typedef struct {
     IOC_SrvURI_T SrvURI;
+    /**
+     * @brief what this link is used for, which means what the link can do.
+     *  SUCH AS:
+     *      IF: Usage = IOC_LINK_USAGE_EVT_CONSUMER;
+     *      THEN: Link can only subscribe events.
+     *      AND: Service must have IOC_LINK_USAGE_EVT_PRODUCER usage capability.
+     */
+    IOC_LinkUsage_T Usage;
 } IOC_ConnArgs_T, *IOC_ConnArgs_pT;
 
 #ifdef __cplusplus
