@@ -182,7 +182,7 @@ TEST(UT_ServiceTypical, verifySingleServiceOnePairLink_byEvtProducerAtServerSide
 
     // Step-3
 
-    Result = IOC_acceptLink(EvtProducerSrvID, &EvtProducerLinkID, NULL);
+    Result = IOC_acceptClient(EvtProducerSrvID, &EvtProducerLinkID, NULL);
     EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
 
     EvtConsumerThread.join();

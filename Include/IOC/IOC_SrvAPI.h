@@ -28,7 +28,7 @@ IOC_Result_T IOC_getSrvParam(
     /*ARG_OUT*/ IOC_SrvParam_pT pSrvParam);
 #endif
 
-IOC_Result_T IOC_acceptLink(
+IOC_Result_T IOC_acceptClient(
     /*ARG_IN*/ IOC_SrvID_T SrvID,
     /*ARG_OUT*/ IOC_LinkID_pT pLinkID,
     /*ARG_IN_OPTIONAL*/ const IOC_Options_pT pOption);
