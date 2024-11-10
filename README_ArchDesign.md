@@ -33,6 +33,15 @@
   * [D] Dynamic: ObjX call PLT_IOC_onlineService in its context to online a service and identfied as $SrvID,
   * [S] Static: ObjX use PLT_IOC_defineService in its source to define and identfied by $SrvArgs::SrvURL.
 
+### SrvURI
+* Service URI(a.k.a 【SrvURI】) is a unique StrID to identify a service in IOC's ConetMode.
+  * Server side will use SrvURI to online a service by IOC_onlineService.
+  * Client side will use SrvURI to connect to a service by IOC_connectService.
+  * SrvURI is following RFC's URI format, plus some IOC's specific extensions, such as:
+    * auto://localprocess/SrvNameX
+    * udp://localhost:12345/SrvNameY
+    * tcp://192.168.0.234:54321/SrvNameZ
+
 ### SrvID vs LinkID
 * Service ID(a.k.a 【SrvID】) is a unique ID to identify a onlined service in IOC.
   * ONLY service owner who onlined the service will get and has this SrvID.
