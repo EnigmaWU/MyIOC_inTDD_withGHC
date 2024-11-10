@@ -50,6 +50,8 @@ typedef enum {
     IOC_RESULT_YES = 1,  // True
 } IOC_BoolResult_T;
 
+#define IOC_ID_INVALID ULONG_MAX
+
 /**
  * @brief LinkID is a unique ID to identify a link between two objects in communication.
  *     In ConlesMode, LinkID is predefined as IOC_CONLES_MODE_AUTO_LINK_ID.
@@ -62,6 +64,9 @@ typedef enum {
  */
 typedef uint64_t IOC_LinkID_T;
 typedef IOC_LinkID_T *IOC_LinkID_pT;
+
+typedef uint64_t IOC_SrvID_T;
+typedef IOC_SrvID_T *IOC_SrvID_pT;
 
 enum IOC_AutoLinkID_enum {
     IOC_CONLES_MODE_AUTO_LINK_ID_0 = 0U,

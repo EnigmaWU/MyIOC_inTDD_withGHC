@@ -12,9 +12,6 @@
 extern "C" {
 #endif
 
-typedef uint64_t IOC_SrvID_T;
-typedef IOC_SrvID_T *IOC_SrvID_pT;
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //===>URI: Uniform Resource Identifier, defined in RFC 3986.
 // Standard URI: scheme:[//[user:password@]host[:port]][/]path[?query][#fragment]
