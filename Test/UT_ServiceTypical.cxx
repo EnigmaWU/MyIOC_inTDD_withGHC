@@ -13,7 +13,7 @@
  *         IOC_acceptLink() to accept a link from client,
  *         IOC_closeLink() to close a link.
  *     On the client side, we call:
- *         IOC_connectLink() to connect to a service,
+ *         IOC_connectService() to connect to a service,
  *         IOC_closeLink() to close a link.
  *     On both sides, we can call:
  *         IOC_postEVT() to post an event, IOC_CbProcEvt_F() to process an event.
@@ -95,25 +95,124 @@
 
 //===TEMPLATE OF UT CASE===
 /**
- * @[Name]: ${verifyBehivorX_byDoABC}
- * @[Purpose]: ${according to what in SPEC, and why to verify in this way}
- * @[Steps]: ${how to do}
- *   1) do ..., with ..., as SETUP
- *   2) do ..., with ..., as BEHAVIOR
- *   3) do ..., with ..., as VERIFY
- *   4) do ..., with ..., as CLEANUP
- * @[Expect]: ${how to verify}
+ * @[Name]: <TC1>verifySingleServiceOnePairLink_byEvtProducerAtServerSide_andEvtConsumerAtClientSide
+ * @[Steps]:
+ *   1) EvtProducer call IOC_onlineService() to online a service AS VERIFY.
+ *      |-> SrvArgs.UsageCapabilites = IOC_LinkUsageEvtProducer
+ *      |-> SrvArgs.SrvURI = "auto://localprocess/EvtProducer"
+ *   2) EvtConsumer call IOC_connectLink() in standalone thread to the service AS VERIFY.
+ *          |-> ConnArgs.Usage = IOC_LinkUsageEvtConsumer
+ *          |-> ConnArgs.SrvURI = "auto://localprocess/EvtProducer"
+ *      a) Call IOC_subEVT() to subscribe an event AS BEHAVIOR.
+ *          |-> SubEvtArgs.EvtIDs = {IOC_EVT_NAME_TEST_KEEPALIVE}
+ *   3) EvtProducer call IOC_acceptLink() to accept the link AS VERIFY.
+ *   4) EvtProducer call IOC_postEVT() to post an event AS BEHAVIOR.
+ *      |-> EvtDesc.EvtID = IOC_EVT_NAME_TEST_KEEPALIVE
+ *      |-> call IOC_forceProcEVT() to process the event immediately.
+ *   5) EvtConsumer call IOC_unsubEVT() to unsubscribe the event AS BEHAVIOR.
+ *      |-> EvtConsumerPrivData.KeepAliveEvtCnt = 1 AS VERIFY.
+ *   6) EvtProducer/EvtConsumer call IOC_closeLink() to close the link AS VERIFY&CLEANUP.
+ *   7) EvtProducer call IOC_offlineService() to offline the service AS VERIFY&CLEANUP.
+ * @[Expect]: all steps are passed.
  * @[Notes]:
  */
-TEST(UT_NameOfCategory, CaseNN_verifyBehivorX_byDoABC) {
-    //===SETUP===
-    // 1. ...
 
-    //===BEHAVIOR===
-    //@VerifyPoint xN(each case MAY have many 'ASSERT_XYZ' check points)
+typedef struct {
+    uint32_t KeepAliveEvtCnt;
+} __TC1_EvtConsumerPrivData_T;
 
-    //===VERIFY===
-    //@KeyVerifyPoint<=3(each case SHOULD has less than 3 key 'ASSERT_XYZ' verify points)
+static IOC_Result_T __TC1_CbProcEvt_F(IOC_EvtDesc_T* pEvtDesc, void* pCbPrivData) {
+    __TC1_EvtConsumerPrivData_T* pEvtConsumerPrivData = (__TC1_EvtConsumerPrivData_T*)pCbPrivData;
 
-    //===CLEANUP===
+    if (IOC_EVT_NAME_TEST_KEEPALIVE == pEvtDesc->EvtID) {
+        pEvtConsumerPrivData->KeepAliveEvtCnt++;
+    } else {
+        // ASSERT_EQ(0, 1);
+    }
+
+    return IOC_RESULT_SUCCESS;
+}
+
+TEST(UT_ServiceTypical, verifySingleServiceOnePairLink_byEvtProducerAtServerSide_andEvtConsumerAtClientSide) {
+    IOC_Result_T Result            = IOC_RESULT_BUG;
+    IOC_SrvID_T EvtProducerSrvID   = IOC_ID_INVALID;
+    IOC_LinkID_T EvtProducerLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T EvtConsumerLinkID = IOC_ID_INVALID;
+
+    IOC_SrvURI_T CSURI = {
+        .pProtocol = IOC_SRV_PROTO_AUTO,
+        .pHost     = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath     = (const char*)"EvtProducer",
+    };
+
+    // Step-1
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI           = CSURI,
+        .UsageCapabilites = IOC_LinkUsageEvtProducer,
+    };
+
+    Result = IOC_onlineService(&EvtProducerSrvID, &SrvArgs);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+
+    // Step-2:
+    __TC1_EvtConsumerPrivData_T EvtConsumerPrivData = {
+        .KeepAliveEvtCnt = 0,
+    };
+
+    IOC_EvtID_T EvtIDs[]        = {IOC_EVT_NAME_TEST_KEEPALIVE};
+    IOC_SubEvtArgs_T SubEvtArgs = {
+        .CbProcEvt_F = __TC1_CbProcEvt_F,
+        .pCbPrivData = &EvtConsumerPrivData,
+        .EvtNum      = IOC_calcArrayElmtCnt(EvtIDs),
+        .pEvtIDs     = EvtIDs,
+    };
+
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = CSURI,
+        .Usage  = IOC_LinkUsageEvtConsumer,
+    };
+
+    std::thread EvtConsumerThread([&] {
+        IOC_Result_T Result = IOC_connectService(&EvtConsumerLinkID, &ConnArgs, NULL);
+        EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+
+        Result = IOC_subEVT(EvtConsumerLinkID, &SubEvtArgs);
+        EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+    });
+
+    // Step-3
+
+    Result = IOC_acceptLink(EvtProducerSrvID, &EvtProducerLinkID, NULL);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+
+    EvtConsumerThread.join();
+
+    // Step-4
+    IOC_EvtDesc_T EvtDesc = {
+        .EvtID = IOC_EVT_NAME_TEST_KEEPALIVE,
+    };
+    Result = IOC_postEVT(EvtProducerLinkID, &EvtDesc, NULL);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+
+    IOC_forceProcEVT();
+
+    // Step-5
+    IOC_UnsubEvtArgs_T UnsubEvtArgs = {
+        .CbProcEvt_F = __TC1_CbProcEvt_F,
+        .pCbPrivData = &EvtConsumerPrivData,
+    };
+    Result = IOC_unsubEVT(EvtConsumerLinkID, &UnsubEvtArgs);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);              // KeyVerifyPoint
+    EXPECT_EQ(1, EvtConsumerPrivData.KeepAliveEvtCnt);  // KeyVerifyPoint
+
+    // Step-6
+    Result = IOC_closeLink(EvtProducerLinkID);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+
+    Result = IOC_closeLink(EvtConsumerLinkID);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+
+    // Step-7
+    Result = IOC_offlineService(EvtProducerSrvID);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
 }
