@@ -123,6 +123,9 @@ typedef enum {
     IOC_LinkUsageCmdExecutor  = (1U << 3),
     IOC_LinkUsageDatSender    = (1U << 4),
     IOC_LinkUsageDatReceiver  = (1U << 5),
+
+    IOC_LinkUsageMask = IOC_LinkUsageEvtProducer | IOC_LinkUsageEvtConsumer | IOC_LinkUsageCmdInitiator |
+                        IOC_LinkUsageCmdExecutor | IOC_LinkUsageDatSender | IOC_LinkUsageDatReceiver,
 } IOC_LinkUsage_T;
 
 //---------------------------------------------------------------------------------------------------------------------
