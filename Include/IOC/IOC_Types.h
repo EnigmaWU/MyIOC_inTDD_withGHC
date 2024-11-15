@@ -23,30 +23,30 @@ typedef enum {
     IOC_RESULT_FAILURE = -1,
 
     // POSIX's Result (errno.h)
-    IOC_RESULT_POSIX_ENOMEM  = -ENOMEM,
+    IOC_RESULT_POSIX_ENOMEM = -ENOMEM,
     IOC_RESULT_INVALID_PARAM = -EINVAL,
 
     // IOC's Result
-    IOC_RESULT_NOT_IMPLEMENTED   = -500,
-    IOC_RESULT_NOT_SUPPORT       = -501,
+    IOC_RESULT_NOT_IMPLEMENTED = -500,
+    IOC_RESULT_NOT_SUPPORT = -501,
     IOC_RESULT_NO_EVENT_CONSUMER = -502,
 
-    IOC_RESULT_TOO_MANY                 = -503,
-    IOC_RESULT_TOO_MANY_EVENT_CONSUMER  = IOC_RESULT_TOO_MANY,
+    IOC_RESULT_TOO_MANY = -503,
+    IOC_RESULT_TOO_MANY_EVENT_CONSUMER = IOC_RESULT_TOO_MANY,
     IOC_RESULT_TOO_MANY_QUEUING_EVTDESC = IOC_RESULT_TOO_MANY,
-    IOC_RESULT_TOO_MANY_SERVICES        = IOC_RESULT_TOO_MANY,
-    IOC_RESULT_TOO_MANY_LINKS           = IOC_RESULT_TOO_MANY,
-    IOC_RESULT_FULL_QUEUING_EVTDESC     = IOC_RESULT_TOO_MANY,
+    IOC_RESULT_TOO_MANY_SERVICES = IOC_RESULT_TOO_MANY,
+    IOC_RESULT_TOO_MANY_LINKS = IOC_RESULT_TOO_MANY,
+    IOC_RESULT_FULL_QUEUING_EVTDESC = IOC_RESULT_TOO_MANY,
 
-    IOC_RESULT_CONFLICT                = -504,
+    IOC_RESULT_CONFLICT = -504,
     IOC_RESULT_CONFLICT_EVENT_CONSUMER = IOC_RESULT_CONFLICT,
-    IOC_RESULT_CONFLICT_SRVARGS        = IOC_RESULT_CONFLICT,
+    IOC_RESULT_CONFLICT_SRVARGS = IOC_RESULT_CONFLICT,
 
-    IOC_RESULT_NOT_EXIST_LINK                  = -506,
-    IOC_RESULT_EVTDESC_QUEUE_EMPTY             = -507,
+    IOC_RESULT_NOT_EXIST_LINK = -506,
+    IOC_RESULT_EVTDESC_QUEUE_EMPTY = -507,
     IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE = -508,
-    IOC_RESULT_NOT_EMPTY_EVTDESC_QUEUE         = IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE,
-    IOC_RESULT_INVALID_AUTO_LINK_ID            = -509,
+    IOC_RESULT_NOT_EMPTY_EVTDESC_QUEUE = IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE,
+    IOC_RESULT_INVALID_AUTO_LINK_ID = -509,
 
     IOC_RESULT_BUG = -999,
 } IOC_Result_T;
@@ -54,9 +54,19 @@ typedef enum {
 const char *IOC_getResultStr(IOC_Result_T Result);
 
 typedef enum {
-    IOC_RESULT_NO  = 0,  // False
-    IOC_RESULT_YES = 1,  // True
-} IOC_BoolResult_T;
+    IOC_TRUE = true,
+    IOC_FALSE = false,
+
+    IOC_YES = true,
+    IOC_NO = false,
+
+    IOC_RESULT_TRUE = true,
+    IOC_RESULT_FALSE = false,
+
+    IOC_RESULT_YES = true,
+    IOC_RESULT_NO = false,
+} IOC_BoolResult_T,
+    IOC_Bool_T;
 
 #define IOC_ID_INVALID ULONG_MAX
 
@@ -78,7 +88,7 @@ typedef IOC_SrvID_T *IOC_SrvID_pT;
 
 enum IOC_AutoLinkID_enum {
     IOC_CONLES_MODE_AUTO_LINK_ID_0 = 0U,
-    IOC_CONLES_MODE_AUTO_LINK_ID   = IOC_CONLES_MODE_AUTO_LINK_ID_0,  // Default
+    IOC_CONLES_MODE_AUTO_LINK_ID = IOC_CONLES_MODE_AUTO_LINK_ID_0,  // Default
 
     // TODO: +More AutoLinkID_1/_2/...MAX
     IOC_CONLES_MODE_AUTO_LINK_ID_MAX = 1024U
@@ -91,7 +101,7 @@ enum IOC_AutoLinkID_enum {
  */
 typedef enum {
     IOC_LinkStateUndefined = 0,
-    IOC_LinkStateReady     = 1,
+    IOC_LinkStateReady = 1,
 
     // RefMore ConlesMode subEVT/unsubEVT/cbProcEVT
     IOC_LinkStateBusyCbProcEvt,
@@ -102,7 +112,7 @@ typedef enum {
 
 typedef enum {
     IOC_LinkSubStateDefault = 0,
-    IOC_LinkSubStateIdle    = IOC_LinkSubStateDefault,
+    IOC_LinkSubStateIdle = IOC_LinkSubStateDefault,
 
 } IOC_LinkSubState_T,
     *IOC_LinkSubState_pT;
@@ -117,12 +127,12 @@ typedef enum {
 typedef enum {
     IOC_LinkUsageUndefined = 0,
 
-    IOC_LinkUsageEvtProducer  = (1U << 0),
-    IOC_LinkUsageEvtConsumer  = (1U << 1),
+    IOC_LinkUsageEvtProducer = (1U << 0),
+    IOC_LinkUsageEvtConsumer = (1U << 1),
     IOC_LinkUsageCmdInitiator = (1U << 2),
-    IOC_LinkUsageCmdExecutor  = (1U << 3),
-    IOC_LinkUsageDatSender    = (1U << 4),
-    IOC_LinkUsageDatReceiver  = (1U << 5),
+    IOC_LinkUsageCmdExecutor = (1U << 3),
+    IOC_LinkUsageDatSender = (1U << 4),
+    IOC_LinkUsageDatReceiver = (1U << 5),
 
     IOC_LinkUsageMask = IOC_LinkUsageEvtProducer | IOC_LinkUsageEvtConsumer | IOC_LinkUsageCmdInitiator |
                         IOC_LinkUsageCmdExecutor | IOC_LinkUsageDatSender | IOC_LinkUsageDatReceiver,

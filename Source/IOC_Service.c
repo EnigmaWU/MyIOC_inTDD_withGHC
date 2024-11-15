@@ -1,15 +1,9 @@
 #include "_IOC.h"
 
 //=================================================================================================
-typedef struct {
-    IOC_SrvID_T ID;
-    IOC_SrvArgs_T Args;
-} _IOC_ServiceObject_T, *_IOC_ServiceObject_pT;
-
-//=================================================================================================
 #define _MAX_IOC_SRV_OBJ_NUM 1
 static _IOC_ServiceObject_pT _mIOC_SrvObjTbl[_MAX_IOC_SRV_OBJ_NUM] = {};
-static pthread_mutex_t _mIOC_SrvObjTblMutex                        = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t _mIOC_SrvObjTblMutex = PTHREAD_MUTEX_INITIALIZER;
 static inline void ___IOC_lockSrvObjTbl(void) { pthread_mutex_lock(&_mIOC_SrvObjTblMutex); }
 static inline void ___IOC_unlockSrvObjTbl(void) { pthread_mutex_unlock(&_mIOC_SrvObjTblMutex); }
 
@@ -30,7 +24,7 @@ static inline IOC_BoolResult_T ___IOC_isSrvObjConflicted(IOC_SrvArgs_pT pArgsNew
  */
 static IOC_Result_T __IOC_allocSrvObj(/*ARG_INCONST*/ IOC_SrvArgs_pT pSrvArgs,
                                       /*ARG_OUT*/ _IOC_ServiceObject_pT *ppSrvObj) {
-    IOC_Result_T Result           = IOC_RESULT_BUG;
+    IOC_Result_T Result = IOC_RESULT_BUG;
     _IOC_ServiceObject_pT pSrvObj = NULL;
 
     ___IOC_lockSrvObjTbl();
@@ -49,17 +43,17 @@ static IOC_Result_T __IOC_allocSrvObj(/*ARG_INCONST*/ IOC_SrvArgs_pT pSrvArgs,
                 goto _RetResult;
             }
 
-            pSrvObj->ID                    = i;
+            pSrvObj->ID = i;
             pSrvObj->Args.SrvURI.pProtocol = strdup(pSrvArgs->SrvURI.pProtocol);
-            pSrvObj->Args.SrvURI.pHost     = strdup(pSrvArgs->SrvURI.pHost);
-            pSrvObj->Args.SrvURI.pPath     = strdup(pSrvArgs->SrvURI.pPath);
-            pSrvObj->Args.SrvURI.Port      = pSrvArgs->SrvURI.Port;
+            pSrvObj->Args.SrvURI.pHost = strdup(pSrvArgs->SrvURI.pHost);
+            pSrvObj->Args.SrvURI.pPath = strdup(pSrvArgs->SrvURI.pPath);
+            pSrvObj->Args.SrvURI.Port = pSrvArgs->SrvURI.Port;
             pSrvObj->Args.UsageCapabilites = pSrvArgs->UsageCapabilites;
-            pSrvObj->Args.Flags            = pSrvArgs->Flags;
+            pSrvObj->Args.Flags = pSrvArgs->Flags;
 
             _mIOC_SrvObjTbl[i] = pSrvObj;
-            *ppSrvObj          = pSrvObj;
-            Result             = IOC_RESULT_SUCCESS;
+            *ppSrvObj = pSrvObj;
+            Result = IOC_RESULT_SUCCESS;
             //_IOC_LogNotTested();
             goto _RetResult;
         }
@@ -124,22 +118,45 @@ static IOC_BoolResult_T __IOC_isValidSrvArgs(const IOC_SrvArgs_pT pSrvArgs) {
     return IOC_RESULT_YES;
 }
 
-typedef struct {
-    const char *pProtocol;
-
-    IOC_Result_T (*OpOnlineServiceByProto_F)(_IOC_ServiceObject_pT pSrvObj);
-} _IOC_SrvProtoMethods_T, *_IOC_SrvProtoMethods_pT;
-
-static _IOC_SrvProtoMethods_T _mIOC_SrvProtoMethods[] = {
-    {
-        .pProtocol                = IOC_SRV_PROTO_AUTO,
-        .OpOnlineServiceByProto_F = NULL,  // __IOC_onlineService_ofProtoAuto,
-    },
+//_mIOC_XYZ is the global variable used intra-CURRENT_FILE submodule.
+static _IOC_SrvProtoMethods_pT _mIOC_SrvProtoMethods[] = {
+    &_gIOC_SrvProtoFifoMethods,
 };
 
 IOC_Result_T __IOC_onlineServiceByProto(_IOC_ServiceObject_pT pSrvObj) {
+    IOC_Result_T OnlineResult = IOC_RESULT_BUG;
+    IOC_Bool_T IsProtoAuto = !strcmp(pSrvObj->Args.SrvURI.pProtocol, IOC_SRV_PROTO_AUTO);
+
+    if (IsProtoAuto) {
+        int TryProtoIdx = 0;
+        for (; TryProtoIdx < IOC_calcArrayElmtCnt(_mIOC_SrvProtoMethods); TryProtoIdx++) {
+            OnlineResult = _mIOC_SrvProtoMethods[TryProtoIdx]->OpOnlineService_F(pSrvObj);
+            if (IOC_RESULT_SUCCESS != OnlineResult) {
+                _IOC_LogNotTested();
+                break;
+            }
+        }
+
+        // IF ANY PROTO FAIL, OFFLINE ALL ONLINEED PROTO
+        if (IOC_RESULT_SUCCESS != OnlineResult) {
+            for (int OffIdx = 0; OffIdx < TryProtoIdx; OffIdx++) {
+                IOC_Result_T OfflineResult = _mIOC_SrvProtoMethods[OffIdx]->OpOfflineService_F(pSrvObj);
+                if (IOC_RESULT_SUCCESS != OfflineResult) {
+                    _IOC_LogBug("Failed to offline service by proto, Resuld=%d", OfflineResult);
+                }
+            }
+        }
+    } else {
+        for (int i = 0; i < IOC_calcArrayElmtCnt(_mIOC_SrvProtoMethods); i++) {
+            if (!strcmp(pSrvObj->Args.SrvURI.pProtocol, _mIOC_SrvProtoMethods[i]->pProtocol)) {
+                OnlineResult = _mIOC_SrvProtoMethods[i]->OpOnlineService_F(pSrvObj);
+                break;
+            }
+        }
+    }
+
     _IOC_LogNotTested();
-    return IOC_RESULT_NOT_IMPLEMENTED;
+    return OnlineResult;
 }
 
 IOC_Result_T IOC_onlineService(
@@ -157,7 +174,7 @@ IOC_Result_T IOC_onlineService(
     }
 
     //---------------------------------------------------------------------------
-    IOC_Result_T Result           = IOC_RESULT_BUG;
+    IOC_Result_T Result = IOC_RESULT_BUG;
     _IOC_ServiceObject_pT pSrvObj = NULL;
 
     Result = __IOC_allocSrvObj(pSrvArgs, &pSrvObj);

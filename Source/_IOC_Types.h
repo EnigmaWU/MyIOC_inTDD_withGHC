@@ -11,6 +11,24 @@
 extern "C" {
 #endif
 
+typedef struct {
+    IOC_SrvID_T ID;
+    IOC_SrvArgs_T Args;
+
+    void *pProtoPriv;
+} _IOC_ServiceObject_T, *_IOC_ServiceObject_pT;
+
+typedef struct {
+    const char *pProtocol;
+
+    IOC_Result_T (*OpOnlineService_F)(_IOC_ServiceObject_pT pSrvObj);
+    IOC_Result_T (*OpOfflineService_F)(_IOC_ServiceObject_pT pSrvObj);
+
+} _IOC_SrvProtoMethods_T, *_IOC_SrvProtoMethods_pT;
+
+//_gIOC_XYZ is the global variable used intra-IOC module.
+extern _IOC_SrvProtoMethods_T _gIOC_SrvProtoFifoMethods;
+
 #ifdef __cplusplus
 }
 #endif

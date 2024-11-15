@@ -41,6 +41,7 @@ typedef struct {
 } IOC_SrvURI_T, *IOC_SrvURI_pT;
 
 #define IOC_SRV_PROTO_AUTO "auto"  // transport protocol is auto selected by IOC
+#define IOC_SRV_PROTO_FIFO "fifo"  // intraprocess/interthread FIFO queue communication protocol
 // TODO: #define IOC_SRV_PROTO_TCP "tcp"
 // TODO: #define IOC_SRV_PROTO_UDP "udp"
 // TODO: #define IOC_SRV_PROTO_HTTP "http"
