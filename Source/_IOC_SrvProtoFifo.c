@@ -30,7 +30,10 @@ static IOC_Result_T __IOC_closeLink_ofProtoFifo(_IOC_LinkObject_pT pLinkObj) {
     return IOC_RESULT_SUCCESS;  // NOTHING DONE, JUST RETURN SUCCESS
 }
 
+static IOC_SubEvtArgs_T _mIOC_SubEvtArgs = {};
+
 static IOC_Result_T __IOC_subEvt_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, const IOC_SubEvtArgs_pT pSubEvtArgs) {
+    memcpy(&_mIOC_SubEvtArgs, pSubEvtArgs, sizeof(IOC_SubEvtArgs_T));
     //_IOC_LogNotTested();
     return IOC_RESULT_SUCCESS;  // NOTHING DONE, JUST RETURN SUCCESS
 }
@@ -42,6 +45,7 @@ static IOC_Result_T __IOC_unsubEvt_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, cons
 
 static IOC_Result_T __IOC_postEvt_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, const IOC_EvtDesc_pT pEvtDesc,
                                               const IOC_Options_pT pOption) {
+    _mIOC_SubEvtArgs.CbProcEvt_F(pEvtDesc, _mIOC_SubEvtArgs.pCbPrivData);
     //_IOC_LogNotTested();
     return IOC_RESULT_SUCCESS;  // NOTHING DONE, JUST RETURN SUCCESS
 }
