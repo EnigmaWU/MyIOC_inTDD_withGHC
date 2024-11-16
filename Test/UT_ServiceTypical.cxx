@@ -134,20 +134,20 @@ static IOC_Result_T __TC1_CbProcEvt_F(IOC_EvtDesc_T* pEvtDesc, void* pCbPrivData
 }
 
 TEST(UT_ServiceTypical, verifySingleServiceOnePairLink_byEvtProducerAtServerSide_andEvtConsumerAtClientSide) {
-    IOC_Result_T Result            = IOC_RESULT_BUG;
-    IOC_SrvID_T EvtProducerSrvID   = IOC_ID_INVALID;
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_SrvID_T EvtProducerSrvID = IOC_ID_INVALID;
     IOC_LinkID_T EvtProducerLinkID = IOC_ID_INVALID;
     IOC_LinkID_T EvtConsumerLinkID = IOC_ID_INVALID;
 
     IOC_SrvURI_T CSURI = {
-        .pProtocol = IOC_SRV_PROTO_AUTO,
-        .pHost     = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath     = (const char*)"EvtProducer",
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = (const char*)"EvtProducer",
     };
 
     // Step-1
     IOC_SrvArgs_T SrvArgs = {
-        .SrvURI           = CSURI,
+        .SrvURI = CSURI,
         .UsageCapabilites = IOC_LinkUsageEvtProducer,
     };
 
@@ -159,17 +159,17 @@ TEST(UT_ServiceTypical, verifySingleServiceOnePairLink_byEvtProducerAtServerSide
         .KeepAliveEvtCnt = 0,
     };
 
-    IOC_EvtID_T EvtIDs[]        = {IOC_EVT_NAME_TEST_KEEPALIVE};
+    IOC_EvtID_T EvtIDs[] = {IOC_EVT_NAME_TEST_KEEPALIVE};
     IOC_SubEvtArgs_T SubEvtArgs = {
         .CbProcEvt_F = __TC1_CbProcEvt_F,
         .pCbPrivData = &EvtConsumerPrivData,
-        .EvtNum      = IOC_calcArrayElmtCnt(EvtIDs),
-        .pEvtIDs     = EvtIDs,
+        .EvtNum = IOC_calcArrayElmtCnt(EvtIDs),
+        .pEvtIDs = EvtIDs,
     };
 
     IOC_ConnArgs_T ConnArgs = {
         .SrvURI = CSURI,
-        .Usage  = IOC_LinkUsageEvtConsumer,
+        .Usage = IOC_LinkUsageEvtConsumer,
     };
 
     std::thread EvtConsumerThread([&] {
