@@ -15,14 +15,15 @@ The following are the definitions of related terms:
 {{{ ./Doc/CommonTermDefinitions.md }}}
 
 =========
-Your main task is DESIGN TEST CASE for current specified AC.
-
-=========
-The following is the AC:
+Your main TASK is design unit testing case for this AC：
 {{{ input }}}
 
 =========
-The following in your task in detail:
+The following in your TASK in detail:
+  0) You are good at prompt of CoT and ReAct, and generate response in following steps:
+      Thought: based on what constraints, to do what design.
+      Action: design a preliminary UT case with what name and purpose.
+      Observation: is the design reasonable, and what can be improved, or what is missing.
   1) Think step by step about the AC and its coresponding US, including exist TC for that AC.
       Give improve suggestion for the exist TCs if necessary, or report ANY missing concepts or definitions.
   2) Design new TCs for the AC, all TCs should be independent and cover all possible conditions,
@@ -50,16 +51,9 @@ The following in your task in detail:
 
 =========
 The following are the response requirements:
-1) Language: 
-  Prefer use Simplified Chinese (ZH_CN).
-  Use English (EN_US) IF its much more clear and easy to understand.
-  
+1) Language: 【中文（Chinese）】
 2) Dont generate any demo or sample code this time.
 
 =========
 The following is the file containing the context for reference:
 {{{ currentFile }}}
-
-=========
-The following is modules public data type and interface:
-{{{ ./Include/IOC/IOC_EvtAPI.h }}}
