@@ -5,6 +5,7 @@
  */
 
 #include "IOC_SrvTypes.h"
+#include "IOC_TypeEvtDesc.h"
 #include "IOC_TypeOption.h"
 
 #ifndef __IOC_SRV_API_H__
@@ -40,6 +41,15 @@ IOC_Result_T IOC_connectService(
 
 IOC_Result_T IOC_closeLink(
     /*ARG_IN*/ IOC_LinkID_T LinkID);
+
+#if 0
+//TODO: IF Service onlined with IOC_SRVFLAG_BROADCAST
+// THEN broadcast to SrvID means broadcast to all accpeted Links of this Service.
+IOC_Result_T IOC_broadcastEVT(
+    /*ARG_IN*/ IOC_SrvID_T SrvID,
+    /*ARG_IN*/ const IOC_EvtDesc_pT pEvtDesc,
+    /*ARG_IN_OPTIONAL*/ const IOC_Options_pT pOption);
+#endif
 
 #ifdef __cplusplus
 }
