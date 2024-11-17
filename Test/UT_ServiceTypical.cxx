@@ -70,6 +70,10 @@
  *          THEN EACH EvtConsumer can subscribe different events on each's pair Link,
  *              WHEN EvtProducer post events to all pair Links,
  *              THEN EACH EvtConsumer will process what it subscribed events only.
+ *      AC-3: GIVEN many services are onlined by EvtProducer,
+ *          WHEN EvtConsumer connects to each service and establish a pair Link,
+ *          THEN EvtConsumer can subscribe events on each pair Link,
+ *              AND EvtProducer can post events to each pair Link, EvtConsumer can process them.
  *
  */
 
@@ -81,16 +85,18 @@
  * TC-1:
  *  @[Name]:verifySingleServiceOnePairLink_byEvtProducerAtServerSide_andEvtConsumerAtClientSide
  *  @[Purpose]: verify simple but still typical scenario of one EvtProducer as server, one EvtConsumer as client.
- * TC-2:
- *  @[Name]: verifyMultiSingleServiceOnePairLink_byEvtProducerAtServerSide_andEvtConsumerAtClientSide
- *  @[Purpose]: verify different Services can be onlined by same EvtProducer,
- *      and each EvtConsumer can connect to each service, then sub&post&proc different events.
  *
  * [@AC-2 of US-1.a]
  * TC-1:
  *  @[Name]:
  * verifySingleServiceMultiConsumersSubDiffEvents_byEvtProducerAtServerSide_andMultipleEvtConsumersAtClientSide
  *  @[Purpose]: verify multiple EvtConsumers can subscribe different events on each's pair Link.
+ *
+ * [@AC-3 of US-1.a]
+ * TC-1:
+ *  @[Name]: verifyMultiSingleServiceOnePairLink_byEvtProducerAtServerSide_andEvtConsumerAtClientSide
+ *  @[Purpose]: verify different Services can be onlined by same EvtProducer,
+ *      and each EvtConsumer can connect to each service, then sub&post&proc different events.
  */
 
 //======END OF UNIT TESTING DESIGN=================================================================
