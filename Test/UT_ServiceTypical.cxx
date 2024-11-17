@@ -40,7 +40,7 @@
  * @brief 【User Story】
  *
  *  US-1: <a>AS a EvtProducer,
- *      I WANT to online a service with custom URI,
+ *      I WANT to online one or many service with custom URI,
  *      SO THAT EvtConsumers can connect to my service,
  *          AND EACH can subscribe all or part events what I published on connected pair Links.
  *  US-2: OR <b>AS a EvtConsumer,
