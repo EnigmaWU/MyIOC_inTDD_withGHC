@@ -82,7 +82,7 @@
  *  @[Name]:verifySingleServiceOnePairLink_byEvtProducerAtServerSide_andEvtConsumerAtClientSide
  *  @[Purpose]: verify simple but still typical scenario of one EvtProducer as server, one EvtConsumer as client.
  * TC-2:
- *  @[Name]: verifyMultiSingleServiceOnePariLink_byEvtProducerAtServerSide_andEvtConsumerAtClientSide
+ *  @[Name]: verifyMultiSingleServiceOnePairLink_byEvtProducerAtServerSide_andEvtConsumerAtClientSide
  *  @[Purpose]: verify different Services can be onlined by same EvtProducer,
  *      and each EvtConsumer can connect to each service, then sub&post&proc different events.
  *
