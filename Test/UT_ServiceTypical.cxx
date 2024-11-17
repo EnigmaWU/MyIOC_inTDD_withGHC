@@ -7,7 +7,9 @@
  *
  *-------------------------------------------------------------------------------------------------
  * @note
- *     Service APIs are defiend in IOC_SrvAPI.h, and it types are defined in IOC_SrvTypes.h.
+ *     Service is identify by 'SrvURI' defined in IOC_SrvTypes.h,
+ *         which is a combination of 'Protocol+Host+Port+Path' with some customized meaning.
+ *     Service APIs are defined in IOC_SrvAPI.h, and it types are defined in IOC_SrvTypes.h.
  *     On the server side, we call:
  *         IOC_onlineService() to online a service, IOC_offlineService() to offline a service,
  *         IOC_acceptLink() to accept a link from client,
@@ -38,19 +40,19 @@
  * @brief 【User Story】
  *
  *  US-1: <a>AS a EvtProducer,
- *      I WANT to online a service,
- *      SO THAT EvtConsumer can connect to my service,
- *          AND subscribe events what I published over connected pair Links.
- *      OR <b>AS a EvtConsumer,
+ *      I WANT to online a service with custom URI,
+ *      SO THAT EvtConsumers can connect to my service,
+ *          AND EACH can subscribe all or part events what I published on connected pair Links.
+ *  US-2: OR <b>AS a EvtConsumer,
  *      I ALSO WANT to online a service,
  *      SO THAT EvtProducer can connect to my service,
- *          AND publish events over connected pair Links.
+ *          AND publish events on connected pair Links.
  *      SAME FOR CmdInitiator and CmdExecutor:
- *          <c>CmdInitiator online a service.
- *          <d>CmdExecutor online a service.
+ *  US-3:   <c>CmdInitiator online a service.
+ *  US-4:   <d>CmdExecutor online a service.
  *      SAME FOR DatSender and DatReceiver:
- *          <e>DatSender online a service.
- *          <f>DatReceiver online a service.
+ *  US-5:   <e>DatSender online a service.
+ *  US-6:   <f>DatReceiver online a service.
  *
  */
 
@@ -63,16 +65,11 @@
  *          WHEN EvtConsumer connects to the service and establish a pair Link,
  *          THEN EvtConsumer can subscribe events,
  *              AND EvtProducer can post events, EvtConsumer can process them.
- *      AC-2: GIVEN a service is onlined by EvtConsumer,
- *          WHEN MANY EvtProducers connects to the service and EACH establish a pair Link,
- *          THEN EACH EvtConsumer can subscribe different events over each's pair Link,
- *              AND EvtProducer can post events to each EvtConsumer,
- *              AND EACH EvtConsumer will process what it subscribed events only.
- * [@US-1.b]
- *      AC-1: GIVEN a service is onlined by EvtConsumer,
- *          WHEN EvtProducer connects to the service and establish a pair Link,
- *          THEN EvtConsumer can subscribe events over the pair Link,
- *              AND EvtProducer can post events, EvtConsumer can process them.
+ *      AC-2: GIVEN a service is onlined by EvtProducer,
+ *          WHEN MANY EvtConsumers connects to the service and EACH establish a pair Link,
+ *          THEN EACH EvtConsumer can subscribe different events on each's pair Link,
+ *              WHEN EvtProducer post events to all pair Links,
+ *              THEN EACH EvtConsumer will process what it subscribed events only.
  *
  */
 
@@ -85,6 +82,11 @@
  *  @[Name]:verifySingleServiceOnePairLink_byEvtProducerAtServerSide_andEvtConsumerAtClientSide
  *  @[Purpose]: verify simple but still typical scenario of one EvtProducer as server, one EvtConsumer as client.
  *
+ * [@AC-2 of US-1.a]
+ * TC-1:
+ *  @[Name]:
+ * verifySingleServiceMultiConsumersSubDiffEvents_byEvtProducerAtServerSide_andMultipleEvtConsumersAtClientSide
+ *  @[Purpose]: verify multiple EvtConsumers can subscribe different events on each's pair Link.
  */
 
 //======END OF UNIT TESTING DESIGN=================================================================
@@ -95,14 +97,17 @@
 
 //===TEMPLATE OF UT CASE===
 /**
- * @[Name]: <TC1>verifySingleServiceOnePairLink_byEvtProducerAtServerSide_andEvtConsumerAtClientSide
+ * @[Name]: <US1-AC1-TC1>verifySingleServiceOnePairLink_byEvtProducerAtServerSide_andEvtConsumerAtClientSide
  * @[Steps]:
  *   1) EvtProducer call IOC_onlineService() to online a service AS VERIFY.
  *      |-> SrvArgs.UsageCapabilites = IOC_LinkUsageEvtProducer
- *      |-> SrvArgs.SrvURI = "auto://localprocess/EvtProducer"
+ *      |-> SrvArgs.SrvURI
+ *          |-> pProtocol = IOC_SRV_PROTO_FIFO
+ *          |-> pHost = IOC_SRV_HOST_LOCAL_PROCESS
+ *          |-> pPath = "EvtProducer"
  *   2) EvtConsumer call IOC_connectLink() in standalone thread to the service AS VERIFY.
  *          |-> ConnArgs.Usage = IOC_LinkUsageEvtConsumer
- *          |-> ConnArgs.SrvURI = "auto://localprocess/EvtProducer"
+ *          |-> ConnArgs.SrvURI = SrvArgs.SrvURI
  *      a) Call IOC_subEVT() to subscribe an event AS BEHAVIOR.
  *          |-> SubEvtArgs.EvtIDs = {IOC_EVT_NAME_TEST_KEEPALIVE}
  *   3) EvtProducer call IOC_acceptLink() to accept the link AS VERIFY.
@@ -119,10 +124,10 @@
 
 typedef struct {
     uint32_t KeepAliveEvtCnt;
-} __TC1_EvtConsumerPrivData_T;
+} __US1AC1TC1_EvtConsumerPrivData_T;
 
-static IOC_Result_T __TC1_CbProcEvt_F(IOC_EvtDesc_T* pEvtDesc, void* pCbPrivData) {
-    __TC1_EvtConsumerPrivData_T* pEvtConsumerPrivData = (__TC1_EvtConsumerPrivData_T*)pCbPrivData;
+static IOC_Result_T __US1AC1TC1_CbProcEvt_F(IOC_EvtDesc_T* pEvtDesc, void* pCbPrivData) {
+    __US1AC1TC1_EvtConsumerPrivData_T* pEvtConsumerPrivData = (__US1AC1TC1_EvtConsumerPrivData_T*)pCbPrivData;
 
     if (IOC_EVT_NAME_TEST_KEEPALIVE == pEvtDesc->EvtID) {
         pEvtConsumerPrivData->KeepAliveEvtCnt++;
@@ -155,13 +160,13 @@ TEST(UT_ServiceTypical, verifySingleServiceOnePairLink_byEvtProducerAtServerSide
     EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
 
     // Step-2:
-    __TC1_EvtConsumerPrivData_T EvtConsumerPrivData = {
+    __US1AC1TC1_EvtConsumerPrivData_T EvtConsumerPrivData = {
         .KeepAliveEvtCnt = 0,
     };
 
     IOC_EvtID_T EvtIDs[] = {IOC_EVT_NAME_TEST_KEEPALIVE};
     IOC_SubEvtArgs_T SubEvtArgs = {
-        .CbProcEvt_F = __TC1_CbProcEvt_F,
+        .CbProcEvt_F = __US1AC1TC1_CbProcEvt_F,
         .pCbPrivData = &EvtConsumerPrivData,
         .EvtNum = IOC_calcArrayElmtCnt(EvtIDs),
         .pEvtIDs = EvtIDs,
@@ -198,7 +203,7 @@ TEST(UT_ServiceTypical, verifySingleServiceOnePairLink_byEvtProducerAtServerSide
 
     // Step-5
     IOC_UnsubEvtArgs_T UnsubEvtArgs = {
-        .CbProcEvt_F = __TC1_CbProcEvt_F,
+        .CbProcEvt_F = __US1AC1TC1_CbProcEvt_F,
         .pCbPrivData = &EvtConsumerPrivData,
     };
     Result = IOC_unsubEVT(EvtConsumerLinkID, &UnsubEvtArgs);
