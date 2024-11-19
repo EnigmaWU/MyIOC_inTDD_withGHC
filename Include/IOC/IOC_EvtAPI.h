@@ -1,5 +1,5 @@
-#include "IOC_TypeEvtDesc.h"
-#include "IOC_TypeOption.h"
+#include "IOC_EvtDesc.h"
+#include "IOC_Option.h"
 
 #ifndef __IOC_EVENT_API_H__
 #define __IOC_EVENT_API_H__
@@ -9,25 +9,25 @@ extern "C" {
 
 typedef IOC_Result_T (*IOC_CbProcEvt_F)(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv);
 typedef struct {
-  /**
-   * @brief CbProcEvt_F + pCbPrivData is used to IDENTIFY one EvtConsumer.
-   *    RefMore: IOC_UnsubEvtArgs_T
-   */
-  IOC_CbProcEvt_F CbProcEvt_F;  // Callback function for processing the event
-  void *pCbPrivData;            // Callback private context data
+    /**
+     * @brief CbProcEvt_F + pCbPrivData is used to IDENTIFY one EvtConsumer.
+     *    RefMore: IOC_UnsubEvtArgs_T
+     */
+    IOC_CbProcEvt_F CbProcEvt_F;  // Callback function for processing the event
+    void *pCbPrivData;            // Callback private context data
 
-  ULONG_T EvtNum;        // number of EvtIDs, IOC_calcArrayElmtCnt(SubEvtIDs)
-  IOC_EvtID_T *pEvtIDs;  // EvtIDs to subscribe
+    ULONG_T EvtNum;        // number of EvtIDs, IOC_calcArrayElmtCnt(SubEvtIDs)
+    IOC_EvtID_T *pEvtIDs;  // EvtIDs to subscribe
 
-  // TODO: AutoLinkID
+    // TODO: AutoLinkID
 } IOC_SubEvtArgs_T, *IOC_SubEvtArgs_pT;
 
 typedef struct {
-  IOC_CbProcEvt_F CbProcEvt_F;
-  union {
-    void *pCbPrivData;
-    void *pCbPriv;  // Deprecated
-  };
+    IOC_CbProcEvt_F CbProcEvt_F;
+    union {
+        void *pCbPrivData;
+        void *pCbPriv;  // Deprecated
+    };
 } IOC_UnsubEvtArgs_T, *IOC_UnsubEvtArgs_pT;
 
 /**
@@ -59,8 +59,7 @@ IOC_Result_T IOC_postEVT(
     /*ARG_IN*/ const IOC_EvtDesc_pT pEvtDesc,
     /*ARG_IN_OPTIONAL*/ IOC_Options_pT);
 
-#define IOC_postEVT_inConlesMode(pEvtDesc, pOption) \
-  IOC_postEVT(IOC_CONLES_MODE_AUTO_LINK_ID, pEvtDesc, pOption)
+#define IOC_postEVT_inConlesMode(pEvtDesc, pOption) IOC_postEVT(IOC_CONLES_MODE_AUTO_LINK_ID, pEvtDesc, pOption)
 
 /**
  * @brief EvtConsumer call this API to subscribe an event from the LinkID.
@@ -102,8 +101,7 @@ IOC_Result_T IOC_unsubEVT(
     /*ARG_IN*/ IOC_LinkID_T LinkID,
     /*ARG_IN_OPTIONAL*/ const IOC_UnsubEvtArgs_pT pUnsubEvtArgs);
 
-#define IOC_unsubEVT_inConlesMode(pUnsubEvtArgs) \
-  IOC_unsubEVT(IOC_CONLES_MODE_AUTO_LINK_ID, pUnsubEvtArgs)
+#define IOC_unsubEVT_inConlesMode(pUnsubEvtArgs) IOC_unsubEVT(IOC_CONLES_MODE_AUTO_LINK_ID, pUnsubEvtArgs)
 
 /**
  * @brief force IOC to process the event immediately.
