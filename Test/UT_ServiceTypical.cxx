@@ -87,7 +87,7 @@
  *
  * [@AC-1 of US-1.a]
  * TC-1:
- *  @[Name]: verifySingleServiceOnePairLink_byEvtProducerAtServerSide_andEvtConsumerAtClientSide
+ *  @[Name]: verifySingleServiceSingleClient_byPostEvtAtSrvSide
  *  @[Purpose]: verify simple but still typical scenario of one EvtProducer as server, one EvtConsumer as client.
  *
  * [@AC-2 of US-1.a]
@@ -110,7 +110,7 @@
 
 //===TEMPLATE OF UT CASE===
 /**
- * @[Name]: <US1-AC1-TC1>verifySingleServiceOnePairLink_byEvtProducerAtServerSide_andEvtConsumerAtClientSide
+ * @[Name]: <US1-AC1-TC1>verifySingleServiceSingleClient_byPostEvtAtSrvSide
  * @[Steps]:
  *   1) EvtProducer call IOC_onlineService() to online a service AS VERIFY.
  *      |-> SrvArgs.UsageCapabilites = IOC_LinkUsageEvtProducer
@@ -154,7 +154,7 @@ static IOC_Result_T __US1AC1TC1_CbProcEvt_F(IOC_EvtDesc_T* pEvtDesc, void* pCbPr
     return IOC_RESULT_SUCCESS;
 }
 
-TEST(UT_ServiceTypical, verifySingleServiceOnePairLink_byEvtProducerAtServerSide_andEvtConsumerAtClientSide) {
+TEST(UT_ServiceTypical, verifySingleServiceSingleClient_byPostEvtAtSrvSide) {
     IOC_Result_T Result = IOC_RESULT_BUG;
     IOC_SrvID_T EvtProducerSrvID = IOC_ID_INVALID;
     IOC_LinkID_T EvtProducerLinkID = IOC_ID_INVALID;
