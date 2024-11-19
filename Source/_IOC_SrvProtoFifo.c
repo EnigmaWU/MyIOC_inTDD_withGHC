@@ -39,15 +39,23 @@ static IOC_Result_T __IOC_subEvt_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, const 
 }
 
 static IOC_Result_T __IOC_unsubEvt_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, const IOC_UnsubEvtArgs_pT pUnsubEvtArgs) {
+    memset(&_mIOC_SubEvtArgs, 0, sizeof(IOC_SubEvtArgs_T));
     //_IOC_LogNotTested();
     return IOC_RESULT_SUCCESS;  // NOTHING DONE, JUST RETURN SUCCESS
 }
 
 static IOC_Result_T __IOC_postEvt_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, const IOC_EvtDesc_pT pEvtDesc,
                                               const IOC_Options_pT pOption) {
-    _mIOC_SubEvtArgs.CbProcEvt_F(pEvtDesc, _mIOC_SubEvtArgs.pCbPrivData);
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    if (_mIOC_SubEvtArgs.CbProcEvt_F) {
+        _mIOC_SubEvtArgs.CbProcEvt_F(pEvtDesc, _mIOC_SubEvtArgs.pCbPrivData);
+        Result = IOC_RESULT_SUCCESS;
+    } else {
+        Result = IOC_RESULT_NO_EVENT_CONSUMER;
+    }
+
     //_IOC_LogNotTested();
-    return IOC_RESULT_SUCCESS;  // NOTHING DONE, JUST RETURN SUCCESS
+    return Result;
 }
 
 _IOC_SrvProtoMethods_T _gIOC_SrvProtoFifoMethods = {
