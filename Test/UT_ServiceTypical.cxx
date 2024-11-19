@@ -89,10 +89,6 @@
  * TC-1:
  *  @[Name]: verifySingleServiceOnePairLink_byEvtProducerAtServerSide_andEvtConsumerAtClientSide
  *  @[Purpose]: verify simple but still typical scenario of one EvtProducer as server, one EvtConsumer as client.
- * TC-2:
- *  @[Name]: verifySingleServiceOnePairLinkSubThenUnsubEvt_byEvtProducerAtServerSide_andEvtConsumerAtClientSide
- *  @[Purpose]: verify EvtConsumer can unsubscribe the event and EvtProducer post events will get NO_EVENT_CONSUMER
- * result.
  *
  * [@AC-2 of US-1.a]
  * TC-1:
@@ -133,8 +129,11 @@
  *      |-> call IOC_forceProcEVT() to process the event immediately.
  *   5) EvtConsumer call IOC_unsubEVT() to unsubscribe the event AS BEHAVIOR.
  *      |-> EvtConsumerPrivData.KeepAliveEvtCnt = 1 AS VERIFY.
- *   6) EvtProducer/EvtConsumer call IOC_closeLink() to close the link AS VERIFY&CLEANUP.
- *   7) EvtProducer call IOC_offlineService() to offline the service AS VERIFY&CLEANUP.
+ *   6) EvtProducer call IOC_postEVT() to post another event AS BEHAVIOR.
+ *      |-> EvtDesc.EvtID = IOC_EVT_NAME_TEST_KEEPALIVE
+ *      |-> get IOC_RESULT_NO_EVENT_CONSUMER AS VERIFY.
+ *   7) EvtProducer/EvtConsumer call IOC_closeLink() to close the link AS VERIFY&CLEANUP.
+ *   8) EvtProducer call IOC_offlineService() to offline the service AS VERIFY&CLEANUP.
  * @[Expect]: all steps are passed.
  * @[Notes]:
  */
@@ -228,13 +227,17 @@ TEST(UT_ServiceTypical, verifySingleServiceOnePairLink_byEvtProducerAtServerSide
     EXPECT_EQ(1, EvtConsumerPrivData.KeepAliveEvtCnt);  // KeyVerifyPoint
 
     // Step-6
+    Result = IOC_postEVT(EvtProducerLinkID, &EvtDesc, NULL);
+    EXPECT_EQ(IOC_RESULT_NO_EVENT_CONSUMER, Result);  // KeyVerifyPoint
+
+    // Step-7
     Result = IOC_closeLink(EvtProducerLinkID);
     EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
 
     Result = IOC_closeLink(EvtConsumerLinkID);
     EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
 
-    // Step-7
+    // Step-8
     Result = IOC_offlineService(EvtProducerSrvID);
     EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
 }
