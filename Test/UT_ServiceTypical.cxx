@@ -54,7 +54,10 @@
  *      SAME FOR DatSender and DatReceiver:
  *  US-5:   <e>DatSender online a service.
  *  US-6:   <f>DatReceiver online a service.
- *
+ *  US-7:   <g>AS a EvtProducer,
+ *      I WANT to online a service with BROADCAST flag,
+ *      SO THAT when many EvtConsumers connect to my service,
+ *          I CAN post events to all connected pair Links by a single API call.
  */
 
 //-------------------------------------------------------------------------------------------------
