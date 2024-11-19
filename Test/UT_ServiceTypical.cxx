@@ -241,3 +241,47 @@ TEST(UT_ServiceTypical, verifySingleServiceOnePairLink_byEvtProducerAtServerSide
     Result = IOC_offlineService(EvtProducerSrvID);
     EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
 }
+
+/**
+ * @[Name]:
+ * <US1-AC2-TC2>verifySingleServiceMultiConsumersSubDiffEvents_byEvtProducerAtServerSide_andEvtConsumersAtClientSide
+ * @[Steps]:
+ *   1) EvtProducer call IOC_onlineService() to online a service AS BEHAVIOR.
+ *      |-> SrvArgs.UsageCapabilites = IOC_LinkUsageEvtProducer
+ *      |-> SrvArgs.SrvURI = {IOC_SRV_PROTO_FIFO, IOC_SRV_HOST_LOCAL_PROCESS, "EvtProducer"}
+ *   2) EvtConsumer1 call IOC_connectLink() in standalone thread to the service AS BEHAVIOR.
+ *          |-> ConnArgs.Usage = IOC_LinkUsageEvtConsumer
+ *          |-> ConnArgs.SrvURI = SrvArgs.SrvURI
+ *      a) Call IOC_subEVT(IOC_EVT_NAME_TEST_SLEEP_9MS) to subscribe an event AS BEHAVIOR.
+ *   3) EvtConsumer2 call IOC_connectLink() in standalone thread to the service AS BEHAVIOR.
+ *          |-> ConnArgs.Usage = IOC_LinkUsageEvtConsumer
+ *          |-> ConnArgs.SrvURI = SrvArgs.SrvURI
+ *      a) Call IOC_subEVT(IOC_EVT_NAME_TEST_SLEEP_99MS) to subscribe an event AS BEHAVIOR.
+ *   4) EvtProducer call IOC_acceptLink() to accept the link AS BEHAVIOR.
+ *          |-> EvtProducerLinkID4Consumer1, EvtProducerLinkID4Consumer2
+ *   5) EvtProducer call IOC_postEVT() to post an event AS BEHAVIOR.
+ *      |-> EvtDesc.EvtID = IOC_EVT_NAME_TEST_SLEEP_9MS
+ *      |-> both to EvtProducerLinkID4Consumer1 and EvtProducerLinkID4Consumer2
+ *      |-> call IOC_forceProcEVT() to process the event immediately.
+ *      |-> ONLY EvtConsumer1 will process the event as VERIFY.
+ *          |-> EvtConsumer1PrivData.Sleep9MsEvtCnt = 1 AS VERIFY.
+ *          |-> EvtConsumer2PrivData.Sleep99MsEvtCnt = 0 AS VERIFY.
+ *   6) EvtProducer call IOC_postEVT() to post another event AS BEHAVIOR.
+ *      |-> EvtDesc.EvtID = IOC_EVT_NAME_TEST_SLEEP_99MS
+ *      |-> both to EvtProducerLinkID4Consumer1 and EvtProducerLinkID4Consumer2
+ *      |-> call IOC_forceProcEVT() to process the event immediately.
+ *      |-> ONLY EvtConsumer2 will process the event as VERIFY.
+ *          |-> EvtConsumer1PrivData.Sleep9MsEvtCnt = 1 AS VERIFY.
+ *          |-> EvtConsumer2PrivData.Sleep99MsEvtCnt = 1 AS VERIFY.
+ *   7) EvtConsumer1/EvtConsumer2 call IOC_unsubEVT() to unsubscribe the event AS BEHAVIOR.
+ *   8) EvtProducer call IOC_postEVT() to post another event AS BEHAVIOR.
+ *      |-> EvtDesc.EvtID = IOC_EVT_NAME_TEST_SLEEP_KEEPALIVE
+ *      |-> get IOC_RESULT_NO_EVENT_CONSUMER AS VERIFY.
+ *   9) EvtProducer/EvtConsumer1/EvtConsumer2 call IOC_closeLink() to close the link AS BEHAVIOR.
+ *   10) EvtProducer call IOC_offlineService() to offline the service AS BEHAVIOR.
+ * @[Expect]:
+ *    Sleep9MsEvtCnt=1, Sleep99MsEvtCnt=1, and NO_EVENT_CONSUMER are got.
+ *
+ *
+ *
+ */
