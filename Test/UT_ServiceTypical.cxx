@@ -42,7 +42,8 @@
  *  US-1: <a>AS a EvtProducer,
  *      I WANT to online one or many service with custom URI,
  *      SO THAT EvtConsumers can connect to my service,
- *          AND EACH can subscribe all or part events what I published on connected pair Links.
+ *          AND EACH can subscribe all or part events what I published on connected pair Links,
+ *          AND ANY EvtConsumer can unsubscribe the event what it subscribed at any time.
  *  US-2: OR <b>AS a EvtConsumer,
  *      I ALSO WANT to online a service,
  *      SO THAT EvtProducer can connect to my service,
@@ -65,6 +66,9 @@
  *          WHEN EvtConsumer connects to the service and establish a pair Link,
  *          THEN EvtConsumer can subscribe events,
  *              AND EvtProducer can post events, EvtConsumer can process them.
+ *          WHEN EvtConsumer unsubscribe the event,
+ *          THEN EvtProducer post events will get NO_EVENT_CONSUMER result,
+ *              AND EvtConsumer will NOT process the event.
  *      AC-2: GIVEN a service is onlined by EvtProducer,
  *          WHEN MANY EvtConsumers connects to the service and EACH establish a pair Link,
  *          THEN EACH EvtConsumer can subscribe different events on each's pair Link,
@@ -85,6 +89,10 @@
  * TC-1:
  *  @[Name]: verifySingleServiceOnePairLink_byEvtProducerAtServerSide_andEvtConsumerAtClientSide
  *  @[Purpose]: verify simple but still typical scenario of one EvtProducer as server, one EvtConsumer as client.
+ * TC-2:
+ *  @[Name]: verifySingleServiceOnePairLinkSubThenUnsubEvt_byEvtProducerAtServerSide_andEvtConsumerAtClientSide
+ *  @[Purpose]: verify EvtConsumer can unsubscribe the event and EvtProducer post events will get NO_EVENT_CONSUMER
+ * result.
  *
  * [@AC-2 of US-1.a]
  * TC-1:
