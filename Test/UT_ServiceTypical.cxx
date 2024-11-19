@@ -97,8 +97,8 @@
  *
  * [@AC-3 of US-1.a]
  * TC-3:
- *  @[Name]: verifyMultiSingleServiceOnePairLink_byEvtProducerAtServerSide_andEvtConsumerAtClientSide
- *  @[Purpose]: verify different Services can be onlined by same EvtProducer,
+ *  @[Name]: verifyMultiServiceMultiClient_byPostEvtAtSrvSide_bySubDiffEvtAtCliSide
+ *  @[Purpose]: verify different Services with distinguish URI can be onlined by same EvtProducer,
  *      and each EvtConsumer can connect to each service, then sub&post&proc different events.
  */
 
