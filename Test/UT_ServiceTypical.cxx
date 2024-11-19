@@ -252,22 +252,22 @@ TEST(UT_ServiceTypical, verifySingleServiceSingleClient_byPostEvtAtSrvSide) {
  *   2) EvtConsumer1 call IOC_connectLink() in standalone thread to the service AS BEHAVIOR.
  *          |-> ConnArgs.Usage = IOC_LinkUsageEvtConsumer
  *          |-> ConnArgs.SrvURI = SrvArgs.SrvURI
- *      a) Call IOC_subEVT(IOC_EVT_NAME_TEST_SLEEP_9MS) to subscribe an event AS BEHAVIOR.
+ *      a) Call IOC_subEVT(EVT_TEST_MOVE_STARTED/_KEEPING/_STOPPED) to subscribe an event AS BEHAVIOR.
  *   3) EvtConsumer2 call IOC_connectLink() in standalone thread to the service AS BEHAVIOR.
  *          |-> ConnArgs.Usage = IOC_LinkUsageEvtConsumer
  *          |-> ConnArgs.SrvURI = SrvArgs.SrvURI
- *      a) Call IOC_subEVT(IOC_EVT_NAME_TEST_SLEEP_99MS) to subscribe an event AS BEHAVIOR.
+ *      a) Call IOC_subEVT(EVT_TEST_PULL_STARTED/_KEEPING/_STOPPED) to subscribe an event AS BEHAVIOR.
  *   4) EvtProducer call IOC_acceptLink() to accept the link AS BEHAVIOR.
  *          |-> EvtProducerLinkID4Consumer1, EvtProducerLinkID4Consumer2
  *   5) EvtProducer call IOC_postEVT() to post an event AS BEHAVIOR.
- *      |-> EvtDesc.EvtID = IOC_EVT_NAME_TEST_SLEEP_9MS
+ *      |-> EvtDesc.EvtID = 1xEVT_TEST_MOVE_STARTED, nxEVT_TEST_MOVE_KEEPING, 1xEVT_TEST_MOVE_STOPPED
  *      |-> both to EvtProducerLinkID4Consumer1 and EvtProducerLinkID4Consumer2
  *      |-> call IOC_forceProcEVT() to process the event immediately.
  *      |-> ONLY EvtConsumer1 will process the event as VERIFY.
  *          |-> EvtConsumer1PrivData.Sleep9MsEvtCnt = 1 AS VERIFY.
  *          |-> EvtConsumer2PrivData.Sleep99MsEvtCnt = 0 AS VERIFY.
  *   6) EvtProducer call IOC_postEVT() to post another event AS BEHAVIOR.
- *      |-> EvtDesc.EvtID = IOC_EVT_NAME_TEST_SLEEP_99MS
+ *      |-> EvtDesc.EvtID = 1xEVT_TEST_PULL_STARTED, mxEVT_TEST_PULL_KEEPING, 1xEVT_TEST_PULL_STOPPED
  *      |-> both to EvtProducerLinkID4Consumer1 and EvtProducerLinkID4Consumer2
  *      |-> call IOC_forceProcEVT() to process the event immediately.
  *      |-> ONLY EvtConsumer2 will process the event as VERIFY.
