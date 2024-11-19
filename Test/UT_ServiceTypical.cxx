@@ -83,13 +83,12 @@
  *
  * [@AC-1 of US-1.a]
  * TC-1:
- *  @[Name]:verifySingleServiceOnePairLink_byEvtProducerAtServerSide_andEvtConsumerAtClientSide
+ *  @[Name]: verifySingleServiceOnePairLink_byEvtProducerAtServerSide_andEvtConsumerAtClientSide
  *  @[Purpose]: verify simple but still typical scenario of one EvtProducer as server, one EvtConsumer as client.
  *
  * [@AC-2 of US-1.a]
  * TC-1:
- *  @[Name]:
- * verifySingleServiceMultiConsumersSubDiffEvents_byEvtProducerAtServerSide_andMultipleEvtConsumersAtClientSide
+ *  @[Name]: verifySingleServiceMultiConsumersSubDiffEvents_byEvtProducerAtServerSide_andEvtConsumersAtClientSide
  *  @[Purpose]: verify multiple EvtConsumers can subscribe different events on each's pair Link.
  *
  * [@AC-3 of US-1.a]
