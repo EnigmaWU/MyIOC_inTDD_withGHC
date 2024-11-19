@@ -92,7 +92,7 @@
  *
  * [@AC-2 of US-1.a]
  * TC-2:
- *  @[Name]: verifySingleServiceMultiConsumersSubDiffEvents_byEvtProducerAtServerSide_andEvtConsumersAtClientSide
+ *  @[Name]: verifySingleServiceMultiClients_byPostEvtAtSrvSide_bySubDiffEvtAtCliSide
  *  @[Purpose]: verify multiple EvtConsumers can subscribe different events on each's pair Link.
  *
  * [@AC-3 of US-1.a]
@@ -244,7 +244,7 @@ TEST(UT_ServiceTypical, verifySingleServiceSingleClient_byPostEvtAtSrvSide) {
 
 /**
  * @[Name]:
- * <US1-AC2-TC2>verifySingleServiceMultiConsumersSubDiffEvents_byEvtProducerAtServerSide_andEvtConsumersAtClientSide
+ * <US1-AC2-TC2>verifySingleServiceMultiClients_byPostEvtAtSrvSide_bySubDiffEvtAtCliSide
  * @[Steps]:
  *   1) EvtProducer call IOC_onlineService() to online a service AS BEHAVIOR.
  *      |-> SrvArgs.UsageCapabilites = IOC_LinkUsageEvtProducer
