@@ -15,7 +15,7 @@ typedef uint64_t IOC_EvtClassID_T;
 /**
  * @brief EvtID is IOC_EvtID_T which = EvtClass | EvtName
  */
-#define IOC_defineEvtID(EvtClass, EvtName) ((IOC_EvtID_T)((EvtClass) | ((EvtName) << 16)))
+#define IOC_defineEvtID(EvtClass, EvtName) ((IOC_EvtID_T)(((IOC_EvtID_T)EvtClass) | (((IOC_EvtID_T)EvtName) << 16)))
 #define IOC_getEvtClassID(EvtID) ((IOC_EvtClassID_T)(EvtID & 0xFFFFULL))
 // TODO: IOC_getEvtClassStr(EvtID)
 #define IOC_getEvtNameID(EvtID) ((IOC_EvtNameID_T)(EvtID >> 16))
