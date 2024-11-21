@@ -95,7 +95,7 @@ static _IOC_ServiceObject_pT __IOC_getSrvObjBySrvID(IOC_SrvID_T SrvID) {
 // TODO: __IOC_putSrvObj
 
 //=================================================================================================
-#define _MAX_IOC_LINK_OBJ_NUM 2
+#define _MAX_IOC_LINK_OBJ_NUM 4
 static _IOC_LinkObject_pT _mIOC_LinkObjTbl[_MAX_IOC_LINK_OBJ_NUM] = {};
 static pthread_mutex_t _mIOC_LinkObjTblMutex = PTHREAD_MUTEX_INITIALIZER;
 static inline void ___IOC_lockLinkObjTbl(void) { pthread_mutex_lock(&_mIOC_LinkObjTblMutex); }
@@ -314,8 +314,8 @@ IOC_Result_T IOC_acceptClient(
     // Step-2: Create a Link Object
     _IOC_LinkObject_pT pLinkObj = __IOC_allocLinkObj();
     if (NULL == pLinkObj) {
-        _IOC_LogWarn("Failed to alloc a link object");
-        _IOC_LogNotTested();
+        _IOC_LogWarn("SrvID(%" PRIu64 "): failed to alloc a new Link object when accept client", SrvID);
+        //_IOC_LogNotTested();
         return IOC_RESULT_POSIX_ENOMEM;
     } else {
         pLinkObj->pMethods = pSrvObj->pMethods;
@@ -415,7 +415,8 @@ IOC_Result_T IOC_connectService(
     // Step-2: create a Link Object
     _IOC_LinkObject_pT pLinkObj = __IOC_allocLinkObj();
     if (NULL == pLinkObj) {
-        _IOC_LogNotTested();
+        _IOC_LogError("Failed to alloc a new Link object when connect service");
+        //_IOC_LogNotTested();
         return IOC_RESULT_POSIX_ENOMEM;
     }
 

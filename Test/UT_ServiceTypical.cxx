@@ -296,11 +296,11 @@ typedef struct {
 static IOC_Result_T __US1AC2TC2_CbProcEvt_F(IOC_EvtDesc_T* pEvtDesc, void* pCbPrivData) {
     __US1AC2TC2_EvtConsumerPrivData_T* pEvtConsumerPrivData = (__US1AC2TC2_EvtConsumerPrivData_T*)pCbPrivData;
 
-    if (IOC_EVT_NAME_TEST_MOVE_STARTED == pEvtDesc->EvtID) {
+    if ((IOC_EVTID_TEST_MOVE_STARTED == pEvtDesc->EvtID) || (IOC_EVTID_TEST_PULL_STARTED == pEvtDesc->EvtID)) {
         pEvtConsumerPrivData->StartedEvtCnt++;
-    } else if (IOC_EVT_NAME_TEST_MOVE_KEEPING == pEvtDesc->EvtID) {
+    } else if ((IOC_EVTID_TEST_MOVE_KEEPING == pEvtDesc->EvtID) || (IOC_EVTID_TEST_PULL_KEEPING == pEvtDesc->EvtID)) {
         pEvtConsumerPrivData->KeepingEvtCnt++;
-    } else if (IOC_EVT_NAME_TEST_MOVE_STOPPED == pEvtDesc->EvtID) {
+    } else if ((IOC_EVTID_TEST_MOVE_STOPPED == pEvtDesc->EvtID) || (IOC_EVTID_TEST_PULL_STOPPED == pEvtDesc->EvtID)) {
         pEvtConsumerPrivData->StoppedEvtCnt++;
     } else {
         EXPECT_TRUE(false) << "Unknown EvtID: " << pEvtDesc->EvtID;
@@ -395,19 +395,19 @@ TEST(UT_ServiceTypical, verifySingleServiceMultiClients_byPostEvtAtSrvSide_bySub
 
     // Step-5
     IOC_EvtDesc_T EvtDesc = {
-        .EvtID = IOC_EVT_NAME_TEST_MOVE_STARTED,
+        .EvtID = IOC_EVTID_TEST_MOVE_STARTED,
     };
     Result = IOC_postEVT(EvtProducerLinkID4Consumer1, &EvtDesc, NULL);
     EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
 #define _N_MOVE_KEEPING 3
-    EvtDesc.EvtID = IOC_EVT_NAME_TEST_MOVE_KEEPING;
+    EvtDesc.EvtID = IOC_EVTID_TEST_MOVE_KEEPING;
     for (int i = 0; i < _N_MOVE_KEEPING; i++) {
         Result = IOC_postEVT(EvtProducerLinkID4Consumer1, &EvtDesc, NULL);
         EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
     }
 
-    EvtDesc.EvtID = IOC_EVT_NAME_TEST_MOVE_STOPPED;
+    EvtDesc.EvtID = IOC_EVTID_TEST_MOVE_STOPPED;
     Result = IOC_postEVT(EvtProducerLinkID4Consumer1, &EvtDesc, NULL);
 
     IOC_forceProcEVT();
@@ -419,18 +419,18 @@ TEST(UT_ServiceTypical, verifySingleServiceMultiClients_byPostEvtAtSrvSide_bySub
     EXPECT_EQ(0, ConsumerBPrivData.StoppedEvtCnt);                // KeyVerifyPoint
 
     // Step-6
-    EvtDesc.EvtID = IOC_EVT_NAME_TEST_PULL_STARTED;
+    EvtDesc.EvtID = IOC_EVTID_TEST_PULL_STARTED;
     Result = IOC_postEVT(EvtProducerLinkID4Consumer2, &EvtDesc, NULL);
     EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
 
 #define _M_PULL_KEEPING 5
-    EvtDesc.EvtID = IOC_EVT_NAME_TEST_PULL_KEEPING;
+    EvtDesc.EvtID = IOC_EVTID_TEST_PULL_KEEPING;
     for (int i = 0; i < _M_PULL_KEEPING; i++) {
         Result = IOC_postEVT(EvtProducerLinkID4Consumer2, &EvtDesc, NULL);
         EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
     }
 
-    EvtDesc.EvtID = IOC_EVT_NAME_TEST_PULL_STOPPED;
+    EvtDesc.EvtID = IOC_EVTID_TEST_PULL_STOPPED;
     Result = IOC_postEVT(EvtProducerLinkID4Consumer2, &EvtDesc, NULL);
 
     IOC_forceProcEVT();
@@ -454,7 +454,7 @@ TEST(UT_ServiceTypical, verifySingleServiceMultiClients_byPostEvtAtSrvSide_bySub
     EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
     // Step-8
-    EvtDesc.EvtID = IOC_EVT_NAME_TEST_SLEEP_9MS;
+    EvtDesc.EvtID = IOC_EVTID_TEST_KEEPALIVE;
     Result = IOC_postEVT(EvtProducerLinkID4Consumer1, &EvtDesc, NULL);
     EXPECT_EQ(IOC_RESULT_NO_EVENT_CONSUMER, Result);  // VerifyPoint
 
