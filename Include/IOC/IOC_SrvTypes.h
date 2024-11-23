@@ -40,6 +40,18 @@ typedef struct {
     // TODO: char *pFragment;
 } IOC_SrvURI_T, *IOC_SrvURI_pT;
 
+static inline const char *IOC_Helper_printSingleLineSrvURI(IOC_SrvURI_pT pSrvURI, char *pLineBuf, size_t LineBufSiz) {
+    static char _mSingleLineBuf[128];  // Use static buffer if LineBuf is NULL, for easy use but not thread-safe.
+    //---------------------------------------------------------------------------------------------
+    if (!pLineBuf) {
+        pLineBuf = &_mSingleLineBuf[0];
+        LineBufSiz = sizeof(_mSingleLineBuf);
+    }
+
+    snprintf(pLineBuf, LineBufSiz, "%s://%s:%d/%s", pSrvURI->pProtocol, pSrvURI->pHost, pSrvURI->Port, pSrvURI->pPath);
+    return pLineBuf;
+}
+
 #define IOC_SRV_PROTO_AUTO "auto"  // transport protocol is auto selected by IOC
 #define IOC_SRV_PROTO_FIFO "fifo"  // intraprocess/interthread FIFO queue communication protocol
 // TODO: #define IOC_SRV_PROTO_TCP "tcp"
