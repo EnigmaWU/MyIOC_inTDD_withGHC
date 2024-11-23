@@ -13,6 +13,9 @@ extern "C" {
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#define IOC_SRV_URI_PROTOCOL_MAX_LEN 16
+#define IOC_SRV_URI_HOST_MAX_LEN 64
+#define IOC_SRV_URI_PATH_MAX_LEN 128
 //===>URI: Uniform Resource Identifier, defined in RFC 3986.
 // Standard URI: scheme:[//[user:password@]host[:port]][/]path[?query][#fragment]
 // Service use URI to identify what is onlined.
