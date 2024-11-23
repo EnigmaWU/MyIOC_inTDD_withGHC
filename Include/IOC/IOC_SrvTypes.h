@@ -55,6 +55,15 @@ static inline const char *IOC_Helper_printSingleLineSrvURI(IOC_SrvURI_pT pSrvURI
     return pLineBuf;
 }
 
+static inline IOC_BoolResult_T IOC_Helper_isEqualSrvURI(const IOC_SrvURI_pT pSrvURI1, const IOC_SrvURI_pT pSrvURI2) {
+    if (!strcmp(pSrvURI1->pProtocol, pSrvURI2->pProtocol) && !strcmp(pSrvURI1->pHost, pSrvURI2->pHost) &&
+        !strcmp(pSrvURI1->pPath, pSrvURI2->pPath) && pSrvURI1->Port == pSrvURI2->Port) {
+        return IOC_RESULT_YES;
+    } else {
+        return IOC_RESULT_NO;
+    }
+}
+
 #define IOC_SRV_PROTO_AUTO "auto"  // transport protocol is auto selected by IOC
 #define IOC_SRV_PROTO_FIFO "fifo"  // intraprocess/interthread FIFO queue communication protocol
 // TODO: #define IOC_SRV_PROTO_TCP "tcp"
