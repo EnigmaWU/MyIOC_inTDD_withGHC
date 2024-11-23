@@ -676,10 +676,13 @@ TEST(UT_ServiceTypical, verifyMultiServiceMultiClient_byPostEvtAtSrvSide_bySubDi
         EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
     });
 
-    ConnArgs.SrvURI = CSURI2;
+    IOC_ConnArgs_T ConnArgs2 = {
+        .Usage = IOC_LinkUsageEvtConsumer,
+        .SrvURI = CSURI2,
+    };
 
     std::thread EvtConsumerCThread2([&] {
-        IOC_Result_T Result = IOC_connectService(&LinkID_ConsumerC_toSrvID2, &ConnArgs, NULL);
+        IOC_Result_T Result = IOC_connectService(&LinkID_ConsumerC_toSrvID2, &ConnArgs2, NULL);
         EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
         Result = IOC_subEVT(LinkID_ConsumerC_toSrvID2, &SubEvtArgs4ConsumerC);

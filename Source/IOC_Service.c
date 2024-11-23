@@ -1,7 +1,7 @@
 #include "_IOC.h"
 
 //=================================================================================================
-#define _MAX_IOC_SRV_OBJ_NUM 1
+#define _MAX_IOC_SRV_OBJ_NUM 2
 static _IOC_ServiceObject_pT _mIOC_SrvObjTbl[_MAX_IOC_SRV_OBJ_NUM] = {};
 static pthread_mutex_t _mIOC_SrvObjTblMutex = PTHREAD_MUTEX_INITIALIZER;
 static inline void ___IOC_lockSrvObjTbl(void) { pthread_mutex_lock(&_mIOC_SrvObjTblMutex); }
@@ -95,7 +95,7 @@ static _IOC_ServiceObject_pT __IOC_getSrvObjBySrvID(IOC_SrvID_T SrvID) {
 // TODO: __IOC_putSrvObj
 
 //=================================================================================================
-#define _MAX_IOC_LINK_OBJ_NUM 4
+#define _MAX_IOC_LINK_OBJ_NUM 8
 static _IOC_LinkObject_pT _mIOC_LinkObjTbl[_MAX_IOC_LINK_OBJ_NUM] = {};
 static pthread_mutex_t _mIOC_LinkObjTblMutex = PTHREAD_MUTEX_INITIALIZER;
 static inline void ___IOC_lockLinkObjTbl(void) { pthread_mutex_lock(&_mIOC_LinkObjTblMutex); }

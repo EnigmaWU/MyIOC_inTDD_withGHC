@@ -1,3 +1,28 @@
+/**
+ * @file _IOC_SrvProtoFifo.c
+ * @brief This is IOC's Service Protocol FIFO internal Design&Define&Implement file.
+ *
+ * @FIFO: First In First Out, a.k.a Queue, a.k.a Link2Link Queue.
+ *      @WEHN: Service onlined with IOC_SRV_PROTO_FIFO, @AND: Client connect to this service,
+ *      @THEN: a FIFO is established by a pair of LinkID,
+ *              one in server side(a.k.a LinkID_atSrv), one in client side(a.k.a LinkID_atCli).
+ *      @SO IF: LinkID_atSrv is EvtProducer, LinkID_atCli is EvtConsumer,
+ *          @THEN-A: EvtConsumer will subscribe events on LinkID_atCli,
+ *          @THEN-B: EvtProducer will post events to LinkID_atSrv, which will go through the FIFO to LinkID_atCli.
+ *          @THEN-C: EvtConsumer will process the events in CbProcEvt_F.
+ *      @SO IF: LinkID_atSrv is EvtConsumer, LinkID_atCli is EvtProducer,
+ *          ......(TODO)
+ *      @SO IF: LinkID_atSrv is CmdExecutor, LinkID_atCli is CmdInitiator,
+ *          ......(TODO)
+ *      @SO IF: LinkID_atSrv is CmdInitiator, LinkID_atCli is CmdExecutor,
+ *          ......(TODO)
+ *      @SO IF: LinkID_atSrv is DatReceiver, LinkID_atCli is DatSender,
+ *          ......(TODO)
+ *      @SO IF: LinkID_atSrv is DatSender, LinkID_atCli is DatReceiver,
+ *          ......(TODO)
+ *
+ */
+
 #include "_IOC.h"
 
 typedef struct {
@@ -30,7 +55,7 @@ static IOC_Result_T __IOC_closeLink_ofProtoFifo(_IOC_LinkObject_pT pLinkObj) {
     return IOC_RESULT_SUCCESS;  // NOTHING DONE, JUST RETURN SUCCESS
 }
 
-#define _MAX_SUB_EVT_NUM 2
+#define _MAX_SUB_EVT_NUM 4
 static IOC_SubEvtArgs_T _mIOC_SubEvtArgs[_MAX_SUB_EVT_NUM] = {};
 
 static IOC_Result_T __IOC_subEvt_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, const IOC_SubEvtArgs_pT pSubEvtArgs) {
