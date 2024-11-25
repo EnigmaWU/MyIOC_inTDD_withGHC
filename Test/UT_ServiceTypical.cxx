@@ -111,7 +111,6 @@
 //======BEGIN OF UNIT TESTING IMPLEMENTATION=======================================================
 #include "_UT_IOC_Common.h"
 
-//===TEMPLATE OF UT CASE===
 /**
  * @[Name]: <US1-AC1-TC1>verifySingleServiceSingleClient_byPostEvtAtSrvSide
  * @[Steps]:
@@ -166,7 +165,7 @@ TEST(UT_ServiceTypical, verifySingleServiceSingleClient_byPostEvtAtSrvSide) {
     IOC_SrvURI_T CSURI = {
         .pProtocol = IOC_SRV_PROTO_FIFO,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = (const char*)"EvtProducer",
+        .pPath = (const char*)"verifySingleServiceSingleClient",
     };
 
     // Step-1
@@ -176,7 +175,7 @@ TEST(UT_ServiceTypical, verifySingleServiceSingleClient_byPostEvtAtSrvSide) {
     };
 
     Result = IOC_onlineService(&EvtProducerSrvID, &SrvArgs);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
 
     // Step-2:
     __US1AC1TC1_EvtConsumerPrivData_T EvtConsumerPrivData = {
@@ -198,16 +197,15 @@ TEST(UT_ServiceTypical, verifySingleServiceSingleClient_byPostEvtAtSrvSide) {
 
     std::thread EvtConsumerThread([&] {
         IOC_Result_T Result = IOC_connectService(&EvtConsumerLinkID, &ConnArgs, NULL);
-        EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
 
         Result = IOC_subEVT(EvtConsumerLinkID, &SubEvtArgs);
-        EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
     });
 
     // Step-3
-
     Result = IOC_acceptClient(EvtProducerSrvID, &EvtProducerLinkID, NULL);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
 
     EvtConsumerThread.join();
 
@@ -216,7 +214,7 @@ TEST(UT_ServiceTypical, verifySingleServiceSingleClient_byPostEvtAtSrvSide) {
         .EvtID = IOC_EVT_NAME_TEST_KEEPALIVE,
     };
     Result = IOC_postEVT(EvtProducerLinkID, &EvtDesc, NULL);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
 
     IOC_forceProcEVT();
 
@@ -226,23 +224,23 @@ TEST(UT_ServiceTypical, verifySingleServiceSingleClient_byPostEvtAtSrvSide) {
         .pCbPrivData = &EvtConsumerPrivData,
     };
     Result = IOC_unsubEVT(EvtConsumerLinkID, &UnsubEvtArgs);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);              // KeyVerifyPoint
-    EXPECT_EQ(1, EvtConsumerPrivData.KeepAliveEvtCnt);  // KeyVerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);              // KeyVerifyPoint
+    ASSERT_EQ(1, EvtConsumerPrivData.KeepAliveEvtCnt);  // KeyVerifyPoint
 
     // Step-6
     Result = IOC_postEVT(EvtProducerLinkID, &EvtDesc, NULL);
-    EXPECT_EQ(IOC_RESULT_NO_EVENT_CONSUMER, Result);  // KeyVerifyPoint
+    ASSERT_EQ(IOC_RESULT_NO_EVENT_CONSUMER, Result);  // KeyVerifyPoint
 
     // Step-7
     Result = IOC_closeLink(EvtProducerLinkID);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
 
     Result = IOC_closeLink(EvtConsumerLinkID);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
 
     // Step-8
     Result = IOC_offlineService(EvtProducerSrvID);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
 }
 
 /**
@@ -318,7 +316,7 @@ TEST(UT_ServiceTypical, verifySingleServiceMultiClients_byPostEvtAtSrvSide_bySub
     IOC_SrvURI_T CSURI = {
         .pProtocol = IOC_SRV_PROTO_FIFO,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = (const char*)"EvtProducer",
+        .pPath = (const char*)"verifySingleServiceMultiClients",
     };
 
     // Step-1
@@ -328,7 +326,7 @@ TEST(UT_ServiceTypical, verifySingleServiceMultiClients_byPostEvtAtSrvSide_bySub
     };
 
     Result = IOC_onlineService(&EvtProducerSrvID, &SrvArgs);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
     // Step-2:
     __US1AC2TC2_EvtConsumerPrivData_T ConsumerAPrivData = {
@@ -353,10 +351,10 @@ TEST(UT_ServiceTypical, verifySingleServiceMultiClients_byPostEvtAtSrvSide_bySub
 
     std::thread EvtConsumerAThread([&] {
         IOC_Result_T Result = IOC_connectService(&EvtProducerLinkID4Consumer1, &ConnArgs, NULL);
-        EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
         Result = IOC_subEVT(EvtProducerLinkID4Consumer1, &SubEvtArgs4ConsumerA);
-        EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
     });
 
     // Step-3:
@@ -377,18 +375,18 @@ TEST(UT_ServiceTypical, verifySingleServiceMultiClients_byPostEvtAtSrvSide_bySub
 
     std::thread EvtConsumerBThread([&] {
         IOC_Result_T Result = IOC_connectService(&EvtProducerLinkID4Consumer2, &ConnArgs, NULL);
-        EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
         Result = IOC_subEVT(EvtProducerLinkID4Consumer2, &SubEvtArgs4ConsumerB);
-        EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
     });
 
     // Step-4
     Result = IOC_acceptClient(EvtProducerSrvID, &EvtProducerLinkID4Consumer1, NULL);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
     Result = IOC_acceptClient(EvtProducerSrvID, &EvtProducerLinkID4Consumer2, NULL);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
     EvtConsumerAThread.join();
     EvtConsumerBThread.join();
@@ -398,48 +396,48 @@ TEST(UT_ServiceTypical, verifySingleServiceMultiClients_byPostEvtAtSrvSide_bySub
         .EvtID = IOC_EVTID_TEST_MOVE_STARTED,
     };
     Result = IOC_postEVT(EvtProducerLinkID4Consumer1, &EvtDesc, NULL);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
 #define _N_MOVE_KEEPING 3
     EvtDesc.EvtID = IOC_EVTID_TEST_MOVE_KEEPING;
     for (int i = 0; i < _N_MOVE_KEEPING; i++) {
         Result = IOC_postEVT(EvtProducerLinkID4Consumer1, &EvtDesc, NULL);
-        EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
     }
 
     EvtDesc.EvtID = IOC_EVTID_TEST_MOVE_STOPPED;
     Result = IOC_postEVT(EvtProducerLinkID4Consumer1, &EvtDesc, NULL);
 
     IOC_forceProcEVT();
-    EXPECT_EQ(1, ConsumerAPrivData.StartedEvtCnt);                // KeyVerifyPoint
-    EXPECT_EQ(_N_MOVE_KEEPING, ConsumerAPrivData.KeepingEvtCnt);  // KeyVerifyPoint
-    EXPECT_EQ(1, ConsumerAPrivData.StoppedEvtCnt);                // KeyVerifyPoint
-    EXPECT_EQ(0, ConsumerBPrivData.StartedEvtCnt);                // KeyVerifyPoint
-    EXPECT_EQ(0, ConsumerBPrivData.KeepingEvtCnt);                // KeyVerifyPoint
-    EXPECT_EQ(0, ConsumerBPrivData.StoppedEvtCnt);                // KeyVerifyPoint
+    ASSERT_EQ(1, ConsumerAPrivData.StartedEvtCnt);                // KeyVerifyPoint
+    ASSERT_EQ(_N_MOVE_KEEPING, ConsumerAPrivData.KeepingEvtCnt);  // KeyVerifyPoint
+    ASSERT_EQ(1, ConsumerAPrivData.StoppedEvtCnt);                // KeyVerifyPoint
+    ASSERT_EQ(0, ConsumerBPrivData.StartedEvtCnt);                // KeyVerifyPoint
+    ASSERT_EQ(0, ConsumerBPrivData.KeepingEvtCnt);                // KeyVerifyPoint
+    ASSERT_EQ(0, ConsumerBPrivData.StoppedEvtCnt);                // KeyVerifyPoint
 
     // Step-6
     EvtDesc.EvtID = IOC_EVTID_TEST_PULL_STARTED;
     Result = IOC_postEVT(EvtProducerLinkID4Consumer2, &EvtDesc, NULL);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
 
 #define _M_PULL_KEEPING 5
     EvtDesc.EvtID = IOC_EVTID_TEST_PULL_KEEPING;
     for (int i = 0; i < _M_PULL_KEEPING; i++) {
         Result = IOC_postEVT(EvtProducerLinkID4Consumer2, &EvtDesc, NULL);
-        EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
     }
 
     EvtDesc.EvtID = IOC_EVTID_TEST_PULL_STOPPED;
     Result = IOC_postEVT(EvtProducerLinkID4Consumer2, &EvtDesc, NULL);
 
     IOC_forceProcEVT();
-    EXPECT_EQ(1, ConsumerAPrivData.StartedEvtCnt);                // KeyVerifyPoint
-    EXPECT_EQ(_N_MOVE_KEEPING, ConsumerAPrivData.KeepingEvtCnt);  // KeyVerifyPoint
-    EXPECT_EQ(1, ConsumerAPrivData.StoppedEvtCnt);                // KeyVerifyPoint
-    EXPECT_EQ(1, ConsumerBPrivData.StartedEvtCnt);                // KeyVerifyPoint
-    EXPECT_EQ(_M_PULL_KEEPING, ConsumerBPrivData.KeepingEvtCnt);  // KeyVerifyPoint
-    EXPECT_EQ(1, ConsumerBPrivData.StoppedEvtCnt);                // KeyVerifyPoint
+    ASSERT_EQ(1, ConsumerAPrivData.StartedEvtCnt);                // KeyVerifyPoint
+    ASSERT_EQ(_N_MOVE_KEEPING, ConsumerAPrivData.KeepingEvtCnt);  // KeyVerifyPoint
+    ASSERT_EQ(1, ConsumerAPrivData.StoppedEvtCnt);                // KeyVerifyPoint
+    ASSERT_EQ(1, ConsumerBPrivData.StartedEvtCnt);                // KeyVerifyPoint
+    ASSERT_EQ(_M_PULL_KEEPING, ConsumerBPrivData.KeepingEvtCnt);  // KeyVerifyPoint
+    ASSERT_EQ(1, ConsumerBPrivData.StoppedEvtCnt);                // KeyVerifyPoint
 
     // Step-7
     IOC_UnsubEvtArgs_T UnsubEvtArgs = {
@@ -447,27 +445,27 @@ TEST(UT_ServiceTypical, verifySingleServiceMultiClients_byPostEvtAtSrvSide_bySub
         .pCbPrivData = &ConsumerAPrivData,
     };
     Result = IOC_unsubEVT(EvtProducerLinkID4Consumer1, &UnsubEvtArgs);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
     UnsubEvtArgs.pCbPrivData = &ConsumerBPrivData;
     Result = IOC_unsubEVT(EvtProducerLinkID4Consumer2, &UnsubEvtArgs);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
     // Step-8
     EvtDesc.EvtID = IOC_EVTID_TEST_KEEPALIVE;
     Result = IOC_postEVT(EvtProducerLinkID4Consumer1, &EvtDesc, NULL);
-    EXPECT_EQ(IOC_RESULT_NO_EVENT_CONSUMER, Result);  // VerifyPoint
+    ASSERT_EQ(IOC_RESULT_NO_EVENT_CONSUMER, Result);  // VerifyPoint
 
     // Step-9
     Result = IOC_closeLink(EvtProducerLinkID4Consumer1);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
     Result = IOC_closeLink(EvtProducerLinkID4Consumer2);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
     // Step-10
     Result = IOC_offlineService(EvtProducerSrvID);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 }
 
 /**
@@ -567,13 +565,13 @@ TEST(UT_ServiceTypical, verifyMultiServiceMultiClient_byPostEvtAtSrvSide_bySubDi
     IOC_SrvURI_T CSURI1 = {
         .pProtocol = IOC_SRV_PROTO_FIFO,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = (const char*)"EvtProducer1",
+        .pPath = (const char*)"verifyMultiServiceMultiClient1",
     };
 
     IOC_SrvURI_T CSURI2 = {
         .pProtocol = IOC_SRV_PROTO_FIFO,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = (const char*)"EvtProducer2",
+        .pPath = (const char*)"verifyMultiServiceMultiClient2",
     };
 
     // Step-1
@@ -583,7 +581,7 @@ TEST(UT_ServiceTypical, verifyMultiServiceMultiClient_byPostEvtAtSrvSide_bySubDi
     };
 
     Result = IOC_onlineService(&SrvID_Producer1, &SrvArgs1);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
     // Step-2
     IOC_SrvArgs_T SrvArgs2 = {
@@ -592,7 +590,7 @@ TEST(UT_ServiceTypical, verifyMultiServiceMultiClient_byPostEvtAtSrvSide_bySubDi
     };
 
     Result = IOC_onlineService(&SrvID_Producer2, &SrvArgs2);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
     // Step-3:
     __US1AC3TC3_EvtConsumerPrivData_T PrivDataConsumerA = {
@@ -617,10 +615,10 @@ TEST(UT_ServiceTypical, verifyMultiServiceMultiClient_byPostEvtAtSrvSide_bySubDi
     ConnArgs.SrvURI = CSURI1;
     std::thread EvtConsumerAThread([&] {
         IOC_Result_T Result = IOC_connectService(&LinkID_ConsumerA_toSrvID1, &ConnArgs, NULL);
-        EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
         Result = IOC_subEVT(LinkID_ConsumerA_toSrvID1, &SubEvtArgs4ConsumerA);
-        EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
     });
 
     // Step-4:
@@ -643,10 +641,10 @@ TEST(UT_ServiceTypical, verifyMultiServiceMultiClient_byPostEvtAtSrvSide_bySubDi
 
     std::thread EvtConsumerBThread([&] {
         IOC_Result_T Result = IOC_connectService(&LinkID_ConsumerB_toSrvID2, &ConnArgs, NULL);
-        EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
         Result = IOC_subEVT(LinkID_ConsumerB_toSrvID2, &SubEvtArgs4ConsumerB);
-        EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
     });
 
     // Step-5:
@@ -670,23 +668,23 @@ TEST(UT_ServiceTypical, verifyMultiServiceMultiClient_byPostEvtAtSrvSide_bySubDi
 
     std::thread EvtConsumerCThread([&] {
         IOC_Result_T Result = IOC_connectService(&LinkID_ConsumerC_toSrvID1, &ConnArgs, NULL);
-        EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
         Result = IOC_subEVT(LinkID_ConsumerC_toSrvID1, &SubEvtArgs4ConsumerC);
-        EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
     });
 
     IOC_ConnArgs_T ConnArgs2 = {
         .Usage = IOC_LinkUsageEvtConsumer,
-        .SrvURI = CSURI2,
     };
+    ConnArgs2.SrvURI = CSURI2;
 
     std::thread EvtConsumerCThread2([&] {
         IOC_Result_T Result = IOC_connectService(&LinkID_ConsumerC_toSrvID2, &ConnArgs2, NULL);
-        EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
         Result = IOC_subEVT(LinkID_ConsumerC_toSrvID2, &SubEvtArgs4ConsumerC);
-        EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
     });
 
     // Step-6
@@ -696,16 +694,16 @@ TEST(UT_ServiceTypical, verifyMultiServiceMultiClient_byPostEvtAtSrvSide_bySubDi
     IOC_LinkID_T LinkID_Producer2_fromConsumerC = IOC_ID_INVALID;
 
     Result = IOC_acceptClient(SrvID_Producer1, &LinkID_Producer1_fromConsumerA, NULL);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
     Result = IOC_acceptClient(SrvID_Producer1, &LinkID_Producer1_fromConsumerC, NULL);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
     Result = IOC_acceptClient(SrvID_Producer2, &LinkID_Producer2_fromConsumerB, NULL);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
     Result = IOC_acceptClient(SrvID_Producer2, &LinkID_Producer2_fromConsumerC, NULL);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
     EvtConsumerAThread.join();
     EvtConsumerBThread.join();
@@ -717,80 +715,80 @@ TEST(UT_ServiceTypical, verifyMultiServiceMultiClient_byPostEvtAtSrvSide_bySubDi
         .EvtID = IOC_EVTID_TEST_MOVE_STARTED,
     };
     Result = IOC_postEVT(LinkID_Producer1_fromConsumerA, &EvtDesc, NULL);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
 #define _N_MOVE_KEEPING 3
     EvtDesc.EvtID = IOC_EVTID_TEST_MOVE_KEEPING;
     for (int i = 0; i < _N_MOVE_KEEPING; i++) {
         Result = IOC_postEVT(LinkID_Producer1_fromConsumerA, &EvtDesc, NULL);
-        EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
     }
 
     EvtDesc.EvtID = IOC_EVTID_TEST_MOVE_STOPPED;
     Result = IOC_postEVT(LinkID_Producer1_fromConsumerA, &EvtDesc, NULL);
 
     IOC_forceProcEVT();
-    EXPECT_EQ(1, PrivDataConsumerA.StartedEvtCnt);                // KeyVerifyPoint
-    EXPECT_EQ(_N_MOVE_KEEPING, PrivDataConsumerA.KeepingEvtCnt);  // KeyVerifyPoint
-    EXPECT_EQ(1, PrivDataConsumerA.StoppedEvtCnt);                // KeyVerifyPoint
-    EXPECT_EQ(0, PrivDataConsumerB.StartedEvtCnt);                // KeyVerifyPoint
-    EXPECT_EQ(0, PrivDataConsumerB.KeepingEvtCnt);                // KeyVerifyPoint
-    EXPECT_EQ(0, PrivDataConsumerB.StoppedEvtCnt);                // KeyVerifyPoint
-    EXPECT_EQ(1, PrivDataConsumerC.StartedEvtCnt);                // KeyVerifyPoint
-    EXPECT_EQ(_N_MOVE_KEEPING, PrivDataConsumerC.KeepingEvtCnt);  // KeyVerifyPoint
-    EXPECT_EQ(1, PrivDataConsumerC.StoppedEvtCnt);                // KeyVerifyPoint
+    ASSERT_EQ(1, PrivDataConsumerA.StartedEvtCnt);                // KeyVerifyPoint
+    ASSERT_EQ(_N_MOVE_KEEPING, PrivDataConsumerA.KeepingEvtCnt);  // KeyVerifyPoint
+    ASSERT_EQ(1, PrivDataConsumerA.StoppedEvtCnt);                // KeyVerifyPoint
+    ASSERT_EQ(0, PrivDataConsumerB.StartedEvtCnt);                // KeyVerifyPoint
+    ASSERT_EQ(0, PrivDataConsumerB.KeepingEvtCnt);                // KeyVerifyPoint
+    ASSERT_EQ(0, PrivDataConsumerB.StoppedEvtCnt);                // KeyVerifyPoint
+    ASSERT_EQ(1, PrivDataConsumerC.StartedEvtCnt);                // KeyVerifyPoint
+    ASSERT_EQ(_N_MOVE_KEEPING, PrivDataConsumerC.KeepingEvtCnt);  // KeyVerifyPoint
+    ASSERT_EQ(1, PrivDataConsumerC.StoppedEvtCnt);                // KeyVerifyPoint
 
     // Step-8
     EvtDesc.EvtID = IOC_EVTID_TEST_PULL_STARTED;
     Result = IOC_postEVT(LinkID_Producer2_fromConsumerB, &EvtDesc, NULL);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
 
 #define _M_PULL_KEEPING 5
     EvtDesc.EvtID = IOC_EVTID_TEST_PULL_KEEPING;
     for (int i = 0; i < _M_PULL_KEEPING; i++) {
         Result = IOC_postEVT(LinkID_Producer2_fromConsumerB, &EvtDesc, NULL);
-        EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
     }
 
     EvtDesc.EvtID = IOC_EVTID_TEST_PULL_STOPPED;
     Result = IOC_postEVT(LinkID_Producer2_fromConsumerB, &EvtDesc, NULL);
 
     IOC_forceProcEVT();
-    EXPECT_EQ(1, PrivDataConsumerA.StartedEvtCnt);                                  // KeyVerifyPoint
-    EXPECT_EQ(_N_MOVE_KEEPING, PrivDataConsumerA.KeepingEvtCnt);                    // KeyVerifyPoint
-    EXPECT_EQ(1, PrivDataConsumerA.StoppedEvtCnt);                                  // KeyVerifyPoint
-    EXPECT_EQ(1, PrivDataConsumerB.StartedEvtCnt);                                  // KeyVerifyPoint
-    EXPECT_EQ(_M_PULL_KEEPING, PrivDataConsumerB.KeepingEvtCnt);                    // KeyVerifyPoint
-    EXPECT_EQ(1, PrivDataConsumerB.StoppedEvtCnt);                                  // KeyVerifyPoint
-    EXPECT_EQ(1 + 1, PrivDataConsumerC.StartedEvtCnt);                              // KeyVerifyPoint
-    EXPECT_EQ(_N_MOVE_KEEPING + _M_PULL_KEEPING, PrivDataConsumerC.KeepingEvtCnt);  // KeyVerifyPoint
-    EXPECT_EQ(1 + 1, PrivDataConsumerC.StoppedEvtCnt);                              // KeyVerifyPoint
+    ASSERT_EQ(1, PrivDataConsumerA.StartedEvtCnt);                                  // KeyVerifyPoint
+    ASSERT_EQ(_N_MOVE_KEEPING, PrivDataConsumerA.KeepingEvtCnt);                    // KeyVerifyPoint
+    ASSERT_EQ(1, PrivDataConsumerA.StoppedEvtCnt);                                  // KeyVerifyPoint
+    ASSERT_EQ(1, PrivDataConsumerB.StartedEvtCnt);                                  // KeyVerifyPoint
+    ASSERT_EQ(_M_PULL_KEEPING, PrivDataConsumerB.KeepingEvtCnt);                    // KeyVerifyPoint
+    ASSERT_EQ(1, PrivDataConsumerB.StoppedEvtCnt);                                  // KeyVerifyPoint
+    ASSERT_EQ(1 + 1, PrivDataConsumerC.StartedEvtCnt);                              // KeyVerifyPoint
+    ASSERT_EQ(_N_MOVE_KEEPING + _M_PULL_KEEPING, PrivDataConsumerC.KeepingEvtCnt);  // KeyVerifyPoint
+    ASSERT_EQ(1 + 1, PrivDataConsumerC.StoppedEvtCnt);                              // KeyVerifyPoint
 
     // Step-9
     EvtDesc.EvtID = IOC_EVTID_TEST_PUSH_STARTED;
     Result = IOC_postEVT(LinkID_Producer1_fromConsumerC, &EvtDesc, NULL);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
 
 #define _P_PUSH_KEEPING 7
     EvtDesc.EvtID = IOC_EVTID_TEST_PUSH_KEEPING;
     for (int i = 0; i < _P_PUSH_KEEPING; i++) {
         Result = IOC_postEVT(LinkID_Producer1_fromConsumerC, &EvtDesc, NULL);
-        EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
     }
 
     EvtDesc.EvtID = IOC_EVTID_TEST_PUSH_STOPPED;
     Result = IOC_postEVT(LinkID_Producer1_fromConsumerC, &EvtDesc, NULL);
 
     IOC_forceProcEVT();
-    EXPECT_EQ(1, PrivDataConsumerA.StartedEvtCnt);                                  // KeyVerifyPoint
-    EXPECT_EQ(_N_MOVE_KEEPING, PrivDataConsumerA.KeepingEvtCnt);                    // KeyVerifyPoint
-    EXPECT_EQ(1, PrivDataConsumerA.StoppedEvtCnt);                                  // KeyVerifyPoint
-    EXPECT_EQ(1, PrivDataConsumerB.StartedEvtCnt);                                  // KeyVerifyPoint
-    EXPECT_EQ(_M_PULL_KEEPING, PrivDataConsumerB.KeepingEvtCnt);                    // KeyVerifyPoint
-    EXPECT_EQ(1, PrivDataConsumerB.StoppedEvtCnt);                                  // KeyVerifyPoint
-    EXPECT_EQ(1 + 1, PrivDataConsumerC.StartedEvtCnt);                              // KeyVerifyPoint
-    EXPECT_EQ(_N_MOVE_KEEPING + _M_PULL_KEEPING, PrivDataConsumerC.KeepingEvtCnt);  // KeyVerifyPoint
-    EXPECT_EQ(1 + 1, PrivDataConsumerC.StoppedEvtCnt);                              // KeyVerifyPoint
+    ASSERT_EQ(1, PrivDataConsumerA.StartedEvtCnt);                                  // KeyVerifyPoint
+    ASSERT_EQ(_N_MOVE_KEEPING, PrivDataConsumerA.KeepingEvtCnt);                    // KeyVerifyPoint
+    ASSERT_EQ(1, PrivDataConsumerA.StoppedEvtCnt);                                  // KeyVerifyPoint
+    ASSERT_EQ(1, PrivDataConsumerB.StartedEvtCnt);                                  // KeyVerifyPoint
+    ASSERT_EQ(_M_PULL_KEEPING, PrivDataConsumerB.KeepingEvtCnt);                    // KeyVerifyPoint
+    ASSERT_EQ(1, PrivDataConsumerB.StoppedEvtCnt);                                  // KeyVerifyPoint
+    ASSERT_EQ(1 + 1, PrivDataConsumerC.StartedEvtCnt);                              // KeyVerifyPoint
+    ASSERT_EQ(_N_MOVE_KEEPING + _M_PULL_KEEPING, PrivDataConsumerC.KeepingEvtCnt);  // KeyVerifyPoint
+    ASSERT_EQ(1 + 1, PrivDataConsumerC.StoppedEvtCnt);                              // KeyVerifyPoint
 
     // Step-10
     IOC_UnsubEvtArgs_T UnsubEvtArgs = {
@@ -798,41 +796,41 @@ TEST(UT_ServiceTypical, verifyMultiServiceMultiClient_byPostEvtAtSrvSide_bySubDi
         .pCbPrivData = &PrivDataConsumerA,
     };
     Result = IOC_unsubEVT(LinkID_Producer1_fromConsumerA, &UnsubEvtArgs);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
     UnsubEvtArgs.pCbPrivData = &PrivDataConsumerB;
     Result = IOC_unsubEVT(LinkID_Producer2_fromConsumerB, &UnsubEvtArgs);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
     UnsubEvtArgs.pCbPrivData = &PrivDataConsumerC;
     Result = IOC_unsubEVT(LinkID_Producer1_fromConsumerC, &UnsubEvtArgs);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
     Result = IOC_unsubEVT(LinkID_Producer2_fromConsumerC, &UnsubEvtArgs);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
     // Step-11
     EvtDesc.EvtID = IOC_EVTID_TEST_KEEPALIVE;
     Result = IOC_postEVT(LinkID_Producer1_fromConsumerA, &EvtDesc, NULL);
-    EXPECT_EQ(IOC_RESULT_NO_EVENT_CONSUMER, Result);  // VerifyPoint
+    ASSERT_EQ(IOC_RESULT_NO_EVENT_CONSUMER, Result);  // VerifyPoint
 
     // Step-12
     Result = IOC_closeLink(LinkID_Producer1_fromConsumerA);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
     Result = IOC_closeLink(LinkID_Producer1_fromConsumerC);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
     Result = IOC_closeLink(LinkID_Producer2_fromConsumerB);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
     Result = IOC_closeLink(LinkID_Producer2_fromConsumerC);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
     // Step-13
     Result = IOC_offlineService(SrvID_Producer1);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
     Result = IOC_offlineService(SrvID_Producer2);
-    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 }

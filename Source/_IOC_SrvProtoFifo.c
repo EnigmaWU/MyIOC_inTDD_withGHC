@@ -32,7 +32,7 @@ typedef struct _IOC_ProtoFifoLinkObjectStru _IOC_ProtoFifoLinkObject_T;
 typedef _IOC_ProtoFifoLinkObject_T *_IOC_ProtoFifoLinkObject_pT;
 
 /**
- * @brief FIFO Link Object, used to transmit messages in FIFO order.
+ * @brief ProtoFIFO's Link Object, used to transmit messages in FIFO order.
  *  LinkObject's pProtoPriv points to this object.
  *
  * @details
@@ -54,6 +54,19 @@ struct _IOC_ProtoFifoLinkObjectStru {
     };
 };
 
+/**
+ * @brief ProtoFIFO's Service Object, used to establish a pair of FifoLinkObject.
+ *  ServiceObject's pProtoPriv points to this object.
+ *
+ * @details
+ *    ProtoFifoSrvObj: created when onlineService, destroyed when offlineService.
+ *    @SRVSIDE: wait new connection in acceptClient, by WaitNewConn[Mutex|Cond]，
+ *      and the new incoming peer LinkObject is saved in pConnLinkObj.
+ *    @CLISIDE: lock the connection in connectService, by ConnMutex,
+ *      and the incoming LinkObject is saved in pConnLinkObj.
+ *      then wakeup service to accept connection by WaitNewConn[Mutex|Cond],
+ *      and wait for the connection to be accepted by WaitAccept[Mutex|Cond].
+ */
 typedef struct {
     _IOC_ServiceObject_pT pSrvObj;
 
@@ -61,8 +74,11 @@ typedef struct {
     pthread_mutex_t ConnMutex;
     _IOC_LinkObject_pT pConnLinkObj;  // SET by connectService, USED by acceptClient
 
-    pthread_mutex_t WaitAcceptMutex;
-    pthread_cond_t WaitAcceptCond;
+    pthread_mutex_t WaitAccptedMutex;
+    pthread_cond_t WaitAccptedCond;
+
+    pthread_mutex_t WaitNewConnMutex;
+    pthread_cond_t WaitNewConnCond;
 
 } _IOC_ProtoFifoServiceObject_T, *_IOC_ProtoFifoServiceObject_pT;
 
@@ -84,11 +100,51 @@ static _IOC_ProtoFifoServiceObject_pT __IOC_getSrvProtoObjBySrvURI(const IOC_Srv
 }
 
 static IOC_Result_T __IOC_onlineService_ofProtoFifo(_IOC_ServiceObject_pT pSrvObj) {
+    // Step-1: Check Parameters
+    //...
+
+    // Step-2: Create a ProtoFifoServiceObject
+    _IOC_ProtoFifoServiceObject_pT pFifoSrvObj = calloc(1, sizeof(_IOC_ProtoFifoServiceObject_T));
+    if (NULL == pFifoSrvObj) {
+        _IOC_LogBug("Failed to alloc a new ProtoFifoServiceObject when online service");
+        _IOC_LogNotTested();
+        return IOC_RESULT_POSIX_ENOMEM;
+    } else {
+        pSrvObj->pProtoPriv = pFifoSrvObj;
+        pFifoSrvObj->pSrvObj = pSrvObj;
+    }
+
+    // Step-3: Save the ProtoFifoServiceObject
+    pthread_mutex_lock(&_mIOC_OnlinedSrvProtoFifoObjsMutex);
+    for (int i = 0; i < _MAX_PROTO_FIFO_SERVICES; i++) {
+        if (NULL == _mIOC_OnlinedSrvProtoFifoObjs[i]) {
+            _mIOC_OnlinedSrvProtoFifoObjs[i] = pFifoSrvObj;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&_mIOC_OnlinedSrvProtoFifoObjsMutex);
+
     //_IOC_LogNotTested();
     return IOC_RESULT_SUCCESS;  // NOTHING DONE, JUST RETURN SUCCESS
 }
 
 static IOC_Result_T __IOC_offlineService_ofProtoFifo(_IOC_ServiceObject_pT pSrvObj) {
+    // Step-1: Check Parameters
+    //...
+
+    // Step-2: Get the ProtoFifoServiceObject
+    _IOC_ProtoFifoServiceObject_pT pFifoSrvObj = (_IOC_ProtoFifoServiceObject_pT)pSrvObj->pProtoPriv;
+
+    // Step-3: Clear the ProtoFifoServiceObject
+    pthread_mutex_lock(&_mIOC_OnlinedSrvProtoFifoObjsMutex);
+    for (int i = 0; i < _MAX_PROTO_FIFO_SERVICES; i++) {
+        if (pFifoSrvObj == _mIOC_OnlinedSrvProtoFifoObjs[i]) {
+            _mIOC_OnlinedSrvProtoFifoObjs[i] = NULL;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&_mIOC_OnlinedSrvProtoFifoObjsMutex);
+
     //_IOC_LogNotTested();
     return IOC_RESULT_SUCCESS;  // NOTHING DONE, JUST RETURN SUCCESS
 }
@@ -115,20 +171,21 @@ static IOC_Result_T __IOC_connectService_ofProtoFifo(_IOC_LinkObject_pT pLinkObj
         return IOC_RESULT_POSIX_ENOMEM;
     }
 
-    pthread_mutex_init(&pFifoLinkObj->Mutex, NULL);
     pLinkObj->pProtoPriv = pFifoLinkObj;
 
-    // Step-4: Set the connection link object
+    // Step-4: Lock the connection accepting process
     pthread_mutex_lock(&pFifoSrvObj->ConnMutex);
-    pFifoSrvObj->pConnLinkObj = pLinkObj;
 
-    // Step-5: Wait for the acceptClient
-    pthread_mutex_lock(&pFifoSrvObj->WaitAcceptMutex);
-    pthread_cond_wait(&pFifoSrvObj->WaitAcceptCond, &pFifoSrvObj->WaitAcceptMutex);
-    pthread_mutex_unlock(&pFifoSrvObj->WaitAcceptMutex);
+    // Step-5: Wakeup&Wait for the acceptClient
+    pthread_mutex_lock(&pFifoSrvObj->WaitAccptedMutex);
+    pFifoSrvObj->pConnLinkObj = pLinkObj;                // new incoming connection link object
+    pthread_cond_signal(&pFifoSrvObj->WaitNewConnCond);  // wakeup the acceptClient if it is waiting
+
+    pthread_cond_wait(&pFifoSrvObj->WaitAccptedCond, &pFifoSrvObj->WaitAccptedMutex);  // wait for the acceptClient
+    pFifoSrvObj->pConnLinkObj = NULL;
+    pthread_mutex_unlock(&pFifoSrvObj->WaitAccptedMutex);
 
     // Step-6: Release the connection link object
-    pFifoSrvObj->pConnLinkObj = NULL;
     pthread_mutex_unlock(&pFifoSrvObj->ConnMutex);
 
     //_IOC_LogNotTested();
@@ -137,6 +194,44 @@ static IOC_Result_T __IOC_connectService_ofProtoFifo(_IOC_LinkObject_pT pLinkObj
 
 static IOC_Result_T __IOC_acceptClient_ofProtoFifo(_IOC_ServiceObject_pT pSrvObj, _IOC_LinkObject_pT pLinkObj,
                                                    const IOC_Options_pT pOption) {
+    // Step-1: Check Parameters
+    //...
+
+    // Step-2: create a new FifoLinkObj
+    _IOC_ProtoFifoLinkObject_pT pAceptedFifoLinkObj = calloc(1, sizeof(_IOC_ProtoFifoLinkObject_T));
+    if (NULL == pAceptedFifoLinkObj) {
+        _IOC_LogBug("Failed to alloc a new FifoLinkObj when accept client");
+        _IOC_LogNotTested();
+        return IOC_RESULT_POSIX_ENOMEM;
+    }
+
+    pthread_mutex_init(&pAceptedFifoLinkObj->Mutex, NULL);
+    pLinkObj->pProtoPriv = pAceptedFifoLinkObj;
+
+    // Step-3: IF new incoming connection is waiting, then accept it immediately, ELSE wait for it.
+    _IOC_ProtoFifoServiceObject_pT pFifoSrvObj = (_IOC_ProtoFifoServiceObject_pT)pSrvObj->pProtoPriv;
+
+    do {
+        pthread_mutex_lock(&pFifoSrvObj->WaitAccptedMutex);
+        if (NULL != pFifoSrvObj->pConnLinkObj) {
+            _IOC_ProtoFifoLinkObject_pT pConnFifoLinkObj =
+                (_IOC_ProtoFifoLinkObject_pT)pFifoSrvObj->pConnLinkObj->pProtoPriv;
+
+            pAceptedFifoLinkObj->pPeer = pConnFifoLinkObj;
+            pConnFifoLinkObj->pPeer = pAceptedFifoLinkObj;
+            pthread_cond_signal(&pFifoSrvObj->WaitAccptedCond);
+            pthread_mutex_unlock(&pFifoSrvObj->WaitAccptedMutex);
+            break;
+        } else {
+            pthread_mutex_unlock(&pFifoSrvObj->WaitAccptedMutex);
+        }
+
+        pthread_mutex_lock(&pFifoSrvObj->WaitNewConnMutex);
+        pthread_cond_wait(&pFifoSrvObj->WaitNewConnCond, &pFifoSrvObj->WaitNewConnMutex);
+        pthread_mutex_unlock(&pFifoSrvObj->WaitNewConnMutex);
+
+    } while (0x20241124);
+
     //_IOC_LogNotTested();
     return IOC_RESULT_SUCCESS;  // NOTHING DONE, JUST RETURN SUCCESS
 }
@@ -146,11 +241,16 @@ static IOC_Result_T __IOC_closeLink_ofProtoFifo(_IOC_LinkObject_pT pLinkObj) {
 
     pthread_mutex_lock(&pLinkFifoObj->Mutex);
     if (NULL != pLinkFifoObj->pPeer) {
+        pthread_mutex_unlock(&pLinkFifoObj->Mutex);
+
         pthread_mutex_lock(&pLinkFifoObj->pPeer->Mutex);
-        pLinkFifoObj->pPeer->pPeer = NULL;
+        if (NULL != pLinkFifoObj->pPeer) {
+            pLinkFifoObj->pPeer->pPeer = NULL;  // clear the peer's peer
+        }
         pthread_mutex_unlock(&pLinkFifoObj->pPeer->Mutex);
+    } else {
+        pthread_mutex_unlock(&pLinkFifoObj->Mutex);
     }
-    pthread_mutex_unlock(&pLinkFifoObj->Mutex);
 
     free(pLinkFifoObj);
 
@@ -166,7 +266,7 @@ static IOC_Result_T __IOC_subEvt_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, const 
     pLinkFifoObj->SubEvtArgs.pEvtIDs = (IOC_EvtID_T *)malloc(pSubEvtArgs->EvtNum * sizeof(IOC_EvtID_T));
     memcpy(pLinkFifoObj->SubEvtArgs.pEvtIDs, pSubEvtArgs->pEvtIDs, pSubEvtArgs->EvtNum * sizeof(IOC_EvtID_T));
 
-    _IOC_LogNotTested();
+    //_IOC_LogNotTested();
     return IOC_RESULT_SUCCESS;
 }
 
@@ -178,7 +278,7 @@ static IOC_Result_T __IOC_unsubEvt_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, cons
         free(pLinkFifoObj->SubEvtArgs.pEvtIDs);
         memset(&pLinkFifoObj->SubEvtArgs, 0, sizeof(IOC_SubEvtArgs_T));
 
-        _IOC_LogNotTested();
+        //_IOC_LogNotTested();
         return IOC_RESULT_SUCCESS;
     }
 
