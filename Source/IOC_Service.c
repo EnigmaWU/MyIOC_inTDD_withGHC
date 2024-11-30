@@ -67,20 +67,22 @@ _RetResult:
     //_IOC_LogNotTested();
     return Result;
 }
+
 static void __IOC_freeSrvObj(_IOC_ServiceObject_pT pSrvObj) {
+    _IOC_LogAssert((NULL != pSrvObj) && (pSrvObj->ID < _MAX_IOC_SRV_OBJ_NUM));
+
     ___IOC_lockSrvObjTbl();
     _mIOC_SrvObjTbl[pSrvObj->ID] = NULL;
     ___IOC_unlockSrvObjTbl();
 
-    if (NULL != pSrvObj) {
-        free((char *)pSrvObj->Args.SrvURI.pProtocol);
-        free((char *)pSrvObj->Args.SrvURI.pHost);
-        free((char *)pSrvObj->Args.SrvURI.pPath);
-        free(pSrvObj);
-    }
+    free((char *)pSrvObj->Args.SrvURI.pProtocol);
+    free((char *)pSrvObj->Args.SrvURI.pHost);
+    free((char *)pSrvObj->Args.SrvURI.pPath);
+    free(pSrvObj);
 
     //_IOC_LogNotTested();
 }
+
 static _IOC_ServiceObject_pT __IOC_getSrvObjBySrvID(IOC_SrvID_T SrvID) {
     if (SrvID < _MAX_IOC_SRV_OBJ_NUM) {
         return _mIOC_SrvObjTbl[SrvID];
