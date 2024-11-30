@@ -29,7 +29,10 @@ typedef struct {
     // TODO: char *pUser;
     // TODO: char *pPwd;
 
-    const char *pHost;  // RefMacro: IOC_SRV_HOST_*
+    union {
+        const char *pHost;  // RefMacro: IOC_SRV_HOST_*
+        const char *pDomain;
+    };
 
     union {
         const char *pPath;
