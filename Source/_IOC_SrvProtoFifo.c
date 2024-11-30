@@ -32,13 +32,13 @@ typedef struct _IOC_ProtoFifoLinkObjectStru _IOC_ProtoFifoLinkObject_T;
 typedef _IOC_ProtoFifoLinkObject_T *_IOC_ProtoFifoLinkObject_pT;
 
 /**
- * @brief ProtoFIFO's Link Object, used to transmit messages in FIFO order.
- *  LinkObject's pProtoPriv points to this object.
+ * @brief ProtoFIFO's 【Link Object】(a.k.a FifoLinkObj), used to transmit MSG<EVT/CMD/DATA> in FIFO order.
+ *  LinkObject->pProtoPriv = (ProtoFifoLinkObject_pT)pFifoLinkObj.
  *
  * @details
- *    LinkFifoObj_atSrv: LinkID_atSrv's pProtoPriv points to this object,
+ *    LinkFifoObj_atSrv == LinkObject_atSrv->pProtoPriv
  *      which is created when acceptClient, and destroyed when closeLink.
- *    LinkFifoObj_atCli: LinkID_atCli's pProtoPriv points to this object,
+ *    LinkFifoObj_atCli == LinkObject_atCli->pProtoPriv
  *      which is created when connectService, and destroyed when closeLink.
  *    @AFTER: acceptClient vs connectService
  *      LinkFifoObj_atSrv->pPeer = LinkFifoObj_atCli,
@@ -55,17 +55,17 @@ struct _IOC_ProtoFifoLinkObjectStru {
 };
 
 /**
- * @brief ProtoFIFO's Service Object, used to establish a pair of FifoLinkObject.
- *  ServiceObject's pProtoPriv points to this object.
+ * @brief ProtoFIFO's 【Service Object】(a.k.a FifoSrvObj), used to establish a pair of FifoLinkObj.
+ *  ServiceObject->pProtoPriv = (ProtoFifoServiceObject_pT)pFifoSrvObj.
  *
  * @details
- *    ProtoFifoSrvObj: created when onlineService, destroyed when offlineService.
+ *    FifoSrvObj: created when onlineService, destroyed when offlineService.
  *    @SRVSIDE: wait new connection in acceptClient, by WaitNewConn[Mutex|Cond]，
- *      and the new incoming peer LinkObject is saved in pConnLinkObj.
+ *      and ACCEPT the new incoming peer LinkObject which is saved in pConnLinkObj.
  *    @CLISIDE: lock the connection in connectService, by ConnMutex,
- *      and the incoming LinkObject is saved in pConnLinkObj.
- *      then wakeup service to accept connection by WaitNewConn[Mutex|Cond],
- *      and wait for the connection to be accepted by WaitAccept[Mutex|Cond].
+ *      then set the CONNECT LinkObject in pConnLinkObj.
+ *      Afterly wakeup service to ACCEPT connection by WaitNewConn[Mutex|Cond],
+ *      and lastly wait for the connection to be accepted by WaitAccept[Mutex|Cond].
  */
 typedef struct {
     _IOC_ServiceObject_pT pSrvObj;
@@ -171,19 +171,24 @@ static IOC_Result_T __IOC_connectService_ofProtoFifo(_IOC_LinkObject_pT pLinkObj
         return IOC_RESULT_POSIX_ENOMEM;
     }
 
+    pthread_mutex_init(&pFifoLinkObj->Mutex, NULL);
     pLinkObj->pProtoPriv = pFifoLinkObj;
 
     // Step-4: Lock the connection accepting process
     pthread_mutex_lock(&pFifoSrvObj->ConnMutex);
+    _IOC_LogAssert(NULL == pFifoSrvObj->pConnLinkObj);
 
     // Step-5: Wakeup&Wait for the acceptClient
     pthread_mutex_lock(&pFifoSrvObj->WaitAccptedMutex);
-    pFifoSrvObj->pConnLinkObj = pLinkObj;                // new incoming connection link object
+    pFifoSrvObj->pConnLinkObj = pLinkObj;  // set the new incoming connection link object
+
     pthread_cond_signal(&pFifoSrvObj->WaitNewConnCond);  // wakeup the acceptClient if it is waiting
 
-    pthread_cond_wait(&pFifoSrvObj->WaitAccptedCond, &pFifoSrvObj->WaitAccptedMutex);  // wait for the acceptClient
-    pFifoSrvObj->pConnLinkObj = NULL;
-    pthread_mutex_unlock(&pFifoSrvObj->WaitAccptedMutex);
+    pthread_cond_wait(&pFifoSrvObj->WaitAccptedCond,
+                      &pFifoSrvObj->WaitAccptedMutex);  // wait for the acceptClient to complete
+
+    pFifoSrvObj->pConnLinkObj = NULL;  // clear the connection link object
+    pthread_mutex_unlock(&pFifoSrvObj->WaitNewConnMutex);
 
     // Step-6: Release the connection link object
     pthread_mutex_unlock(&pFifoSrvObj->ConnMutex);
@@ -219,15 +224,20 @@ static IOC_Result_T __IOC_acceptClient_ofProtoFifo(_IOC_ServiceObject_pT pSrvObj
 
             pAceptedFifoLinkObj->pPeer = pConnFifoLinkObj;
             pConnFifoLinkObj->pPeer = pAceptedFifoLinkObj;
-            pthread_cond_signal(&pFifoSrvObj->WaitAccptedCond);
             pthread_mutex_unlock(&pFifoSrvObj->WaitAccptedMutex);
-            break;
+
+            pthread_cond_signal(&pFifoSrvObj->WaitAccptedCond);
+            break;  // ACCEPTed the new incoming connection
         } else {
             pthread_mutex_unlock(&pFifoSrvObj->WaitAccptedMutex);
         }
 
         pthread_mutex_lock(&pFifoSrvObj->WaitNewConnMutex);
-        pthread_cond_wait(&pFifoSrvObj->WaitNewConnCond, &pFifoSrvObj->WaitNewConnMutex);
+        // wait for the new incoming connection with 10ms timeout
+        struct timespec TimeOut = {0};
+        clock_gettime(CLOCK_REALTIME, &TimeOut);
+        TimeOut.tv_nsec += 10 * 1000 * 1000;  // 10ms
+        pthread_cond_timedwait(&pFifoSrvObj->WaitNewConnCond, &pFifoSrvObj->WaitNewConnMutex, &TimeOut);
         pthread_mutex_unlock(&pFifoSrvObj->WaitNewConnMutex);
 
     } while (0x20241124);
