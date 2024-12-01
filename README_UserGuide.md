@@ -1,3 +1,5 @@
+[[_TOC_]]
+
 # About
 
 * As a **USER**，you just need to read this document to know how to use the IOC.
@@ -167,3 +169,75 @@ void PostAndWakeupProcessEvent() {
     IOC_wakeupProcEVT();
 }
 ```
+
+---
+
+# 【Typical Usage（ConetMode）】
+## Shared Sequence
+### onlineService, connectService, acceptClient, closeLink, offlineService
+```mermaid
+sequenceDiagram
+    participant ObjX as ObjX
+    participant ObjY as ObjY
+    participant IOC as IOC
+
+    ObjX->>IOC: IOC_onlineService(SrvArgs, &SrvID)
+    ObjY->>IOC: IOC_connectService(SrvID, &CliLinkID)
+    ObjX->>IOC: IOC_acceptClient(SrvID, &SrvLinkID)
+    IOC-->>ObjX: SrvLinkID
+    IOC-->>ObjY: CliLinkID
+
+    ObjX->>IOC: IOC_closeLink(SrvLinkID)
+    ObjY->>IOC: IOC_closeLink(CliLinkID)
+
+    ObjX->>IOC: IOC_offlineService(SrvID)
+```
+
+### postEVT, CbProcEvt_F
+#### SrvLinkID as EvtProducer
+```mermaid
+sequenceDiagram
+    participant ObjX as ObjX
+    participant ObjY as ObjY
+    participant IOC as IOC
+    
+    loop postEVT
+        ObjX->>IOC: IOC_postEVT(SrvLinkID, EvtDesc)
+        IOC-->>ObjY: CbProcEvt_F(CliLinkID, EvtDesc)
+    end
+```
+
+#### CliLinkID as EvtProducer
+```mermaid
+sequenceDiagram
+    participant ObjX as ObjX
+    participant ObjY as ObjY
+    participant IOC as IOC
+    
+    loop postEVT
+        ObjY->>IOC: IOC_postEVT(CliLinkID, EvtDesc)
+        IOC-->>ObjX: CbProcEvt_F(SrvLinkID, EvtDesc)
+    end
+```
+
+## asEvtConsumer(subEVT, unsubEVT)
+```mermaid
+sequenceDiagram
+    participant ObjX as ObjX
+    participant ObjY as ObjY
+    participant IOC as IOC
+
+    ObjX->>IOC: IOC_subEVT(SrvLinkID, EvtIDs)
+    IOC-->>ObjY: IOC_subEVT(CliLinkID, EvtIDs)
+
+    ObjX->>IOC: IOC_unsubEVT(SrvLinkID, EvtIDs)
+    IOC-->>ObjY: IOC_unsubEVT(CliLinkID, EvtIDs)
+```
+
+## asCmdInitiator
+
+## asCmdExecutor
+
+## asDataSender
+
+## asDataReceiver
