@@ -777,6 +777,39 @@ TEST(UT_ServiceTypical, verifyMultiServiceMultiClient_byPostEvtAtSrvSide_bySubDi
     ASSERT_EQ(_N_MOVE_KEEPING + _M_PULL_KEEPING, PrivDataConsumerC.KeepingEvtCnt);  // KeyVerifyPoint
     ASSERT_EQ(1 + 1, PrivDataConsumerC.StoppedEvtCnt);                              // KeyVerifyPoint
 
+    // Step-9.1: post TEST_PUSH events to Consumer[A,B,C]
+    EvtDesc.EvtID = IOC_EVTID_TEST_PUSH_STARTED;
+    IOC_postEVT(SrvLinkID_Producer1_fromConsumerA, &EvtDesc, NULL);
+    IOC_postEVT(SrvLinkID_Producer2_fromConsumerB, &EvtDesc, NULL);
+    IOC_postEVT(SrvLinkID_Producer1_fromConsumerC, &EvtDesc, NULL);
+    IOC_postEVT(SrvLinkID_Producer2_fromConsumerC, &EvtDesc, NULL);
+
+    EvtDesc.EvtID = IOC_EVTID_TEST_PUSH_KEEPING;
+#define _P_PUSH_KEEPING 7
+    for (int i = 0; i < _P_PUSH_KEEPING; i++) {
+        IOC_postEVT(SrvLinkID_Producer1_fromConsumerA, &EvtDesc, NULL);
+        IOC_postEVT(SrvLinkID_Producer2_fromConsumerB, &EvtDesc, NULL);
+        IOC_postEVT(SrvLinkID_Producer1_fromConsumerC, &EvtDesc, NULL);
+        IOC_postEVT(SrvLinkID_Producer2_fromConsumerC, &EvtDesc, NULL);
+    }
+
+    IOC_EVTID_TEST_PUSH_STOPPED;
+    IOC_postEVT(SrvLinkID_Producer1_fromConsumerA, &EvtDesc, NULL);
+    IOC_postEVT(SrvLinkID_Producer2_fromConsumerB, &EvtDesc, NULL);
+    IOC_postEVT(SrvLinkID_Producer1_fromConsumerC, &EvtDesc, NULL);
+    IOC_postEVT(SrvLinkID_Producer2_fromConsumerC, &EvtDesc, NULL);
+
+    IOC_forceProcEVT();
+    ASSERT_EQ(1, PrivDataConsumerA.StartedEvtCnt);                                  // KeyVerifyPoint
+    ASSERT_EQ(_N_MOVE_KEEPING, PrivDataConsumerA.KeepingEvtCnt);                    // KeyVerifyPoint
+    ASSERT_EQ(1, PrivDataConsumerA.StoppedEvtCnt);                                  // KeyVerifyPoint
+    ASSERT_EQ(1, PrivDataConsumerB.StartedEvtCnt);                                  // KeyVerifyPoint
+    ASSERT_EQ(_M_PULL_KEEPING, PrivDataConsumerB.KeepingEvtCnt);                    // KeyVerifyPoint
+    ASSERT_EQ(1, PrivDataConsumerB.StoppedEvtCnt);                                  // KeyVerifyPoint
+    ASSERT_EQ(1 + 1, PrivDataConsumerC.StartedEvtCnt);                              // KeyVerifyPoint
+    ASSERT_EQ(_N_MOVE_KEEPING + _M_PULL_KEEPING, PrivDataConsumerC.KeepingEvtCnt);  // KeyVerifyPoint
+    ASSERT_EQ(1 + 1, PrivDataConsumerC.StoppedEvtCnt);                              // KeyVerifyPoint
+
     // Step-10
     IOC_UnsubEvtArgs_T UnsubEvtArgs = {.CbProcEvt_F = __US1AC3TC3_CbProcEvt_F, .pCbPrivData = &PrivDataConsumerA};
     Result = IOC_unsubEVT(CliLinkID_ConsumerA_toProducer1, &UnsubEvtArgs);
