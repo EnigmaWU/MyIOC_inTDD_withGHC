@@ -112,6 +112,13 @@ static IOC_Result_T __IOC_onlineService_ofProtoFifo(_IOC_ServiceObject_pT pSrvOb
     } else {
         pSrvObj->pProtoPriv = pFifoSrvObj;
         pFifoSrvObj->pSrvObj = pSrvObj;
+
+        // Init Mutex&Cond is MUST on MacOS
+        pthread_mutex_init(&pFifoSrvObj->ConnMutex, NULL);
+        pthread_mutex_init(&pFifoSrvObj->WaitAccptedMutex, NULL);
+        pthread_cond_init(&pFifoSrvObj->WaitAccptedCond, NULL);
+        pthread_mutex_init(&pFifoSrvObj->WaitNewConnMutex, NULL);
+        pthread_cond_init(&pFifoSrvObj->WaitNewConnCond, NULL);
     }
 
     // Step-3: Save the ProtoFifoServiceObject
@@ -187,8 +194,11 @@ static IOC_Result_T __IOC_connectService_ofProtoFifo(_IOC_LinkObject_pT pLinkObj
     pthread_cond_wait(&pFifoSrvObj->WaitAccptedCond,
                       &pFifoSrvObj->WaitAccptedMutex);  // wait for the acceptClient to complete
 
+    // MAKE SURE the connection is accepted by the acceptClient
+    _IOC_LogAssert(NULL != pFifoLinkObj->pPeer);
+
     pFifoSrvObj->pConnLinkObj = NULL;  // clear the connection link object
-    pthread_mutex_unlock(&pFifoSrvObj->WaitNewConnMutex);
+    pthread_mutex_unlock(&pFifoSrvObj->WaitAccptedMutex);
 
     // Step-6: Release the connection link object
     pthread_mutex_unlock(&pFifoSrvObj->ConnMutex);
@@ -224,9 +234,9 @@ static IOC_Result_T __IOC_acceptClient_ofProtoFifo(_IOC_ServiceObject_pT pSrvObj
 
             pAceptedFifoLinkObj->pPeer = pConnFifoLinkObj;
             pConnFifoLinkObj->pPeer = pAceptedFifoLinkObj;
-            pthread_mutex_unlock(&pFifoSrvObj->WaitAccptedMutex);
 
             pthread_cond_signal(&pFifoSrvObj->WaitAccptedCond);
+            pthread_mutex_unlock(&pFifoSrvObj->WaitAccptedMutex);
             break;  // ACCEPTed the new incoming connection
         } else {
             pthread_mutex_unlock(&pFifoSrvObj->WaitAccptedMutex);
