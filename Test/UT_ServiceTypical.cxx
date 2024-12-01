@@ -147,7 +147,7 @@ typedef struct {
 static IOC_Result_T __US1AC1TC1_CbProcEvt_F(IOC_EvtDesc_T* pEvtDesc, void* pCbPrivData) {
     __US1AC1TC1_EvtConsumerPrivData_T* pEvtConsumerPrivData = (__US1AC1TC1_EvtConsumerPrivData_T*)pCbPrivData;
 
-    if (IOC_EVT_NAME_TEST_KEEPALIVE == pEvtDesc->EvtID) {
+    if (IOC_EVTID_TEST_KEEPALIVE == pEvtDesc->EvtID) {
         pEvtConsumerPrivData->KeepAliveEvtCnt++;
     } else {
         // ASSERT_EQ(0, 1);
@@ -182,7 +182,7 @@ TEST(UT_ServiceTypical, verifySingleServiceSingleClient_byPostEvtAtSrvSide) {
         .KeepAliveEvtCnt = 0,
     };
 
-    IOC_EvtID_T EvtIDs[] = {IOC_EVT_NAME_TEST_KEEPALIVE};
+    IOC_EvtID_T EvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
     IOC_SubEvtArgs_T SubEvtArgs = {
         .CbProcEvt_F = __US1AC1TC1_CbProcEvt_F,
         .pCbPrivData = &EvtConsumerPrivData,
@@ -210,9 +210,7 @@ TEST(UT_ServiceTypical, verifySingleServiceSingleClient_byPostEvtAtSrvSide) {
     EvtConsumerThread.join();
 
     // Step-4
-    IOC_EvtDesc_T EvtDesc = {
-        .EvtID = IOC_EVT_NAME_TEST_KEEPALIVE,
-    };
+    IOC_EvtDesc_T EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
     Result = IOC_postEVT(EvtProducerLinkID, &EvtDesc, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
 
@@ -688,9 +686,7 @@ TEST(UT_ServiceTypical, verifyMultiServiceMultiClient_byPostEvtAtSrvSide_bySubDi
     Thread_ConsumerC_connectProducer2.join();
 
     // Step-7
-    IOC_EvtDesc_T EvtDesc = {
-        .EvtID = IOC_EVTID_TEST_MOVE_STARTED,
-    };
+    IOC_EvtDesc_T EvtDesc = {.EvtID = IOC_EVTID_TEST_MOVE_STARTED};
     Result = IOC_postEVT(SrvLinkID_Producer1_fromConsumerA, &EvtDesc, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
