@@ -98,6 +98,20 @@ static _IOC_ProtoFifoServiceObject_pT __IOC_getSrvProtoObjBySrvURI(const IOC_Srv
 
     return NULL;
 }
+/**
+ * @brief Initializes and brings online a ProtoFifo service object.
+ *
+ * This function performs the following steps:
+ * 1. Validates the input service object parameters.
+ * 2. Allocates and initializes a new ProtoFifoServiceObject, including setting up necessary mutexes and condition
+ * variables required for MacOS.
+ * 3. Stores the initialized ProtoFifoServiceObject in the global online services array.
+ *
+ * @param pSrvObj Pointer to the IOC_ServiceObject structure to be initialized.
+ *
+ * @return IOC_RESULT_SUCCESS on successful initialization,
+ *         IOC_RESULT_POSIX_ENOMEM if memory allocation fails.
+ */
 
 static IOC_Result_T __IOC_onlineService_ofProtoFifo(_IOC_ServiceObject_pT pSrvObj) {
     // Step-1: Check Parameters
@@ -135,6 +149,16 @@ static IOC_Result_T __IOC_onlineService_ofProtoFifo(_IOC_ServiceObject_pT pSrvOb
     return IOC_RESULT_SUCCESS;  // NOTHING DONE, JUST RETURN SUCCESS
 }
 
+/**
+ * @brief Handles the offline processing of a ProtoFifo service.
+ *
+ * This function performs the necessary cleanup when a ProtoFifo service is taken offline.
+ * It validates the provided service object, retrieves the associated ProtoFifoServiceObject,
+ * and removes it from the list of online ProtoFifo services in a thread-safe manner.
+ *
+ * @param pSrvObj Pointer to the service object to be processed.
+ * @return IOC_RESULT_SUCCESS Indicates successful completion of the offline process.
+ */
 static IOC_Result_T __IOC_offlineService_ofProtoFifo(_IOC_ServiceObject_pT pSrvObj) {
     // Step-1: Check Parameters
     //...
@@ -155,6 +179,27 @@ static IOC_Result_T __IOC_offlineService_ofProtoFifo(_IOC_ServiceObject_pT pSrvO
     //_IOC_LogNotTested();
     return IOC_RESULT_SUCCESS;  // NOTHING DONE, JUST RETURN SUCCESS
 }
+/**
+ * @brief Establishes a connection to a ProtoFifo service.
+ *
+ * This function connects to the specified service using the ProtoFifo protocol by performing the following steps:
+ * 1. Validates the input parameters.
+ * 2. Retrieves the service object based on the provided service URI.
+ * 3. Allocates and initializes a new ProtoFifo link object.
+ * 4. Locks the connection acceptance process to ensure thread safety.
+ * 5. Signals the accept client to handle the new connection and waits for the client to accept.
+ * 6. Releases the connection link object and cleans up resources.
+ *
+ * @param pLinkObj Pointer to the link object that represents the connection.
+ * @param pConnArgs Pointer to the connection arguments, including the service URI.
+ * @param pOption Pointer to the connection options.
+ *
+ * @return IOC_Result_T
+ *         - `IOC_RESULT_SUCCESS` on successful connection.
+ *         - `IOC_RESULT_NOT_EXIST_SERVICE` if the service does not exist.
+ *         - `IOC_RESULT_POSIX_ENOMEM` if memory allocation fails.
+ *         - Other relevant error codes as defined in `IOC_Result_T`.
+ */
 
 static IOC_Result_T __IOC_connectService_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, const IOC_ConnArgs_pT pConnArgs,
                                                      const IOC_Options_pT pOption) {
@@ -204,8 +249,26 @@ static IOC_Result_T __IOC_connectService_ofProtoFifo(_IOC_LinkObject_pT pLinkObj
     pthread_mutex_unlock(&pFifoSrvObj->ConnMutex);
 
     //_IOC_LogNotTested();
-    return IOC_RESULT_SUCCESS;  // NOTHING DONE, JUST RETURN SUCCESS
+    return IOC_RESULT_SUCCESS;
 }
+/**
+ * @brief Accepts a client connection for the ProtoFifo service.
+ *
+ * This function performs the following steps:
+ * 1. Validates the input parameters.
+ * 2. Allocates and initializes a new ProtoFifoLinkObject.
+ * 3. Attempts to accept an incoming connection immediately if available.
+ *    - If a connection is waiting, it establishes the peer relationship.
+ *    - If no connection is available, it waits for a new connection with a 10ms timeout.
+ *
+ * @param pSrvObj Pointer to the service object.
+ * @param pLinkObj Pointer to the link object associated with the client.
+ * @param pOption Pointer to the options for accepting the client.
+ *
+ * @return IOC_Result_T
+ *         - `IOC_RESULT_SUCCESS` on successful acceptance.
+ *         - `IOC_RESULT_POSIX_ENOMEM` if memory allocation fails.
+ */
 
 static IOC_Result_T __IOC_acceptClient_ofProtoFifo(_IOC_ServiceObject_pT pSrvObj, _IOC_LinkObject_pT pLinkObj,
                                                    const IOC_Options_pT pOption) {
@@ -255,29 +318,54 @@ static IOC_Result_T __IOC_acceptClient_ofProtoFifo(_IOC_ServiceObject_pT pSrvObj
     //_IOC_LogNotTested();
     return IOC_RESULT_SUCCESS;  // NOTHING DONE, JUST RETURN SUCCESS
 }
+/**
+ * @brief Closes the protocol FIFO link.
+ *
+ * This function safely closes a protocol FIFO link by handling the associated peer.
+ * It locks the necessary mutexes to ensure thread safety while updating the link's peer reference.
+ *
+ * @param pLinkObj Pointer to the link object to be closed.
+ * @return IOC_RESULT_SUCCESS on successful closure.
+ */
 
 static IOC_Result_T __IOC_closeLink_ofProtoFifo(_IOC_LinkObject_pT pLinkObj) {
-    _IOC_ProtoFifoLinkObject_pT pLinkFifoObj = (_IOC_ProtoFifoLinkObject_pT)pLinkObj->pProtoPriv;
+    _IOC_ProtoFifoLinkObject_pT pFifoLinkObj = (_IOC_ProtoFifoLinkObject_pT)pLinkObj->pProtoPriv;
 
-    pthread_mutex_lock(&pLinkFifoObj->Mutex);
-    if (NULL != pLinkFifoObj->pPeer) {
-        pthread_mutex_unlock(&pLinkFifoObj->Mutex);
+    pthread_mutex_lock(&pFifoLinkObj->Mutex);
+    if (NULL != pFifoLinkObj->pPeer) {
+        _IOC_ProtoFifoLinkObject_pT pPeerFifoLinkObj = pFifoLinkObj->pPeer;
+        pFifoLinkObj->pPeer = NULL;  // clear the peer
 
-        pthread_mutex_lock(&pLinkFifoObj->pPeer->Mutex);
-        if (NULL != pLinkFifoObj->pPeer) {
-            pLinkFifoObj->pPeer->pPeer = NULL;  // clear the peer's peer
+        int LockResult = pthread_mutex_trylock(&pPeerFifoLinkObj->Mutex);
+        if (LockResult == (0) /*LockSuccess*/) {
+            pPeerFifoLinkObj->pPeer = NULL;  // clear the peer's peer
+            pthread_mutex_unlock(&pPeerFifoLinkObj->Mutex);
         }
-        pthread_mutex_unlock(&pLinkFifoObj->pPeer->Mutex);
+
+        pthread_mutex_unlock(&pFifoLinkObj->Mutex);
     } else {
-        pthread_mutex_unlock(&pLinkFifoObj->Mutex);
+        pthread_mutex_unlock(&pFifoLinkObj->Mutex);
     }
 
-    free(pLinkFifoObj);
+    _IOC_LogAssert(NULL == pFifoLinkObj->pPeer);
+    free(pFifoLinkObj);
 
     //_IOC_LogNotTested();
     return IOC_RESULT_SUCCESS;  // NOTHING DONE, JUST RETURN SUCCESS
 }
 
+/**
+ * @brief Handles sub-events for the Proto FIFO link object.
+ *
+ * This function processes sub-event arguments by copying them into the
+ * Proto FIFO link object's internal state. It allocates memory for
+ * event IDs based on the number of events specified and copies the
+ * provided event IDs into the allocated space.
+ *
+ * @param pLinkObj Pointer to the link object containing protocol-specific data.
+ * @param pSubEvtArgs Pointer to the sub-event arguments containing event details.
+ * @return IOC_Result_T Returns IOC_RESULT_SUCCESS on successful execution.
+ */
 static IOC_Result_T __IOC_subEvt_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, const IOC_SubEvtArgs_pT pSubEvtArgs) {
     _IOC_ProtoFifoLinkObject_pT pLinkFifoObj = (_IOC_ProtoFifoLinkObject_pT)pLinkObj->pProtoPriv;
 
@@ -290,6 +378,21 @@ static IOC_Result_T __IOC_subEvt_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, const 
     return IOC_RESULT_SUCCESS;
 }
 
+/**
+ * @brief Unsubscribes an event from the protocol FIFO associated with the given link object.
+ *
+ * This function compares the provided callback function and private data with the currently
+ * subscribed event arguments in the protocol FIFO link object. If a match is found, it frees
+ * the allocated event IDs, resets the subscription arguments, and returns a success result.
+ * If no matching subscription is found, it logs the event and returns a not exist result.
+ *
+ * @param pLinkObj       Pointer to the link object containing the protocol FIFO.
+ * @param pUnsubEvtArgs  Pointer to the unsubscribe event arguments containing the callback
+ *                       function and private data to be removed.
+ *
+ * @return IOC_RESULT_SUCCESS       If the unsubscription was successful.
+ * @return IOC_RESULT_NOT_EXIST    If the specified event subscription does not exist.
+ */
 static IOC_Result_T __IOC_unsubEvt_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, const IOC_UnsubEvtArgs_pT pUnsubEvtArgs) {
     _IOC_ProtoFifoLinkObject_pT pLinkFifoObj = (_IOC_ProtoFifoLinkObject_pT)pLinkObj->pProtoPriv;
 
@@ -305,6 +408,21 @@ static IOC_Result_T __IOC_unsubEvt_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, cons
     _IOC_LogNotTested();
     return IOC_RESULT_NOT_EXIST;
 }
+/**
+ * @brief Posts an event to the Protocol FIFO.
+ *
+ * This function handles the posting of an event to the protocol FIFO by locking the necessary mutexes,
+ * checking for subscribed event consumers, and invoking their callback functions if the event ID matches.
+ *
+ * @param pLinkObj Pointer to the link object associated with the Protocol FIFO.
+ * @param pEvtDesc Pointer to the event descriptor containing event details.
+ * @param pOption Pointer to the options for event processing.
+ *
+ * @return IOC_Result_T
+ *         - IOC_RESULT_SUCCESS: Event was successfully processed by at least one consumer.
+ *         - IOC_RESULT_NO_EVENT_CONSUMER: No consumers were available for the event.
+ *         - IOC_RESULT_BUG: An unexpected error occurred.
+ */
 
 static IOC_Result_T __IOC_postEvt_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, const IOC_EvtDesc_pT pEvtDesc,
                                               const IOC_Options_pT pOption) {
