@@ -82,6 +82,11 @@
  *          THEN EvtConsumer can subscribe events on each pair Link,
  *              AND EvtProducer can post events to each pair Link, EvtConsumer can process them.
  *
+ * [@US-2.b]
+ *      AC-1: GIVEN MANY services with different URI are onlined by EvtConsumer,
+ *          WHEN MANY EvtProducer connects to each service and establish a pair Link,
+ *          THEN EvtProducer can post events to each pair Link, EvtConsumer can process them same as AC-3 of US-1.a.
+ *
  */
 
 //-------------------------------------------------------------------------------------------------
