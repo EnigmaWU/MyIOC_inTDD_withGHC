@@ -78,3 +78,10 @@ IOC_Result_T IOC_getLinkState(
         return IOC_RESULT_NOT_IMPLEMENTED;
     }
 }
+
+IOC_Result_T IOC_broadcastEVT(
+    /*ARG_IN*/ IOC_SrvID_T SrvID,
+    /*ARG_IN*/ const IOC_EvtDesc_pT pEvtDesc,
+    /*ARG_IN_OPTIONAL*/ IOC_Options_pT pOption) {
+    return IOC_RESULT_NOT_IMPLEMENTED;
+}
