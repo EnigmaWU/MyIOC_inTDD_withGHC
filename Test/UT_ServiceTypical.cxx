@@ -108,6 +108,16 @@
  *  @[Name]: verifyMultiServiceMultiClient_byPostEvtAtSrvSide_bySubDiffEvtAtCliSide
  *  @[Purpose]: verify different Services with distinguish URI can be onlined by same EvtProducer,
  *      and each EvtConsumer can connect to each service, then sub&post&proc different events.
+ *
+ * [@AC-1 of US-2.b]
+ *  TC-4:
+ *  @[Name]: verifyMultiServiceMultiClient_byPostEvtAtCliSide_bySubDiffEvtAtSrvSide
+ *  @[Purpose]: verify different Services with distinguish URI can be onlined by same EvtConsumer,
+ *      and each EvtProducer can connect to each service, then post different events.
+ *  @[Brief]: EvtConsumerA/B each online a service,
+ *      EvtProducer1 connect to EvtConsumerA, and post MOVE_STARTED/KEEPING/STOPPED events,
+ *      EvtProducer2 connect to EvtConsumerB, and post PULL_STARTED/KEEPING/STOPPED events,
+ *      EvtProducer3 connect to EvtConsumerA/B, and post PUSH_STARTED/KEEPING/STOPPED events.
  */
 
 //======END OF UNIT TESTING DESIGN=================================================================
@@ -877,3 +887,63 @@ TEST(UT_ServiceTypical, verifyMultiServiceMultiClient_byPostEvtAtSrvSide_bySubDi
     Result = IOC_offlineService(SrvID_Producer2);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 }
+
+/**
+ * @[Name]: <US2-AC1-TC4>verifyMultiServiceMultiClient_byPostEvtAtCliSide_bySubDiffEvtAtSrvSide
+ * @[Steps]:
+ *  1) EvtConsumerA call IOC_onlineService() to online a service AS BEHAVIOR.
+ *      |-> SrvArgs.UsageCapabilites = IOC_LinkUsageEvtConsumer
+ *      |-> SrvArgs.SrvURI = {IOC_SRV_PROTO_FIFO, IOC_SRV_HOST_LOCAL_PROCESS, "EvtConsumerA"}
+ *  2) EvtConsumerB call IOC_onlineService() to online another service AS BEHAVIOR.
+ *      |-> SrvArgs.UsageCapabilites = IOC_LinkUsageEvtConsumer
+ *      |-> SrvArgs.SrvURI = {IOC_SRV_PROTO_FIFO, IOC_SRV_HOST_LOCAL_PROCESS, "EvtConsumerB"}
+ *  3) EvtProducer1 call IOC_connectLink() in standalone thread to the service AS BEHAVIOR.
+ *          |-> ConnArgs.Usage = IOC_LinkUsageEvtProducer
+ *          |-> ConnArgs.SrvURI = SrvArgs.SrvURI={IOC_SRV_PROTO_FIFO, IOC_SRV_HOST_LOCAL_PROCESS, "EvtConsumerA"}
+ *          |-> CliLinkID_Producer1_toConsumerA
+ *     a) EvtConsumerA call IOC_acceptLink() to accept the link AS BEHAVIOR.
+ *          |-> SrvLinkID_ConsumerA_fromProducer1
+ *          |-> call IOC_subEVT(EVT_TEST_MOVE_STARTED/_KEEPING/_STOPPED) to subscribe an event AS BEHAVIOR.
+ *  4) EvtProducer2 call IOC_connectLink() in standalone thread to the service AS BEHAVIOR.
+ *          |-> ConnArgs.Usage = IOC_LinkUsageEvtProducer
+ *          |-> ConnArgs.SrvURI = SrvArgs.SrvURI={IOC_SRV_PROTO_FIFO, IOC_SRV_HOST_LOCAL_PROCESS, "EvtConsumerB"}
+ *          |-> CliLinkID_Producer2_toConsumerB
+ *     a) EvtConsumerB call IOC_acceptLink() to accept the link AS BEHAVIOR.
+ *          |-> SrvLinkID_ConsumerB_fromProducer2
+ *          |-> call IOC_subEVT(EVT_TEST_PULL_STARTED/_KEEPING/_STOPPED) to subscribe an event AS BEHAVIOR.
+ *  5) EvtProducer3 call IOC_connectLink() in standalone thread to the service AS BEHAVIOR.
+ *          |-> ConnArgs.Usage = IOC_LinkUsageEvtProducer
+ *          |-> ConnArgs.SrvURI = SrvArgs.SrvURI={IOC_SRV_PROTO_FIFO, IOC_SRV_HOST_LOCAL_PROCESS, "EvtConsumerA"}
+ *          |-> ConnArgs.SrvURI = SrvArgs.SrvURI={IOC_SRV_PROTO_FIFO, IOC_SRV_HOST_LOCAL_PROCESS, "EvtConsumerB"}
+ *          |-> CliLinkID_Producer3_toConsumerA, CliLinkID_Producer3_toConsumerB
+ *     a) EvtConsumerA call IOC_acceptLink() to accept the link AS BEHAVIOR.
+ *          |-> SrvLinkID_ConsumerA_fromProducer3
+ *          |-> call IOC_subEVT(EVT_TEST_MOVE_STARTED/_KEEPING/_STOPPED) to subscribe an event AS BEHAVIOR.
+ *     b) EvtConsumerB call IOC_acceptLink() to accept the link AS BEHAVIOR.
+ *          |-> SrvLinkID_ConsumerB_fromProducer3
+ *          |-> call IOC_subEVT(EVT_TEST_PULL_STARTED/_KEEPING/_STOPPED) to subscribe an event AS BEHAVIOR.
+ *  6) EvtProducer1 call IOC_postEVT() to post an event AS BEHAVIOR.
+ *      |-> EvtDesc.EvtID = 1xEVT_TEST_MOVE_STARTED, nxEVT_TEST_MOVE_KEEPING, 1xEVT_TEST_MOVE_STOPPED
+ *      |-> ALL to CliLinkID_Producer1_toConsumerA
+ *      |-> call IOC_forceProcEVT() to process the event immediately.
+ *      |-> ONLY EvtConsumerA will process the event as VERIFY.
+ *      |-> EvtConsumerAPrivData.[Started|Stopped]EvtCnt = 1, [Keeping]EvtCnt = n AS VERIFY.
+ *  7) EvtProducer2 call IOC_postEVT() to post another event AS BEHAVIOR.
+ *      |-> EvtDesc.EvtID = 1xEVT_TEST_PULL_STARTED, mxEVT_TEST_PULL_KEEPING, 1xEVT_TEST_PULL_STOPPED
+ *      |-> ALL to CliLinkID_Producer2_toConsumerB
+ *      |-> call IOC_forceProcEVT() to process the event immediately.
+ *      |-> ONLY EvtConsumerB will process the event as VERIFY.
+ *      |-> EvtConsumerBPrivData.[Started|Stopped]EvtCnt = 1, [Keeping]EvtCnt = m AS VERIFY.
+ *  8) EvtProducer3 call IOC_postEVT() to post another event AS BEHAVIOR.
+ *     |-> EvtDesc.EvtID = 1xEVT_TEST_PUSH_STARTED, pxEVT_TEST_PUSH_KEEPING, 1xEVT_TEST_PUSH_STOPPED
+ *     |-> ALL to CliLinkID_Producer3_toConsumer[A,B]
+ *     |-> call IOC_forceProcEVT() to process the event immediately.
+ *     |-> EvtConsumerAPrivData.[Started|Stopped]EvtCnt = 1, [Keeping]EvtCnt = n AS VERIFY.
+ *     |-> EvtConsumerBPrivData.[Started|Stopped]EvtCnt = 1, [Keeping]EvtCnt = m AS VERIFY.
+ *  9) EvtConsumer[A,B] call IOC_unsubEVT() to unsubscribe the event AS BEHAVIOR.
+ *  10) EvtProducer[1,2,3]/EvtConsumer[A,B] call IOC_closeLink() to close the link AS BEHAVIOR.
+ *  11) EvtConsumer[A,B] call IOC_offlineService() to offline the service AS BEHAVIOR.
+ * @[Expect]:
+ *    EvtConsumer[A,B] will process the events as expected.
+ * @[Notes]:
+ */
