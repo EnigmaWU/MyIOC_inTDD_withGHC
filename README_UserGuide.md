@@ -207,6 +207,31 @@ sequenceDiagram
     end
 ```
 
+#### SrvID as EvtProducer
+```mermaid
+sequenceDiagram
+    participant ObjX as ObjX
+    participant ObjY as ObjY
+    participant ObjZ as ObjZ
+    participant IOC as IOC
+
+    ObjX->>IOC: IOC_onlineService(SrvArgs)
+    IOC-->>ObjX: SrvID
+    
+    ObjY->>IOC: IOC_connectService(ConnArgs)
+    IOC-->>ObjY: CliLinkID_ObjY_toObjX
+    IOC-->>ObjX: SrvLinkID_fromObjY
+    ObjZ->>IOC: IOC_connectService(ConnArgs)
+    IOC-->>ObjZ: CliLinkID_ObjZ_toObjX
+    IOC-->>ObjX: SrvLinkID_fromObjZ
+    
+    loop postEVT
+        ObjX->>IOC: IOC_postEVT(SrvID, EvtDesc)
+        IOC-->>ObjY: CbProcEvt_F(CliLinkID_ObjY_toObjX, EvtDesc)
+        IOC-->>ObjZ: CbProcEvt_F(CliLinkID_ObjZ_toObjX, EvtDesc)
+    end
+```
+
 #### CliLinkID as EvtProducer
 ```mermaid
 sequenceDiagram
