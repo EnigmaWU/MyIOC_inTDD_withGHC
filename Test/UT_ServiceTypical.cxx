@@ -1,4 +1,3 @@
-
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======BEGIN OF OVERVIEW OF THIS UNIT TESTING FILE================================================
 /**
@@ -126,6 +125,45 @@
 //======BEGIN OF UNIT TESTING IMPLEMENTATION=======================================================
 #include "_UT_IOC_Common.h"
 
+// 定义公共的事件消费者私有数据结构体
+typedef struct {
+    uint32_t KeepAliveEvtCnt;
+    uint32_t StartedEvtCnt;
+    uint32_t KeepingEvtCnt;
+    uint32_t StoppedEvtCnt;
+} __EvtConsumerPrivData_T;
+
+// 定义公共的事件处理回调函数
+static IOC_Result_T __CbProcEvt_F(IOC_EvtDesc_T* pEvtDesc, void* pCbPrivData) {
+    __EvtConsumerPrivData_T* pEvtConsumerPrivData = (__EvtConsumerPrivData_T*)pCbPrivData;
+
+    switch (pEvtDesc->EvtID) {
+        case IOC_EVTID_TEST_KEEPALIVE:
+            pEvtConsumerPrivData->KeepAliveEvtCnt++;
+            break;
+        case IOC_EVTID_TEST_MOVE_STARTED:
+        case IOC_EVTID_TEST_PULL_STARTED:
+        case IOC_EVTID_TEST_PUSH_STARTED:
+            pEvtConsumerPrivData->StartedEvtCnt++;
+            break;
+        case IOC_EVTID_TEST_MOVE_KEEPING:
+        case IOC_EVTID_TEST_PULL_KEEPING:
+        case IOC_EVTID_TEST_PUSH_KEEPING:
+            pEvtConsumerPrivData->KeepingEvtCnt++;
+            break;
+        case IOC_EVTID_TEST_MOVE_STOPPED:
+        case IOC_EVTID_TEST_PULL_STOPPED:
+        case IOC_EVTID_TEST_PUSH_STOPPED:
+            pEvtConsumerPrivData->StoppedEvtCnt++;
+            break;
+        default:
+            EXPECT_TRUE(false) << "Unknown EvtID: " << pEvtDesc->EvtID;
+            break;
+    }
+
+    return IOC_RESULT_SUCCESS;
+}
+
 /**
  * @[Name]: <US1-AC1-TC1>verifySingleServiceSingleClient_byPostEvtAtSrvSide
  * @[Steps]:
@@ -155,22 +193,6 @@
  * @[Notes]:
  */
 
-typedef struct {
-    uint32_t KeepAliveEvtCnt;
-} __US1AC1TC1_EvtConsumerPrivData_T;
-
-static IOC_Result_T __US1AC1TC1_CbProcEvt_F(IOC_EvtDesc_T* pEvtDesc, void* pCbPrivData) {
-    __US1AC1TC1_EvtConsumerPrivData_T* pEvtConsumerPrivData = (__US1AC1TC1_EvtConsumerPrivData_T*)pCbPrivData;
-
-    if (IOC_EVTID_TEST_KEEPALIVE == pEvtDesc->EvtID) {
-        pEvtConsumerPrivData->KeepAliveEvtCnt++;
-    } else {
-        // ASSERT_EQ(0, 1);
-    }
-
-    return IOC_RESULT_SUCCESS;
-}
-
 TEST(UT_ServiceTypical, verifySingleServiceSingleClient_byPostEvtAtSrvSide) {
     IOC_Result_T Result = IOC_RESULT_BUG;
     IOC_SrvID_T EvtProducerSrvID = IOC_ID_INVALID;
@@ -193,13 +215,11 @@ TEST(UT_ServiceTypical, verifySingleServiceSingleClient_byPostEvtAtSrvSide) {
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
 
     // Step-2:
-    __US1AC1TC1_EvtConsumerPrivData_T EvtConsumerPrivData = {
-        .KeepAliveEvtCnt = 0,
-    };
+    __EvtConsumerPrivData_T EvtConsumerPrivData = {0};
 
     IOC_EvtID_T EvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
     IOC_SubEvtArgs_T SubEvtArgs = {
-        .CbProcEvt_F = __US1AC1TC1_CbProcEvt_F,
+        .CbProcEvt_F = __CbProcEvt_F,
         .pCbPrivData = &EvtConsumerPrivData,
         .EvtNum = IOC_calcArrayElmtCnt(EvtIDs),
         .pEvtIDs = EvtIDs,
@@ -233,7 +253,7 @@ TEST(UT_ServiceTypical, verifySingleServiceSingleClient_byPostEvtAtSrvSide) {
 
     // Step-5
     IOC_UnsubEvtArgs_T UnsubEvtArgs = {
-        .CbProcEvt_F = __US1AC1TC1_CbProcEvt_F,
+        .CbProcEvt_F = __CbProcEvt_F,
         .pCbPrivData = &EvtConsumerPrivData,
     };
     Result = IOC_unsubEVT(EvtConsumerLinkID, &UnsubEvtArgs);
@@ -298,28 +318,6 @@ TEST(UT_ServiceTypical, verifySingleServiceSingleClient_byPostEvtAtSrvSide) {
  * @[Notes]:
  */
 
-typedef struct {
-    uint32_t StartedEvtCnt;
-    uint32_t KeepingEvtCnt;
-    uint32_t StoppedEvtCnt;
-} __US1AC2TC2_EvtConsumerPrivData_T;
-
-static IOC_Result_T __US1AC2TC2_CbProcEvt_F(IOC_EvtDesc_T* pEvtDesc, void* pCbPrivData) {
-    __US1AC2TC2_EvtConsumerPrivData_T* pEvtConsumerPrivData = (__US1AC2TC2_EvtConsumerPrivData_T*)pCbPrivData;
-
-    if ((IOC_EVTID_TEST_MOVE_STARTED == pEvtDesc->EvtID) || (IOC_EVTID_TEST_PULL_STARTED == pEvtDesc->EvtID)) {
-        pEvtConsumerPrivData->StartedEvtCnt++;
-    } else if ((IOC_EVTID_TEST_MOVE_KEEPING == pEvtDesc->EvtID) || (IOC_EVTID_TEST_PULL_KEEPING == pEvtDesc->EvtID)) {
-        pEvtConsumerPrivData->KeepingEvtCnt++;
-    } else if ((IOC_EVTID_TEST_MOVE_STOPPED == pEvtDesc->EvtID) || (IOC_EVTID_TEST_PULL_STOPPED == pEvtDesc->EvtID)) {
-        pEvtConsumerPrivData->StoppedEvtCnt++;
-    } else {
-        EXPECT_TRUE(false) << "Unknown EvtID: " << pEvtDesc->EvtID;
-    }
-
-    return IOC_RESULT_SUCCESS;
-}
-
 TEST(UT_ServiceTypical, verifySingleServiceMultiClients_byPostEvtAtSrvSide_bySubDiffEvtAtCliSide) {
     IOC_Result_T Result = IOC_RESULT_BUG;
     IOC_SrvID_T SrvID_Producer = IOC_ID_INVALID;
@@ -351,17 +349,13 @@ TEST(UT_ServiceTypical, verifySingleServiceMultiClients_byPostEvtAtSrvSide_bySub
         .Usage = IOC_LinkUsageEvtConsumer,
     };
 
-    __US1AC2TC2_EvtConsumerPrivData_T ConsumerAPrivData = {
-        .StartedEvtCnt = 0,
-        .KeepingEvtCnt = 0,
-        .StoppedEvtCnt = 0,
-    };
+    __EvtConsumerPrivData_T ConsumerAPrivData = {0};
 
     std::thread EvtConsumerAThread([&] {
         IOC_EvtID_T EvtIDs4ConsumerA[] = {IOC_EVTID_TEST_MOVE_STARTED, IOC_EVTID_TEST_MOVE_KEEPING,
                                           IOC_EVTID_TEST_MOVE_STOPPED};
         IOC_SubEvtArgs_T SubEvtArgs4ConsumerA = {
-            .CbProcEvt_F = __US1AC2TC2_CbProcEvt_F,
+            .CbProcEvt_F = __CbProcEvt_F,
             .pCbPrivData = &ConsumerAPrivData,
             .EvtNum = IOC_calcArrayElmtCnt(EvtIDs4ConsumerA),
             .pEvtIDs = EvtIDs4ConsumerA,
@@ -381,17 +375,13 @@ TEST(UT_ServiceTypical, verifySingleServiceMultiClients_byPostEvtAtSrvSide_bySub
     EvtConsumerAThread.join();
 
     // Step-4
-    __US1AC2TC2_EvtConsumerPrivData_T ConsumerBPrivData = {
-        .StartedEvtCnt = 0,
-        .KeepingEvtCnt = 0,
-        .StoppedEvtCnt = 0,
-    };
+    __EvtConsumerPrivData_T ConsumerBPrivData = {0};
 
     std::thread EvtConsumerBThread([&] {
         IOC_EvtID_T EvtIDs4ConsumerB[] = {IOC_EVTID_TEST_PULL_STARTED, IOC_EVTID_TEST_PULL_KEEPING,
                                           IOC_EVTID_TEST_PULL_STOPPED};
         IOC_SubEvtArgs_T SubEvtArgs4ConsumerB = {
-            .CbProcEvt_F = __US1AC2TC2_CbProcEvt_F,
+            .CbProcEvt_F = __CbProcEvt_F,
             .pCbPrivData = &ConsumerBPrivData,
             .EvtNum = IOC_calcArrayElmtCnt(EvtIDs4ConsumerB),
             .pEvtIDs = EvtIDs4ConsumerB,
@@ -459,7 +449,7 @@ TEST(UT_ServiceTypical, verifySingleServiceMultiClients_byPostEvtAtSrvSide_bySub
 
     // Step-7
     IOC_UnsubEvtArgs_T UnsubEvtArgs = {
-        .CbProcEvt_F = __US1AC2TC2_CbProcEvt_F,
+        .CbProcEvt_F = __CbProcEvt_F,
         .pCbPrivData = &ConsumerAPrivData,
     };
     Result = IOC_unsubEVT(CliLinkID_ConsumerA2Producer, &UnsubEvtArgs);
@@ -555,31 +545,6 @@ TEST(UT_ServiceTypical, verifySingleServiceMultiClients_byPostEvtAtSrvSide_bySub
  * @[Notes]:
  */
 
-typedef struct {
-    uint32_t StartedEvtCnt;
-    uint32_t KeepingEvtCnt;
-    uint32_t StoppedEvtCnt;
-} __US1AC3TC3_EvtConsumerPrivData_T;
-
-static IOC_Result_T __US1AC3TC3_CbProcEvt_F(IOC_EvtDesc_T* pEvtDesc, void* pCbPrivData) {
-    __US1AC3TC3_EvtConsumerPrivData_T* pEvtConsumerPrivData = (__US1AC3TC3_EvtConsumerPrivData_T*)pCbPrivData;
-
-    if ((IOC_EVTID_TEST_MOVE_STARTED == pEvtDesc->EvtID) || (IOC_EVTID_TEST_PULL_STARTED == pEvtDesc->EvtID) ||
-        (IOC_EVTID_TEST_PUSH_STARTED == pEvtDesc->EvtID)) {
-        pEvtConsumerPrivData->StartedEvtCnt++;
-    } else if ((IOC_EVTID_TEST_MOVE_KEEPING == pEvtDesc->EvtID) || (IOC_EVTID_TEST_PULL_KEEPING == pEvtDesc->EvtID) ||
-               (IOC_EVTID_TEST_PUSH_KEEPING == pEvtDesc->EvtID)) {
-        pEvtConsumerPrivData->KeepingEvtCnt++;
-    } else if ((IOC_EVTID_TEST_MOVE_STOPPED == pEvtDesc->EvtID) || (IOC_EVTID_TEST_PULL_STOPPED == pEvtDesc->EvtID) ||
-               (IOC_EVTID_TEST_PUSH_STOPPED == pEvtDesc->EvtID)) {
-        pEvtConsumerPrivData->StoppedEvtCnt++;
-    } else {
-        EXPECT_TRUE(false) << "Unknown EvtID: " << pEvtDesc->EvtID;
-    }
-
-    return IOC_RESULT_SUCCESS;
-}
-
 TEST(UT_ServiceTypical, verifyMultiServiceMultiClient_byPostEvtAtSrvSide_bySubDiffEvtAtCliSide) {
     IOC_Result_T Result = IOC_RESULT_BUG;
     IOC_SrvID_T SrvID_Producer1 = IOC_ID_INVALID;
@@ -614,10 +579,10 @@ TEST(UT_ServiceTypical, verifyMultiServiceMultiClient_byPostEvtAtSrvSide_bySubDi
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
     // Step-3: ConsumerA connect to the first service Producer1
-    __US1AC3TC3_EvtConsumerPrivData_T PrivDataConsumerA = {.StartedEvtCnt = 0, .KeepingEvtCnt = 0, .StoppedEvtCnt = 0};
+    __EvtConsumerPrivData_T PrivDataConsumerA = {.StartedEvtCnt = 0, .KeepingEvtCnt = 0, .StoppedEvtCnt = 0};
     IOC_EvtID_T EvtIDs4ConsumerA[] = {IOC_EVTID_TEST_MOVE_STARTED, IOC_EVTID_TEST_MOVE_KEEPING,
                                       IOC_EVTID_TEST_MOVE_STOPPED};
-    IOC_SubEvtArgs_T SubEvtArgs4ConsumerA = {.CbProcEvt_F = __US1AC3TC3_CbProcEvt_F,
+    IOC_SubEvtArgs_T SubEvtArgs4ConsumerA = {.CbProcEvt_F = __CbProcEvt_F,
                                              .pCbPrivData = &PrivDataConsumerA,
                                              .EvtNum = IOC_calcArrayElmtCnt(EvtIDs4ConsumerA),
                                              .pEvtIDs = EvtIDs4ConsumerA};
@@ -639,10 +604,10 @@ TEST(UT_ServiceTypical, verifyMultiServiceMultiClient_byPostEvtAtSrvSide_bySubDi
     Thread_ConsumerA_connectProducer1.join();
 
     // Step-4: ConsumerB connect to the second service Producer2
-    __US1AC3TC3_EvtConsumerPrivData_T PrivDataConsumerB = {.StartedEvtCnt = 0, .KeepingEvtCnt = 0, .StoppedEvtCnt = 0};
+    __EvtConsumerPrivData_T PrivDataConsumerB = {.StartedEvtCnt = 0, .KeepingEvtCnt = 0, .StoppedEvtCnt = 0};
     IOC_EvtID_T EvtIDs4ConsumerB[] = {IOC_EVTID_TEST_PULL_STARTED, IOC_EVTID_TEST_PULL_KEEPING,
                                       IOC_EVTID_TEST_PULL_STOPPED};
-    IOC_SubEvtArgs_T SubEvtArgs4ConsumerB = {.CbProcEvt_F = __US1AC3TC3_CbProcEvt_F,
+    IOC_SubEvtArgs_T SubEvtArgs4ConsumerB = {.CbProcEvt_F = __CbProcEvt_F,
                                              .pCbPrivData = &PrivDataConsumerB,
                                              .EvtNum = IOC_calcArrayElmtCnt(EvtIDs4ConsumerB),
                                              .pEvtIDs = EvtIDs4ConsumerB};
@@ -662,12 +627,12 @@ TEST(UT_ServiceTypical, verifyMultiServiceMultiClient_byPostEvtAtSrvSide_bySubDi
     Thread_ConsumerB_connectProducer2.join();
 
     // Step-5: ConsumerC connect to Producer1 and Producer2
-    __US1AC3TC3_EvtConsumerPrivData_T PrivDataConsumerC = {.StartedEvtCnt = 0, .KeepingEvtCnt = 0, .StoppedEvtCnt = 0};
+    __EvtConsumerPrivData_T PrivDataConsumerC = {.StartedEvtCnt = 0, .KeepingEvtCnt = 0, .StoppedEvtCnt = 0};
 
     IOC_EvtID_T EvtIDs4ConsumerC[] = {IOC_EVTID_TEST_MOVE_STARTED, IOC_EVTID_TEST_MOVE_KEEPING,
                                       IOC_EVTID_TEST_MOVE_STOPPED, IOC_EVTID_TEST_PULL_STARTED,
                                       IOC_EVTID_TEST_PULL_KEEPING, IOC_EVTID_TEST_PULL_STOPPED};
-    IOC_SubEvtArgs_T SubEvtArgs4ConsumerC = {.CbProcEvt_F = __US1AC3TC3_CbProcEvt_F,
+    IOC_SubEvtArgs_T SubEvtArgs4ConsumerC = {.CbProcEvt_F = __CbProcEvt_F,
                                              .pCbPrivData = &PrivDataConsumerC,
                                              .EvtNum = IOC_calcArrayElmtCnt(EvtIDs4ConsumerC),
                                              .pEvtIDs = EvtIDs4ConsumerC};
@@ -826,7 +791,7 @@ TEST(UT_ServiceTypical, verifyMultiServiceMultiClient_byPostEvtAtSrvSide_bySubDi
     ASSERT_EQ(1 + 1, PrivDataConsumerC.StoppedEvtCnt);                              // KeyVerifyPoint
 
     // Step-10
-    IOC_UnsubEvtArgs_T UnsubEvtArgs = {.CbProcEvt_F = __US1AC3TC3_CbProcEvt_F, .pCbPrivData = &PrivDataConsumerA};
+    IOC_UnsubEvtArgs_T UnsubEvtArgs = {.CbProcEvt_F = __CbProcEvt_F, .pCbPrivData = &PrivDataConsumerA};
     Result = IOC_unsubEVT(CliLinkID_ConsumerA_toProducer1, &UnsubEvtArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
@@ -948,27 +913,6 @@ TEST(UT_ServiceTypical, verifyMultiServiceMultiClient_byPostEvtAtSrvSide_bySubDi
  * @[Notes]:
  */
 
-typedef __US1AC3TC3_EvtConsumerPrivData_T __US2AC1TC4_EvtConsumerPrivData_T;
-
-static IOC_Result_T __US2AC1TC4_CbProcEvt_F(IOC_EvtDesc_T* pEvtDesc, void* pCbPrivData) {
-    __US2AC1TC4_EvtConsumerPrivData_T* pEvtConsumerPrivData = (__US2AC1TC4_EvtConsumerPrivData_T*)pCbPrivData;
-
-    if ((IOC_EVTID_TEST_MOVE_STARTED == pEvtDesc->EvtID) || (IOC_EVTID_TEST_PULL_STARTED == pEvtDesc->EvtID) ||
-        (IOC_EVTID_TEST_PUSH_STARTED == pEvtDesc->EvtID)) {
-        pEvtConsumerPrivData->StartedEvtCnt++;
-    } else if ((IOC_EVTID_TEST_MOVE_KEEPING == pEvtDesc->EvtID) || (IOC_EVTID_TEST_PULL_KEEPING == pEvtDesc->EvtID) ||
-               (IOC_EVTID_TEST_PUSH_KEEPING == pEvtDesc->EvtID)) {
-        pEvtConsumerPrivData->KeepingEvtCnt++;
-    } else if ((IOC_EVTID_TEST_MOVE_STOPPED == pEvtDesc->EvtID) || (IOC_EVTID_TEST_PULL_STOPPED == pEvtDesc->EvtID) ||
-               (IOC_EVTID_TEST_PUSH_STOPPED == pEvtDesc->EvtID)) {
-        pEvtConsumerPrivData->StoppedEvtCnt++;
-    } else {
-        EXPECT_TRUE(false) << "Unknown EvtID: " << pEvtDesc->EvtID;
-    }
-
-    return IOC_RESULT_SUCCESS;
-}
-
 TEST(UT_ServiceTypical, verifyMultiServiceMultiClient_byPostEvtAtCliSide_bySubDiffEvtAtSrvSide) {
     IOC_Result_T Result = IOC_RESULT_BUG;
     IOC_SrvID_T SrvID_ConsumerA = IOC_ID_INVALID;
@@ -1016,11 +960,11 @@ TEST(UT_ServiceTypical, verifyMultiServiceMultiClient_byPostEvtAtCliSide_bySubDi
     Result = IOC_acceptClient(SrvID_ConsumerA, &SrvLinkID_ConsumerA_fromProducer1, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
-    __US2AC1TC4_EvtConsumerPrivData_T PrivDataConsumerA_fromProducer1 = {
+    __EvtConsumerPrivData_T PrivDataConsumerA_fromProducer1 = {
         .StartedEvtCnt = 0, .KeepingEvtCnt = 0, .StoppedEvtCnt = 0};
     IOC_EvtID_T EvtIDs4ConsumerA[] = {IOC_EVTID_TEST_MOVE_STARTED, IOC_EVTID_TEST_MOVE_KEEPING,
                                       IOC_EVTID_TEST_MOVE_STOPPED};
-    IOC_SubEvtArgs_T SubEvtArgs4ConsumerA = {.CbProcEvt_F = __US2AC1TC4_CbProcEvt_F,
+    IOC_SubEvtArgs_T SubEvtArgs4ConsumerA = {.CbProcEvt_F = __CbProcEvt_F,
                                              .pCbPrivData = &PrivDataConsumerA_fromProducer1,
                                              .EvtNum = IOC_calcArrayElmtCnt(EvtIDs4ConsumerA),
                                              .pEvtIDs = EvtIDs4ConsumerA};
@@ -1042,11 +986,11 @@ TEST(UT_ServiceTypical, verifyMultiServiceMultiClient_byPostEvtAtCliSide_bySubDi
     Result = IOC_acceptClient(SrvID_ConsumerB, &SrvLinkID_ConsumerB_fromProducer2, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
-    __US2AC1TC4_EvtConsumerPrivData_T PrivDataConsumerB_fromProducer2 = {
+    __EvtConsumerPrivData_T PrivDataConsumerB_fromProducer2 = {
         .StartedEvtCnt = 0, .KeepingEvtCnt = 0, .StoppedEvtCnt = 0};
     IOC_EvtID_T EvtIDs4ConsumerB[] = {IOC_EVTID_TEST_PULL_STARTED, IOC_EVTID_TEST_PULL_KEEPING,
                                       IOC_EVTID_TEST_PULL_STOPPED};
-    IOC_SubEvtArgs_T SubEvtArgs4ConsumerB = {.CbProcEvt_F = __US2AC1TC4_CbProcEvt_F,
+    IOC_SubEvtArgs_T SubEvtArgs4ConsumerB = {.CbProcEvt_F = __CbProcEvt_F,
                                              .pCbPrivData = &PrivDataConsumerB_fromProducer2,
                                              .EvtNum = IOC_calcArrayElmtCnt(EvtIDs4ConsumerB),
                                              .pEvtIDs = EvtIDs4ConsumerB};
@@ -1075,20 +1019,20 @@ TEST(UT_ServiceTypical, verifyMultiServiceMultiClient_byPostEvtAtCliSide_bySubDi
     Result = IOC_acceptClient(SrvID_ConsumerB, &SrvLinkID_ConsumerB_fromProducer3, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
-    __US2AC1TC4_EvtConsumerPrivData_T PrivDataConsumerA_formProducer3 = {
+    __EvtConsumerPrivData_T PrivDataConsumerA_formProducer3 = {
         .StartedEvtCnt = 0, .KeepingEvtCnt = 0, .StoppedEvtCnt = 0};
     // sub MOVE/PULL_EVT, but not PUSH_EVT, while post PUSH_EVT
     IOC_EvtID_T EvtIDs4ConsumerC[] = {IOC_EVTID_TEST_MOVE_STARTED, IOC_EVTID_TEST_MOVE_KEEPING,
                                       IOC_EVTID_TEST_MOVE_STOPPED, IOC_EVTID_TEST_PULL_STARTED,
                                       IOC_EVTID_TEST_PULL_KEEPING, IOC_EVTID_TEST_PULL_STOPPED};
-    IOC_SubEvtArgs_T SubEvtArgs4ConsumerC = {.CbProcEvt_F = __US2AC1TC4_CbProcEvt_F,
+    IOC_SubEvtArgs_T SubEvtArgs4ConsumerC = {.CbProcEvt_F = __CbProcEvt_F,
                                              .pCbPrivData = &PrivDataConsumerA_formProducer3,
                                              .EvtNum = IOC_calcArrayElmtCnt(EvtIDs4ConsumerC),
                                              .pEvtIDs = EvtIDs4ConsumerC};
     Result = IOC_subEVT(SrvLinkID_ConsumerA_fromProducer3, &SubEvtArgs4ConsumerC);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
-    __US2AC1TC4_EvtConsumerPrivData_T PrivDataConsumerB_fromProducer3 = {
+    __EvtConsumerPrivData_T PrivDataConsumerB_fromProducer3 = {
         .StartedEvtCnt = 0, .KeepingEvtCnt = 0, .StoppedEvtCnt = 0};
     SubEvtArgs4ConsumerC.pCbPrivData = &PrivDataConsumerB_fromProducer3;
     Result = IOC_subEVT(SrvLinkID_ConsumerB_fromProducer3, &SubEvtArgs4ConsumerC);
@@ -1187,8 +1131,7 @@ TEST(UT_ServiceTypical, verifyMultiServiceMultiClient_byPostEvtAtCliSide_bySubDi
     ASSERT_EQ(0, PrivDataConsumerB_fromProducer3.StoppedEvtCnt);                // KeyVerifyPoint
 
     // Step-9
-    IOC_UnsubEvtArgs_T UnsubEvtArgs = {.CbProcEvt_F = __US2AC1TC4_CbProcEvt_F,
-                                       .pCbPrivData = &PrivDataConsumerA_formProducer3};
+    IOC_UnsubEvtArgs_T UnsubEvtArgs = {.CbProcEvt_F = __CbProcEvt_F, .pCbPrivData = &PrivDataConsumerA_formProducer3};
     Result = IOC_unsubEVT(SrvLinkID_ConsumerA_fromProducer3, &UnsubEvtArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
