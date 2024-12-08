@@ -87,8 +87,16 @@ typedef enum {
 typedef uint64_t IOC_LinkID_T;
 typedef IOC_LinkID_T *IOC_LinkID_pT;
 
+#define IOC_INVALID_LINK_ID IOC_ID_INVALID
+
+/**
+ * @brief SrvID is a unique ID to identify a service in IOC.
+ *
+ */
 typedef uint64_t IOC_SrvID_T;
 typedef IOC_SrvID_T *IOC_SrvID_pT;
+
+#define IOC_INVALID_SRV_ID IOC_ID_INVALID
 
 enum IOC_AutoLinkID_enum {
     IOC_CONLES_MODE_AUTO_LINK_ID_0 = 0U,
