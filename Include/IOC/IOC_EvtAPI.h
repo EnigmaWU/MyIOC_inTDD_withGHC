@@ -1,5 +1,6 @@
 #include "IOC_EvtDesc.h"
 #include "IOC_Option.h"
+#include "IOC_SrvTypes.h"
 
 #ifndef __IOC_EVENT_API_H__
 #define __IOC_EVENT_API_H__
@@ -60,6 +61,11 @@ IOC_Result_T IOC_postEVT(
     /*ARG_IN_OPTIONAL*/ IOC_Options_pT);
 
 #define IOC_postEVT_inConlesMode(pEvtDesc, pOption) IOC_postEVT(IOC_CONLES_MODE_AUTO_LINK_ID, pEvtDesc, pOption)
+
+IOC_Result_T IOC_broadcastEVT(
+    /*ARG_IN*/ IOC_SrvID_T SrvID,
+    /*ARG_IN*/ const IOC_EvtDesc_pT pEvtDesc,
+    /*ARG_IN_OPTIONAL*/ IOC_Options_pT pOption);
 
 /**
  * @brief EvtConsumer call this API to subscribe an event from the LinkID.
