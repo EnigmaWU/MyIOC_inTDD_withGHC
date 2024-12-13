@@ -62,7 +62,7 @@ static inline const char *IOC_EvtDesc_printDetail(IOC_EvtDesc_pT pEvtDesc, char 
         EvtDescBufSize = sizeof(_mEvtDescBuf);
     }
 
-    snprintf(EvtDescBuf, EvtDescBufSize, "SeqID=%lu, ID=%llu(%s), Value=%lu", IOC_EvtDesc_getSeqID(pEvtDesc),
+    snprintf(EvtDescBuf, EvtDescBufSize, "SeqID=%lu, ID=%zu(%s), Value=%lu", IOC_EvtDesc_getSeqID(pEvtDesc),
              IOC_EvtDesc_getEvtID(pEvtDesc),
              IOC_EvtDesc_getEvtFullNameStr(pEvtDesc, EvtFullNameBuf, sizeof(EvtFullNameBuf)),
              IOC_EvtDesc_getEvtValue(pEvtDesc));
