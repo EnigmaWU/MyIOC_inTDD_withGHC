@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.16)
 
 project(MyCraftCodes LANGUAGES C CXX)
 
@@ -72,13 +72,13 @@ if(CONFIG_BUILD_UNIT_TESTING)
             get_filename_component(UT_EXE_NAME ${UT_CXX_FILE} NAME_WE)
             add_executable(${UT_EXE_NAME} ${UT_CXX_FILE})
             target_include_directories(${UT_EXE_NAME} PRIVATE ${INCGTST})
-            target_link_libraries(${UT_EXE_NAME} ${LIB_IOC} ${LIBGTST} ${LIBGTST_MAIN})
+            target_link_libraries(${UT_EXE_NAME} ${LIB_IOC} ${LIBGTST} ${LIBGTST_MAIN} pthread)
             add_test(NAME ${UT_EXE_NAME} COMMAND ${UT_EXE_NAME})
         endforeach()
     endfunction()
 
     target_compile_definitions(${LIB_IOC} PRIVATE CONFIG_BUILD_WITH_UNIT_TESTING)
     add_subdirectory(Test)
-    add_subdirectory(Source)
+    #add_subdirectory(Source)
 
 endif()
