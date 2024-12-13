@@ -59,7 +59,7 @@ IOC_Result_T _IOC_postEVT_inConetMode(
 
     IOC_Result_T Result = pLinkObj->pMethods->OpPostEvt_F(pLinkObj, pEvtDesc, pOption);
     if (Result != IOC_RESULT_SUCCESS) {
-        _IOC_LogError("Link(%llu): failed to postEVT, Result=%d", pLinkObj->ID, Result);
+        _IOC_LogError("Link(%zu): failed to postEVT, Result=%d", pLinkObj->ID, Result);
         return Result;
     }
 
