@@ -90,7 +90,6 @@
 
 //======BEGIN OF UNIT TESTING IMPLEMENTATION=======================================================
 #include <semaphore.h>
-#include <sys/semaphore.h>
 
 #include <cstdint>
 #include <ctime>
