@@ -1,5 +1,5 @@
 {
-    "cmake.cmakePath": "/opt/homebrew/bin/cmake",
+    "cmake.cmakePath": "cmake",
     "cmake.buildDirectory": "${workspaceFolder}/CMakeBuilt",
     "cmake.debugConfig": {
         "stopAtEntry": true,
