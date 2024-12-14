@@ -176,6 +176,16 @@ static IOC_Result_T __IOC_offlineService_ofProtoFifo(_IOC_ServiceObject_pT pSrvO
     }
     pthread_mutex_unlock(&_mIOC_OnlinedSrvProtoFifoObjsMutex);
 
+    // 销毁互斥量和条件变量
+    pthread_mutex_destroy(&pFifoSrvObj->ConnMutex);
+    pthread_mutex_destroy(&pFifoSrvObj->WaitAccptedMutex);
+    pthread_cond_destroy(&pFifoSrvObj->WaitAccptedCond);
+    pthread_mutex_destroy(&pFifoSrvObj->WaitNewConnMutex);
+    pthread_cond_destroy(&pFifoSrvObj->WaitNewConnCond);
+
+    // 释放服务对象内存
+    free(pFifoSrvObj);
+
     //_IOC_LogNotTested();
     return IOC_RESULT_SUCCESS;  // NOTHING DONE, JUST RETURN SUCCESS
 }
