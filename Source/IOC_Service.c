@@ -1,3 +1,5 @@
+#include <pthread.h>
+
 #include "_IOC.h"
 
 //=================================================================================================
@@ -236,6 +238,43 @@ IOC_Result_T __IOC_onlineServiceByProto(_IOC_ServiceObject_pT pSrvObj) {
     return OnlineResult;
 }
 
+/**
+ * @brief The broadcast daemon thread function is created
+ *  when the service is onlineed with IOC_SRVFLAG_BROADCAST_EVENT flag.
+ * @param pArg: the pointer to the service object.
+ *
+ * @details
+ *    1) auto accept incoming client connections.
+ *    2) auto close the link when the client closed by peer.
+ */
+static void *__IOC_ServiceBroadcastDaemonThread(void *pArg) {
+    _IOC_ServiceObject_pT pSrvObj = (_IOC_ServiceObject_pT)pArg;
+    _IOC_LogAssert(NULL != pSrvObj);
+
+    while (1) {
+        _IOC_LinkObject_pT pLinkObj = __IOC_allocLinkObj();
+        if (NULL == pLinkObj) {
+            _IOC_LogBug("Failed to alloc a new link object");
+            _IOC_LogNotTested();
+            break;
+        }
+
+        IOC_Result_T Result = pSrvObj->pMethods->OpAcceptClient_F(pSrvObj, pLinkObj, NULL /*TODO:TIMEOUT*/);
+        if (IOC_RESULT_SUCCESS != Result) {
+            _IOC_LogError("Failed to accept client, Result=%d", Result);
+            __IOC_freeLinkObj(pLinkObj);
+            _IOC_LogNotTested();
+        } else {
+            _IOC_LogInfo("Accepted a new client, LinkID=%" PRIu64 "", pLinkObj->ID);
+            for (int i = 0; i < _MAX_BROADCAST_EVENT_ACCEPTED_LINK_NUM; i++) {
+                if (NULL == pSrvObj->BroadcastEvent.pAcceptedLinks[i]) {
+                    pSrvObj->BroadcastEvent.pAcceptedLinks[i] = pLinkObj;
+                }
+            }
+        }
+    };
+}
+
 IOC_Result_T IOC_onlineService(
     /*ARG_OUT */ IOC_SrvID_pT pSrvID,
     /*ARG_IN*/ const IOC_SrvArgs_pT pSrvArgs) {
@@ -263,17 +302,39 @@ IOC_Result_T IOC_onlineService(
 
     Result = __IOC_onlineServiceByProto(pSrvObj);
     if (IOC_RESULT_SUCCESS != Result) {
-        __IOC_freeSrvObj(pSrvObj);
-        _IOC_LogWarn("Failed to online service by URI, Resuld=%d", Result);
+        _IOC_LogWarn("Failed to online service of URI(%s), Resuld=%d",
+                     IOC_Helper_printSingleLineSrvURI(&pSrvArgs->SrvURI, NULL, 0), Result);
         _IOC_LogNotTested();
-        return Result;
-    } else {
-        *pSrvID = pSrvObj->ID;
+        goto _RetFail_onlineServiceByProto;
     }
 
+    if (pSrvArgs->Flags & IOC_SRVFLAG_BROADCAST_EVENT) {
+        int PosixResult =
+            pthread_create(&pSrvObj->BroadcastEvent.DaemonThreadID, NULL, __IOC_ServiceBroadcastDaemonThread, pSrvObj);
+        if (0 != PosixResult) {
+            _IOC_LogWarn("Failed to create broadcast daemon thread, PosixResult=%d", PosixResult);
+            Result = -errno;
+            _IOC_LogNotTested();
+            goto _RetFail_createBroadcastDaemonThread;
+        }
+    }
+
+    // finally we reach the success return point
+    *pSrvID = pSrvObj->ID;
     //_IOC_LogNotTested();
     return IOC_RESULT_SUCCESS;
+
+_RetFail_createBroadcastDaemonThread:
+    Result = pSrvObj->pMethods->OpOfflineService_F(pSrvObj);
+    if (IOC_RESULT_SUCCESS != Result) {
+        _IOC_LogBug("Failed to offline service by protocol, Resuld=%d", Result);
+    }
+_RetFail_onlineServiceByProto:
+    __IOC_freeSrvObj(pSrvObj);
+    _IOC_LogNotTested();
+    return Result;
 }
+
 IOC_Result_T IOC_offlineService(
     /*ARG_IN*/ IOC_SrvID_T SrvID) {
     _IOC_ServiceObject_pT pSrvObj = __IOC_getSrvObjBySrvID(SrvID);
@@ -285,6 +346,17 @@ IOC_Result_T IOC_offlineService(
 
     _IOC_LogAssert(pSrvObj->pMethods != NULL);
     _IOC_LogAssert(pSrvObj->pMethods->OpOfflineService_F != NULL);
+
+    if (pSrvObj->Args.Flags & IOC_SRVFLAG_BROADCAST_EVENT) {
+        pthread_cancel(pSrvObj->BroadcastEvent.DaemonThreadID);
+        pthread_join(pSrvObj->BroadcastEvent.DaemonThreadID, NULL);
+
+        for (int i = 0; i < _MAX_BROADCAST_EVENT_ACCEPTED_LINK_NUM; i++) {
+            if (NULL != pSrvObj->BroadcastEvent.pAcceptedLinks[i]) {
+                pSrvObj->pMethods->OpCloseLink_F(pSrvObj->BroadcastEvent.pAcceptedLinks[i]);
+            }
+        }
+    }
 
     IOC_Result_T Result = pSrvObj->pMethods->OpOfflineService_F(pSrvObj);
     if (IOC_RESULT_SUCCESS != Result) {
@@ -308,7 +380,7 @@ IOC_Result_T IOC_acceptClient(
     // Step-1: Get the Service Object by SrvID
     _IOC_ServiceObject_pT pSrvObj = __IOC_getSrvObjBySrvID(SrvID);
     if (NULL == pSrvObj) {
-        _IOC_LogWarn("Failed to get service object by SrvID=%zu", SrvID);
+        _IOC_LogWarn("Failed to get service object by SrvID=%" PRIu64, SrvID);
         _IOC_LogNotTested();
         return IOC_RESULT_NOT_EXIST_SERVICE;
     }
@@ -457,4 +529,27 @@ IOC_Result_T IOC_closeLink(
 
     //_IOC_LogNotTested();
     return IOC_RESULT_SUCCESS;
+}
+
+IOC_Result_T IOC_broadcastEVT(
+    /*ARG_IN*/ IOC_SrvID_T SrvID,
+    /*ARG_IN*/ const IOC_EvtDesc_pT pEvtDesc,
+    /*ARG_IN_OPTIONAL*/ IOC_Options_pT pOption) {
+    _IOC_ServiceObject_pT pSrvObj = __IOC_getSrvObjBySrvID(SrvID);
+    int PostEvtCnt = 0;
+
+    for (int i = 0; i < _MAX_BROADCAST_EVENT_ACCEPTED_LINK_NUM; i++) {
+        _IOC_LinkObject_pT pLinkObj = pSrvObj->BroadcastEvent.pAcceptedLinks[i];
+        if (pLinkObj) {
+            IOC_Result_T Result = pSrvObj->pMethods->OpPostEvt_F(pLinkObj, pEvtDesc, pOption);
+            if (Result != IOC_RESULT_SUCCESS) {
+                _IOC_LogError("Failed to postEVT by protocol, Result=%d", Result);
+            }
+
+            PostEvtCnt++;
+        }
+    }
+
+    //_IOC_LogNotTested();
+    return (PostEvtCnt > 0) ? IOC_RESULT_SUCCESS : IOC_RESULT_NO_EVENT_CONSUMER;
 }

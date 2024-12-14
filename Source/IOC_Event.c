@@ -1,5 +1,6 @@
-#include "_IOC.h"
 #include <stdatomic.h>
+
+#include "_IOC.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 IOC_Result_T IOC_postEVT(
@@ -78,11 +79,4 @@ IOC_Result_T IOC_getLinkState(
         // TODO: getLinkState_inConetMode
         return IOC_RESULT_NOT_IMPLEMENTED;
     }
-}
-
-IOC_Result_T IOC_broadcastEVT(
-    /*ARG_IN*/ IOC_SrvID_T SrvID,
-    /*ARG_IN*/ const IOC_EvtDesc_pT pEvtDesc,
-    /*ARG_IN_OPTIONAL*/ IOC_Options_pT pOption) {
-    return IOC_RESULT_NO_EVENT_CONSUMER;
 }

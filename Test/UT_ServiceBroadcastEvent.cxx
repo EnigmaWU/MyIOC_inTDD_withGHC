@@ -192,7 +192,6 @@ static IOC_Result_T __CbProcEvt_F(IOC_EvtDesc_T* pEvtDesc, void* pCbPrivData) {
 
 TEST(UT_ServiceBroadcastEvent, verifyPostEvtToSrvID_willLetAllConnectedEvtConsumersProcessEvt) {
     IOC_Result_T Result = IOC_RESULT_BUG;
-
     IOC_SrvURI_T SrvURI = {"fifo", "localprocess", "EvtPostFromSrvID"};
 
     // Step-1

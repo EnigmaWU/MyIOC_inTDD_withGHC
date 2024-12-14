@@ -2,8 +2,8 @@
  * @file _IOC_Types.h
  * @brief This is internal header file used to define types for internal use only.
  */
-
 #include <IOC/IOC.h>  //Module IOC's public header file
+#include <pthread.h>  //POSIX pthread
 
 #ifndef __INTER_OBJECT_COMMUNICATION_TYPES_H__
 #define __INTER_OBJECT_COMMUNICATION_TYPES_H__
@@ -14,23 +14,34 @@ extern "C" {
 typedef struct _IOC_SrvProtoMethodsStru _IOC_SrvProtoMethods_T;
 typedef _IOC_SrvProtoMethods_T *_IOC_SrvProtoMethods_pT;
 
+typedef struct _IOC_LinkObjectStru _IOC_LinkObject_T;
+typedef _IOC_LinkObject_T *_IOC_LinkObject_pT;
+
 typedef struct {
     IOC_SrvID_T ID;
     IOC_SrvArgs_T Args;
 
     _IOC_SrvProtoMethods_pT pMethods;
 
+    // WHEN Flags has IOC_SRVFLAG_BROADCAST_EVENT
+    struct {
+        pthread_t DaemonThreadID;
+
+#define _MAX_BROADCAST_EVENT_ACCEPTED_LINK_NUM 3
+        _IOC_LinkObject_pT pAcceptedLinks[_MAX_BROADCAST_EVENT_ACCEPTED_LINK_NUM];
+    } BroadcastEvent;
+
     void *pProtoPriv;
 } _IOC_ServiceObject_T, *_IOC_ServiceObject_pT;
 
-typedef struct {
+struct _IOC_LinkObjectStru {
     IOC_LinkID_T ID;
     IOC_ConnArgs_T Args;
 
     _IOC_SrvProtoMethods_pT pMethods;
 
     void *pProtoPriv;
-} _IOC_LinkObject_T, *_IOC_LinkObject_pT;
+};
 
 _IOC_LinkObject_pT _IOC_getLinkObjByLinkID(IOC_LinkID_T LinkID);
 
