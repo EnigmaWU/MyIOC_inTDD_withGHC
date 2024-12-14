@@ -1306,6 +1306,9 @@ TEST(UT_ServiceTypical, verifyConsumerResubscribeEvent) {
     Result = IOC_closeLink(EvtProducerLinkID);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
 
+    Result = IOC_unsubEVT(EvtConsumerLinkID, &UnsubEvtArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+
     Result = IOC_closeLink(EvtConsumerLinkID);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
 
