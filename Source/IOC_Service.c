@@ -308,7 +308,7 @@ IOC_Result_T IOC_acceptClient(
     // Step-1: Get the Service Object by SrvID
     _IOC_ServiceObject_pT pSrvObj = __IOC_getSrvObjBySrvID(SrvID);
     if (NULL == pSrvObj) {
-        _IOC_LogWarn("Failed to get service object by SrvID=%llu", SrvID);
+        _IOC_LogWarn("Failed to get service object by SrvID=%zu", SrvID);
         _IOC_LogNotTested();
         return IOC_RESULT_NOT_EXIST_SERVICE;
     }

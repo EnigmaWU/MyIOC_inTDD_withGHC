@@ -568,13 +568,13 @@ IOC_Result_T _IOC_getLinkState_inConlesMode(
     /*ARG_OUT*/ IOC_LinkState_pT pLinkState,
     /*ARG_OUT_OPTIONAL*/ IOC_LinkSubState_pT pLinkSubState) {
     if (LinkID != IOC_CONLES_MODE_AUTO_LINK_ID) {
-        _IOC_LogError("Invalid AutoLinkID(%llu)", LinkID);
+        _IOC_LogError("Invalid AutoLinkID(%zu)", LinkID);
         return IOC_RESULT_INVALID_AUTO_LINK_ID;
     }
 
     _ClsEvtLinkObj_pT pLinkObj = __IOC_ClsEvt_getLinkObjNotLocked(LinkID);
     if (pLinkObj == NULL) {
-        _IOC_LogBug("No LinkObj of AutoLinkID(%llu)", LinkID);
+        _IOC_LogBug("No LinkObj of AutoLinkID(%zu)", LinkID);
         return IOC_RESULT_BUG;
     }
 
@@ -631,7 +631,7 @@ void _IOC_forceProcEvt_inConlesMode(void) {
             TS_TickNow        = IOC_getCurrentTimeSpec();
             ULONG_T ElapsedMS = IOC_deltaTimeSpecInMS(&TS_TickLastWarn, &TS_TickNow);
             if (ElapsedMS >= 1000) {
-                _IOC_LogWarn("AutoLinkID(%llu) still HAS EvtDesc, keep waiting +1s", pLinkObj->LinkID);
+                _IOC_LogWarn("AutoLinkID(%zu) still HAS EvtDesc, keep waiting +1s", pLinkObj->LinkID);
                 TS_TickLastWarn = TS_TickNow;
             }
 
@@ -721,14 +721,14 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
 
     _ClsEvtLinkObj_pT pLinkObj = __IOC_ClsEvt_getLinkObjLocked(LinkID);
     if (pLinkObj == NULL) {
-        _IOC_LogError("[ConlesEvent]: No LinkObj of LinkID(%llu)", LinkID);
+        _IOC_LogError("[ConlesEvent]: No LinkObj of LinkID(%zu)", LinkID);
         //_IOC_LogNotTested();
         return IOC_RESULT_INVALID_AUTO_LINK_ID;  // Path@C->[1]
     }
 
     IOC_BoolResult_T IsEmptySuberList = __IOC_ClsEvt_isEmptySuberList(&pLinkObj->EvtSuberList);
     if (IsEmptySuberList == IOC_RESULT_YES) {
-        _IOC_LogWarn("[ConlesEvent]: No EvtSuber of AutoLinkID(%llu)", LinkID);
+        _IOC_LogWarn("[ConlesEvent]: No EvtSuber of AutoLinkID(%zu)", LinkID);
         // _IOC_LogNotTested();
         Result = IOC_RESULT_NO_EVENT_CONSUMER;  // Path@C->[2]
         goto _returnResult;
