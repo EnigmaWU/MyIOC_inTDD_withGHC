@@ -1239,7 +1239,7 @@ TEST(UT_ServiceTypical, verifyConsumerResubscribeEvent) {
     };
 
     Result = IOC_onlineService(&EvtProducerSrvID, &SrvArgs);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
     // Step-2:
     __EvtConsumerPrivData_T EvtConsumerPrivData = {0};
@@ -1259,15 +1259,15 @@ TEST(UT_ServiceTypical, verifyConsumerResubscribeEvent) {
 
     std::thread EvtConsumerThread([&] {
         IOC_Result_T Result = IOC_connectService(&EvtConsumerLinkID, &ConnArgs, NULL);
-        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
         Result = IOC_subEVT(EvtConsumerLinkID, &SubEvtArgs);
-        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
     });
 
     // Step-3
     Result = IOC_acceptClient(EvtProducerSrvID, &EvtProducerLinkID, NULL);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
     EvtConsumerThread.join();
 
@@ -1304,15 +1304,15 @@ TEST(UT_ServiceTypical, verifyConsumerResubscribeEvent) {
 
     // Step-9
     Result = IOC_closeLink(EvtProducerLinkID);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
     Result = IOC_unsubEVT(EvtConsumerLinkID, &UnsubEvtArgs);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
     Result = IOC_closeLink(EvtConsumerLinkID);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 
     // Step-10
     Result = IOC_offlineService(EvtProducerSrvID);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint
 }
