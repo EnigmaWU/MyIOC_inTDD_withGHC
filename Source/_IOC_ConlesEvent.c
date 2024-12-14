@@ -52,7 +52,7 @@
 //---------------------------------------------------------------------------------------------------------------------
 typedef enum {
     UnSubed = 0,
-    Subed   = 1,
+    Subed = 1,
 } _ClsEvtSuberState_T;
 
 /**
@@ -256,7 +256,7 @@ static void __IOC_ClsEvt_deinitSuberList(_ClsEvtSuberList_pT pEvtSuberList) {
 
 // Return: IOC_RESULT_SUCCESS or IOC_RESULT_TOO_MANY_EVENT_CONSUMER or IOC_RESULT_CONFLICT_EVENT_CONSUMER
 static IOC_Result_T __IOC_ClsEvt_insertSuberIntoLinkObj(_ClsEvtLinkObj_pT pEvtLinkObj, IOC_SubEvtArgs_pT pSubEvtArgs) {
-    IOC_Result_T Result            = IOC_RESULT_BUG;
+    IOC_Result_T Result = IOC_RESULT_BUG;
     _ClsEvtSuberList_pT pSuberList = &pEvtLinkObj->EvtSuberList;
 
     pthread_mutex_lock(&pSuberList->Mutex);
@@ -292,8 +292,8 @@ static IOC_Result_T __IOC_ClsEvt_insertSuberIntoLinkObj(_ClsEvtLinkObj_pT pEvtLi
             // save direct args, and alloc new memory to save indirect EvtIDs
             pSuber->Args.CbProcEvt_F = pSubEvtArgs->CbProcEvt_F;
             pSuber->Args.pCbPrivData = pSubEvtArgs->pCbPrivData;
-            pSuber->Args.EvtNum      = pSubEvtArgs->EvtNum;
-            pSuber->Args.pEvtIDs     = (IOC_EvtID_T *)malloc(pSubEvtArgs->EvtNum * sizeof(IOC_EvtID_T));
+            pSuber->Args.EvtNum = pSubEvtArgs->EvtNum;
+            pSuber->Args.pEvtIDs = (IOC_EvtID_T *)malloc(pSubEvtArgs->EvtNum * sizeof(IOC_EvtID_T));
             memcpy(pSuber->Args.pEvtIDs, pSubEvtArgs->pEvtIDs, pSubEvtArgs->EvtNum * sizeof(IOC_EvtID_T));
 
             // increase SuberNum atomically
@@ -312,7 +312,7 @@ _returnResult:
 // Return: IOC_RESULT_SUCCESS or IOC_RESULT_NO_EVENT_CONSUMER
 static IOC_Result_T __IOC_ClsEvt_removeSuberFromLinkObj(_ClsEvtLinkObj_pT pEvtLinkObj,
                                                         IOC_UnsubEvtArgs_pT pUnsubEvtArgs) {
-    IOC_Result_T Result            = IOC_RESULT_BUG;
+    IOC_Result_T Result = IOC_RESULT_BUG;
     _ClsEvtSuberList_pT pSuberList = &pEvtLinkObj->EvtSuberList;
 
     pthread_mutex_lock(&pSuberList->Mutex);
@@ -354,7 +354,7 @@ _returnResult:
 
 static IOC_BoolResult_T __IOC_ClsEvt_isEmptySuberList(_ClsEvtSuberList_pT pEvtSuberList) {
     // read SuberNum atomically
-    ULONG_T SuberNum        = atomic_load(&pEvtSuberList->SuberNum);
+    ULONG_T SuberNum = atomic_load(&pEvtSuberList->SuberNum);
     IOC_BoolResult_T Result = (SuberNum == 0) ? IOC_RESULT_YES : IOC_RESULT_NO;
     return Result;
 }
@@ -398,7 +398,7 @@ static _ClsEvtLinkObj_T _mClsEvtLinkObjs[] = {
         .State =
             {
                 .Main = IOC_LinkStateReady,
-                .Sub  = IOC_LinkSubStateDefault,
+                .Sub = IOC_LinkSubStateDefault,
             },
     },
 };
@@ -471,7 +471,7 @@ static void *__IOC_ClsEvt_callbackProcEvtThread(void *arg) {
         //-----------------------------------------------------------------------------------------------------------------
         do {
             IOC_EvtDesc_T EvtDesc = {};
-            IOC_Result_T Result   = _IOC_EvtDescQueue_dequeueElementFirst(&pLinkObj->EvtDescQueue, &EvtDesc);
+            IOC_Result_T Result = _IOC_EvtDescQueue_dequeueElementFirst(&pLinkObj->EvtDescQueue, &EvtDesc);
             if (Result == IOC_RESULT_EVTDESC_QUEUE_EMPTY) {
                 break;
             }
@@ -490,7 +490,7 @@ static void *__IOC_ClsEvt_callbackProcEvtThread(void *arg) {
 // HAS = EvtDescQueue is not empty || one EvtDesc is callbacking by EvtProcThread
 static IOC_BoolResult_T __IOC_ClsEvt_hasEvtDescInLinkObj(_ClsEvtLinkObj_pT pLinkObj) {
     // read QueuedEvtNum and CallbacedEvtNum atomically
-    ULONG_T QueuedEvtNum    = atomic_load(&pLinkObj->QueuedEvtNum);
+    ULONG_T QueuedEvtNum = atomic_load(&pLinkObj->QueuedEvtNum);
     ULONG_T CallbacedEvtNum = atomic_load(&pLinkObj->CallbacedEvtNum);
     IOC_BoolResult_T Result = (QueuedEvtNum != CallbacedEvtNum) ? IOC_RESULT_YES : IOC_RESULT_NO;
     return Result;
@@ -568,13 +568,13 @@ IOC_Result_T _IOC_getLinkState_inConlesMode(
     /*ARG_OUT*/ IOC_LinkState_pT pLinkState,
     /*ARG_OUT_OPTIONAL*/ IOC_LinkSubState_pT pLinkSubState) {
     if (LinkID != IOC_CONLES_MODE_AUTO_LINK_ID) {
-        _IOC_LogError("Invalid AutoLinkID(%zu)", LinkID);
+        _IOC_LogError("Invalid AutoLinkID(%" PRIu64 ")", LinkID);
         return IOC_RESULT_INVALID_AUTO_LINK_ID;
     }
 
     _ClsEvtLinkObj_pT pLinkObj = __IOC_ClsEvt_getLinkObjNotLocked(LinkID);
     if (pLinkObj == NULL) {
-        _IOC_LogBug("No LinkObj of AutoLinkID(%zu)", LinkID);
+        _IOC_LogBug("No LinkObj of AutoLinkID(%" PRIu64 ")", LinkID);
         return IOC_RESULT_BUG;
     }
 
@@ -594,7 +594,7 @@ IOC_Result_T _IOC_getCapabilty_inConlesMode(
 
     switch (pCapDesc->CapID) {
         case IOC_CAPID_CONLES_MODE_EVENT: {
-            pCapDesc->ConlesModeEvent.MaxEvtConsumer    = _CONLES_EVENT_MAX_SUBSCRIBER;
+            pCapDesc->ConlesModeEvent.MaxEvtConsumer = _CONLES_EVENT_MAX_SUBSCRIBER;
             pCapDesc->ConlesModeEvent.DepthEvtDescQueue = _CONLES_EVENT_MAX_QUEUING_EVTDESC;
 
             Result = IOC_RESULT_SUCCESS;
@@ -628,10 +628,10 @@ void _IOC_forceProcEvt_inConlesMode(void) {
                 break;
             }
 
-            TS_TickNow        = IOC_getCurrentTimeSpec();
+            TS_TickNow = IOC_getCurrentTimeSpec();
             ULONG_T ElapsedMS = IOC_deltaTimeSpecInMS(&TS_TickLastWarn, &TS_TickNow);
             if (ElapsedMS >= 1000) {
-                _IOC_LogWarn("AutoLinkID(%zu) still HAS EvtDesc, keep waiting +1s", pLinkObj->LinkID);
+                _IOC_LogWarn("AutoLinkID(%" PRIu64 ") still HAS EvtDesc, keep waiting +1s", pLinkObj->LinkID);
                 TS_TickLastWarn = TS_TickNow;
             }
 
@@ -716,19 +716,19 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
     /*ARG_IN*/ IOC_LinkID_T LinkID,
     /*ARG_IN*/ const IOC_EvtDesc_pT pEvtDesc,
     /*ARG_IN_OPTIONAL*/ const IOC_Options_pT pOption) {
-    IOC_Result_T Result          = IOC_RESULT_BUG;
+    IOC_Result_T Result = IOC_RESULT_BUG;
     IOC_BoolResult_T IsAsyncMode = IOC_Option_isAsyncMode(pOption);
 
     _ClsEvtLinkObj_pT pLinkObj = __IOC_ClsEvt_getLinkObjLocked(LinkID);
     if (pLinkObj == NULL) {
-        _IOC_LogError("[ConlesEvent]: No LinkObj of LinkID(%zu)", LinkID);
+        _IOC_LogError("[ConlesEvent]: No LinkObj of LinkID(%" PRIu64 ")", LinkID);
         //_IOC_LogNotTested();
         return IOC_RESULT_INVALID_AUTO_LINK_ID;  // Path@C->[1]
     }
 
     IOC_BoolResult_T IsEmptySuberList = __IOC_ClsEvt_isEmptySuberList(&pLinkObj->EvtSuberList);
     if (IsEmptySuberList == IOC_RESULT_YES) {
-        _IOC_LogWarn("[ConlesEvent]: No EvtSuber of AutoLinkID(%zu)", LinkID);
+        _IOC_LogWarn("[ConlesEvent]: No EvtSuber of AutoLinkID(%" PRIu64 ")", LinkID);
         // _IOC_LogNotTested();
         Result = IOC_RESULT_NO_EVENT_CONSUMER;  // Path@C->[2]
         goto _returnResult;
