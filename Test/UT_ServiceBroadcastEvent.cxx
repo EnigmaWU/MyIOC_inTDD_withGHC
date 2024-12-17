@@ -71,6 +71,8 @@
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======BEGIN OF UNIT TESTING IMPLEMENTATION=======================================================
+#include <thread>
+
 #include "_UT_IOC_Common.h"
 /**
  * @[Name]: <US1AC1TC1>verifyPostEvtToSrvID_willGetNoEvtConsumer_whenNoEvtConsumerConnected
@@ -152,36 +154,27 @@ typedef struct {
 } _EvtConsumerPrivData_T;
 
 static IOC_Result_T __CbProcEvt_F(IOC_EvtDesc_T* pEvtDesc, void* pCbPrivData) {
-    _EvtConsumerPrivData_T* pEvtConsumerPrivData = (_EvtConsumerPrivData_T*)pCbPrivData;
+    _EvtConsumerPrivData_T* pPrivData = (_EvtConsumerPrivData_T*)pCbPrivData;
 
     switch (pEvtDesc->EvtID) {
         case IOC_EVTID_TEST_MOVE_STARTED:
-            pEvtConsumerPrivData->StartedCnt++;
-            break;
-        case IOC_EVTID_TEST_MOVE_KEEPING:
-            pEvtConsumerPrivData->KeepingCnt++;
-            break;
-        case IOC_EVTID_TEST_MOVE_STOPPED:
-            pEvtConsumerPrivData->StoppedCnt++;
-            break;
         case IOC_EVTID_TEST_PULL_STARTED:
-            pEvtConsumerPrivData->StartedCnt++;
-            break;
+        case IOC_EVTID_TEST_PUSH_STARTED: {
+            pPrivData->StartedCnt++;
+        } break;
+
+        case IOC_EVTID_TEST_MOVE_KEEPING:
         case IOC_EVTID_TEST_PULL_KEEPING:
-            pEvtConsumerPrivData->KeepingCnt++;
-            break;
+        case IOC_EVTID_TEST_PUSH_KEEPING: {
+            pPrivData->KeepingCnt++;
+        } break;
+
+        case IOC_EVTID_TEST_MOVE_STOPPED:
         case IOC_EVTID_TEST_PULL_STOPPED:
-            pEvtConsumerPrivData->StoppedCnt++;
-            break;
-        case IOC_EVTID_TEST_PUSH_STARTED:
-            pEvtConsumerPrivData->StartedCnt++;
-            break;
-        case IOC_EVTID_TEST_PUSH_KEEPING:
-            pEvtConsumerPrivData->KeepingCnt++;
-            break;
-        case IOC_EVTID_TEST_PUSH_STOPPED:
-            pEvtConsumerPrivData->StoppedCnt++;
-            break;
+        case IOC_EVTID_TEST_PUSH_STOPPED: {
+            pPrivData->StoppedCnt++;
+        } break;
+
         default:
             EXPECT_TRUE(false) << "Unknown EvtID: " << pEvtDesc->EvtID;
             break;
@@ -269,8 +262,10 @@ TEST(UT_ServiceBroadcastEvent, verifyPostEvtToSrvID_willLetAllConnectedEvtConsum
     EvtConsumerBThread.join();
     EvtConsumerCThread.join();
 
+    sleep(1);
+
     // Step-5
-    IOC_EvtDesc_T EvtDesc = {IOC_EVTID_TEST_MOVE_STARTED};
+    IOC_EvtDesc_T EvtDesc = {.EvtID = IOC_EVTID_TEST_MOVE_STARTED};
     Result = IOC_broadcastEVT(SrvID, &EvtDesc, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
 

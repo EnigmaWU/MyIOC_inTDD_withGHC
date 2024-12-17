@@ -252,7 +252,7 @@ static IOC_Result_T __IOC_connectService_ofProtoFifo(_IOC_LinkObject_pT pLinkObj
     // MAKE SURE the connection is accepted by the acceptClient
     _IOC_LogAssert(NULL != pFifoLinkObj->pPeer);
 
-    pFifoSrvObj->pConnLinkObj = NULL;  // clear the connection link object
+    // pFifoSrvObj->pConnLinkObj = NULL;  // clear the connection link object
     pthread_mutex_unlock(&pFifoSrvObj->WaitAccptedMutex);
 
     // Step-6: Release the connection link object
@@ -307,6 +307,8 @@ static IOC_Result_T __IOC_acceptClient_ofProtoFifo(_IOC_ServiceObject_pT pSrvObj
 
             pAceptedFifoLinkObj->pPeer = pConnFifoLinkObj;
             pConnFifoLinkObj->pPeer = pAceptedFifoLinkObj;
+
+            pFifoSrvObj->pConnLinkObj = NULL;  // clear the connection link object
 
             pthread_cond_signal(&pFifoSrvObj->WaitAccptedCond);
             pthread_mutex_unlock(&pFifoSrvObj->WaitAccptedMutex);
@@ -436,24 +438,28 @@ static IOC_Result_T __IOC_unsubEvt_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, cons
 
 static IOC_Result_T __IOC_postEvt_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, const IOC_EvtDesc_pT pEvtDesc,
                                               const IOC_Options_pT pOption) {
-    _IOC_ProtoFifoLinkObject_pT pLinkFifoObj = (_IOC_ProtoFifoLinkObject_pT)pLinkObj->pProtoPriv;
+    _IOC_ProtoFifoLinkObject_pT pLocalFifoLinkObj = (_IOC_ProtoFifoLinkObject_pT)pLinkObj->pProtoPriv;
     IOC_Result_T Result = IOC_RESULT_BUG;
     int ProcEvtSuberCnt = 0;
 
-    pthread_mutex_lock(&pLinkFifoObj->Mutex);
-    if (NULL != pLinkFifoObj->pPeer) {
-        pthread_mutex_lock(&pLinkFifoObj->pPeer->Mutex);
-        if (NULL != pLinkFifoObj->pPeer->SubEvtArgs.CbProcEvt_F) {
-            for (int i = 0; i < pLinkFifoObj->pPeer->SubEvtArgs.EvtNum; i++) {
-                if (pEvtDesc->EvtID == pLinkFifoObj->pPeer->SubEvtArgs.pEvtIDs[i]) {
-                    pLinkFifoObj->pPeer->SubEvtArgs.CbProcEvt_F(pEvtDesc, pLinkFifoObj->pPeer->SubEvtArgs.pCbPrivData);
+    pthread_mutex_lock(&pLocalFifoLinkObj->Mutex);
+    _IOC_ProtoFifoLinkObject_pT pPeerFifoLinkObj = pLocalFifoLinkObj->pPeer;
+
+    if (NULL != pPeerFifoLinkObj) {
+        pthread_mutex_lock(&pPeerFifoLinkObj->Mutex);
+        IOC_CbProcEvt_F CbProcEvt_F = pPeerFifoLinkObj->SubEvtArgs.CbProcEvt_F;
+
+        if (NULL != CbProcEvt_F) {
+            for (int i = 0; i < pPeerFifoLinkObj->SubEvtArgs.EvtNum; i++) {
+                if (pEvtDesc->EvtID == pPeerFifoLinkObj->SubEvtArgs.pEvtIDs[i]) {
+                    CbProcEvt_F(pEvtDesc, pPeerFifoLinkObj->SubEvtArgs.pCbPrivData);
                     ProcEvtSuberCnt++;
                 }
             }
         }
-        pthread_mutex_unlock(&pLinkFifoObj->pPeer->Mutex);
+        pthread_mutex_unlock(&pPeerFifoLinkObj->Mutex);
     }
-    pthread_mutex_unlock(&pLinkFifoObj->Mutex);
+    pthread_mutex_unlock(&pLocalFifoLinkObj->Mutex);
 
     if (ProcEvtSuberCnt > 0) {
         Result = IOC_RESULT_SUCCESS;

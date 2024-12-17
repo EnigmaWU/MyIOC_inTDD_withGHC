@@ -269,6 +269,7 @@ static void *__IOC_ServiceBroadcastDaemonThread(void *pArg) {
             for (int i = 0; i < _MAX_BROADCAST_EVENT_ACCEPTED_LINK_NUM; i++) {
                 if (NULL == pSrvObj->BroadcastEvent.pAcceptedLinks[i]) {
                     pSrvObj->BroadcastEvent.pAcceptedLinks[i] = pLinkObj;
+                    break;
                 }
             }
         }
