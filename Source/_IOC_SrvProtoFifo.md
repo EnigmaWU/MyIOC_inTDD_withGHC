@@ -27,3 +27,31 @@ sequenceDiagram
     IOC_onCliFifo-->>IOC_onCli: SUCCESS
     IOC_onCli-->>USR_atCli: SUCCESS
 ```
+
+# IOC_subEVT vs IOC_postEVT
+```mermaid
+sequenceDiagram
+    participant USR_atSrv 
+    participant IOC_onSrv
+    participant IOC_onSrvFifo 
+    participant IOC_onCliFifo
+    participant IOC_onCli
+    participant USR_atCli
+
+    USR_atCli->>IOC_onCli: IOC_subEVT(+CbProcEvt_ofUSR)
+    IOC_onCli->>IOC_onCliFifo: subEVT_ofProtoFifo(+CbProcEvt_ofUSR)
+    IOC_onCliFifo-->>IOC_onCli: SUCCESS
+    IOC_onCli-->>USR_atCli: SUCCESS
+
+    USR_atSrv->>IOC_onSrv: IOC_postEvent
+    IOC_onSrv->>IOC_onSrvFifo: postEvent_ofProtoFifo
+
+    IOC_onSrvFifo-->>IOC_onSrv: SUCCESS
+    IOC_onSrv-->>USR_atSrv: SUCCESS
+
+    IOC_onSrvFifo->>IOC_onCliFifo: CbProcEvt_ofProtoFifo
+    IOC_onCliFifo->>USR_atCli: CbProcEvt_ofUSR
+    USR_atCli-->>IOC_onCliFifo: ProcResult_ofUSR
+    IOC_onCliFifo-->>IOC_onSrvFifo: ProcResult_ofUSR
+
+```
