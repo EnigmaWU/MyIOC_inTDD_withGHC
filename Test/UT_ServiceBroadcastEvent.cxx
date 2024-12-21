@@ -364,5 +364,62 @@ TEST(UT_ServiceBroadcastEvent, verifyPostEvtToSrvID_willLetAllConnectedEvtConsum
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
 }
 
+/**
+ * @[Name]: <US1AC3TC3>verifyPostEvtToSrvID_willGetNotSupportBroadcastEvent_whenServiceNotBroadcastFlag
+ * @[Steps]:
+ *     1) EvtProducer call IOC_onlineService() to online a service got SrvID_EvtProducer AS SETUP.
+ *       |-> SrvArgs.UsageCapabilites = IOC_LinkUsageEvtProducer
+ *       |-> SrvArgs.SrvURI = {IOC_SRV_PROTO_FIFO, IOC_SRV_HOST_LOCAL_PROCESS, "EvtPostFromSrvIDWithoutBroadcastFlag"}
+ *       |-> SrvArgs.Flags = 0
+ *    2) EvtConsumerA call IOC_connectService() the service got LinkID_EvtConsumerA_toEvtProducer AS SETUP.
+ *       |-> SrvArgs.UsageCapabilites = IOC_LinkUsageEvtConsumer
+ *       |-> SrvArgs.SrvURI = {IOC_SRV_PROTO_FIFO, IOC_SRV_HOST_LOCAL_PROCESS, "EvtPostFromSrvIDWithoutBroadcastFlag"}
+ *    3) EvtProducer call IOC_broadcastEVT() to post an event AS BEHAVIOR.
+ *       |-> EvtDesc.EvtID = IOC_EVTID_TEST_KEEPALIVE
+ *       |-> get IOC_RESULT_NOT_SUPPORT_BROADCAST_EVENT AS VERIFY.
+ *    4) EvtProducer call IOC_offlineService() to offline the service AS CLEANUP.
+ *       |-> EvtConsumerA get IOC_RESULT_NOT_EXIST_SERVICE
+ * @[Expect]:
+ *    Get IOC_RESULT_NOT_SUPPORT_BROADCAST_EVENT.
+ * @[Notes]:
+ */
+TEST(UT_ServiceBroadcastEvent, verifyPostEvtToSrvID_willGetNotSupportBroadcastEvent_whenServiceNotBroadcastFlag) {
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_SrvURI_T SrvURI = {"fifo", "localprocess", "EvtPostFromSrvIDWithoutBroadcastFlag"};
+
+    // Step-1
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = SrvURI,
+        .Flags = IOC_SRVFLAG_NONE, //KeySetupPoint
+        .UsageCapabilites = IOC_LinkUsageEvtProducer,
+    };
+    IOC_SrvID_T SrvID = IOC_INVALID_SRV_ID;
+    Result = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    // Step-2
+    IOC_LinkID_T LinkID_EvtConsumerA_toEvtProducer = IOC_INVALID_LINK_ID;
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = SrvURI,
+        .Usage = IOC_LinkUsageEvtConsumer,
+    };
+
+    std::thread EvtConsumerAThread([&] {
+        Result = IOC_connectService(&LinkID_EvtConsumerA_toEvtProducer, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_NOT_EXIST_SERVICE, Result);// KeyVerifyPoint, block until service online
+    });
+
+    // Step-3
+    IOC_EvtDesc_T EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
+    Result = IOC_broadcastEVT(SrvID, &EvtDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_NOT_SUPPORT_BROADCAST_EVENT, Result);  // KeyVerifyPoint
+
+    // Step-4
+    Result = IOC_offlineService(SrvID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    EvtConsumerAThread.join();
+}
+
 //======END OF UNIT TESTING IMPLEMENTATION=========================================================
 ///////////////////////////////////////////////////////////////////////////////////////////////////
