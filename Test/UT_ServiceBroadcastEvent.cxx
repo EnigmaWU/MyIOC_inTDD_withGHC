@@ -40,10 +40,10 @@
  *          THEN each EvtConsumer will process the subbed event.
  *      AC-3: GIVEN EvtProducer online a service without SrvFlag=IOC_SRVFLAG_BROADCAST_EVENT,
  *              AND MANY EvtConsumer connect to the service,
+ *                  BUT NO EvtConsumer will autoAccept by the service,
+ *                      WHICH means all EvtConsumer will blocked on IOC_connectService(),
  *          WHEN EvtProducer postEVT to the SrvID,
- *          THEN NO EvtConsumer will autoAccept by the service,
- *              which means all EvtConsumer will blocked on IOC_connectService(),
- *          AND THEN get IOC_RESULT_NOT_SUPPORT_BROADCAST_EVENT on server side.
+ *            WILL get IOC_RESULT_NOT_SUPPORT_BROADCAST_EVENT on server side.
  *
  */
 
