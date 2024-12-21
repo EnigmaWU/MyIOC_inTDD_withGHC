@@ -42,6 +42,8 @@
  *              AND MANY EvtConsumer connect to the service,
  *                  BUT NO EvtConsumer will autoAccept by the service,
  *                      WHICH means all EvtConsumer will blocked on IOC_connectService(),
+ *                      UNTIL EvtProducer call IOC_acceptClient() to accept the EvtConsumer,
+ *                        OR EvtConsumer get IOC_RESULT_SERVICE_OFFLINE when EvtProducer offline the service.
  *          WHEN EvtProducer postEVT to the SrvID,
  *            WILL get IOC_RESULT_NOT_SUPPORT_BROADCAST_EVENT on server side.
  *
