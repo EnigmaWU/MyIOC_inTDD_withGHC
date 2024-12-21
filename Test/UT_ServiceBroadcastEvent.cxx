@@ -66,6 +66,12 @@
  *          EvtConsumerB connect to SrvID, subEvt(PULL_STARTED/KEEPING/STOPPED),
  *          EvtConsumerC connect to SrvID, subEvt(PUSH_STARTED/KEEPING/STOPPED),
  *          EvtProducer postEVT([MOVE,PULL,PUSH]_STARTED/KEEPING/STOPPED) to SrvID,
+ * 
+ * [@AC-3, US-1]
+ *  TC-3:
+ *      [@Name]: verifyPostEvtToSrvID_willGetNotSupportBroadcastEvent_whenServiceNotBroadcastFlag
+ *      [@Purpose]: 验证未设置BroadcastFlag时postEVT会返回NOT_SUPPORT_BROADCAST_EVENT
+ *      [@brief]: 在线服务不带广播标记，消费者均需等待直到显式accept或下线服务
  *
  */
 
