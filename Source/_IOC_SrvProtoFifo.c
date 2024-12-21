@@ -5,20 +5,31 @@
  *=================================================================================================
  *===>>>Definition of FIFO Protocol
  * @FIFO: First In First Out, a.k.a Link2Link Queue, used to transmit messages in FIFO order.
- *      @WEHN: Service onlined with IOC_SRV_PROTO_FIFO, @AND: Client connect to this service,
- *      @THEN: a FIFO is created and established by a pair of LinkIDs,
- *              one in server side named LinkID_atSrv, one in client side named LinkID_atCli.
+ *      @WEHN: Service onlined with IOC_SRV_PROTO_FIFO got SrvID, @AND: Client connect to this service,
+ *      @THEN: the FIFO is created and established by a pair of LinkIDs,
+ *              one on server side named LinkID_atSrv(aka SrvLinkID),
+ *              one on client side named LinkID_atCli(aka CliLinkID).
+ *
+ *      @------------------------------------------------------------------------------------------
  *      @SO IF: LinkID_atSrv is EvtProducer, LinkID_atCli is EvtConsumer,
- *          @THEN-A: EvtConsumer will subscribe events on LinkID_atCli,
+ *          @THEN-A: EvtConsumer will subscribe events on LinkID_atCli with CbProcEvt_F,
  *          @THEN-B: EvtProducer will post events to LinkID_atSrv,
- *                      which will be transmited with the FIFO to LinkID_atCli.
+ *                      which will be transmitted via the FIFO to LinkID_atCli.
  *          @THEN-C: EvtConsumer will process the events in CbProcEvt_F.
+ *          @ALSO: SrvID MAY as EvrProducer, THEN post events to this SrvID will broadcast to all clients.
  *      @SO IF: LinkID_atSrv is EvtConsumer, LinkID_atCli is EvtProducer,
- *          ......(TODO)
+ *          @THEN-A: EvtConsumer will subscribe events on LinkID_atSrv with CbProcEvt_F,
+ *          @THEN-B: EvtProducer will post events to LinkID_atCli,
+ *                      which will be transmitted via the FIFO to LinkID_atSrv.
+ *          @THEN-C: EvtConsumer will process the events in CbProcEvt_F.
+ *
+ *      @------------------------------------------------------------------------------------------
  *      @SO IF: LinkID_atSrv is CmdExecutor, LinkID_atCli is CmdInitiator,
  *          ......(TODO)
  *      @SO IF: LinkID_atSrv is CmdInitiator, LinkID_atCli is CmdExecutor,
  *          ......(TODO)
+ *
+ *      @------------------------------------------------------------------------------------------
  *      @SO IF: LinkID_atSrv is DatReceiver, LinkID_atCli is DatSender,
  *          ......(TODO)
  *      @SO IF: LinkID_atSrv is DatSender, LinkID_atCli is DatReceiver,
