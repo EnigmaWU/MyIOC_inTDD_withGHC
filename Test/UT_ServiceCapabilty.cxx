@@ -101,8 +101,8 @@ TEST(UT_ServiceCapability, verifyOnlineMoreThanCapabilityServices_shouldGetTooMa
 #define _NxTimes 3
     for (int RptCnt = 0; RptCnt < _NxTimes; RptCnt++) {
         // define and initialize an array to store the online service IDs
-        IOC_SrvID_T OnlinedSrvIDs[CapDesc.ConetMode.MaxSrvNum];
-        for (int SrvIdx = 0; SrvIdx < CapDesc.ConetMode.MaxSrvNum; SrvIdx++) {
+        IOC_SrvID_T OnlinedSrvIDs[CapDesc.ConetMode.MaxSrvNum + 1];
+        for (int SrvIdx = 0; SrvIdx <= CapDesc.ConetMode.MaxSrvNum; SrvIdx++) {
             OnlinedSrvIDs[SrvIdx] = IOC_ID_INVALID;
         }
 
@@ -130,7 +130,7 @@ TEST(UT_ServiceCapability, verifyOnlineMoreThanCapabilityServices_shouldGetTooMa
         }
 
         // Offline all services, except the first one
-        for (int SrvIdx = 1; SrvIdx < CapDesc.ConetMode.MaxSrvNum; SrvIdx++) {
+        for (int SrvIdx = 1; SrvIdx <= CapDesc.ConetMode.MaxSrvNum; SrvIdx++) {
             IOC_offlineService(OnlinedSrvIDs[SrvIdx]);
         }
     }
