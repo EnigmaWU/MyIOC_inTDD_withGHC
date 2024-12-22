@@ -111,14 +111,9 @@ TEST(UT_ServiceCapability, verifyOnlineMoreThanCapabilityServices_shouldGetTooMa
             char SrvPath[32] = {0};
             snprintf(SrvPath, sizeof(SrvPath), "SrvName(%d)", SrvIdx);
             IOC_SrvURI_T SrvURI = {
-                .pProtocol = IOC_SRV_PROTO_FIFO,
-                .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-                .pPath = SrvPath,
-            };
-            IOC_SrvArgs_T SrvArgs = {
-                .SrvURI = SrvURI,
-                .UsageCapabilites = IOC_LinkUsageEvtProducer,
-            };
+                .pProtocol = IOC_SRV_PROTO_FIFO, .pHost = IOC_SRV_HOST_LOCAL_PROCESS, .pPath = SrvPath};
+            IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI, .UsageCapabilites = IOC_LinkUsageEvtProducer};
+
             Result = IOC_onlineService(&OnlineSrvIDs[SrvIdx], &SrvArgs);
             if (SrvIdx < CapDesc.ConetMode.MaxSrvNum - 1) {
                 ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
