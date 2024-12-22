@@ -23,6 +23,14 @@ typedef uint64_t IOC_EvtClassID_T;
 
 enum {
     IOC_EVT_CLASS_TEST = 1 << 0ULL,
+
+    /**
+     * @brief The diagnostic event class.
+     *      This class is used to define IOC's internal doBehavior/transferState events.
+     *      Use these events to verify IOC's behavior and state is correct or diagnose any issues.
+     */
+    // TODO: IOC_EVT_CLASS_DIAG = 1 << 1ULL,
+
     // TODO(@W): add more event class here
 };
 
