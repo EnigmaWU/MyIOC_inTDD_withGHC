@@ -53,6 +53,17 @@
  *      THEN USR will get IOC_RESULT_SUCCESS result.
  *    AND upper steps is REPEATABLE.
  *
+ * [@US-2]
+ *  AC-1: GIVEN USR know the MAX NUMBER of clients may be connected to a service at the same time BY IOC_getCapability,
+ *    WHEN USR connect clients less than the MAX NUMBER to a service,
+ *      THEN USR will get IOC_RESULT_SUCCESS result.
+ *    WHEN USR connect clients more than the MAX NUMBER to a service,
+ *      THEN USR will get IOC_RESULT_TOO_MANY_CLIENTS result.
+ *    WHEN USR disconnect a client and connect a new client to the service,
+ *      THEN USR will get IOC_RESULT_SUCCESS result.
+ *    AND upper steps is REPEATABLE.
+ *    AND above behaviors should be same for DIFFERENT services.
+ *
  */
 
 //-------------------------------------------------------------------------------------------------
@@ -65,7 +76,15 @@
  *      @[Purpose]: verify US-1,AC-1
  *      @[Brief]: Repeat NxTimes of online from 0 to MAX_NUMBER+1 services, then offline one and retry online again.
  *
+ * [@AC-1,US-2]
+ *  TC-2:
+ *      @[Name]: verifyConnectMoreThanCapabilityClients_shouldGetTooManyClients_andRepeatableOnDifferentServices
+ *      @[Purpose]: verify US-2,AC-1
+ *      @[Brief]: For each service in test, repeat NxTimes of connect from 0 to MAX_CLIENT_NUM+1 clients, 
+ *              then disconnect one and retry connect again. Test this behavior on multiple different services.
+ *
  */
+
 
 //======END OF UNIT TESTING DESIGN=================================================================
 
@@ -134,6 +153,33 @@ TEST(UT_ServiceCapability, verifyOnlineMoreThanCapabilityServices_shouldGetTooMa
             IOC_offlineService(OnlinedSrvIDs[SrvIdx]);
         }
     }
+}
+
+/**
+ * @[Name]: <US-2,AC-1,TC-2>verifyConnectMoreThanCapabilityClients_shouldGetTooManyClients_andRepeatableOnDifferentServices
+ * @[Steps]:
+ *   1) Get the MAX_CLIENT_NUM by IOC_getCapability(CAPID_CONET_MODE) as SETUP.
+ *   2) Create multiple test services (e.g., 2-3 services) as SETUP.
+ *       |-> SrvURI = {IOC_SRV_PROTO_FIFO, IOC_SRV_HOST_LOCAL_PROCESS, "SrvName(%d)"}
+ *   3) For each service, Repeat MxTimes:
+ *          a) Connect from [0,MAX_CLIENT_NUM) clients to the service as BEHAVIOR.
+ *              |-> ClientArgs = {SrvURI(random of SrvName(%d)), IOC_LinkUsageEvtConsumer}
+ *              |-> get IOC_RESULT_SUCCESS as VERIFY.
+ *           b) Connect the MAX_CLIENT_NUMth client as BEHAVIOR.
+ *              |-> get IOC_RESULT_TOO_MANY_CLIENTS as VERIFY.
+ *           c) Disconnect first connected client and retry connect the MAX_CLIENT_NUMth client as BEHAVIOR.
+ *              |-> get IOC_RESULT_SUCCESS as VERIFY.
+ *           d) Disconnect all clients as CLEANUP.
+ *      4) Offline all services as CLEANUP.
+ * @[Expect]:
+ *      1) get IOC_RESULT_SUCCESS for all services when within limit
+ *      2) get IOC_RESULT_TOO_MANY_CLIENTS for all services when exceeding limit
+ *      3) get IOC_RESULT_SUCCESS after disconnect-reconnect for all services
+ * @[Notes]:
+ *      - Test should verify that client limits work independently for each service
+ *      - Each service should maintain its own client count limit
+ */
+TEST(UT_ServiceCapability, verifyConnectMoreThanCapabilityClients_shouldGetTooManyClients_andRepeatableOnDifferentServices) {
 }
 
 //======END OF UNIT TESTING IMPLEMENTATION=========================================================
