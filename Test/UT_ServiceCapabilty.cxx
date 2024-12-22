@@ -101,35 +101,37 @@ TEST(UT_ServiceCapability, verifyOnlineMoreThanCapabilityServices_shouldGetTooMa
 #define _NxTimes 3
     for (int RptCnt = 0; RptCnt < _NxTimes; RptCnt++) {
         // define and initialize an array to store the online service IDs
-        IOC_SrvID_T OnlineSrvIDs[CapDesc.ConetMode.MaxSrvNum];
+        IOC_SrvID_T OnlinedSrvIDs[CapDesc.ConetMode.MaxSrvNum];
         for (int SrvIdx = 0; SrvIdx < CapDesc.ConetMode.MaxSrvNum; SrvIdx++) {
-            OnlineSrvIDs[SrvIdx] = IOC_ID_INVALID;
+            OnlinedSrvIDs[SrvIdx] = IOC_ID_INVALID;
         }
 
-        // Online from [0,MAX_SRV_NUM) services
-        for (int SrvIdx = 0; SrvIdx < CapDesc.ConetMode.MaxSrvNum; SrvIdx++) {
+        // Online from [0,MAX_SRV_NUM] services
+        for (int SrvIdx = 0; SrvIdx <= CapDesc.ConetMode.MaxSrvNum; SrvIdx++) {
             char SrvPath[32] = {0};
             snprintf(SrvPath, sizeof(SrvPath), "SrvName(%d)", SrvIdx);
             IOC_SrvURI_T SrvURI = {
                 .pProtocol = IOC_SRV_PROTO_FIFO, .pHost = IOC_SRV_HOST_LOCAL_PROCESS, .pPath = SrvPath};
             IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI, .UsageCapabilites = IOC_LinkUsageEvtProducer};
 
-            Result = IOC_onlineService(&OnlineSrvIDs[SrvIdx], &SrvArgs);
-            if (SrvIdx < CapDesc.ConetMode.MaxSrvNum - 1) {
-                ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+            Result = IOC_onlineService(&OnlinedSrvIDs[SrvIdx], &SrvArgs);
+            if (SrvIdx < CapDesc.ConetMode.MaxSrvNum) {
+                ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
             } else {
                 ASSERT_EQ(IOC_RESULT_TOO_MANY_SERVICES, Result);  // KeyVerifyPoint
 
                 // Offline first onlined service and retry online the MAX_SRV_NUMth service
-                IOC_offlineService(OnlineSrvIDs[0]);
-                Result = IOC_onlineService(&OnlineSrvIDs[SrvIdx], &SrvArgs);
+                Result = IOC_offlineService(OnlinedSrvIDs[0]);
+                ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+                Result = IOC_onlineService(&OnlinedSrvIDs[SrvIdx], &SrvArgs);
                 ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
             }
         }
 
         // Offline all services, except the first one
         for (int SrvIdx = 1; SrvIdx < CapDesc.ConetMode.MaxSrvNum; SrvIdx++) {
-            IOC_offlineService(OnlineSrvIDs[SrvIdx]);
+            IOC_offlineService(OnlinedSrvIDs[SrvIdx]);
         }
     }
 }

@@ -58,17 +58,6 @@ void IOC_wakeupProcEVT(void) {
     // TODO: wakeupProcEvt_inConetMode
 }
 
-IOC_Result_T IOC_getCapability(
-    /*ARG_INOUT*/ IOC_CapabilityDescription_pT pCapDesc) {
-    IOC_Result_T Result = _IOC_getCapability_inConlesMode(pCapDesc);
-    if (IOC_RESULT_SUCCESS == Result) {
-        return Result;
-    }
-
-    // TODO: getCapabilty_inConetMode
-    return IOC_RESULT_NOT_IMPLEMENTED;
-}
-
 IOC_Result_T IOC_getLinkState(
     /*ARG_IN*/ IOC_LinkID_T LinkID,
     /*ARG_OUT*/ IOC_LinkState_pT pLinkState,

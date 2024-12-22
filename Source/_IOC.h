@@ -26,6 +26,8 @@ extern "C" {
 #include "_IOC_Logging.h"
 #include "_IOC_Types.h"
 
+#define _MAX_IOC_SRV_OBJ_NUM 2
+
 #ifdef __cplusplus
 }
 #endif

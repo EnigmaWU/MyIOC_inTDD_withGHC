@@ -3,7 +3,6 @@
 #include "_IOC.h"
 
 //=================================================================================================
-#define _MAX_IOC_SRV_OBJ_NUM 2
 static _IOC_ServiceObject_pT _mIOC_SrvObjTbl[_MAX_IOC_SRV_OBJ_NUM] = {};
 static pthread_mutex_t _mIOC_SrvObjTblMutex = PTHREAD_MUTEX_INITIALIZER;
 static inline void ___IOC_lockSrvObjTbl(void) { pthread_mutex_lock(&_mIOC_SrvObjTblMutex); }
@@ -62,7 +61,7 @@ static IOC_Result_T __IOC_allocSrvObj(/*ARG_INCONST*/ IOC_SrvArgs_pT pSrvArgs,
     }
 
     Result = IOC_RESULT_TOO_MANY_SERVICES;
-    _IOC_LogNotTested();
+    //_IOC_LogNotTested();
 
 _RetResult:
     ___IOC_unlockSrvObjTbl();
@@ -297,7 +296,7 @@ IOC_Result_T IOC_onlineService(
     Result = __IOC_allocSrvObj(pSrvArgs, &pSrvObj);
     if (IOC_RESULT_SUCCESS != Result) {
         _IOC_LogWarn("Failed to alloc a service object, Resuld=%d", Result);
-        _IOC_LogNotTested();
+        //_IOC_LogNotTested();
         return Result;
     }
 
