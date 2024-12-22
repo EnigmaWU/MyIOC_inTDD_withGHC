@@ -28,7 +28,7 @@
 /**
  * @brief 【User Story】
  *
- *  US-1: As a ..., I WANT to ..., SO THAT ...
+ *  US-1: AS A/AN ..., I WANT to ..., SO THAT ...
  *
  */
 
@@ -69,36 +69,36 @@
  * @[Notes]:
  */
 TEST(UT_NameOfCategory, CaseNN_verifyBehivorX_byDoABC) {
-  //===SETUP===
-  // 1. ...
+    //===SETUP===
+    // 1. ...
 
-  //===BEHAVIOR===
-  //@VerifyPoint xN(each case MAY have many 'ASSERT_XYZ' check points)
+    //===BEHAVIOR===
+    //@VerifyPoint xN(each case MAY have many 'ASSERT_XYZ' check points)
 
-  //===VERIFY===
-  //@KeyVerifyPoint<=3(each case SHOULD has less than 3 key 'ASSERT_XYZ' verify points)
+    //===VERIFY===
+    //@KeyVerifyPoint<=3(each case SHOULD has less than 3 key 'ASSERT_XYZ' verify points)
 
-  //===CLEANUP===
+    //===CLEANUP===
 }
 
 //---------------------------------------------------------------------------------------------------------------------
 class UT_NameofCategoryFixture : public ::testing::Test {
- protected:
-  void SetUp() override {
-    // 1. ...
-  }
+   protected:
+    void SetUp() override {
+        // 1. ...
+    }
 
-  void TearDown() override {
-    // 1. ...
-  }
+    void TearDown() override {
+        // 1. ...
+    }
 };
 
 TEST_F(UT_NameofCategoryFixture, CaseNN_verifyBehivorX_byDoABC) {
-  //===BEHAVIOR===
-  //@VerifyPoint xN(each case MAY have many 'ASSERT_XYZ' check points)
+    //===BEHAVIOR===
+    //@VerifyPoint xN(each case MAY have many 'ASSERT_XYZ' check points)
 
-  //===VERIFY===
-  //@KeyVerifyPoint<=3(each case SHOULD has less than 3 key 'ASSERT_XYZ' verify points)
+    //===VERIFY===
+    //@KeyVerifyPoint<=3(each case SHOULD has less than 3 key 'ASSERT_XYZ' verify points)
 }
 
 //======END OF UNIT TESTING IMPLEMENTATION=========================================================
