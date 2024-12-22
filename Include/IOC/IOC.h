@@ -14,7 +14,7 @@ extern "C" {
 /**
  * @brief get IOC's capability by CapID in pCapDesc.
  * @param pCapDesc: the capability description.
- *    RefMore: IOC_CapabiltyDescription_T in IOC_Types.h
+ *    RefMore: IOC_CapabilityDescription_T in IOC_Types.h
  * @return IOC_RESULT_SUCCESS: get capability successfully.
  * @return IOC_RESULT_NOT_SUPPORT: the CapID is not supported.
  *
@@ -22,7 +22,7 @@ extern "C" {
  *  IOC's capability is static or update once when call IOC_initModule.
  */
 IOC_Result_T IOC_getCapability(
-    /*ARG_INOUT*/ IOC_CapabiltyDescription_pT pCapDesc);
+    /*ARG_INOUT*/ IOC_CapabilityDescription_pT pCapDesc);
 
 //===>Helper APIs for UnitTesting && Debugging=========================================================================
 /**

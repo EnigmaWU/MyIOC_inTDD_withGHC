@@ -106,7 +106,7 @@ static IOC_Result_T _TC01_CbProcEvt_F(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
 
 TEST(UT_ConlesEventMayBlock, verifyASyncBlock_byPostOneMoreEVT_whenEvtDescQueueFull) {
     //===SETUP===
-    IOC_CapabiltyDescription_T CapDesc = {
+    IOC_CapabilityDescription_T CapDesc = {
         .CapID = IOC_CAPID_CONLES_MODE_EVENT,
     };
     IOC_Result_T Result = IOC_getCapability(&CapDesc);

@@ -163,24 +163,24 @@ typedef enum {
 
 // RefAPI: IOC_getCapability
 typedef enum {
-    IOC_CAPID_CONLES_MODE_EVENT = 1,  // RefDT: IOC_ConlesModeEventCapabilty_T
+    IOC_CAPID_CONLES_MODE_EVENT = 1,  // RefDT: IOC_ConlesModeEventCapability_T
                                       // TODO(@W): +More...
-} IOC_CapabiltyID_T;
+} IOC_CapabilityID_T;
 
 typedef struct {
     uint16_t MaxEvtConsumer;     // How many EvtConsumer can be subEVT in ConlesMode.
     uint16_t DepthEvtDescQueue;  // How many EvtDesc can be queued in IOC's EvtDescQueue.
-} IOC_ConlesModeEventCapabilty_T, *IOC_ConlesModeEventCapabilty_pT;
+} IOC_ConlesModeEventCapability_T, *IOC_ConlesModeEventCapability_pT;
 
 typedef struct {
     // set this CapID and get the capability description.
-    IOC_CapabiltyID_T CapID;  // RefType: IOC_CapabiltyID_T
+    IOC_CapabilityID_T CapID;  // RefType: IOC_CapabilityID_T
 
     union {
         ULONG_T RZVD[8];  // reserve for MAX payload size.
-        IOC_ConlesModeEventCapabilty_T ConlesModeEvent;
+        IOC_ConlesModeEventCapability_T ConlesModeEvent;
     };
-} IOC_CapabiltyDescription_T, *IOC_CapabiltyDescription_pT;
+} IOC_CapabilityDescription_T, *IOC_CapabilityDescription_pT;
 
 #ifdef __cplusplus
 }

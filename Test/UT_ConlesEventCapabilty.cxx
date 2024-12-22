@@ -16,7 +16,7 @@
 
 TEST(UT_ConlesEventCapability, Case01_verifyTooManyEvtConsumer_bySubEvtOneMoreThanMaxEvtConsumer) {
     //===SETUP===
-    IOC_CapabiltyDescription_T CapDesc = {.CapID = IOC_CAPID_CONLES_MODE_EVENT};
+    IOC_CapabilityDescription_T CapDesc = {.CapID = IOC_CAPID_CONLES_MODE_EVENT};
     IOC_Result_T Result = IOC_getCapability(&CapDesc);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
 

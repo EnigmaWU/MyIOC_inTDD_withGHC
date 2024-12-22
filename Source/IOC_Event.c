@@ -59,7 +59,7 @@ void IOC_wakeupProcEVT(void) {
 }
 
 IOC_Result_T IOC_getCapability(
-    /*ARG_INOUT*/ IOC_CapabiltyDescription_pT pCapDesc) {
+    /*ARG_INOUT*/ IOC_CapabilityDescription_pT pCapDesc) {
     IOC_Result_T Result = _IOC_getCapability_inConlesMode(pCapDesc);
     if (IOC_RESULT_SUCCESS == Result) {
         return Result;

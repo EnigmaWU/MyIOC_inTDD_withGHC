@@ -274,7 +274,7 @@ static IOC_CbProcEvt_F _Case03_CbProcEvt1vN = _Case02_CbProcEvt_1vN;
 
 TEST(UT_ConlesEventTypical, Case03_verifyPostEvt1vN_byOneObjPostEvt_Min2MaxEvtConsumerCbProcEvt) {
     //===SETUP===
-    IOC_CapabiltyDescription_T CapDesc = {.CapID = IOC_CAPID_CONLES_MODE_EVENT};
+    IOC_CapabilityDescription_T CapDesc = {.CapID = IOC_CAPID_CONLES_MODE_EVENT};
     IOC_Result_T Result = IOC_getCapability(&CapDesc);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
 
@@ -469,7 +469,7 @@ _Case05_CbProcEvt_NvM(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
 
 TEST(UT_ConlesEventTypical, Case05_verifyPostEvtNvM_byNxEvtProducerPostEvtAndMxEvtConsumerCbProcEvt) {
     //===SETUP===
-    IOC_CapabiltyDescription_T CapDesc = {.CapID = IOC_CAPID_CONLES_MODE_EVENT};
+    IOC_CapabilityDescription_T CapDesc = {.CapID = IOC_CAPID_CONLES_MODE_EVENT};
     IOC_Result_T Result = IOC_getCapability(&CapDesc);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
 
@@ -615,7 +615,7 @@ _Case06_CbProcEvt_NvM(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
 TEST(UT_ConlesEventTypical,
      Case06_verifyPostEvtNvM_byNxEvtProducerPostEvtAndMxEvtConsumerCbProcEvtInCrossOddEvenEvtID) {
     //===SETUP===
-    IOC_CapabiltyDescription_T CapDesc = {.CapID = IOC_CAPID_CONLES_MODE_EVENT};
+    IOC_CapabilityDescription_T CapDesc = {.CapID = IOC_CAPID_CONLES_MODE_EVENT};
     IOC_Result_T Result = IOC_getCapability(&CapDesc);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
 
