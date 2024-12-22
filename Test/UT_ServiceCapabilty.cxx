@@ -180,6 +180,67 @@ TEST(UT_ServiceCapability, verifyOnlineMoreThanCapabilityServices_shouldGetTooMa
  *      - Each service should maintain its own client count limit
  */
 TEST(UT_ServiceCapability, verifyConnectMoreThanCapabilityClients_shouldGetTooManyClients_andRepeatableOnDifferentServices) {
+    //===SETUP===
+    IOC_CapabilityDescription_T CapDesc = {.CapID = IOC_CAPID_CONET_MODE};
+    IOC_Result_T Result = IOC_getCapability(&CapDesc);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+    printf("MaxClientNum: %d\n", CapDesc.ConetMode.MaxCliNum);
+    ASSERT_TRUE(CapDesc.ConetMode.MaxCliNum > 0);
+
+    //===BEHAVIOR===
+    // create multiple test services
+    #define _NxServices 2
+    IOC_SrvURI_T SrvURIs[_NxServices];
+    for (int SrvIdx = 0; SrvIdx < _NxServices; SrvIdx++) {
+        char SrvPath[32] = {0};
+        snprintf(SrvPath, sizeof(SrvPath), "SrvName(%d)", SrvIdx);
+        SrvURIs[SrvIdx] = {.pProtocol = IOC_SRV_PROTO_FIFO, .pHost = IOC_SRV_HOST_LOCAL_PROCESS, .pPath = SrvPath};
+    }
+
+    // online all services
+    IOC_SrvID_T OnlinedSrvIDs[_NxServices];
+    for (int SrvIdx = 0; SrvIdx < _NxServices; SrvIdx++) {
+        IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURIs[SrvIdx], .UsageCapabilites = IOC_LinkUsageEvtProducer};
+        Result = IOC_onlineService(&OnlinedSrvIDs[SrvIdx], &SrvArgs);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+    }
+
+    #define _MxTimes 3
+    for (int RptCnt = 0; RptCnt < _MxTimes; RptCnt++) {
+        int RndSrvIdx = rand() % _NxServices;
+        IOC_LinkID_T ConnectedLinkIDs[CapDesc.ConetMode.MaxSrvNum + 1];
+        for (int LinkIdx = 0; LinkIdx <= CapDesc.ConetMode.MaxSrvNum; LinkIdx++) {
+            ConnectedLinkIDs[LinkIdx] = IOC_ID_INVALID;
+        }
+
+        for (int LinkIdx = 0; LinkIdx <= CapDesc.ConetMode.MaxSrvNum; LinkIdx++) {
+            IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURIs[RndSrvIdx], .Usage = IOC_LinkUsageEvtConsumer};
+            Result = IOC_connectService(&ConnectedLinkIDs[LinkIdx], &ConnArgs, NULL);
+            if (LinkIdx < CapDesc.ConetMode.MaxSrvNum) {
+                ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+            } else {
+                ASSERT_EQ(IOC_RESULT_TOO_MANY_CLIENTS, Result);
+
+                // disconnect first connected client and retry connect the MAX_CLIENT_NUMth client
+                Result = IOC_closeLink(ConnectedLinkIDs[0]);
+                ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+                Result = IOC_connectService(&ConnectedLinkIDs[LinkIdx], &ConnArgs, NULL);
+                ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+            }
+        }
+
+        // disconnect all clients, except the first one
+        for (int LinkIdx = 1; LinkIdx <= CapDesc.ConetMode.MaxSrvNum; LinkIdx++) {
+            IOC_closeLink(ConnectedLinkIDs[LinkIdx]);
+        }
+    }
+
+
+    //===CLEANUP===
+    for (int SrvIdx = 0; SrvIdx < _NxServices; SrvIdx++) {
+        IOC_offlineService(OnlinedSrvIDs[SrvIdx]);
+    }
 }
 
 //======END OF UNIT TESTING IMPLEMENTATION=========================================================
