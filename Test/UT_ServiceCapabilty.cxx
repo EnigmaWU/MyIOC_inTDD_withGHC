@@ -8,10 +8,8 @@
  *      - MAX NUMBER of clients may be connected to a service at the same time.
  *
  *-------------------------------------------------------------------------------------------------
- *++Some context or background related to this UTF for better understanding and GenAisTNT.
- *  ${Relationship with module or other submodules}
- *  ${What's the key point or concept of this submodule?}
- *  ${What's the functionality/interface/data structure/operation/... of this submodule?}
+ * @Usage
+ *  IOC_getCapability(CapDesc.CapID=IOC_CAPID_CONET_MODE) to get the capability of ConetMode.
  */
 //======END OF OVERVIEW OF THIS UNIT TESTING FILE==================================================
 
