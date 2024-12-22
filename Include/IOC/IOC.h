@@ -21,7 +21,7 @@ extern "C" {
  * @attention
  *  IOC's capability is static or update once when call IOC_initModule.
  */
-IOC_Result_T IOC_getCapabilty(
+IOC_Result_T IOC_getCapability(
     /*ARG_INOUT*/ IOC_CapabiltyDescription_pT pCapDesc);
 
 //===>Helper APIs for UnitTesting && Debugging=========================================================================

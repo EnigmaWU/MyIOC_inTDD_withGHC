@@ -70,7 +70,7 @@
 /**
  * @[Name]: <TC-1.1>verifyASyncBlock_byPostOneMoreEVT_whenEvtDescQueueFull
  * @[Steps]:
- *    1) Get DepthEvtDescQueue by IOC_getCapabilty as SETUP
+ *    1) Get DepthEvtDescQueue by IOC_getCapability as SETUP
  *    2) EvtConsumer call IOC_subEVT_inConlesMode with CbProcEvt_F of:
  *       a) block on the first TEST_SLEEP_999MS event as SETUP
  *    3) EvtProducer call 1x IOC_postEVT_inConlesMode of TEST_SLEEP_999MS in ASyncMode as BEHAVIOR
@@ -109,7 +109,7 @@ TEST(UT_ConlesEventMayBlock, verifyASyncBlock_byPostOneMoreEVT_whenEvtDescQueueF
     IOC_CapabiltyDescription_T CapDesc = {
         .CapID = IOC_CAPID_CONLES_MODE_EVENT,
     };
-    IOC_Result_T Result = IOC_getCapabilty(&CapDesc);
+    IOC_Result_T Result = IOC_getCapability(&CapDesc);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
 
     uint16_t DepthEvtDescQueue = CapDesc.ConlesModeEvent.DepthEvtDescQueue;
@@ -129,8 +129,8 @@ TEST(UT_ConlesEventMayBlock, verifyASyncBlock_byPostOneMoreEVT_whenEvtDescQueueF
     IOC_SubEvtArgs_T SubArgs = {
         .CbProcEvt_F = _TC01_CbProcEvt_F,
         .pCbPrivData = &EvtConsumerPriv,
-        .EvtNum      = IOC_calcArrayElmtCnt(SubEvtIDs),
-        .pEvtIDs     = SubEvtIDs,
+        .EvtNum = IOC_calcArrayElmtCnt(SubEvtIDs),
+        .pEvtIDs = SubEvtIDs,
     };
 
     Result = _IOC_subEVT_inConlesMode(&SubArgs);
@@ -143,9 +143,9 @@ TEST(UT_ConlesEventMayBlock, verifyASyncBlock_byPostOneMoreEVT_whenEvtDescQueueF
     IOC_EvtDesc_T EvtDescSleep999MS = {
         .EvtID = IOC_EVTID_TEST_SLEEP_999MS,
     };
-    TS_Begin                      = IOC_getCurrentTimeSpec();
+    TS_Begin = IOC_getCurrentTimeSpec();
     IOC_Result_T ResultSleep999MS = IOC_postEVT_inConlesMode(&EvtDescSleep999MS, NULL);  // OPT==NULL==ASyncMayBlock
-    TS_End                        = IOC_getCurrentTimeSpec();
+    TS_End = IOC_getCurrentTimeSpec();
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultSleep999MS);
     EXPECT_LT(IOC_deltaTimeSpecInUS(&TS_Begin, &TS_End), 9);
 
@@ -158,16 +158,16 @@ TEST(UT_ConlesEventMayBlock, verifyASyncBlock_byPostOneMoreEVT_whenEvtDescQueueF
     };
     for (ULONG_T i = 0; i < DepthEvtDescQueue; i++) {
         TS_Begin = IOC_getCurrentTimeSpec();
-        Result   = IOC_postEVT_inConlesMode(&EvtDescKeepAlive, NULL);  // OPT==NULL==ASyncMayBlock
-        TS_End   = IOC_getCurrentTimeSpec();
+        Result = IOC_postEVT_inConlesMode(&EvtDescKeepAlive, NULL);  // OPT==NULL==ASyncMayBlock
+        TS_End = IOC_getCurrentTimeSpec();
         ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
         EXPECT_LT(IOC_deltaTimeSpecInUS(&TS_Begin, &TS_End), 9);
     }
 
     // 5) EvtProducer call 1x IOC_postEVT_inConlesMode of TEST_KEEPALIVE in ASyncMode
     TS_Begin = IOC_getCurrentTimeSpec();
-    Result   = IOC_postEVT_inConlesMode(&EvtDescKeepAlive, NULL);  // OPT==NULL==ASyncMayBlock
-    TS_End   = IOC_getCurrentTimeSpec();
+    Result = IOC_postEVT_inConlesMode(&EvtDescKeepAlive, NULL);  // OPT==NULL==ASyncMayBlock
+    TS_End = IOC_getCurrentTimeSpec();
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
     EXPECT_GE(IOC_deltaTimeSpecInMS(&TS_Begin, &TS_End), 999);
 
@@ -241,8 +241,8 @@ TEST(UT_ConlesEventMayBlock, verifySyncBlock_byPostOneMoreEVT_whenEvtDescQueueNo
     IOC_SubEvtArgs_T SubArgs = {
         .CbProcEvt_F = _TC21_CbProcEvt_F,
         .pCbPrivData = &EvtConsumerPriv,
-        .EvtNum      = IOC_calcArrayElmtCnt(SubEvtIDs),
-        .pEvtIDs     = SubEvtIDs,
+        .EvtNum = IOC_calcArrayElmtCnt(SubEvtIDs),
+        .pEvtIDs = SubEvtIDs,
     };
 
     IOC_Result_T Result = _IOC_subEVT_inConlesMode(&SubArgs);
@@ -257,9 +257,9 @@ TEST(UT_ConlesEventMayBlock, verifySyncBlock_byPostOneMoreEVT_whenEvtDescQueueNo
     };
     IOC_Option_defineASyncMode(OptASync);
 
-    TS_Begin                      = IOC_getCurrentTimeSpec();
+    TS_Begin = IOC_getCurrentTimeSpec();
     IOC_Result_T ResultSleep999MS = IOC_postEVT_inConlesMode(&EvtDescSleep999MS, &OptASync);
-    TS_End                        = IOC_getCurrentTimeSpec();
+    TS_End = IOC_getCurrentTimeSpec();
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultSleep999MS);
     EXPECT_LT(IOC_deltaTimeSpecInUS(&TS_Begin, &TS_End), 9);
 
@@ -270,16 +270,16 @@ TEST(UT_ConlesEventMayBlock, verifySyncBlock_byPostOneMoreEVT_whenEvtDescQueueNo
         .EvtID = IOC_EVTID_TEST_KEEPALIVE,
     };
     TS_Begin = IOC_getCurrentTimeSpec();
-    Result   = IOC_postEVT_inConlesMode(&EvtDescKeepAlive, &OptASync);
-    TS_End   = IOC_getCurrentTimeSpec();
+    Result = IOC_postEVT_inConlesMode(&EvtDescKeepAlive, &OptASync);
+    TS_End = IOC_getCurrentTimeSpec();
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
     EXPECT_LT(IOC_deltaTimeSpecInUS(&TS_Begin, &TS_End), 9);
 
     // 4) EvtProducer call 1x IOC_postEVT(TEST_KEEPALIVE) in SyncMode
     IOC_Option_defineSyncMayBlock(OptSyncMayBlock);
     TS_Begin = IOC_getCurrentTimeSpec();
-    Result   = IOC_postEVT_inConlesMode(&EvtDescKeepAlive, &OptSyncMayBlock);
-    TS_End   = IOC_getCurrentTimeSpec();
+    Result = IOC_postEVT_inConlesMode(&EvtDescKeepAlive, &OptSyncMayBlock);
+    TS_End = IOC_getCurrentTimeSpec();
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
     EXPECT_GE(IOC_deltaTimeSpecInMS(&TS_Begin, &TS_End), 999);
 

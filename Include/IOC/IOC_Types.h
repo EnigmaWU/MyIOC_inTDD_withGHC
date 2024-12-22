@@ -161,7 +161,7 @@ typedef enum {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //===>Capabilty
 
-// RefAPI: IOC_getCapabilty
+// RefAPI: IOC_getCapability
 typedef enum {
     IOC_CAPID_CONLES_MODE_EVENT = 1,  // RefDT: IOC_ConlesModeEventCapabilty_T
                                       // TODO(@W): +More...

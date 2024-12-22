@@ -98,7 +98,7 @@
 /**
  * @[Name]: verifyASyncTimeout_byQueueFromEmptyToFullToEmpty_withDifferentTimeValue_inAtLeastTenTimes
  * @[Steps]:
- *   1) Get DepthEvtDescQueue by IOC_getCapabilty as SETUP
+ *   1) Get DepthEvtDescQueue by IOC_getCapability as SETUP
  *   2) EvtConsumer call IOC_subEVT_inConlesMode with CbProcEvt_F of:
  *      a) block on the first event, until wake up by EvtProducer.
  *      b) don't block following events.
@@ -118,149 +118,150 @@
  */
 
 typedef struct {
-  uint32_t ProcedEvtCount;  // 0=block, 1=non-block
-  sem_t *pEnterCbProcEvtSem;
-  sem_t *pBlockSem;         // block semaphore for ProcEvtNum=0
+    uint32_t ProcedEvtCount;  // 0=block, 1=non-block
+    sem_t *pEnterCbProcEvtSem;
+    sem_t *pBlockSem;  // block semaphore for ProcEvtNum=0
 } _TC01_EvtConsumerPriv_T, *_TC01_EvtConsumerPriv_pT;
 
 static IOC_Result_T _TC01_CbProcEvt_F(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
-  _TC01_EvtConsumerPriv_pT pEvtConsumerPriv = (_TC01_EvtConsumerPriv_pT)pCbPriv;
+    _TC01_EvtConsumerPriv_pT pEvtConsumerPriv = (_TC01_EvtConsumerPriv_pT)pCbPriv;
 
-  sem_post(pEvtConsumerPriv->pEnterCbProcEvtSem);
+    sem_post(pEvtConsumerPriv->pEnterCbProcEvtSem);
 
-  if (0 == pEvtConsumerPriv->ProcedEvtCount) {
-    sem_wait(pEvtConsumerPriv->pBlockSem);
-  }
+    if (0 == pEvtConsumerPriv->ProcedEvtCount) {
+        sem_wait(pEvtConsumerPriv->pBlockSem);
+    }
 
-  pEvtConsumerPriv->ProcedEvtCount++;
-  return IOC_RESULT_SUCCESS;
+    pEvtConsumerPriv->ProcedEvtCount++;
+    return IOC_RESULT_SUCCESS;
 }
 
 TEST(UT_ConlesEventTimeout, verifyASyncTimeout_byQueueFromEmptyToFullToEmpty_withDifferentTimeValue_inAtLeastTenTimes) {
-  //===SETUP===
-  IOC_CapabiltyDescription_T CapDesc = {
-      .CapID = IOC_CAPID_CONLES_MODE_EVENT,
-  };
-  IOC_Result_T Result = IOC_getCapabilty(&CapDesc);
-  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    //===SETUP===
+    IOC_CapabiltyDescription_T CapDesc = {
+        .CapID = IOC_CAPID_CONLES_MODE_EVENT,
+    };
+    IOC_Result_T Result = IOC_getCapability(&CapDesc);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
 
-  uint16_t DepthEvtDescQueue = CapDesc.ConlesModeEvent.DepthEvtDescQueue;
+    uint16_t DepthEvtDescQueue = CapDesc.ConlesModeEvent.DepthEvtDescQueue;
 
 //===BEHAVIOR & VERIFY & CLEANUP===
 #define _MAX_REPEAT_TIMES 10
-  for (uint16_t RepeatTimes = 0; RepeatTimes < _MAX_REPEAT_TIMES; RepeatTimes++) {
-    // 2) EvtConsumer call IOC_subEVT_inConlesMode with CbProcEvt_F of:
-    //      a) block on the first event, until wake up by EvtProducer.
-    //      b) don't block following events.
-    //        as SETUP.
-    IOC_EvtID_T EvtIDs[]                    = {IOC_EVTID_TEST_KEEPALIVE};
-    _TC01_EvtConsumerPriv_T EvtConsumerPriv = {
-        .ProcedEvtCount = 0,
-    };
+    for (uint16_t RepeatTimes = 0; RepeatTimes < _MAX_REPEAT_TIMES; RepeatTimes++) {
+        // 2) EvtConsumer call IOC_subEVT_inConlesMode with CbProcEvt_F of:
+        //      a) block on the first event, until wake up by EvtProducer.
+        //      b) don't block following events.
+        //        as SETUP.
+        IOC_EvtID_T EvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
+        _TC01_EvtConsumerPriv_T EvtConsumerPriv = {
+            .ProcedEvtCount = 0,
+        };
 
-    sem_unlink("UT_ConlesEventTimeout_TC01");
-    EvtConsumerPriv.pBlockSem = sem_open("UT_ConlesEventTimeout_TC01", O_CREAT, 0644, 0);
-    ASSERT_NE(SEM_FAILED, EvtConsumerPriv.pBlockSem);
+        sem_unlink("UT_ConlesEventTimeout_TC01");
+        EvtConsumerPriv.pBlockSem = sem_open("UT_ConlesEventTimeout_TC01", O_CREAT, 0644, 0);
+        ASSERT_NE(SEM_FAILED, EvtConsumerPriv.pBlockSem);
 
-    sem_unlink("UT_ConlesEventTimeout_TC01_1");
-    EvtConsumerPriv.pEnterCbProcEvtSem = sem_open("UT_ConlesEventTimeout_TC01_1", O_CREAT, 0644, 0);
-    ASSERT_NE(SEM_FAILED, EvtConsumerPriv.pEnterCbProcEvtSem);
+        sem_unlink("UT_ConlesEventTimeout_TC01_1");
+        EvtConsumerPriv.pEnterCbProcEvtSem = sem_open("UT_ConlesEventTimeout_TC01_1", O_CREAT, 0644, 0);
+        ASSERT_NE(SEM_FAILED, EvtConsumerPriv.pEnterCbProcEvtSem);
 
-    IOC_SubEvtArgs_T SubEvtArgs = {
-        .CbProcEvt_F = _TC01_CbProcEvt_F,
-        .pCbPrivData = &EvtConsumerPriv,
-        .EvtNum      = IOC_calcArrayElmtCnt(EvtIDs),
-        .pEvtIDs     = EvtIDs,
-    };
-    Result = IOC_subEVT_inConlesMode(&SubEvtArgs);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+        IOC_SubEvtArgs_T SubEvtArgs = {
+            .CbProcEvt_F = _TC01_CbProcEvt_F,
+            .pCbPrivData = &EvtConsumerPriv,
+            .EvtNum = IOC_calcArrayElmtCnt(EvtIDs),
+            .pEvtIDs = EvtIDs,
+        };
+        Result = IOC_subEVT_inConlesMode(&SubEvtArgs);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
 
-    // 2-c) post first event and sync entering CbProcEvt to block
-    //  (Note: enterCbProcEvt means the EvtDesc is dequeued)
-    IOC_EvtDesc_T EvtDesc = {
-        .EvtID = IOC_EVTID_TEST_KEEPALIVE,
-    };
-    Result = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+        // 2-c) post first event and sync entering CbProcEvt to block
+        //  (Note: enterCbProcEvt means the EvtDesc is dequeued)
+        IOC_EvtDesc_T EvtDesc = {
+            .EvtID = IOC_EVTID_TEST_KEEPALIVE,
+        };
+        Result = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
 
-    sem_wait(EvtConsumerPriv.pEnterCbProcEvtSem);
+        sem_wait(EvtConsumerPriv.pEnterCbProcEvtSem);
 
-    // 3) EvtProducer call IOC_postEVT_inConlesMode with different timeout values by IOC_Option_defineASyncTimeout
-    // ULONG_T TimeoutUS[] = {1, 10, 100, 1000, 10000, 100000, 1000000};
-    ULONG_T TimeoutUS[] = {1000, 10000, 100000, 1000000};  // FIXME: for better performance
+        // 3) EvtProducer call IOC_postEVT_inConlesMode with different timeout values by IOC_Option_defineASyncTimeout
+        // ULONG_T TimeoutUS[] = {1, 10, 100, 1000, 10000, 100000, 1000000};
+        ULONG_T TimeoutUS[] = {1000, 10000, 100000, 1000000};  // FIXME: for better performance
 
-    // b) check from 1 to DepthEvtDescQueue's result is IOC_RESULT_SUCCESS as VERIFY
-    //    purpose: FULL fill the queue with DepthEvtDescQueue's EvtDesc
-    for (uint16_t EvtSeq = 0; EvtSeq < DepthEvtDescQueue; EvtSeq++) {
-      // a) random select (0us,1us,10us,100us,1ms,10ms,100ms,1s) as timeout value as BEHAVIOR
-      ULONG_T TimeoutUSValue = TimeoutUS[rand() % IOC_calcArrayElmtCnt(TimeoutUS)];
-      IOC_Option_defineASyncTimeout(TimeoutOption, TimeoutUSValue);
-      IOC_EvtDesc_T EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
-      struct timespec BeforePostTime, AfterPostTime;
+        // b) check from 1 to DepthEvtDescQueue's result is IOC_RESULT_SUCCESS as VERIFY
+        //    purpose: FULL fill the queue with DepthEvtDescQueue's EvtDesc
+        for (uint16_t EvtSeq = 0; EvtSeq < DepthEvtDescQueue; EvtSeq++) {
+            // a) random select (0us,1us,10us,100us,1ms,10ms,100ms,1s) as timeout value as BEHAVIOR
+            ULONG_T TimeoutUSValue = TimeoutUS[rand() % IOC_calcArrayElmtCnt(TimeoutUS)];
+            IOC_Option_defineASyncTimeout(TimeoutOption, TimeoutUSValue);
+            IOC_EvtDesc_T EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
+            struct timespec BeforePostTime, AfterPostTime;
 
-      BeforePostTime = IOC_getCurrentTimeSpec();
-      Result         = IOC_postEVT_inConlesMode(&EvtDesc, &TimeoutOption);
-      AfterPostTime  = IOC_getCurrentTimeSpec();
-      ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+            BeforePostTime = IOC_getCurrentTimeSpec();
+            Result = IOC_postEVT_inConlesMode(&EvtDesc, &TimeoutOption);
+            AfterPostTime = IOC_getCurrentTimeSpec();
+            ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
 
-      ULONG_T WaitTimeUS = IOC_deltaTimeSpecInUS(&BeforePostTime, &AfterPostTime);
-      ASSERT_LE(WaitTimeUS, 100);  // KeyVerifyPoint, PostPerf<=100us
+            ULONG_T WaitTimeUS = IOC_deltaTimeSpecInUS(&BeforePostTime, &AfterPostTime);
+            ASSERT_LE(WaitTimeUS, 100);  // KeyVerifyPoint, PostPerf<=100us
+        }
+
+        // c) check the DepthEvtDescQueue's result is IOC_RESULT_FULL_QUEUING_EVTDESC as VERIFY
+        for (uint16_t TimeoutIdx = 0; TimeoutIdx < IOC_calcArrayElmtCnt(TimeoutUS); TimeoutIdx++) {
+            ULONG_T TimeoutUSValue = TimeoutUS[TimeoutIdx];
+            IOC_Option_defineASyncTimeout(TimeoutOption, TimeoutUSValue);
+            IOC_EvtDesc_T EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
+            struct timespec BeforePostTime, AfterPostTime;
+
+            BeforePostTime = IOC_getCurrentTimeSpec();
+            Result = IOC_postEVT_inConlesMode(&EvtDesc, &TimeoutOption);
+            AfterPostTime = IOC_getCurrentTimeSpec();
+            ASSERT_EQ(IOC_RESULT_FULL_QUEUING_EVTDESC, Result) << "TimeoutIdx=" << TimeoutIdx;  // KeyVerifyPoint
+
+            ULONG_T WaitTimeUS = IOC_deltaTimeSpecInUS(&BeforePostTime, &AfterPostTime);
+            ASSERT_TRUE((TimeoutUSValue <= WaitTimeUS) && (WaitTimeUS <= TimeoutUSValue + 5000))
+                << "TimeoutIdx=" << TimeoutIdx << ", WaitTimeUS=" << WaitTimeUS
+                << ", TimeoutUSValue=" << TimeoutUSValue;
+            // KeyVerifyPoint, WaitTimeUS~=TimeoutUSValue
+        }
+
+        // d) wake up EvtConsumer
+        sem_post(EvtConsumerPriv.pBlockSem);
+
+        // e) check from DepthEvtDescQueue to 1's result is IOC_RESULT_SUCCESS as VERIFY
+        for (uint16_t EvtSeq = DepthEvtDescQueue; EvtSeq > 0; EvtSeq--) {
+            IOC_Option_defineASyncTimeout(TimeoutOption, 100);
+            IOC_EvtDesc_T EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
+            struct timespec BeforePostTime, AfterPostTime;
+
+            BeforePostTime = IOC_getCurrentTimeSpec();
+            Result = IOC_postEVT_inConlesMode(&EvtDesc, &TimeoutOption);
+            AfterPostTime = IOC_getCurrentTimeSpec();
+            ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+
+            ULONG_T WaitTimeUS = IOC_deltaTimeSpecInUS(&BeforePostTime, &AfterPostTime);
+            ASSERT_LE(WaitTimeUS, 2000) << "EvtSeq=" << EvtSeq << ", WaitTimeUS=" << WaitTimeUS;
+            // KeyVerifyPoint, PostPerf<=1000us
+        }
+
+        IOC_forceProcEVT();
+
+        // 4) EvtConsumer call IOC_unsubEVT_inConlesMode as CLEANUP
+        IOC_UnsubEvtArgs_T UnsubEvtArgs = {
+            .CbProcEvt_F = _TC01_CbProcEvt_F,
+            .pCbPrivData = &EvtConsumerPriv,
+        };
+        Result = IOC_unsubEVT_inConlesMode(&UnsubEvtArgs);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
     }
-
-    // c) check the DepthEvtDescQueue's result is IOC_RESULT_FULL_QUEUING_EVTDESC as VERIFY
-    for (uint16_t TimeoutIdx = 0; TimeoutIdx < IOC_calcArrayElmtCnt(TimeoutUS); TimeoutIdx++) {
-      ULONG_T TimeoutUSValue = TimeoutUS[TimeoutIdx];
-      IOC_Option_defineASyncTimeout(TimeoutOption, TimeoutUSValue);
-      IOC_EvtDesc_T EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
-      struct timespec BeforePostTime, AfterPostTime;
-
-      BeforePostTime = IOC_getCurrentTimeSpec();
-      Result         = IOC_postEVT_inConlesMode(&EvtDesc, &TimeoutOption);
-      AfterPostTime  = IOC_getCurrentTimeSpec();
-      ASSERT_EQ(IOC_RESULT_FULL_QUEUING_EVTDESC, Result) << "TimeoutIdx=" << TimeoutIdx;  // KeyVerifyPoint
-
-      ULONG_T WaitTimeUS = IOC_deltaTimeSpecInUS(&BeforePostTime, &AfterPostTime);
-      ASSERT_TRUE((TimeoutUSValue <= WaitTimeUS) && (WaitTimeUS <= TimeoutUSValue + 5000))
-          << "TimeoutIdx=" << TimeoutIdx << ", WaitTimeUS=" << WaitTimeUS << ", TimeoutUSValue=" << TimeoutUSValue;
-      // KeyVerifyPoint, WaitTimeUS~=TimeoutUSValue
-    }
-
-    // d) wake up EvtConsumer
-    sem_post(EvtConsumerPriv.pBlockSem);
-
-    // e) check from DepthEvtDescQueue to 1's result is IOC_RESULT_SUCCESS as VERIFY
-    for (uint16_t EvtSeq = DepthEvtDescQueue; EvtSeq > 0; EvtSeq--) {
-      IOC_Option_defineASyncTimeout(TimeoutOption, 100);
-      IOC_EvtDesc_T EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
-      struct timespec BeforePostTime, AfterPostTime;
-
-      BeforePostTime = IOC_getCurrentTimeSpec();
-      Result         = IOC_postEVT_inConlesMode(&EvtDesc, &TimeoutOption);
-      AfterPostTime  = IOC_getCurrentTimeSpec();
-      ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
-
-      ULONG_T WaitTimeUS = IOC_deltaTimeSpecInUS(&BeforePostTime, &AfterPostTime);
-      ASSERT_LE(WaitTimeUS, 2000) << "EvtSeq=" << EvtSeq << ", WaitTimeUS=" << WaitTimeUS;
-      // KeyVerifyPoint, PostPerf<=1000us
-    }
-
-    IOC_forceProcEVT();
-
-    // 4) EvtConsumer call IOC_unsubEVT_inConlesMode as CLEANUP
-    IOC_UnsubEvtArgs_T UnsubEvtArgs = {
-        .CbProcEvt_F = _TC01_CbProcEvt_F,
-        .pCbPrivData = &EvtConsumerPriv,
-    };
-    Result = IOC_unsubEVT_inConlesMode(&UnsubEvtArgs);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
-  }
 }
 
 //-------------------------------------------------------------------------------------------------
 /**
  * @[Name]: verifySyncTimeout_byQueueFromEmptyToFullToEmpty_withDifferentTimeValue_inAtLeastTenTimes
  * @[Steps]:
- *   1) Get DepthEvtDescQueue by IOC_getCapabilty as SETUP
+ *   1) Get DepthEvtDescQueue by IOC_getCapability as SETUP
  *   2) EvtConsumer call IOC_subEVT_inConlesMode with CbProcEvt_F of:
  *      a) block on the first event, until wake up by EvtProducer.
  *      b) don't block following second on events.
@@ -278,110 +279,110 @@ TEST(UT_ConlesEventTimeout, verifyASyncTimeout_byQueueFromEmptyToFullToEmpty_wit
  */
 
 TEST(UT_ConlesEventTimeout, verifySyncTimeout_byQueueFromEmptyToFullToEmpty_withDifferentTimeValue_inAtLeastTenTimes) {
-  //===SETUP===
-  IOC_CapabiltyDescription_T CapDesc = {
-      .CapID = IOC_CAPID_CONLES_MODE_EVENT,
-  };
-  IOC_Result_T Result = IOC_getCapabilty(&CapDesc);
-  ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    //===SETUP===
+    IOC_CapabiltyDescription_T CapDesc = {
+        .CapID = IOC_CAPID_CONLES_MODE_EVENT,
+    };
+    IOC_Result_T Result = IOC_getCapability(&CapDesc);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
 
-  uint16_t DepthEvtDescQueue = CapDesc.ConlesModeEvent.DepthEvtDescQueue;
+    uint16_t DepthEvtDescQueue = CapDesc.ConlesModeEvent.DepthEvtDescQueue;
 
 //===BEHAVIOR & VERIFY & CLEANUP===
 #define _MAX_REPEAT_TIMES 10
-  for (uint16_t RepeatTimes = 0; RepeatTimes < _MAX_REPEAT_TIMES; RepeatTimes++) {
-    // 2) EvtConsumer call IOC_subEVT_inConlesMode with CbProcEvt_F of:
-    //      a) block on the first event, until wake up by EvtProducer.
-    //      b) don't block following events.
-    //        as SETUP.
-    IOC_EvtID_T EvtIDs[] = {
-        IOC_EVTID_TEST_KEEPALIVE,
-    };
-    _TC01_EvtConsumerPriv_T EvtConsumerPriv = {
-        .ProcedEvtCount = 0,
-    };
+    for (uint16_t RepeatTimes = 0; RepeatTimes < _MAX_REPEAT_TIMES; RepeatTimes++) {
+        // 2) EvtConsumer call IOC_subEVT_inConlesMode with CbProcEvt_F of:
+        //      a) block on the first event, until wake up by EvtProducer.
+        //      b) don't block following events.
+        //        as SETUP.
+        IOC_EvtID_T EvtIDs[] = {
+            IOC_EVTID_TEST_KEEPALIVE,
+        };
+        _TC01_EvtConsumerPriv_T EvtConsumerPriv = {
+            .ProcedEvtCount = 0,
+        };
 
-    sem_unlink("UT_ConlesEventTimeout_TC02");
-    EvtConsumerPriv.pBlockSem = sem_open("UT_ConlesEventTimeout_TC02", O_CREAT, 0644, 0);
-    ASSERT_NE(SEM_FAILED, EvtConsumerPriv.pBlockSem);
+        sem_unlink("UT_ConlesEventTimeout_TC02");
+        EvtConsumerPriv.pBlockSem = sem_open("UT_ConlesEventTimeout_TC02", O_CREAT, 0644, 0);
+        ASSERT_NE(SEM_FAILED, EvtConsumerPriv.pBlockSem);
 
-    sem_unlink("UT_ConlesEventTimeout_TC02_1");
-    EvtConsumerPriv.pEnterCbProcEvtSem = sem_open("UT_ConlesEventTimeout_TC02_1", O_CREAT, 0644, 0);
-    ASSERT_NE(SEM_FAILED, EvtConsumerPriv.pEnterCbProcEvtSem);
+        sem_unlink("UT_ConlesEventTimeout_TC02_1");
+        EvtConsumerPriv.pEnterCbProcEvtSem = sem_open("UT_ConlesEventTimeout_TC02_1", O_CREAT, 0644, 0);
+        ASSERT_NE(SEM_FAILED, EvtConsumerPriv.pEnterCbProcEvtSem);
 
-    IOC_SubEvtArgs_T SubEvtArgs = {
-        .CbProcEvt_F = _TC01_CbProcEvt_F,
-        .pCbPrivData = &EvtConsumerPriv,
-        .EvtNum      = IOC_calcArrayElmtCnt(EvtIDs),
-        .pEvtIDs     = EvtIDs,
-    };
-    Result = IOC_subEVT_inConlesMode(&SubEvtArgs);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+        IOC_SubEvtArgs_T SubEvtArgs = {
+            .CbProcEvt_F = _TC01_CbProcEvt_F,
+            .pCbPrivData = &EvtConsumerPriv,
+            .EvtNum = IOC_calcArrayElmtCnt(EvtIDs),
+            .pEvtIDs = EvtIDs,
+        };
+        Result = IOC_subEVT_inConlesMode(&SubEvtArgs);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
 
-    // 2-c) post first event and sync entering CbProcEvt to block
-    //  (Note: enterCbProcEvt means the EvtDesc is dequeued)
-    IOC_EvtDesc_T EvtDesc = {
-        .EvtID = IOC_EVTID_TEST_KEEPALIVE,
-    };
-    Result = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+        // 2-c) post first event and sync entering CbProcEvt to block
+        //  (Note: enterCbProcEvt means the EvtDesc is dequeued)
+        IOC_EvtDesc_T EvtDesc = {
+            .EvtID = IOC_EVTID_TEST_KEEPALIVE,
+        };
+        Result = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
 
-    sem_wait(EvtConsumerPriv.pEnterCbProcEvtSem);
+        sem_wait(EvtConsumerPriv.pEnterCbProcEvtSem);
 
-    // 2-d) post another event to make the queue NOT EMPTY
-    Result = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+        // 2-d) post another event to make the queue NOT EMPTY
+        Result = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
 
-    // 3) EvtProducer call IOC_postEVT_inConlesMode with different timeout values by IOC_Option_defineSyncTimeout
-    ULONG_T TimeoutUS[] = {1000, 10000, 100000};  // FIXME: for better performance
+        // 3) EvtProducer call IOC_postEVT_inConlesMode with different timeout values by IOC_Option_defineSyncTimeout
+        ULONG_T TimeoutUS[] = {1000, 10000, 100000};  // FIXME: for better performance
 
-    // b) check from 1 to DepthEvtDescQueue's result is IOC_RESULT_NOT_EMPTY_EVTDESC_QUEUE as VERIFY
-    //    purpose: FULL fill the queue with DepthEvtDescQueue's EvtDesc
-    for (uint16_t EvtSeq = 0; EvtSeq < DepthEvtDescQueue; EvtSeq++) {
-      // a) random select (0us,1us,10us,100us,1ms,10ms,100ms,1s) as timeout value as BEHAVIOR
-      ULONG_T TimeoutUSValue = TimeoutUS[rand() % IOC_calcArrayElmtCnt(TimeoutUS)];
-      IOC_Option_defineSyncTimeout(TimeoutOption, TimeoutUSValue);
-      IOC_EvtDesc_T EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
-      struct timespec BeforePostTime, AfterPostTime;
+        // b) check from 1 to DepthEvtDescQueue's result is IOC_RESULT_NOT_EMPTY_EVTDESC_QUEUE as VERIFY
+        //    purpose: FULL fill the queue with DepthEvtDescQueue's EvtDesc
+        for (uint16_t EvtSeq = 0; EvtSeq < DepthEvtDescQueue; EvtSeq++) {
+            // a) random select (0us,1us,10us,100us,1ms,10ms,100ms,1s) as timeout value as BEHAVIOR
+            ULONG_T TimeoutUSValue = TimeoutUS[rand() % IOC_calcArrayElmtCnt(TimeoutUS)];
+            IOC_Option_defineSyncTimeout(TimeoutOption, TimeoutUSValue);
+            IOC_EvtDesc_T EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
+            struct timespec BeforePostTime, AfterPostTime;
 
-      BeforePostTime = IOC_getCurrentTimeSpec();
-      Result         = IOC_postEVT_inConlesMode(&EvtDesc, &TimeoutOption);
-      AfterPostTime  = IOC_getCurrentTimeSpec();
-      ASSERT_EQ(IOC_RESULT_NOT_EMPTY_EVTDESC_QUEUE, Result);  // KeyVerifyPoint
+            BeforePostTime = IOC_getCurrentTimeSpec();
+            Result = IOC_postEVT_inConlesMode(&EvtDesc, &TimeoutOption);
+            AfterPostTime = IOC_getCurrentTimeSpec();
+            ASSERT_EQ(IOC_RESULT_NOT_EMPTY_EVTDESC_QUEUE, Result);  // KeyVerifyPoint
 
-      ULONG_T WaitTimeUS = IOC_deltaTimeSpecInUS(&BeforePostTime, &AfterPostTime);
-      ASSERT_LE(WaitTimeUS, TimeoutUSValue + 5000);  // KeyVerifyPoint, PostPerf<=1000us
+            ULONG_T WaitTimeUS = IOC_deltaTimeSpecInUS(&BeforePostTime, &AfterPostTime);
+            ASSERT_LE(WaitTimeUS, TimeoutUSValue + 5000);  // KeyVerifyPoint, PostPerf<=1000us
+        }
+
+        // c) wake up EvtConsumer, forceProcEVT
+        sem_post(EvtConsumerPriv.pBlockSem);
+        IOC_forceProcEVT();
+
+        // d) check from DepthEvtDescQueue to 1's result is IOC_RESULT_SUCCESS as VERIFY
+        for (uint16_t EvtSeq = DepthEvtDescQueue; EvtSeq > 0; EvtSeq--) {
+            IOC_Option_defineSyncTimeout(TimeoutOption, 100);
+            IOC_EvtDesc_T EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
+            struct timespec BeforePostTime, AfterPostTime;
+
+            BeforePostTime = IOC_getCurrentTimeSpec();
+            Result = IOC_postEVT_inConlesMode(&EvtDesc, &TimeoutOption);
+            AfterPostTime = IOC_getCurrentTimeSpec();
+            ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+
+            ULONG_T WaitTimeUS = IOC_deltaTimeSpecInUS(&BeforePostTime, &AfterPostTime);
+            ASSERT_LE(WaitTimeUS, 1000) << "EvtSeq=" << EvtSeq << ", WaitTimeUS=" << WaitTimeUS;
+            // KeyVerifyPoint, PostPerf<=1000us
+        }
+
+        // 4) EvtConsumer call IOC_unsubEVT_inConlesMode as CLEANUP
+        IOC_UnsubEvtArgs_T UnsubEvtArgs = {
+            .CbProcEvt_F = _TC01_CbProcEvt_F,
+            .pCbPrivData = &EvtConsumerPriv,
+        };
+
+        Result = IOC_unsubEVT_inConlesMode(&UnsubEvtArgs);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
     }
-
-    // c) wake up EvtConsumer, forceProcEVT
-    sem_post(EvtConsumerPriv.pBlockSem);
-    IOC_forceProcEVT();
-
-    // d) check from DepthEvtDescQueue to 1's result is IOC_RESULT_SUCCESS as VERIFY
-    for (uint16_t EvtSeq = DepthEvtDescQueue; EvtSeq > 0; EvtSeq--) {
-      IOC_Option_defineSyncTimeout(TimeoutOption, 100);
-      IOC_EvtDesc_T EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
-      struct timespec BeforePostTime, AfterPostTime;
-
-      BeforePostTime = IOC_getCurrentTimeSpec();
-      Result         = IOC_postEVT_inConlesMode(&EvtDesc, &TimeoutOption);
-      AfterPostTime  = IOC_getCurrentTimeSpec();
-      ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
-
-      ULONG_T WaitTimeUS = IOC_deltaTimeSpecInUS(&BeforePostTime, &AfterPostTime);
-      ASSERT_LE(WaitTimeUS, 1000) << "EvtSeq=" << EvtSeq << ", WaitTimeUS=" << WaitTimeUS;
-      // KeyVerifyPoint, PostPerf<=1000us
-    }
-
-    // 4) EvtConsumer call IOC_unsubEVT_inConlesMode as CLEANUP
-    IOC_UnsubEvtArgs_T UnsubEvtArgs = {
-        .CbProcEvt_F = _TC01_CbProcEvt_F,
-        .pCbPrivData = &EvtConsumerPriv,
-    };
-
-    Result = IOC_unsubEVT_inConlesMode(&UnsubEvtArgs);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
-  }
 }
 
 //======END OF UNIT TESTING IMPLEMENTATION=========================================================
