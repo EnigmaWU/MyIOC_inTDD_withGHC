@@ -185,6 +185,7 @@ typedef struct {
     union {
         ULONG_T RZVD[8];  // reserve for MAX payload size.
         IOC_ConlesModeEventCapability_T ConlesModeEvent;
+        IOC_ConetModeCapability_T ConetMode;
     };
 } IOC_CapabilityDescription_T, *IOC_CapabilityDescription_pT;
 
