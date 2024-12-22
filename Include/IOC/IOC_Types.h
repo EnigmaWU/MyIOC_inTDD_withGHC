@@ -164,7 +164,7 @@ typedef enum {
 // RefAPI: IOC_getCapability
 typedef enum {
     IOC_CAPID_CONLES_MODE_EVENT = 1,  // RefDT: IOC_ConlesModeEventCapability_T
-    IOC_CAPID_CONET_MODE_EVENT        // RefDT: IOC_ConetModeEventCapability_T
+    IOC_CAPID_CONET_MODE              // RefDT: IOC_ConetModeCapability_T
                                       // TODO(@W): +More...
 } IOC_CapabilityID_T;
 
@@ -176,7 +176,7 @@ typedef struct {
 typedef struct {
     uint16_t MaxServiceNum;  // How many services can be onlined in ConetMode.
     uint16_t MaxClientNum;   // How many clients can be connected to a service in ConetMode.
-} IOC_ConetModeEventCapability_T, *IOC_ConetModeEventCapability_pT;
+} IOC_ConetModeCapability_T, *IOC_ConetModeCapability_pT;
 
 typedef struct {
     // set this CapID and get the capability description.
