@@ -92,46 +92,32 @@ sequenceDiagram
     participant IOC_onSrvFifo 
     participant IOC_onCliFifo
     participant IOC_onCli
-    participant USR-A_atCli
-    participant USR-B_atCli
-    ###=> MORE: participant USR-C_atCli
+    participant USR_XYZ_atCli
 
-    USR-A_atCli->>IOC_onCli: IOC_connectService
-    IOC_onCli->>IOC_onCliFifo: connectService_ofProtoFifo
-    IOC_onCliFifo->>IOC_onSrvFifo: establishService_ofProtoFifo
-    IOC_onSrv->>IOC_onSrvFifo: acceptClient_ofProtoFifo
-    IOC_onSrvFifo-->>IOC_onSrv: SUCCESS
-    IOC_onSrvFifo-->>IOC_onCliFifo: SUCCESS
-    IOC_onCliFifo-->>IOC_onCli: SUCCESS
-    IOC_onCli-->>USR-A_atCli: SUCCESS
+    loop ForeachConnectingClient
+        USR_XYZ_atCli->>IOC_onCli: IOC_connectService
+        IOC_onCli->>IOC_onCliFifo: connectService_ofProtoFifo
+        IOC_onCliFifo->>IOC_onSrvFifo: establishService_ofProtoFifo
+        IOC_onSrv->>IOC_onSrvFifo: acceptClient_ofProtoFifo
+        IOC_onSrvFifo-->>IOC_onSrv: SUCCESS
+        IOC_onSrvFifo-->>IOC_onCliFifo: SUCCESS
+        IOC_onCliFifo-->>IOC_onCli: SUCCESS
+        IOC_onCli-->>USR_XYZ_atCli: SUCCESS
+    end
 
-    USR-B_atCli->>IOC_onCli: IOC_connectService
-    IOC_onCli->>IOC_onCliFifo: connectService_ofProtoFifo
-    IOC_onCliFifo->>IOC_onSrvFifo: establishService_ofProtoFifo
-    IOC_onSrv->>IOC_onSrvFifo: acceptClient_ofProtoFifo
-    IOC_onSrvFifo-->>IOC_onSrv: SUCCESS
-    IOC_onSrvFifo-->>IOC_onCliFifo: SUCCESS
-    IOC_onCliFifo-->>IOC_onCli: SUCCESS
-    IOC_onCli-->>USR-B_atCli: SUCCESS
-
-    ###=> MORE: USR-A/-B subEVT(+CbProcEvt_ofUSR)
+    ###=> MORE: USR-XYZ subEVT(+CbProcEvt_ofUSR)
 
     USR_atSrv->>IOC_onSrv: IOC_broadcastEVT
     IOC_onSrv-->>USR_atSrv: BroadcastResult(SUCCESS,FAIL)
 
-    ###=> FOREACH/LOOP USR-A/-B: IOC_onSrv->>IOC_onSrvFifo: postEvent_ofProtoFifo
+    
     loop ForeachAcceptedClient
         IOC_onSrv->>IOC_onSrvFifo: postEvent_ofProtoFifo
         IOC_onSrvFifo->>IOC_onCliFifo: transmitEvent_ofProtoFifo
-        IOC_onCliFifo->>USR-A_atCli: CbProcEvt_ofUSR
-        USR-A_atCli-->>IOC_onCliFifo: ProcEvtResult
+        IOC_onCliFifo->>USR_XYZ_atCli: CbProcEvt_ofUSR
+        USR_XYZ_atCli-->>IOC_onCliFifo: ProcEvtResult
         IOC_onCliFifo-->>IOC_onSrvFifo: ProcEvtResult
 
-        IOC_onSrv->>IOC_onSrvFifo: postEvent_ofProtoFifo
-        IOC_onSrvFifo->>IOC_onCliFifo: transmitEvent_ofProtoFifo
-        IOC_onCliFifo->>USR-B_atCli: CbProcEvt_ofUSR
-        USR-B_atCli-->>IOC_onCliFifo: ProcEvtResult
-        IOC_onCliFifo-->>IOC_onSrvFifo: ProcEvtResult
     end
     
 ```
