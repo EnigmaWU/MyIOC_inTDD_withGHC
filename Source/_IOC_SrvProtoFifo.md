@@ -1,4 +1,4 @@
-[[TOC]]
+[[_TOC_]]
 
 # IOC_onlineService vs IOC_connectService
 ```mermaid
