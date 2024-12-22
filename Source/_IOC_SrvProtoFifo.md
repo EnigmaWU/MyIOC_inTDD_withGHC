@@ -20,7 +20,7 @@ sequenceDiagram
 
     USR_atCli->>IOC_onCli: IOC_connectService
     IOC_onCli->>IOC_onCliFifo: connectService_ofProtoFifo
-    IOC_onCliFifo->>IOC_onSrvFifo: connectService_ofProtoFifo
+    IOC_onCliFifo->>IOC_onSrvFifo: establishService_ofProtoFifo
 
     IOC_onSrvFifo-->>IOC_onSrv: SUCCESS
     IOC_onSrv-->>USR_atSrv: SUCCESS
@@ -84,7 +84,7 @@ sequenceDiagram
     IOC_onCliFifo-->>IOC_onCli: ProcEvtResult
 ```
 
-## IOC_broadcastEVT
+# IOC_broadcastEVT
 ```mermaid
 sequenceDiagram
     participant USR_atSrv 
@@ -98,7 +98,7 @@ sequenceDiagram
 
     USR-A_atCli->>IOC_onCli: IOC_connectService
     IOC_onCli->>IOC_onCliFifo: connectService_ofProtoFifo
-    IOC_onCliFifo->>IOC_onSrvFifo: connectService_ofProtoFifo
+    IOC_onCliFifo->>IOC_onSrvFifo: establishService_ofProtoFifo
     IOC_onSrv->>IOC_onSrvFifo: acceptClient_ofProtoFifo
     IOC_onSrvFifo-->>IOC_onSrv: SUCCESS
     IOC_onSrvFifo-->>IOC_onCliFifo: SUCCESS
@@ -107,7 +107,7 @@ sequenceDiagram
 
     USR-B_atCli->>IOC_onCli: IOC_connectService
     IOC_onCli->>IOC_onCliFifo: connectService_ofProtoFifo
-    IOC_onCliFifo->>IOC_onSrvFifo: connectService_ofProtoFifo
+    IOC_onCliFifo->>IOC_onSrvFifo: establishService_ofProtoFifo
     IOC_onSrv->>IOC_onSrvFifo: acceptClient_ofProtoFifo
     IOC_onSrvFifo-->>IOC_onSrv: SUCCESS
     IOC_onSrvFifo-->>IOC_onCliFifo: SUCCESS
