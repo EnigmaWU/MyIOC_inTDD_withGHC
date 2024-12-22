@@ -28,7 +28,9 @@
 /**
  * @brief 【User Story】
  *
- *  US-1: AS A/AN ..., I WANT to ..., SO THAT ...
+ *  US-1: AS A/AN ...,
+ *      I WANT to ...,
+ *      SO THAT ...
  *
  */
 
@@ -37,7 +39,9 @@
  * @brief 【Acceptance Criteria】
  *
  * [@US-n]
- * AC-1: GIVEN ..., WHEN ..., THEN ...
+ *  AC-1: GIVEN ...,
+ *      WHEN ...,
+ *      THEN ...
  *
  */
 
@@ -45,8 +49,11 @@
 /**
  * @brief 【Test Cases】
  *
- * [@AC-n]
- * TC-1: verifyBehivorX_byDoABC
+ * [@AC-m,US-n]
+ *  TC-1:
+ *      @[Name]: verifyBehivorX_byDoABC
+ *      @[Purpose]: ${what purpose or why to verify in this way}
+ *      @[Brief]: ${what to do in this case}
  *
  */
 
@@ -59,7 +66,6 @@
 //===TEMPLATE OF UT CASE===
 /**
  * @[Name]: ${verifyBehivorX_byDoABC}
- * @[Purpose]: ${according to what in SPEC, and why to verify in this way}
  * @[Steps]: ${how to do}
  *   1) do ..., with ..., as SETUP
  *   2) do ..., with ..., as BEHAVIOR
