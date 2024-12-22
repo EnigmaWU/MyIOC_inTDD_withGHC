@@ -32,7 +32,7 @@ IOC_Result_T _IOC_getLinkState_inConlesMode(
     /*ARG_OUT*/ IOC_LinkState_pT pLinkState,
     /*ARG_OUT_OPTIONAL*/ IOC_LinkSubState_pT pLinkSubState);
 
-IOC_Result_T _IOC_getCapabilty_inConlesMode(
+IOC_Result_T _IOC_getCapability_inConlesMode(
     /*ARG_INOUT*/ IOC_CapabiltyDescription_pT pCapDesc);
 
 void _IOC_forceProcEvt_inConlesMode(void);

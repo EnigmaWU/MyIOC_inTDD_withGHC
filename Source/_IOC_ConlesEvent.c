@@ -588,7 +588,7 @@ IOC_Result_T _IOC_getLinkState_inConlesMode(
     return IOC_RESULT_SUCCESS;
 }
 
-IOC_Result_T _IOC_getCapabilty_inConlesMode(
+IOC_Result_T _IOC_getCapability_inConlesMode(
     /*ARG_INOUT*/ IOC_CapabiltyDescription_pT pCapDesc) {
     IOC_Result_T Result = IOC_RESULT_BUG;
 
