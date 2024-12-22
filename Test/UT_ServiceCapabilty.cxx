@@ -76,22 +76,67 @@
 /**
  * @[Name]: <US-1,AC-1,TC-1>verifyOnlineMoreThanCapabilityServices_shouldGetTooManyServices_andRepeatable
  * @[Steps]:
- *   1) Get the MAX_SRV_NUM by IOC_getCapability(CAPID=CONET_MODE_EVENT) as SETUP.
- *   2) TODO...
+ *   1) Get the MAX_SRV_NUM by IOC_getCapability(CAPID_CONET_MODE) as SETUP.
+ *   2) Repeat NxTimes:
+ *        a) Online from [0,MAX_SRV_NUM) services as BEHAVIOR.
+ *            |-> SrvURI = {IOC_SRV_PROTO_FIFO, IOC_SRV_HOST_LOCAL_PROCESS, "SrvName(%d)"}
+ *            |-> get IOC_RESULT_SUCCESS as VERIFY.
+ *        b) Online the MAX_SRV_NUMth service as BEHAVIOR.
+ *            |-> get IOC_RESULT_TOO_MANY_SERVICES as VERIFY.
+ *        c) Offline first onlined service and retry online the MAX_SRV_NUMth service as BEHAVIOR.
+ *            |-> get IOC_RESULT_SUCCESS as VERIFY.
+ *        d) Offline all services as BEHAVIOR.
  * @[Expect]:
+ *    1) get IOC_RESULT_SUCCESS as VERIFY.
+ *    2) get IOC_RESULT_TOO_MANY_SERVICES as VERIFY.
  * @[Notes]:
  */
 TEST(UT_ServiceCapability, verifyOnlineMoreThanCapabilityServices_shouldGetTooManyServices_andRepeatable) {
     //===SETUP===
-    // 1. ...
+    IOC_CapabilityDescription_T CapDesc = {.CapID = IOC_CAPID_CONET_MODE};
+    IOC_Result_T Result = IOC_getCapability(&CapDesc);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
 
-    //===BEHAVIOR===
-    //@VerifyPoint xN(each case MAY have many 'ASSERT_XYZ' check points)
+//===BEHAVIOR===
+#define _NxTimes 3
+    for (int RptCnt = 0; RptCnt < _NxTimes; RptCnt++) {
+        // define and initialize an array to store the online service IDs
+        IOC_SrvID_T OnlineSrvIDs[CapDesc.ConetMode.MaxSrvNum];
+        for (int SrvIdx = 0; SrvIdx < CapDesc.ConetMode.MaxSrvNum; SrvIdx++) {
+            OnlineSrvIDs[SrvIdx] = IOC_ID_INVALID;
+        }
 
-    //===VERIFY===
-    //@KeyVerifyPoint<=3(each case SHOULD has less than 3 key 'ASSERT_XYZ' verify points)
+        // Online from [0,MAX_SRV_NUM) services
+        for (int SrvIdx = 0; SrvIdx < CapDesc.ConetMode.MaxSrvNum; SrvIdx++) {
+            char SrvPath[32] = {0};
+            snprintf(SrvPath, sizeof(SrvPath), "SrvName(%d)", SrvIdx);
+            IOC_SrvURI_T SrvURI = {
+                .pProtocol = IOC_SRV_PROTO_FIFO,
+                .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                .pPath = SrvPath,
+            };
+            IOC_SrvArgs_T SrvArgs = {
+                .SrvURI = SrvURI,
+                .UsageCapabilites = IOC_LinkUsageEvtProducer,
+            };
+            Result = IOC_onlineService(&OnlineSrvIDs[SrvIdx], &SrvArgs);
+            if (SrvIdx < CapDesc.ConetMode.MaxSrvNum - 1) {
+                ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+            } else {
+                ASSERT_EQ(IOC_RESULT_TOO_MANY_SERVICES, Result);  // KeyVerifyPoint
 
-    //===CLEANUP===
+                // Offline first onlined service and retry online the MAX_SRV_NUMth service
+                IOC_offlineService(OnlineSrvIDs[0]);
+                Result = IOC_onlineService(&OnlineSrvIDs[SrvIdx], &SrvArgs);
+                ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
+            }
+        }
+
+        // Offline all services, except the first one
+        for (int SrvIdx = 1; SrvIdx < CapDesc.ConetMode.MaxSrvNum; SrvIdx++) {
+            IOC_offlineService(OnlineSrvIDs[SrvIdx]);
+        }
+    }
 }
 
 //======END OF UNIT TESTING IMPLEMENTATION=========================================================
