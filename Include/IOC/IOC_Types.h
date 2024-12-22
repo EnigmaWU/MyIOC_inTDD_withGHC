@@ -174,8 +174,8 @@ typedef struct {
 } IOC_ConlesModeEventCapability_T, *IOC_ConlesModeEventCapability_pT;
 
 typedef struct {
-    uint16_t MaxServiceNum;  // How many services can be onlined in ConetMode.
-    uint16_t MaxClientNum;   // How many clients can be connected to a service in ConetMode.
+    uint16_t MaxSrvNum;  // How many services can be onlined in ConetMode.
+    uint16_t MaxCliNum;  // How many clients can be connected to a service in ConetMode.
 } IOC_ConetModeCapability_T, *IOC_ConetModeCapability_pT;
 
 typedef struct {
