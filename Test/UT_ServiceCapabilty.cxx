@@ -80,11 +80,10 @@
  *  TC-2:
  *      @[Name]: verifyConnectMoreThanCapabilityClients_shouldGetTooManyClients_andRepeatableOnDifferentServices
  *      @[Purpose]: verify US-2,AC-1
- *      @[Brief]: For each service in test, repeat NxTimes of connect from 0 to MAX_CLIENT_NUM+1 clients, 
+ *      @[Brief]: For each service in test, repeat NxTimes of connect from 0 to MAX_CLIENT_NUM+1 clients,
  *              then disconnect one and retry connect again. Test this behavior on multiple different services.
  *
  */
-
 
 //======END OF UNIT TESTING DESIGN=================================================================
 
@@ -115,6 +114,9 @@ TEST(UT_ServiceCapability, verifyOnlineMoreThanCapabilityServices_shouldGetTooMa
     IOC_CapabilityDescription_T CapDesc = {.CapID = IOC_CAPID_CONET_MODE};
     IOC_Result_T Result = IOC_getCapability(&CapDesc);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
+
+    printf("MaxSrvNum: %d\n", CapDesc.ConetMode.MaxSrvNum);
+    ASSERT_TRUE(CapDesc.ConetMode.MaxSrvNum > 0);
 
 //===BEHAVIOR===
 #define _NxTimes 3
@@ -156,7 +158,8 @@ TEST(UT_ServiceCapability, verifyOnlineMoreThanCapabilityServices_shouldGetTooMa
 }
 
 /**
- * @[Name]: <US-2,AC-1,TC-2>verifyConnectMoreThanCapabilityClients_shouldGetTooManyClients_andRepeatableOnDifferentServices
+ * @[Name]:
+ * <US-2,AC-1,TC-2>verifyConnectMoreThanCapabilityClients_shouldGetTooManyClients_andRepeatableOnDifferentServices
  * @[Steps]:
  *   1) Get the MAX_CLIENT_NUM by IOC_getCapability(CAPID_CONET_MODE) as SETUP.
  *   2) Create multiple test services (e.g., 2-3 services) as SETUP.
@@ -179,7 +182,8 @@ TEST(UT_ServiceCapability, verifyOnlineMoreThanCapabilityServices_shouldGetTooMa
  *      - Test should verify that client limits work independently for each service
  *      - Each service should maintain its own client count limit
  */
-TEST(UT_ServiceCapability, verifyConnectMoreThanCapabilityClients_shouldGetTooManyClients_andRepeatableOnDifferentServices) {
+TEST(UT_ServiceCapability,
+     verifyConnectMoreThanCapabilityClients_shouldGetTooManyClients_andRepeatableOnDifferentServices) {
     //===SETUP===
     IOC_CapabilityDescription_T CapDesc = {.CapID = IOC_CAPID_CONET_MODE};
     IOC_Result_T Result = IOC_getCapability(&CapDesc);
@@ -187,9 +191,9 @@ TEST(UT_ServiceCapability, verifyConnectMoreThanCapabilityClients_shouldGetTooMa
     printf("MaxClientNum: %d\n", CapDesc.ConetMode.MaxCliNum);
     ASSERT_TRUE(CapDesc.ConetMode.MaxCliNum > 0);
 
-    //===BEHAVIOR===
-    // create multiple test services
-    #define _NxServices 2
+//===BEHAVIOR===
+// create multiple test services
+#define _NxServices 2
     IOC_SrvURI_T SrvURIs[_NxServices];
     for (int SrvIdx = 0; SrvIdx < _NxServices; SrvIdx++) {
         char SrvPath[32] = {0};
@@ -205,7 +209,7 @@ TEST(UT_ServiceCapability, verifyConnectMoreThanCapabilityClients_shouldGetTooMa
         ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
     }
 
-    #define _MxTimes 3
+#define _MxTimes 3
     for (int RptCnt = 0; RptCnt < _MxTimes; RptCnt++) {
         int RndSrvIdx = rand() % _NxServices;
         IOC_LinkID_T ConnectedLinkIDs[CapDesc.ConetMode.MaxSrvNum + 1];
@@ -235,7 +239,6 @@ TEST(UT_ServiceCapability, verifyConnectMoreThanCapabilityClients_shouldGetTooMa
             IOC_closeLink(ConnectedLinkIDs[LinkIdx]);
         }
     }
-
 
     //===CLEANUP===
     for (int SrvIdx = 0; SrvIdx < _NxServices; SrvIdx++) {
