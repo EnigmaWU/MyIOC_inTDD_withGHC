@@ -3,6 +3,7 @@
 static IOC_Result_T __IOC_getCapability_inConetMode(
     /*ARG_INOUT*/ IOC_CapabilityDescription_pT pCapDesc) {
     pCapDesc->ConetMode.MaxSrvNum = _MAX_IOC_SRV_OBJ_NUM;
+    pCapDesc->ConetMode.MaxCliNum = _MAX_IOC_CLI_OBJ_NUM_PER_SRV;
     return IOC_RESULT_SUCCESS;
 }
 

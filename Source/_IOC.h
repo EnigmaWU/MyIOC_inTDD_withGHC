@@ -27,7 +27,7 @@ extern "C" {
 #include "_IOC_Types.h"
 
 #define _MAX_IOC_SRV_OBJ_NUM 2
-
+#define _MAX_IOC_CLI_OBJ_NUM_PER_SRV 3
 #ifdef __cplusplus
 }
 #endif
