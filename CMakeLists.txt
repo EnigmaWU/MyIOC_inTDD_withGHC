@@ -55,7 +55,8 @@ if(CONFIG_BUILD_UNIT_TESTING)
     enable_testing()
 
     if(APPLE)
-        include_directories(/Library/Developer/CommandLineTools/SDKs/MacOSX15.0.sdk/usr/include/c++/v1)
+        include_directories(/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1)
+        include_directories(/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include)
     endif()
 
     # Find the googletest headers
