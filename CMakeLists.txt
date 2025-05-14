@@ -20,6 +20,9 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 
 option(CONFIG_BUILD_UNIT_TESTING "Build unit test" ON)
 
+# 抑制 macOS 系统头文件 availability 的 warning
+add_compile_options(-Wno-availability)
+
 if(CMAKE_BUILD_TYPE STREQUAL "DiagASAN")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -fsanitize=address -fno-omit-frame-pointer -Wno-deprecated-declarations")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_C_FLAGS}")
