@@ -1,4 +1,3 @@
-
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======BEGIN OF OVERVIEW OF THIS UNIT TESTING FILE================================================
 /**
@@ -246,7 +245,7 @@ TEST(UT_ServiceCapability,
     });
 
     // accept all clients==RptCnt
-    for (int AcptCnt = 0; AcptCnt < _NxTimes * _MxTimes; AcptCnt++) {
+    for (int AcptCnt = 0; AcptCnt < _NxServices * _MxTimes; AcptCnt++) {
         IOC_SrvID_T SrvID = OnlinedSrvIDs[AcptCnt % _NxServices];
 
         for (int CliIdx = 0; CliIdx <= MaxCliNum; CliIdx++) {
