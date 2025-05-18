@@ -257,6 +257,8 @@ TEST(UT_ServiceCapability,
         }
     }
 
+    ConnectThread.join();
+
     //===CLEANUP===
     for (int SrvIdx = 0; SrvIdx < _NxServices; SrvIdx++) {
         IOC_offlineService(OnlinedSrvIDs[SrvIdx]);
