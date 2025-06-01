@@ -498,7 +498,6 @@ IOC_Result_T IOC_connectService(
     Result = __IOC_connectServiceByProto(pLinkObj, pConnArgs, pOption);
     if (IOC_RESULT_SUCCESS != Result) {
         free(pLinkObj);
-        _IOC_LogNotTested();
         return Result;
     } else {
         *pLinkID = pLinkObj->ID;
@@ -536,6 +535,16 @@ IOC_Result_T IOC_broadcastEVT(
     /*ARG_IN*/ const IOC_EvtDesc_pT pEvtDesc,
     /*ARG_IN_OPTIONAL*/ IOC_Options_pT pOption) {
     _IOC_ServiceObject_pT pSrvObj = __IOC_getSrvObjBySrvID(SrvID);
+    if (NULL == pSrvObj) {
+        _IOC_LogError("Failed to get service object by SrvID=%" PRIu64, SrvID);
+        return IOC_RESULT_NOT_EXIST_SERVICE;
+    }
+
+    // Check if the service supports broadcast event
+    if (!(pSrvObj->Args.Flags & IOC_SRVFLAG_BROADCAST_EVENT)) {
+        return IOC_RESULT_NOT_SUPPORT_BROADCAST_EVENT;
+    }
+
     int PostEvtCnt = 0;
 
     for (int i = 0; i < _MAX_BROADCAST_EVENT_ACCEPTED_LINK_NUM; i++) {
@@ -543,7 +552,8 @@ IOC_Result_T IOC_broadcastEVT(
         if (pLinkObj) {
             IOC_Result_T Result = pSrvObj->pMethods->OpPostEvt_F(pLinkObj, pEvtDesc, pOption);
             if (Result != IOC_RESULT_SUCCESS) {
-                _IOC_LogError("Failed to postEVT by protocol, Result=%d", Result);
+                // This is expected when a client is connected but hasn't subscribed to this specific event
+                _IOC_LogDebug("Failed to postEVT by protocol, Result=%d", Result);
             }
 
             PostEvtCnt++;

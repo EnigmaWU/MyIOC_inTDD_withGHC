@@ -232,7 +232,12 @@ static IOC_Result_T __IOC_connectService_ofProtoFifo(_IOC_LinkObject_pT pLinkObj
     if (NULL == pFifoSrvObj) {
         _IOC_LogWarn("Failed to get the service object by SrvURI(%s)",
                      IOC_Helper_printSingleLineSrvURI(&pConnArgs->SrvURI, NULL, 0));
-        _IOC_LogNotTested();
+        return IOC_RESULT_NOT_EXIST_SERVICE;
+    }
+
+    // Step-2.5: Check if service supports broadcast (auto-accept connections)
+    if (!(pFifoSrvObj->pSrvObj->Args.Flags & IOC_SRVFLAG_BROADCAST_EVENT)) {
+        _IOC_LogWarn("Service does not support broadcast events, connection rejected");
         return IOC_RESULT_NOT_EXIST_SERVICE;
     }
 
