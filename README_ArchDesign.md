@@ -219,33 +219,53 @@
 # State
 
 ## CMD::Conet
-
 ```mermaid
 stateDiagram-v2
   [*] --> LinkStateReady: _initCRuntimeSuccess
-  LinkStateReady --> LinkStateBusyCbExecCmd: enterCbExecCmd
-  LinkStateBusyCbExecCmd --> LinkStateReady: leaveCbExecCmd
-
-  LinkStateReady --> LinkStateBusyExecCmd: enterExecCmd
-  LinkStateBusyExecCmd --> LinkStateReady: leaveExecCmd
-  LinkStateBusyExecCmd --> LinkStateBusyExecCmd: execCmdInProgress
-
-  LinkStateReady --> LinkStateBusyWaitCmd: enterWaitCmd
-  LinkStateBusyWaitCmd --> LinkStateBusyCbExecCmd: cmdReceived_CallbackMode
-  LinkStateBusyWaitCmd --> LinkStateBusyAckCmd: cmdReceived_PollingMode
-  LinkStateBusyAckCmd --> LinkStateReady: leaveAckCmd
+  
+  state LinkStateReady {
+    [*] --> InitiatorReady
+    [*] --> ExecutorReady
+    
+    state "Initiator States" as InitiatorStates {
+      InitiatorReady --> InitiatorBusyExecCmd: execCmd
+      InitiatorBusyExecCmd --> InitiatorReady: cmdCompleted
+      InitiatorBusyExecCmd --> InitiatorBusyExecCmd: execCmdInProgress
+    }
+    
+    state "Executor States" as ExecutorStates {
+      ExecutorReady --> ExecutorBusyCbExecCmd: cmdReceived_CallbackMode
+      ExecutorBusyCbExecCmd --> ExecutorReady: cbExecCmdCompleted
+      
+      ExecutorReady --> ExecutorBusyWaitCmd: waitCmd
+      ExecutorBusyWaitCmd --> ExecutorBusyAckCmd: cmdReceived_PollingMode
+      ExecutorBusyAckCmd --> ExecutorReady: ackCmdCompleted
+    }
+  }
 ```
 
-* LinkStateReady means we may perform execCmd/waitCmd/CbExecCmd behaviors.
-  * LinkStateBusyCbExecCmd means we are in CbExecCmd callback progress (command executor side).
-  * LinkStateBusyExecCmd means we are in execCmd progress (command initiator side).
-  * LinkStateBusyWaitCmd means we are in waitCmd progress (waiting for command to arrive).
-  * LinkStateBusyAckCmd means we are in ackCmd progress (sending command response in polling mode).
-* Attention:
-  * 1) all LinkState is its main state, and its default substate is LinkSubStateDefault if not specified.
-  * 2) we may postEvt in any main state, but execCmd is restricted during LinkStateBusyExecCmd to avoid deadlock.
-  * 3) CMD states are only applicable in ConetMode, ConlesMode doesn't support command execution.
-  * 4) waitCmd can transition to either callback mode (CbExecCmd) or polling mode (ackCmd) depending on configuration.
+* **State Descriptions**:
+  * **LinkStateReady**: Main state containing both initiator and executor sub-states
+    * **InitiatorReady**: Ready to send commands via IOC_execCMD
+    * **ExecutorReady**: Ready to receive commands via callback or polling
+    * **InitiatorBusyExecCmd**: Currently executing outbound command, waiting for response
+    * **ExecutorBusyCbExecCmd**: Currently processing inbound command in callback mode
+    * **ExecutorBusyWaitCmd**: Actively waiting for commands in polling mode
+    * **ExecutorBusyAckCmd**: Sending response in polling mode
+
+* **Design Implementation**:
+  1. **Composite State Machine**: Use hierarchical states with independent sub-state machines
+  2. **Concurrent Operations**: Allow simultaneous command execution in both directions
+  3. **Role-Specific Configuration**: Different timeout, retry policies for each role
+  4. **State Isolation**: Prevent state interference between initiator and executor roles
+  5. **Error Handling**: Independent error recovery for each role
+
+* **Key Advantages**:
+  1. **No Deadlock Risk**: Initiator and executor states don't block each other
+  2. **Better Throughput**: Can process commands bidirectionally without mutual exclusion
+  3. **Clear Semantics**: Each role has well-defined state transitions
+  4. **Easy Testing**: Independent state machines are easier to unit test
+  5. **Future Extensibility**: Easy to add more complex command patterns
 
 ## EVT::Conet
 
