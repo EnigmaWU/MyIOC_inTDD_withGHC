@@ -69,6 +69,7 @@
       * OR ObjY's LinkID is used to execCMD to ObjX, while ObjX's LinkID is used to CbExecCmd_F in IOC's context.
     * ObjX's LinkID is used to sendDAT to ObjY, while ObjY's LinkID is used to CbRecvDat_F in IOC's context, 
       * OR ObjY's LinkID is used to sendDAT to ObjX, while ObjX's LinkID is used to CbRecvDat_F in IOC's context.
+  * The established LinkID's usage is determined by the Usage argument of connectService and UsageCapabilities argument of onlineService.
 
 ## MSG（CMD or EVT or DAT）
 
@@ -445,21 +446,21 @@
   * DAT is designed for asynchronous streaming and cannot be changed to SYNC
 
 #### DAT vs CMD vs EVT Comparison
-| Aspect              | DAT                                         | EVT                                                     | CMD                                        |
-| ------------------- | ------------------------------------------- | ------------------------------------------------------- | ------------------------------------------ |
-| **Data Type**       | STREAM (continuous data flow)               | DGRAM (discrete messages)                               | DGRAM (discrete messages)                  |
-| **Synchronization** | ASYNC (always)                              | ASYNC (always)                                          | SYNC (always)                              |
-| **Response**        | Stream acknowledgment + flow control       | Fire-and-forget                                        | Always expects result                      |
-| **Blocking**        | MAYBLOCK (default) / NONBLOCK (optional)   | NONBLOCK (default) / MAYBLOCK (optional)               | MAYBLOCK (default) / NONBLOCK (optional)  |
-| **Reliability**     | NODROP (always) - reliable streaming       | MAYDROP (default) - may lose events                    | NODROP (default) - always get final result|
-| **Communication**   | Point-to-Point only                        | Point-to-Point + Broadcast/Multicast                   | Point-to-Point only                       |
-| **Connection**      | ConetMode only                             | ConetMode + ConlesMode                                  | ConetMode only                            |
-| **Use Case**        | File transfer, database replication, bulk data | Notifications and status updates                        | Request-Response operations               |
-| **Performance**     | Optimized for throughput and streaming     | Lower latency, optimized throughput                     | Higher latency, guaranteed delivery       |
-| **Buffer Management** | Complex buffering with flow control      | Simple queuing                                          | Minimal buffering                         |
-| **Ordering**        | Maintains data order within stream         | No ordering guarantee (except single producer case)    | Single request-response ordering          |
-| **Fragmentation**   | Supports large data fragmentation/reassembly | Single message per event                              | Single message per command                |
-| **Resource Usage**  | Highest (buffers, flow control, ordering)  | Lower (stateless notifications)                         | Higher (persistent state for responses)   |
+| Aspect                | DAT                                            | EVT                                                 | CMD                                        |
+| --------------------- | ---------------------------------------------- | --------------------------------------------------- | ------------------------------------------ |
+| **Data Type**         | STREAM (continuous data flow)                  | DGRAM (discrete messages)                           | DGRAM (discrete messages)                  |
+| **Synchronization**   | ASYNC (always)                                 | ASYNC (always)                                      | SYNC (always)                              |
+| **Response**          | Stream acknowledgment + flow control           | Fire-and-forget                                     | Always expects result                      |
+| **Blocking**          | MAYBLOCK (default) / NONBLOCK (optional)       | NONBLOCK (default) / MAYBLOCK (optional)            | MAYBLOCK (default) / NONBLOCK (optional)   |
+| **Reliability**       | NODROP (always) - reliable streaming           | MAYDROP (default) - may lose events                 | NODROP (default) - always get final result |
+| **Communication**     | Point-to-Point only                            | Point-to-Point + Broadcast/Multicast                | Point-to-Point only                        |
+| **Connection**        | ConetMode only                                 | ConetMode + ConlesMode                              | ConetMode only                             |
+| **Use Case**          | File transfer, database replication, bulk data | Notifications and status updates                    | Request-Response operations                |
+| **Performance**       | Optimized for throughput and streaming         | Lower latency, optimized throughput                 | Higher latency, guaranteed delivery        |
+| **Buffer Management** | Complex buffering with flow control            | Simple queuing                                      | Minimal buffering                          |
+| **Ordering**          | Maintains data order within stream             | No ordering guarantee (except single producer case) | Single request-response ordering           |
+| **Fragmentation**     | Supports large data fragmentation/reassembly   | Single message per event                            | Single message per command                 |
+| **Resource Usage**    | Highest (buffers, flow control, ordering)      | Lower (stateless notifications)                     | Higher (persistent state for responses)    |
 
 #### DAT Use Cases and Examples
 * **File Transfer**: 
