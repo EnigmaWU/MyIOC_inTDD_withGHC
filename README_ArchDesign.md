@@ -524,6 +524,20 @@
 
 # Operation
 
+## ConlesMode
+
+### EVT
+
+## ConetMode
+
+### Service vs Connection
+
+### EVT
+
+### CMD
+
+### DAT
+
 # State
 
 ## CMD::Conet
