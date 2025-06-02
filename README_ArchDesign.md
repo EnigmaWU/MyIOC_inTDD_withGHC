@@ -1,3 +1,5 @@
+[TOC]
+
 # About
 
 * This is IOC's Architecture Design, which including definations of:
@@ -192,17 +194,17 @@
   * For EVT: Acceptable behavior for notifications
 
 #### CMD vs EVT Comparison
-| Aspect | CMD | EVT |
-|--------|-----|-----|
-| Synchronization | SYNC (always) | ASYNC (default) / SYNC (optional) |
-| Response | Always expects result | Fire-and-forget |
-| Blocking | MAYBLOCK (default) / NONBLOCK (optional) | NONBLOCK (default) / MAYBLOCK (optional) |
-| Timeout | TIMEOUT is special case of NONBLOCK | TIMEOUT is special case of NONBLOCK |
-| Reliability | NODROP (default) - always get final result | MAYDROP (default) - may lose events |
-| Drop Behavior | MAYDROP breaks request-response semantics | MAYDROP is acceptable for notifications |
-| Use Case | Request-Response | Notification |
-| Performance | Higher latency | Lower latency |
-| Context Switch | May execute in caller's or IOC's context | May execute in caller's or IOC's context |
+| Aspect          | CMD                                        | EVT                                      |
+| --------------- | ------------------------------------------ | ---------------------------------------- |
+| Synchronization | SYNC (always)                              | ASYNC (default) / SYNC (optional)        |
+| Response        | Always expects result                      | Fire-and-forget                          |
+| Blocking        | MAYBLOCK (default) / NONBLOCK (optional)   | NONBLOCK (default) / MAYBLOCK (optional) |
+| Timeout         | TIMEOUT is special case of NONBLOCK        | TIMEOUT is special case of NONBLOCK      |
+| Reliability     | NODROP (default) - always get final result | MAYDROP (default) - may lose events      |
+| Drop Behavior   | MAYDROP breaks request-response semantics  | MAYDROP is acceptable for notifications  |
+| Use Case        | Request-Response                           | Notification                             |
+| Performance     | Higher latency                             | Lower latency                            |
+| Context Switch  | May execute in caller's or IOC's context   | May execute in caller's or IOC's context |
 
 ### DAT
 * 【DAT】 is ASYNC and STREAM defined by IOC knowns only by object pair, and each data is described by DatDesc;
