@@ -582,7 +582,88 @@ stateDiagram-v2
 
 ## EVT::Conet
 
-* TODO
+```mermaid
+stateDiagram-v2
+  [*] --> LinkStateReady: _initCRuntimeSuccess
+  
+  state LinkStateReady {
+    [*] --> EventPublisherReady
+    [*] --> EventSubscriberReady
+    
+    state "Event Publisher States" as PublisherStates {
+      EventPublisherReady --> EventPublisherBusyPostEvt: postEvt
+      EventPublisherBusyPostEvt --> EventPublisherReady: postEvtCompleted
+      EventPublisherBusyPostEvt --> EventPublisherBusyPostEvt: postEvtInProgress
+    }
+    
+    state "Event Subscriber States" as SubscriberStates {
+      EventSubscriberReady --> EventSubscriberBusySubEvt: subEvt
+      EventSubscriberBusySubEvt --> EventSubscriberReady: subEvtCompleted
+      
+      EventSubscriberReady --> EventSubscriberBusyUnsubEvt: unsubEvt
+      EventSubscriberBusyUnsubEvt --> EventSubscriberReady: unsubEvtCompleted
+      
+      EventSubscriberReady --> EventSubscriberBusyCbProcEvt: evtReceived_CallbackMode
+      EventSubscriberBusyCbProcEvt --> EventSubscriberReady: cbProcEvtCompleted
+      
+      EventSubscriberReady --> EventSubscriberBusyWaitEvt: waitEvt
+      EventSubscriberBusyWaitEvt --> EventSubscriberReady: evtReceived_PollingMode
+    }
+  }
+```
+
+* **State Descriptions**:
+  * **LinkStateReady**: Main state containing both publisher and subscriber sub-states
+    * **EventPublisherReady**: Ready to send events via IOC_postEVT
+    * **EventSubscriberReady**: Ready to manage subscriptions and receive events
+    * **EventPublisherBusyPostEvt**: Currently posting outbound event (ASYNC, non-blocking by default)
+    * **EventSubscriberBusySubEvt**: Currently establishing event subscription
+    * **EventSubscriberBusyUnsubEvt**: Currently removing event subscription
+    * **EventSubscriberBusyCbProcEvt**: Currently processing received event in callback mode
+    * **EventSubscriberBusyWaitEvt**: Actively waiting for events in polling mode
+
+* **Design Implementation**:
+  1. **Composite State Machine**: Use hierarchical states with independent sub-state machines
+  2. **Concurrent Operations**: Allow simultaneous event publishing and subscription management
+  3. **Asynchronous Publishing**: Event posting is non-blocking and doesn't wait for delivery confirmation
+  4. **Subscription Management**: Independent subscription/unsubscription operations
+  5. **Dual Reception Modes**: Support both callback and polling reception patterns
+  6. **Role-Specific Configuration**: Different timeout, reliability policies for publisher/subscriber roles
+  7. **State Isolation**: Prevent state interference between publisher and subscriber roles
+
+* **Key Advantages**:
+  1. **No Blocking Risk**: Publisher doesn't block on subscriber availability or processing speed
+  2. **Better Performance**: Asynchronous event delivery optimized for throughput
+  3. **Clear Semantics**: Each role has well-defined state transitions
+  4. **Flexible Reception**: Support both push (callback) and pull (polling) patterns
+  5. **Independent Subscriptions**: Multiple event types can be managed independently
+  6. **Easy Testing**: Independent state machines are easier to unit test
+  7. **Future Extensibility**: Easy to add event filtering, priority handling, or batching
+
+* **EVT::Conet vs CMD::Conet Key Differences**:
+  1. **Response Pattern**: EVT fire-and-forget vs CMD request-response
+  2. **Blocking Behavior**: EVT non-blocking default vs CMD blocking default
+  3. **Publisher State Complexity**: EVT publisher simpler (no wait for response) vs CMD initiator complex (wait management)
+  4. **Subscriber Features**: EVT has subscription management vs CMD has simple execution
+  5. **Error Handling**: EVT best-effort delivery vs CMD guaranteed response
+  6. **Performance**: EVT optimized for throughput vs CMD optimized for reliability
+
+* **State Transition Details**:
+
+  **Publisher Transitions**:
+  - `EventPublisherReady → EventPublisherBusyPostEvt`: On IOC_postEVT call
+  - `EventPublisherBusyPostEvt → EventPublisherReady`: Event posted to IOC queue (immediate for NONBLOCK)
+  - `EventPublisherBusyPostEvt → EventPublisherBusyPostEvt`: Self-loop for MAYBLOCK until resource available
+
+  **Subscriber Transitions**:
+  - `EventSubscriberReady → EventSubscriberBusySubEvt`: On IOC_subEVT call
+  - `EventSubscriberBusySubEvt → EventSubscriberReady`: Subscription established
+  - `EventSubscriberReady → EventSubscriberBusyUnsubEvt`: On IOC_unsubEVT call
+  - `EventSubscriberBusyUnsubEvt → EventSubscriberReady`: Subscription removed
+  - `EventSubscriberReady → EventSubscriberBusyCbProcEvt`: Event received (callback mode)
+  - `EventSubscriberBusyCbProcEvt → EventSubscriberReady`: Event processing completed
+  - `EventSubscriberReady → EventSubscriberBusyWaitEvt`: On IOC_waitEVT call
+  - `EventSubscriberBusyWaitEvt → EventSubscriberReady`: Event received (polling mode)
 
 ## EVT::Conles（AutoLink）
 
