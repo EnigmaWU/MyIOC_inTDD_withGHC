@@ -526,19 +526,7 @@
 ---
 # Operation
 
-## ConlesMode
-
-### EVT
-
-## ConetMode
-
-### Service vs Connection
-
-### EVT
-
-### CMD
-
-### DAT
+- RefDoc: [README_UserGuide](README_UserGuide.md)
 
 ---
 # State
