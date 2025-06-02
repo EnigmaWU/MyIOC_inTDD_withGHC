@@ -74,19 +74,18 @@
 
 * Message(a.k.a 【MSG】) is a Command(a.k.a 【CMD】) or an Event(a.k.a 【EVT】) or a piece of Data(a.k.a 【DAT】).
   * CMD is always SYNC and DGRAM defined by IOC identified by CmdID;
-  * EVT is ASYNC/SYNC and DGRAM defined by IOC identified by EvtID;
+  * EVT is always ASYNC and DGRAM defined by IOC identified by EvtID;
   * DAT is ASYNC/SYNC and STREAM defined by IOC knowns only by object pair;
 
 ### EVT
 
-* 【EVT】 is ASYNC and DGRAM defined by IOC identified by EvtID, and each event is described by EvtDesc;
+* 【EVT】 is always ASYNC and DGRAM defined by IOC identified by EvtID, and each event is described by EvtDesc;
   * Its default property is 【ASYNC+NONBLOCK+MAYDROP】, and may be changed by setLinkParams or IOC_Options_T.
-  * ->[ASYNC]：means ObjX in its current context postEVT to LinkID,
+  * ->[ASYNC]: means ObjX in its current context postEVT to LinkID,
       then ObjY's CbProcEvt_F will be callbacked in IOC's context, not in ObjX's context.
       Here IOC's context is designed&implemented by IOC, may be a standalone thread or a thread pool.
-      USE setLinkParams to change Link's each postEvt to SYNC,
-      USE IOC_Options_T to change Link's current postEvt to SYNC,
-          which means ObjY's CbProcEvt_F callbacked in ObjX's context.
+      EVT is ALWAYS ASYNC and CANNOT be changed to SYNC because events are fire-and-forget notifications designed for asynchronous processing.
+      This ensures non-blocking event posting and prevents caller from being blocked by event processing time.
   * ->[NONBLOCK]: means ObjX's postEVT may not be blocked if not enough resource to postEVT,
       such as no free space to queuing the EvtDesc.
       This includes immediate return (true NONBLOCK) and timeout-based return (NONBLOCK with timeout).
@@ -101,6 +100,125 @@
       USE setLinkParams to change Link's each postEvt to NODROP,
       USE IOC_Options_T to change Link's current postEvt to NODROP,
           which means ObjX's postEVT success, IOC will try best effect to make the EVT to be processed by ObjY, including save to local persistent storage before transfer the EVT to remote machine's ObjY.
+
+#### EVT Lifecycle
+* Event processing follows these phases:
+  1. **Initiation**: ObjX calls IOC_postEVT(LinkID, EvtID, EvtDesc) to post event
+  2. **Validation**: IOC validates EvtID, LinkID, and EvtDesc format
+  3. **Routing**: IOC routes event to target ObjY or all subscribers based on LinkID/AutoLinkID
+  4. **Queuing**: IOC queues event for processing (may drop if MAYDROP and resources constrained)
+  5. **Reception**: ObjY receives event through one of five modes:
+     * **ConetMode Callback**: ObjY's CbProcEvt_F(LinkID, EvtID, EvtDesc) is automatically invoked
+     * **ConetMode Polling**: ObjY calls IOC_waitEVT(LinkID, EvtID, EvtDesc) to actively wait for events
+     * **ConlesMode <M> subEVT+CbProcEvt**: ObjY calls IOC_subEVT(EvtID, CbProcEvt_F) (MANDATORY for callback)
+     * **ConlesMode <O> waitEVT**: ObjY calls IOC_waitEVT(AutoLinkID, EvtID, EvtDesc) directly (subEVT OPTIONAL)
+     * **ConlesMode <O> subEVT+waitEVT**: ObjY calls IOC_subEVT(EvtID, NULL) then IOC_waitEVT() (subEVT optional)
+  6. **Processing**: ObjY processes the event notification
+  7. **Completion**: Event processing completes (no response required for fire-and-forget nature)
+  
+* **MAYDROP Behavior**: In phases 1-7, events may be dropped during phases 3-4 if resources are constrained and MAYDROP is configured. Unlike CMD's NODROP guarantee, EVT accepts potential message loss for better performance.
+
+#### EVT Reception Patterns
+* **Pattern 1 - ConetMode (Point-to-Point)**:
+  ```
+  // Requires established LinkID from IOC_connectService
+  // Supports both callback and polling reception modes
+  
+  // Callback Mode:
+  ObjX: IOC_postEVT(LinkID, EvtID, EvtDesc) 
+    -> IOC routes to ObjY
+    -> ObjY: CbProcEvt_F(LinkID, EvtID, EvtDesc) invoked
+    -> ObjY: process event notification
+    -> Completion (no response required)
+  
+  // Polling Mode:
+  ObjY: IOC_waitEVT(LinkID, EvtID, EvtDesc) // blocking wait for event
+  ObjX: IOC_postEVT(LinkID, EvtID, EvtDesc) // post event
+    -> IOC routes to ObjY
+    -> ObjY: IOC_waitEVT returns with event
+    -> ObjY: process event notification
+    -> Completion (no response required)
+  ```
+
+* **Pattern 2 - ConlesMode (Broadcast/Multicast)**:
+  ```
+  // No connection establishment required, uses AutoLinkID
+  // Supports subscription-based reception with callback or polling
+  
+  // Subscription Callback Mode (subEVT MANDATORY):
+  ObjY: IOC_subEVT(EvtID, CbProcEvt_F) // must subscribe with callback function
+  ObjX: IOC_postEVT(AutoLinkID, EvtID, EvtDesc) // broadcast event
+    -> IOC routes to all subscribers
+    -> ObjY: CbProcEvt_F(AutoLinkID, EvtID, EvtDesc) invoked automatically
+    -> ObjY: process event notification
+    -> Completion (no response required)
+  
+  // Subscription Polling Mode (subEVT OPTIONAL):
+  ObjY: IOC_subEVT(EvtID, NULL) // optional subscription without callback
+  ObjY: IOC_waitEVT(AutoLinkID, EvtID, EvtDesc) // wait for events
+  ObjX: IOC_postEVT(AutoLinkID, EvtID, EvtDesc) // broadcast event
+    -> IOC routes to subscribers or waiting objects
+    -> ObjY: IOC_waitEVT returns with event
+    -> ObjY: process event notification
+    -> Completion (no response required)
+  ```
+
+#### EVT Communication Modes
+* **ConetMode (Point-to-Point)**:
+  * Requires IOC_onlineService and IOC_connectService to establish LinkID
+  * Direct event delivery between specific ObjX and ObjY
+  * Supports two reception mechanisms:
+    * **Callback**: Direct CbProcEvt_F invocation upon event arrival
+    * **Polling**: IOC_waitEVT for active event retrieval
+  * Better reliability and flow control for targeted communication
+  
+* **ConlesMode (Broadcast/Multicast)**:
+  * Uses pre-defined AutoLinkID for broadcast delivery
+  * No connection establishment required
+  * Supports subscription-based reception with two mechanisms:
+    * **Subscription Callback**: IOC_subEVT(EvtID, CbProcEvt_F) - MANDATORY for callback mode
+    * **Subscription Polling**: IOC_subEVT(EvtID, NULL) + IOC_waitEVT() - subEVT OPTIONAL for polling mode
+  * Higher scalability for one-to-many communication, lower reliability guarantees
+
+#### EVT Error Handling
+* Event processing may encounter these conditions:
+  * **IOC_RESULT_INVALID_PARAM**: Invalid EvtID, LinkID, or EvtDesc
+  * **IOC_RESULT_NOT_EXIST_LINK**: LinkID does not exist or already closed
+  * **IOC_RESULT_BUSY**: IOC event queue is full (when immediate NONBLOCK mode)
+  * **IOC_RESULT_TIMEOUT**: Event posting timeout (when NONBLOCK mode with timeout configured)
+  * **IOC_RESULT_EVT_DROPPED**: Event dropped due to resource constraints (MAYDROP mode)
+  * **IOC_RESULT_NO_SUBSCRIBER**: No subscriber for this EvtID (ConlesMode)
+  * **IOC_RESULT_WAIT_EVT_TIMEOUT**: IOC_waitEVT timeout (when configured with timeout)
+  * **IOC_RESULT_LINK_BROKEN**: Communication link is broken during event delivery
+
+#### Blocking Behavior Clarification
+* **NONBLOCK (EVT default)**: Non-blocking behavior with two sub-modes:
+  * **Immediate NONBLOCK**: Returns immediately with IOC_RESULT_BUSY if resource unavailable
+  * **Timeout NONBLOCK**: Returns with IOC_RESULT_TIMEOUT after specified time limit
+* **MAYBLOCK**: Infinite blocking until operation completes or fails
+
+#### Reliability Behavior Clarification  
+* **MAYDROP (EVT default)**: Allows event dropping under resource constraints for better performance
+  * Acceptable behavior for notifications where occasional loss is tolerable
+  * Examples: status updates, progress notifications, non-critical alerts
+* **NODROP**: Guarantees event delivery with best effort including persistent storage
+  * For critical events that must not be lost
+  * Examples: error notifications, state change events, critical alarms
+
+#### Synchronization Behavior Clarification
+* **ASYNC (EVT always)**: Event processing in IOC's context (separate thread/thread pool)
+  * Better isolation and concurrency
+  * ObjX continues execution immediately after IOC_postEVT
+  * ObjY's CbProcEvt_F executes in IOC's managed context
+  * EVT is designed for asynchronous notifications and cannot be changed to SYNC
+
+#### EVT vs CMD Key Differences
+* **Purpose**: EVT for notifications, CMD for request-response
+* **Response**: EVT fire-and-forget, CMD always expects result  
+* **Reliability**: EVT may drop (MAYDROP default), CMD never drops (NODROP default)
+* **Performance**: EVT optimized for throughput, CMD optimized for reliability
+* **Scalability**: EVT supports broadcast/multicast, CMD only point-to-point
+* **Blocking**: EVT non-blocking default, CMD blocking default
 
 ### CMD
 
@@ -194,17 +312,23 @@
   * For EVT: Acceptable behavior for notifications
 
 #### CMD vs EVT Comparison
-| Aspect          | CMD                                        | EVT                                      |
-| --------------- | ------------------------------------------ | ---------------------------------------- |
-| Synchronization | SYNC (always)                              | ASYNC (default) / SYNC (optional)        |
-| Response        | Always expects result                      | Fire-and-forget                          |
-| Blocking        | MAYBLOCK (default) / NONBLOCK (optional)   | NONBLOCK (default) / MAYBLOCK (optional) |
-| Timeout         | TIMEOUT is special case of NONBLOCK        | TIMEOUT is special case of NONBLOCK      |
-| Reliability     | NODROP (default) - always get final result | MAYDROP (default) - may lose events      |
-| Drop Behavior   | MAYDROP breaks request-response semantics  | MAYDROP is acceptable for notifications  |
-| Use Case        | Request-Response                           | Notification                             |
-| Performance     | Higher latency                             | Lower latency                            |
-| Context Switch  | May execute in caller's or IOC's context   | May execute in caller's or IOC's context |
+| Aspect          | CMD                                        | EVT                                                                                                                                      |
+| --------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Synchronization | SYNC (always)                              | ASYNC (always)                                                                                                                           |
+| Response        | Always expects result                      | Fire-and-forget                                                                                                                          |
+| Blocking        | MAYBLOCK (default) / NONBLOCK (optional)   | NONBLOCK (default) / MAYBLOCK (optional)                                                                                                 |
+| Timeout         | TIMEOUT is special case of NONBLOCK        | TIMEOUT is special case of NONBLOCK                                                                                                      |
+| Reliability     | NODROP (default) - always get final result | MAYDROP (default) - may lose events                                                                                                      |
+| Drop Behavior   | MAYDROP breaks request-response semantics  | MAYDROP is acceptable for notifications                                                                                                  |
+| Communication   | Point-to-Point only                        | Point-to-Point + Broadcast/Multicast                                                                                                     |
+| Connection      | ConetMode only                             | ConetMode + ConlesMode                                                                                                                   |
+| Reception Mode  | Callback + Polling                         | ConetMode: Callback + Polling<br/>ConlesMode: <M>subEVT+CbProcEvt(mandatory) + <O>waitEVT(optional subEVT) + <O>subEVT+waitEVT(optional) |
+| Use Case        | Request-Response operations                | Notifications and status updates                                                                                                         |
+| Performance     | Higher latency, guaranteed delivery        | Lower latency, optimized throughput                                                                                                      |
+| Scalability     | One-to-One communication                   | One-to-Many communication supported                                                                                                      |
+| Context Switch  | May execute in caller's or IOC's context   | May execute in caller's or IOC's context                                                                                                 |
+| Error Handling  | Comprehensive error reporting              | Best-effort delivery with basic errors                                                                                                   |
+| Resource Usage  | Higher (persistent state for responses)    | Lower (stateless notifications)                                                                                                          |
 
 ### DAT
 * 【DAT】 is ASYNC and STREAM defined by IOC knowns only by object pair, and each data is described by DatDesc;
