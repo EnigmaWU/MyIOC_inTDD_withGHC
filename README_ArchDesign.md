@@ -687,3 +687,62 @@ stateDiagram-v2
 * Attention:
   * 1) all LinkState is its main state, and its default substate is LinkSubStateDefault if not specified.
   * 2) we may postEvt in any main state, which means we may postEvt in LinkStateReady/BusyXXX.
+
+
+## DAT::Conet
+
+```mermaid
+stateDiagram-v2
+  [*] --> LinkStateReady: _initCRuntimeSuccess
+  
+  state LinkStateReady {
+    [*] --> DataSenderReady
+    [*] --> DataReceiverReady
+    
+    state "Data Sender States" as SenderStates {
+      DataSenderReady --> DataSenderBusySendDat: sendDat
+      DataSenderBusySendDat --> DataSenderReady: sendDatCompleted
+      DataSenderBusySendDat --> DataSenderBusySendDat: sendDatInProgress
+    }
+    
+    state "Data Receiver States" as ReceiverStates {
+      DataReceiverReady --> DataReceiverBusyRecvDat: recvDat
+      DataReceiverBusyRecvDat --> DataReceiverReady: recvDatCompleted
+      
+      DataReceiverReady --> DataReceiverBusyCbRecvDat: datReceived_CallbackMode
+      DataReceiverBusyCbRecvDat --> DataReceiverReady: cbRecvDatCompleted
+    }
+  }
+```
+* **State Descriptions**:
+  * **LinkStateReady**: Main state containing both sender and receiver sub-states
+    * **DataSenderReady**: Ready to send data via IOC_sendDAT
+    * **DataReceiverReady**: Ready to manage data reception and processing
+    * **DataSenderBusySendDat**: Currently sending outbound data chunk (ASYNC, non-blocking by default)
+    * **DataReceiverBusyRecvDat**: Currently receiving inbound data chunk in polling mode
+    * **DataReceiverBusyCbRecvDat**: Currently processing received data in callback mode
+* **Design Implementation**:
+  1. **Composite State Machine**: Use hierarchical states with independent sub-state machines
+  2. **Concurrent Operations**: Allow simultaneous data sending and reception management
+  3. **Asynchronous Sending**: Data sending is non-blocking and doesn't wait for delivery confirmation
+  4. **Dual Reception Modes**: Support both callback and polling reception patterns
+  5. **Role-Specific Configuration**: Different timeout, reliability policies for sender/receiver roles
+  6. **State Isolation**: Prevent state interference between sender and receiver roles
+* **Key Advantages**: 
+  1. **No Blocking Risk**: Sender doesn't block on receiver availability or processing speed
+  2. **Better Performance**: Asynchronous data delivery optimized for throughput
+  3. **Clear Semantics**: Each role has well-defined state transitions
+  4. **Flexible Reception**: Support both push (callback) and pull (polling) patterns
+  5. **Easy Testing**: Independent state machines are easier to unit test
+  6. **Future Extensibility**: Easy to add data integrity checks, flow control, or batching
+* **State Transition Details**:
+  **Sender Transitions**:
+  - `DataSenderReady → DataSenderBusySendDat`: On IOC_sendDAT call
+  - `DataSenderBusySendDat → DataSenderReady`: Data sent to IOC queue (immediate for NONBLOCK)
+  - `DataSenderBusySendDat → DataSenderBusySendDat`: Self-loop for MAYBLOCK until resource available
+
+  **Receiver Transitions**:
+  - `DataReceiverReady → DataReceiverBusyRecvDat`: On IOC_recvDAT call
+  - `DataReceiverBusyRecvDat → DataReceiverReady`: Data received in polling mode
+  - `DataReceiverReady → DataReceiverBusyCbRecvDat`: Data received (callback mode)
+  - `DataReceiverBusyCbRecvDat → DataReceiverReady`: Data processing completed
