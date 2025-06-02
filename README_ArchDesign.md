@@ -331,9 +331,177 @@
 | Resource Usage  | Higher (persistent state for responses)    | Lower (stateless notifications)                                                                                                          |
 
 ### DAT
-* 【DAT】 is ASYNC and STREAM defined by IOC knowns only by object pair, and each data is described by DatDesc;
-  * Its default property is 【ASYNC+MAYBLOCK+NODROP】, and may be changed by setLinkParams or IOC_Options_T.
-  
+
+* 【DAT】 is ASYNC and STREAM defined by IOC known only by object pair, and each data chunk is described by DatDesc;
+  * Its default property is 【ASYNC+MAYBLOCK+NODROP】, where ASYNC and NODROP are IMMUTABLE for stream consistency.
+  * ->[ASYNC]: means ObjX in its current context sendDAT to LinkID,
+      then ObjY's CbRecvDat_F will be callbacked in IOC's context, not in ObjX's context.
+      Here IOC's context is designed&implemented by IOC, may be a standalone thread or a thread pool.
+      DAT is ALWAYS ASYNC and CANNOT be changed to SYNC because data streaming is designed for asynchronous processing.
+      This ensures non-blocking data sending and allows for efficient streaming without blocking the sender.
+  * ->[MAYBLOCK]: means ObjX's sendDAT may be blocked if not enough resource to sendDAT,
+      such as IOC's internal buffer is full or network congestion in remote case.
+      This is infinite blocking until resource becomes available for data transmission.
+      USE setLinkParams to change Link's each sendDat to NONBLOCK,
+      USE IOC_Options_T to change Link's current sendDat to NONBLOCK,
+          which means ObjX's sendDAT will return immediately with IOC_RESULT_BUSY if buffer not available,
+          or return with IOC_RESULT_TIMEOUT if timeout is configured and time limit is reached.
+      NOTE: TIMEOUT is a special condition of NONBLOCK - operation returns after specified time limit.
+  * ->[NODROP]: means after ObjX's sendDAT success, IOC will guarantee this data chunk to be delivered to ObjY,
+      using flow control, buffering, and retry mechanisms to ensure reliable data streaming.
+      This includes persistent storage for inter-process/inter-machine communication to prevent data loss.
+      DAT is ALWAYS NODROP and CANNOT be changed to MAYDROP because stream consistency is fundamental:
+      * Stream data must maintain sequential integrity and completeness
+      * Dropping chunks would break stream semantics and cause data corruption
+      * Flow control and backpressure are used instead of dropping to handle resource constraints
+      * For performance optimization, use NONBLOCK mode rather than compromising stream reliability
+
+#### DAT Lifecycle
+* Data streaming follows these phases:
+  1. **Initiation**: ObjX calls IOC_sendDAT(LinkID, DatDesc) to send data chunk
+  2. **Validation**: IOC validates LinkID and DatDesc format/size
+  3. **Buffering**: IOC buffers data in internal streaming buffer with flow control
+  4. **Transmission**: IOC transmits data to target ObjY through established LinkID
+  5. **Reception**: ObjY receives data through one of two modes:
+     * **Callback Mode**: ObjY's CbRecvDat_F(LinkID, DatDesc) is automatically invoked for each chunk
+     * **Polling Mode**: ObjY calls IOC_recvDAT(LinkID, DatDesc) to actively receive data chunks
+  6. **Processing**: ObjY processes the received data chunk
+  7. **Flow Control**: IOC manages buffer space and applies backpressure if necessary
+  8. **Completion**: Data streaming continues until sender closes stream or error occurs
+
+* **NODROP Guarantee**: In phases 1-8, data chunks are never lost due to IOC internal issues. Flow control ensures sender waits when buffers are full rather than dropping data.
+
+#### DAT Streaming Patterns
+* **Pattern 1 - Callback Mode (Automatic)**:
+  ```
+  ObjX: IOC_sendDAT(LinkID, DatDesc) // send data chunk
+    -> IOC buffers and routes to ObjY
+    -> ObjY: CbRecvDat_F(LinkID, DatDesc) invoked for each chunk
+    -> ObjY: process received data
+    -> Flow control manages buffer space automatically
+  ```
+
+* **Pattern 2 - Polling Mode (Manual)**:
+  ```
+  ObjY: IOC_recvDAT(LinkID, DatDesc) // blocking wait for data
+  ObjX: IOC_sendDAT(LinkID, DatDesc) // send data chunk
+    -> IOC buffers and routes to ObjY
+    -> ObjY: IOC_recvDAT returns with data chunk
+    -> ObjY: process received data
+    -> ObjY: continue calling IOC_recvDAT for more chunks
+  ```
+
+#### DAT Stream Management
+* **Stream Control Operations**:
+  * **IOC_openDatStream(LinkID)**: Initialize data streaming on LinkID
+  * **IOC_closeDatStream(LinkID)**: Close data stream gracefully
+  * **IOC_flushDatStream(LinkID)**: Force transmission of buffered data
+  * **IOC_getDatStreamStatus(LinkID)**: Query stream status and buffer levels
+
+* **Flow Control Mechanisms**:
+  * **Buffer Management**: IOC maintains configurable send/receive buffers per LinkID
+  * **Backpressure**: Automatic flow control when receiver cannot keep up with sender
+  * **Window-based Flow Control**: Sliding window protocol for efficient data transmission
+  * **Congestion Control**: Adaptive transmission rate based on network conditions
+
+#### DAT Error Handling
+* Data streaming may encounter these conditions:
+  * **IOC_RESULT_INVALID_PARAM**: Invalid LinkID or DatDesc
+  * **IOC_RESULT_NOT_EXIST_LINK**: LinkID does not exist or already closed
+  * **IOC_RESULT_BUFFER_FULL**: IOC buffer is full (when immediate NONBLOCK mode)
+  * **IOC_RESULT_TIMEOUT**: Data transmission timeout (when NONBLOCK mode with timeout configured)
+  * **IOC_RESULT_STREAM_CLOSED**: Data stream was closed by peer or due to error
+  * **IOC_RESULT_LINK_BROKEN**: Communication link is broken during data transmission
+  * **IOC_RESULT_RECV_DAT_TIMEOUT**: IOC_recvDAT timeout (when configured with timeout)
+  * **IOC_RESULT_DATA_CORRUPTED**: Data integrity check failed during transmission
+
+#### Blocking Behavior Clarification
+* **MAYBLOCK (DAT default)**: Infinite blocking until operation completes or fails
+  * Ensures reliable data delivery without loss
+  * Sender waits when buffers are full rather than dropping data
+* **NONBLOCK**: Non-blocking behavior with two sub-modes:
+  * **Immediate NONBLOCK**: Returns immediately with IOC_RESULT_BUFFER_FULL if buffer unavailable
+  * **Timeout NONBLOCK**: Returns with IOC_RESULT_TIMEOUT after specified time limit
+
+#### Reliability Behavior Clarification  
+* **NODROP (DAT always)**: Guarantees data chunk delivery with flow control - CANNOT be changed
+  * Uses buffering, retry mechanisms, and persistent storage for reliable streaming
+  * Flow control prevents buffer overflow by applying backpressure to sender
+  * Essential for maintaining stream consistency and data integrity
+  * Stream semantics require sequential completeness - no chunks can be lost
+  * Examples: file transfers, database replication, protocol implementations, log streaming
+* **Why MAYDROP is NOT supported for DAT**:
+  * Stream data must maintain sequential integrity and order
+  * Missing chunks would corrupt the entire data stream
+  * Receiver cannot distinguish between legitimate stream end and dropped data
+  * Would break fundamental streaming protocols and applications
+  * Use NONBLOCK mode instead for performance optimization without compromising reliability
+
+#### Synchronization Behavior Clarification
+* **ASYNC (DAT always)**: Data processing in IOC's context (separate thread/thread pool)
+  * Better streaming performance and concurrency
+  * ObjX continues execution immediately after IOC_sendDAT
+  * ObjY's CbRecvDat_F executes in IOC's managed context
+  * DAT is designed for asynchronous streaming and cannot be changed to SYNC
+
+#### DAT vs CMD vs EVT Comparison
+| Aspect              | DAT                                         | EVT                                                     | CMD                                        |
+| ------------------- | ------------------------------------------- | ------------------------------------------------------- | ------------------------------------------ |
+| **Data Type**       | STREAM (continuous data flow)               | DGRAM (discrete messages)                               | DGRAM (discrete messages)                  |
+| **Synchronization** | ASYNC (always)                              | ASYNC (always)                                          | SYNC (always)                              |
+| **Response**        | Stream acknowledgment + flow control       | Fire-and-forget                                        | Always expects result                      |
+| **Blocking**        | MAYBLOCK (default) / NONBLOCK (optional)   | NONBLOCK (default) / MAYBLOCK (optional)               | MAYBLOCK (default) / NONBLOCK (optional)  |
+| **Reliability**     | NODROP (always) - reliable streaming       | MAYDROP (default) - may lose events                    | NODROP (default) - always get final result|
+| **Communication**   | Point-to-Point only                        | Point-to-Point + Broadcast/Multicast                   | Point-to-Point only                       |
+| **Connection**      | ConetMode only                             | ConetMode + ConlesMode                                  | ConetMode only                            |
+| **Use Case**        | File transfer, database replication, bulk data | Notifications and status updates                        | Request-Response operations               |
+| **Performance**     | Optimized for throughput and streaming     | Lower latency, optimized throughput                     | Higher latency, guaranteed delivery       |
+| **Buffer Management** | Complex buffering with flow control      | Simple queuing                                          | Minimal buffering                         |
+| **Ordering**        | Maintains data order within stream         | No ordering guarantee (except single producer case)    | Single request-response ordering          |
+| **Fragmentation**   | Supports large data fragmentation/reassembly | Single message per event                              | Single message per command                |
+| **Resource Usage**  | Highest (buffers, flow control, ordering)  | Lower (stateless notifications)                         | Higher (persistent state for responses)   |
+
+#### DAT Use Cases and Examples
+* **File Transfer**: 
+  ```
+  // Large file streaming with progress feedback
+  ObjSender: IOC_openDatStream(LinkID)
+  ObjSender: IOC_sendDAT(LinkID, fileChunk1), IOC_sendDAT(LinkID, fileChunk2), ...
+  ObjReceiver: CbRecvDat_F receives chunks and reassembles file
+  ObjSender: IOC_closeDatStream(LinkID)
+  ```
+
+* **Log File Streaming**:
+  ```
+  // Continuous log file streaming with guaranteed delivery
+  ObjLogger: IOC_openDatStream(LinkID)
+  ObjLogger: IOC_sendDAT(LinkID, logEntry1), IOC_sendDAT(LinkID, logEntry2), ...
+  ObjAnalyzer: CbRecvDat_F receives and processes each log entry sequentially
+  ObjLogger: IOC_closeDatStream(LinkID)
+  ```
+
+* **Backup Data Streaming**:
+  ```
+  // Continuous backup data streaming with guaranteed integrity
+  ObjBackupAgent: IOC_openDatStream(LinkID)
+  ObjBackupAgent: IOC_sendDAT(LinkID, backupChunk1), IOC_sendDAT(LinkID, backupChunk2), ...
+  ObjBackupServer: CbRecvDat_F receives and stores backup chunks sequentially
+  ObjBackupAgent: IOC_closeDatStream(LinkID)
+  ```
+
+* **Database Replication**:
+  ```
+  // Critical data synchronization - NODROP ensures consistency
+  ObjMaster: IOC_sendDAT(LinkID, transactionLog) // NODROP for consistency
+  ObjSlave: CbRecvDat_F applies transactions to maintain consistency
+  ```
+
+* **Protocol Implementation**:
+  ```
+  // Network protocol implementation requiring complete data
+  ObjSender: IOC_sendDAT(LinkID, protocolFrame) // NODROP for protocol integrity
+  ObjReceiver: CbRecvDat_F processes complete protocol frames
+  ```
 
 
 # Object
