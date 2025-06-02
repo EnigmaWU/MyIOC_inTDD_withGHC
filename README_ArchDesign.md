@@ -8,7 +8,7 @@
 # Glossary
 * RefDoc: [Glossary](./README_Glossary.md)
 
-# Concept
+# Key Concept
 
 
 ## ModMgr vs ModUsr（EvtProducer or EvtConsumer）
