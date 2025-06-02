@@ -392,18 +392,28 @@
     -> ObjY: continue calling IOC_recvDAT for more chunks
   ```
 
-#### DAT Stream Management
-* **Stream Control Operations**:
-  * **IOC_openDatStream(LinkID)**: Initialize data streaming on LinkID
-  * **IOC_closeDatStream(LinkID)**: Close data stream gracefully
-  * **IOC_flushDatStream(LinkID)**: Force transmission of buffered data
-  * **IOC_getDatStreamStatus(LinkID)**: Query stream status and buffer levels
+#### DAT Stream Management (Minimalist Design)
+* **Auto-Management Philosophy**:
+  * **Auto-Initialization**: First IOC_sendDAT(LinkID, DatDesc) automatically initializes stream
+  * **Auto-Termination**: Stream closes when LinkID closes or after configured idle timeout
+  * **No Explicit Open/Close**: Eliminates API complexity and potential misuse
 
-* **Flow Control Mechanisms**:
-  * **Buffer Management**: IOC maintains configurable send/receive buffers per LinkID
-  * **Backpressure**: Automatic flow control when receiver cannot keep up with sender
-  * **Window-based Flow Control**: Sliding window protocol for efficient data transmission
-  * **Congestion Control**: Adaptive transmission rate based on network conditions
+* **Single Essential Operation**:
+  * **IOC_flushDAT(LinkID)**: Force transmission of buffered data
+    - Only explicit control needed by sender (DAT is stream by definition)
+    - Critical for ensuring data delivery at specific points
+    - Useful before critical operations or at logical boundaries
+    - Provides deterministic transmission timing control
+
+* **Ultra-Simplified Flow**:
+  ```c
+  // Pure data streaming - no setup/teardown overhead
+  IOC_sendDAT(linkID, chunk1);      // Stream auto-starts
+  IOC_sendDAT(linkID, chunk2);
+  IOC_flushDAT(linkID);             // Only when deterministic delivery needed
+  IOC_sendDAT(linkID, chunk3);
+  // Stream auto-closes when LinkID closes
+  ```
 
 #### DAT Error Handling
 * Data streaming may encounter these conditions:
@@ -462,32 +472,35 @@
 | **Fragmentation**     | Supports large data fragmentation/reassembly   | Single message per event                            | Single message per command                 |
 | **Resource Usage**    | Highest (buffers, flow control, ordering)      | Lower (stateless notifications)                     | Higher (persistent state for responses)    |
 
-#### DAT Use Cases and Examples
+#### DAT Use Cases and Examples (Minimalist)
 * **File Transfer**: 
   ```
-  // Large file streaming with progress feedback
-  ObjSender: IOC_openDatStream(LinkID)
-  ObjSender: IOC_sendDAT(LinkID, fileChunk1), IOC_sendDAT(LinkID, fileChunk2), ...
+  // Large file streaming - completely automatic
+  ObjSender: IOC_sendDAT(LinkID, fileChunk1)    // Stream auto-starts
+  ObjSender: IOC_sendDAT(LinkID, fileChunk2), IOC_sendDAT(LinkID, fileChunk3), ...
   ObjReceiver: CbRecvDat_F receives chunks and reassembles file
-  ObjSender: IOC_closeDatStream(LinkID)
+  ObjSender: IOC_flushDAT(LinkID)               // Ensure file completion
+  // Stream auto-closes when LinkID closes
   ```
 
 * **Log File Streaming**:
   ```
-  // Continuous log file streaming with guaranteed delivery
-  ObjLogger: IOC_openDatStream(LinkID)
-  ObjLogger: IOC_sendDAT(LinkID, logEntry1), IOC_sendDAT(LinkID, logEntry2), ...
-  ObjAnalyzer: CbRecvDat_F receives and processes each log entry sequentially
-  ObjLogger: IOC_closeDatStream(LinkID)
+  // Continuous log streaming - minimal overhead
+  ObjLogger: IOC_sendDAT(LinkID, logEntry1)     // Stream auto-starts
+  ObjLogger: IOC_sendDAT(LinkID, logEntry2), IOC_sendDAT(LinkID, logEntry3), ...
+  ObjAnalyzer: CbRecvDat_F processes each log entry sequentially
+  ObjLogger: IOC_flushDAT(LinkID)               // Only when immediate delivery needed
+  // Stream continues until LinkID closes
   ```
 
 * **Backup Data Streaming**:
   ```
-  // Continuous backup data streaming with guaranteed integrity
-  ObjBackupAgent: IOC_openDatStream(LinkID)
-  ObjBackupAgent: IOC_sendDAT(LinkID, backupChunk1), IOC_sendDAT(LinkID, backupChunk2), ...
-  ObjBackupServer: CbRecvDat_F receives and stores backup chunks sequentially
-  ObjBackupAgent: IOC_closeDatStream(LinkID)
+  // Backup streaming - zero management overhead
+  ObjBackupAgent: IOC_sendDAT(LinkID, backupChunk1)  // Stream auto-starts
+  ObjBackupAgent: IOC_sendDAT(LinkID, backupChunk2), ...
+  ObjBackupServer: CbRecvDat_F stores backup chunks sequentially  
+  ObjBackupAgent: IOC_flushDAT(LinkID)                // Only at checkpoint boundaries
+  // Stream lifecycle matches backup session
   ```
 
 * **Database Replication**:
