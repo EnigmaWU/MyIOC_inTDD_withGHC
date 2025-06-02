@@ -2,7 +2,7 @@
 
 # About
 
-* This is IOC's Architecture Design, which including definations of:
+* This is IOC's Architecture Design, which includes definitions of:
   * Glossary + Concept + Object + Operation + State
 
 # Glossary
@@ -13,20 +13,20 @@
 
 ## ModMgr vs ModUsr（EvtProducer or EvtConsumer）
 
-* Module Manager(a.k.a 【ModMgr】) who is a manager role such as platform manager, call IOC's MGR_APIs with arguments by product requirements to initModule, or deinitModule before module exit.
-* Module User(a.k.a 【ModUsr】) who is EvtProducer or EvtConsumer call IOC's USR_APIs.
-  * Event Producer(a.k.a 【EvtProducer】) who generate/trigge events.
-    * EvtProducer will post event to IOC by IOC_postEVT API.
-  * Event Consumer(a.k.a 【EvtConsumer】) who process events.
-    * EvtConsumer will subscribe or unsubscribe event to IOC by IOC_subEVT or IOC_unsubEVT API.
+* Module Manager(a.k.a 【ModMgr】) is a manager role such as platform manager, calls IOC's MGR_APIs with arguments by product requirements to initModule, or deinitModule before module exit.
+* Module User(a.k.a 【ModUsr】) is either EvtProducer or EvtConsumer that calls IOC's USR_APIs.
+  * Event Producer(a.k.a 【EvtProducer】) generates/triggers events.
+    * EvtProducer will post events to IOC by IOC_postEVT API.
+  * Event Consumer(a.k.a 【EvtConsumer】) processes events.
+    * EvtConsumer will subscribe or unsubscribe events to IOC by IOC_subEVT or IOC_unsubEVT API.
 
 ## Conet vs Conles
 
-* Communicate has Connect or Connectless Mode(a.k.a 【ConetMode】、【ConlesMode】).
+* Communication has Connect or Connectless Mode(a.k.a 【ConetMode】、【ConlesMode】).
 * @ConetMode@:
-  * [1] ObjX MUST call IOC_onlineService to online a service with $SrvArgs and identfied as $SrvID.
-  * [2] ObjY MUST call IOC_connectService to that service, and both ObjX/Y will get a $LinkID,
-  * [3.1] ObjY call IOC_execCMD with $LinkID to ask ObjX execute commands and get result, or ObjX call IOC_execCMD.
+  * [1] ObjX MUST call IOC_onlineService to online a service with $SrvURI and identified as $SrvID.
+  * [2] ObjY MUST call IOC_connectService to that service, and both ObjX/Y will get a $LinkID.
+  * [3.1] ObjY calls IOC_execCMD with $LinkID to ask ObjX execute commands and get result, or ObjX calls IOC_execCMD.
     * Command execution is typically request-response pattern: Initiator -> Executor -> Response
     * CmdInitiator calls IOC_execCMD(LinkID, CmdID, CmdDesc) to send command
     * CmdExecutor has two ways to handle commands:
@@ -34,17 +34,17 @@
       * **Polling Mode**: CmdExecutor calls IOC_waitCMD(LinkID, CmdID, CmdDesc) to actively wait for commands
     * CmdExecutor sets result in CmdDesc and may call IOC_ackCMD(LinkID, CmdID, CmdDesc) to send response
     * CmdInitiator gets the result synchronously through IOC_execCMD return or separate response handling
-  * [3.2] ObjX call IOC_postEVT with $LinkID to notify ObjY something happened, or ObjY call IOC_postEVT.
-  * [3.3] ObjX call IOC_sendDAT with $LinkID to send data to ObjY, or ObjY call IOC_sendDAT.
-* @ConlesMode@: ObjX call IOC_postEVT with pre-defined $AutoLinkID to notify all ObjYZs, who call IOC_waitEVT or IOC_subEVT, without IOC_onlineService and IOC_connectService.
+  * [3.2] ObjX calls IOC_postEVT with $LinkID to notify ObjY something happened, or ObjY calls IOC_postEVT.
+  * [3.3] ObjX calls IOC_sendDAT with $LinkID to send data to ObjY, or ObjY calls IOC_sendDAT.
+* @ConlesMode@: ObjX calls IOC_postEVT with pre-defined $AutoLinkID to notify all ObjYZs, who call IOC_waitEVT or IOC_subEVT, without IOC_onlineService and IOC_connectService.
   * NOTE: CMD is NOT supported in ConlesMode because:
     * CMD requires bidirectional communication for request-response pattern
     * ConlesMode is designed for unidirectional broadcast/multicast events
     * No specific target identification mechanism in ConlesMode for command routing
 
 * In ConetMode service has dynamic or static online mode:
-  * [D] Dynamic: ObjX call PLT_IOC_onlineService in its context to online a service and identfied as $SrvID,
-  * [S] Static: ObjX use PLT_IOC_defineService in its source to define and identfied by $SrvArgs::SrvURL.
+  * [D] Dynamic: ObjX calls IOC_onlineService in its context to online a service and identified as $SrvID.
+  * [S] Static: ObjX uses IOC_defineService in its source to define and identified by $SrvURI.
 
 ### SrvURI
 * Service URI(a.k.a 【SrvURI】) is a unique StrID to identify a service in IOC's ConetMode.
@@ -56,12 +56,12 @@
     * tcp://192.168.0.234:54321/SrvNameZ
 
 ### SrvID vs LinkID
-* Service ID(a.k.a 【SrvID】) is a unique ID to identify a onlined service in IOC.
-  * ONLY service owner who onlined the service will get and has this SrvID.
+* Service ID(a.k.a 【SrvID】) is a unique ID to identify an onlined service in IOC.
+  * ONLY the service owner who onlined the service will get and have this SrvID.
 * Link ID(a.k.a 【LinkID】) is a unique ID to identify a connected link between ObjX and ObjY in IOC.
-  * BOTH ObjX and ObjY will get a pair of LinkID, such as ObjY connect to ObjX who already call IOC_onlineService, then ObjY's LinkID is get from IOC_connectService, while ObjX's LinkID is get from IOC_acceptClient by SrvID.
-  * This means LinkID is a pair of ID, one is ObjX's LinkID, another is ObjY's LinkID, which is a pair of ID to identify a established connection between ObjX and ObjY in IOC.
-  * Each pair of LinkID will have one Usage, which is CMD or EVT or DAT, and one Direction, which is from ObjX to ObjY or from ObjY to ObjX. Such as:
+  * BOTH ObjX and ObjY will each get a LinkID. For example, when ObjY connects to ObjX who already called IOC_onlineService, then ObjY's LinkID is obtained from IOC_connectService, while ObjX's LinkID is obtained from IOC_acceptClient by SrvID.
+  * This means there is a pair of LinkIDs - one for ObjX and one for ObjY - that together identify an established connection between ObjX and ObjY in IOC.
+  * Each LinkID pair has one Usage (CMD or EVT or DAT) and bidirectional capability. Such as:
     * ObjX's LinkID is used to postEVT to ObjY, while ObjY's LinkID is used to CbProcEvt_F in IOC's context, 
       * OR ObjY's LinkID is used to postEVT to ObjX, while ObjX's LinkID is used to CbProcEvt_F in IOC's context.
     * ObjX's LinkID is used to execCMD to ObjY, while ObjY's LinkID is used to CbExecCmd_F in IOC's context, 
