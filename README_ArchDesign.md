@@ -75,7 +75,7 @@
 * Message(a.k.a 【MSG】) is a Command(a.k.a 【CMD】) or an Event(a.k.a 【EVT】) or a piece of Data(a.k.a 【DAT】).
   * CMD is always SYNC and DGRAM defined by IOC identified by CmdID;
   * EVT is always ASYNC and DGRAM defined by IOC identified by EvtID;
-  * DAT is ASYNC/SYNC and STREAM defined by IOC knowns only by object pair;
+  * DAT is always ASYNC and STREAM defined by IOC knowns only by Link pair;
 
 ### EVT
 
