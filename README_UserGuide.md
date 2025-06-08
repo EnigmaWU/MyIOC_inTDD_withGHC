@@ -1252,7 +1252,10 @@ void OnlineEvtProducerService() {
             .Port = 0                               // FIFO 协议不需要端口
         },
         .Flags = IOC_SRVFLAG_NONE,                  // 点对点模式（或使用 IOC_SRVFLAG_BROADCAST_EVENT 启用广播）
-        .UsageCapabilites = IOC_LinkUsageEvtProducer // 声明此服务可以产生事件
+        .UsageCapabilites = IOC_LinkUsageEvtProducer, // 声明此服务可以产生事件
+        .UsageArgs = {
+            .pGenericArgs = NULL  // 事件产生者不需要回调参数
+        }
     };
 
     IOC_SrvID_T SrvID;
@@ -1279,7 +1282,10 @@ void OnlineMultiCapabilityService() {
         // 支持多种通信类型
         .UsageCapabilites = IOC_LinkUsageEvtProducer | 
                            IOC_LinkUsageCmdExecutor | 
-                           IOC_LinkUsageDatReceiver
+                           IOC_LinkUsageDatReceiver,
+        .UsageArgs = {
+            .pGenericArgs = NULL  // 多功能服务使用polling模式
+        }
     };
 
     IOC_SrvID_T SrvID;
@@ -1389,7 +1395,10 @@ void ServerLifecycleExample() {
             .Port = 0
         },
         .Flags = IOC_SRVFLAG_NONE,
-        .UsageCapabilites = IOC_LinkUsageEvtProducer | IOC_LinkUsageCmdExecutor
+        .UsageCapabilites = IOC_LinkUsageEvtProducer | IOC_LinkUsageCmdExecutor,
+        .UsageArgs = {
+            .pGenericArgs = NULL  // 使用polling模式，不需要回调参数
+        }
     };
     
     if (IOC_onlineService(&SrvID, &SrvArgs) != IOC_RESULT_SUCCESS) {
@@ -1557,8 +1566,465 @@ sequenceDiagram
 
 ## asCmdInitiator
 
+作为命令发起者（Command Initiator），你可以向命令执行者发送命令并同步获取执行结果。
+
+### 基本使用流程
+
+1. **建立连接**：连接到提供命令执行服务的服务端
+2. **准备命令**：构造命令描述（CmdDesc）
+3. **执行命令**：调用 `IOC_execCMD()` 发送命令并获取结果
+4. **处理结果**：根据返回值和输出参数处理执行结果
+
+```mermaid
+sequenceDiagram
+    participant CI as CmdInitiator
+    participant IOC as IOC
+    participant CE as CmdExecutor
+
+    CI->>IOC: IOC_connectService(LinkID, ConnArgs)
+    IOC-->>CI: Return LinkID
+    
+    CI->>IOC: IOC_execCMD(LinkID, CmdDesc)
+    IOC->>CE: Route command to executor
+    CE->>CE: Process command
+    CE-->>IOC: Return result
+    IOC-->>CI: Return execution result
+    
+    CI->>IOC: IOC_closeLink(LinkID)
+```
+
+### 代码示例
+
+```c
+#include "IOC/IOC_CmdAPI.h"
+#include "IOC/IOC_SrvAPI.h"
+
+void CmdInitiatorExample() {
+    IOC_Result_T Result;
+    IOC_LinkID_T LinkID;
+    
+    // 1. 连接到命令执行服务
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = {
+            .pProtocol = IOC_SRV_PROTO_FIFO,
+            .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+            .pPath = "CommandService",
+            .Port = 0
+        },
+        .Usage = IOC_LinkUsageCmdInitiator  // 声明为命令发起者
+    };
+    
+    Result = IOC_connectService(&LinkID, &ConnArgs, NULL);
+    if (Result != IOC_RESULT_SUCCESS) {
+        printf("Failed to connect to command service: %d\n", Result);
+        return;
+    }
+    
+    // 2. 准备命令描述
+    IOC_CmdDesc_T CmdDesc = {0};
+    CmdDesc.CmdID = IOC_CMDID_TEST_PING;  // 使用预定义命令ID
+    CmdDesc.Status = IOC_CMD_STATUS_PENDING;
+    CmdDesc.TimeoutMs = 5000;  // 5秒超时
+    
+    // 设置输入参数
+    const char *InputData = "Hello, Command!";
+    IOC_CmdDesc_setInPayload(&CmdDesc, (void*)InputData, strlen(InputData));
+    
+    // 3. 执行命令（同步调用）
+    IOC_Option_defineTimeout(Options, 5000000);  // 5秒超时（微秒）
+    
+    Result = IOC_execCMD(LinkID, &CmdDesc, &Options);
+    
+    // 4. 处理执行结果
+    if (Result == IOC_RESULT_SUCCESS) {
+        if (IOC_CmdDesc_getStatus(&CmdDesc) == IOC_CMD_STATUS_SUCCESS) {
+            // 命令执行成功，获取输出数据
+            void *pOutputData = IOC_CmdDesc_getOutData(&CmdDesc);
+            ULONG_T OutputSize = IOC_CmdDesc_getOutDataSize(&CmdDesc);
+            
+            printf("Command executed successfully!\n");
+            printf("Output: %.*s\n", (int)OutputSize, (char*)pOutputData);
+        } else {
+            printf("Command execution failed with status: %s\n", 
+                   IOC_CmdDesc_getStatusStr(&CmdDesc));
+        }
+    } else {
+        printf("Failed to execute command: %d\n", Result);
+        switch (Result) {
+            case IOC_RESULT_TIMEOUT:
+                printf("Command execution timeout\n");
+                break;
+            case IOC_RESULT_BUSY:
+                printf("Command executor is busy\n");
+                break;
+            case IOC_RESULT_LINK_BROKEN:
+                printf("Communication link is broken\n");
+                break;
+            default:
+                printf("Other error occurred\n");
+        }
+    }
+    
+    // 5. 清理资源
+    IOC_closeLink(LinkID);
+}
+```
+
+### 高级用法
+
+#### 自定义命令ID
+
+```c
+// 定义自定义命令类和命令名
+#define MY_CMD_CLASS_APP (1 << 10ULL)
+#define MY_CMD_NAME_PROCESS_DATA (1 << 0ULL)
+
+// 生成自定义命令ID
+IOC_CmdID_T MyCmdID = IOC_defineCmdID(MY_CMD_CLASS_APP, MY_CMD_NAME_PROCESS_DATA);
+
+IOC_CmdDesc_T CmdDesc = {0};
+CmdDesc.CmdID = MyCmdID;
+// ... 其他设置
+```
+
+#### 非阻塞执行
+
+```c
+// 设置非阻塞模式
+IOC_Option_defineNonBlock(Options);
+
+Result = IOC_execCMD(LinkID, &CmdDesc, &Options);
+if (Result == IOC_RESULT_BUSY) {
+    printf("Command executor is busy, try again later\n");
+} else if (Result == IOC_RESULT_TIMEOUT) {
+    printf("Command execution timeout\n");
+}
+```
+
+### 错误处理指南
+
+| 错误码                       | 含义       | 处理建议                         |
+| ---------------------------- | ---------- | -------------------------------- |
+| `IOC_RESULT_SUCCESS`         | 执行成功   | 检查 CmdDesc.Status 获取详细状态 |
+| `IOC_RESULT_TIMEOUT`         | 执行超时   | 检查网络连接或增加超时时间       |
+| `IOC_RESULT_BUSY`            | 执行器忙碌 | 稍后重试或使用异步方式           |
+| `IOC_RESULT_LINK_BROKEN`     | 连接断开   | 重新建立连接                     |
+| `IOC_RESULT_INVALID_PARAM`   | 参数无效   | 检查 CmdID、LinkID、CmdDesc      |
+| `IOC_RESULT_CMD_EXEC_FAILED` | 执行失败   | 检查 CmdDesc.Result 获取详细错误 |
+
 ## asCmdExecutor
 
+作为命令执行者（Command Executor），你需要注册命令处理器来响应命令发起者的请求。
+
+### 执行模式选择
+
+IOC 支持两种命令执行模式：
+
+```mermaid
+graph TD
+    A[CmdExecutor启动] --> B{选择执行模式}
+    
+    B -->|回调模式| C[注册CbExecCmd_F]
+    C --> D[IOC_onlineService]
+    D --> E[等待命令自动到达]
+    E --> F[CbExecCmd_F自动调用]
+    F --> G[返回结果]
+    
+    B -->|轮询模式| H[IOC_onlineService]
+    H --> I[IOC_acceptClient]
+    I --> J[循环调用IOC_waitCMD]
+    J --> K[处理命令]
+    K --> L[IOC_ackCMD发送响应]
+    L --> J
+```
+
+#### 1. 回调模式（推荐）
+- **优点**：自动处理，响应迅速
+- **缺点**：需要在回调中快速处理，避免阻塞
+- **适用场景**：简单命令处理，快速响应
+
+#### 2. 轮询模式
+- **优点**：可控制处理时机，适合复杂处理
+- **缺点**：需要主动轮询，可能有延迟
+- **适用场景**：复杂命令处理，需要特定时机处理
+
+### 回调模式示例
+
+```c
+#include "IOC/IOC_CmdAPI.h"
+#include "IOC/IOC_SrvAPI.h"
+
+// 命令执行回调函数
+IOC_Result_T MyCommandCallback(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, void *pCbPriv) {
+    printf("Received command: %s\n", IOC_CmdDesc_getCmdFullNameStr(pCmdDesc, NULL, 0));
+    
+    // 获取输入参数
+    void *pInputData = IOC_CmdDesc_getInData(pCmdDesc);
+    ULONG_T InputSize = IOC_CmdDesc_getInDataSize(pCmdDesc);
+    
+    printf("Input: %.*s\n", (int)InputSize, (char*)pInputData);
+    
+    // 处理命令逻辑
+    IOC_CmdID_T CmdID = IOC_CmdDesc_getCmdID(pCmdDesc);
+    IOC_Result_T ProcessResult = IOC_RESULT_SUCCESS;
+    
+    switch (CmdID) {
+        case IOC_CMDID_TEST_PING: {
+            // 处理 PING 命令
+            const char *Response = "PONG";
+            IOC_CmdDesc_setOutPayload(pCmdDesc, (void*)Response, strlen(Response));
+            IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_SUCCESS);
+            break;
+        }
+        case IOC_CMDID_TEST_ECHO: {
+            // 处理 ECHO 命令 - 直接返回输入数据
+            IOC_CmdDesc_setOutPayload(pCmdDesc, pInputData, InputSize);
+            IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_SUCCESS);
+            break;
+        }
+        default: {
+            // 不支持的命令
+            IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_FAILED);
+            IOC_CmdDesc_setResult(pCmdDesc, IOC_RESULT_NOT_SUPPORT);
+            ProcessResult = IOC_RESULT_NOT_SUPPORT;
+            break;
+        }
+    }
+    
+    printf("Command processed with status: %s\n", IOC_CmdDesc_getStatusStr(pCmdDesc));
+    return ProcessResult;
+}
+
+void CmdExecutorCallbackExample() {
+    IOC_Result_T Result;
+    IOC_SrvID_T SrvID;
+    
+    // 准备支持的命令列表
+    IOC_CmdID_T SupportedCmds[] = {
+        IOC_CMDID_TEST_PING,
+        IOC_CMDID_TEST_ECHO
+    };
+    
+    // 配置命令执行参数
+    IOC_CmdExecArgs_T CmdExecArgs = {
+        .CbExecCmd_F = MyCommandCallback,  // 注册回调函数
+        .pCbPrivData = NULL,               // 回调私有数据
+        .CmdNum = IOC_calcArrayElmtCnt(SupportedCmds),
+        .pCmdIDs = SupportedCmds
+    };
+    
+    // 1. 在线服务
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = {
+            .pProtocol = IOC_SRV_PROTO_FIFO,
+            .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+            .pPath = "CommandService",
+            .Port = 0
+        },
+        .Flags = IOC_SRVFLAG_NONE,
+        .UsageCapabilites = IOC_LinkUsageCmdExecutor,  // 声明为命令执行者
+        .UsageArgs = {
+            .pCmdExecArgs = &CmdExecArgs  // 提供回调模式的命令执行参数
+        }
+    };
+    
+    Result = IOC_onlineService(&SrvID, &SrvArgs);
+    if (Result != IOC_RESULT_SUCCESS) {
+        printf("Failed to online command service: %d\n", Result);
+        return;
+    }
+    
+    printf("Command service is online, waiting for commands...\n");
+    
+    // 2. 接受客户端连接（自动处理）
+    // 在回调模式下，IOC 会自动接受连接并调用回调函数处理命令
+    
+    // 3. 保持服务运行
+    sleep(30);  // 运行30秒
+    
+    // 4. 下线服务
+    IOC_offlineService(SrvID);
+    printf("Command service is offline\n");
+}
+```
+
+### 轮询模式示例
+
+```c
+void CmdExecutorPollingExample() {
+    IOC_Result_T Result;
+    IOC_SrvID_T SrvID;
+    IOC_LinkID_T AcceptedLinkID;
+    
+    // 1. 在线服务（轮询模式不需要回调函数）
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = {
+            .pProtocol = IOC_SRV_PROTO_FIFO,
+            .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+            .pPath = "CommandServicePolling",
+            .Port = 0
+        },
+        .Flags = IOC_SRVFLAG_NONE,
+        .UsageCapabilites = IOC_LinkUsageCmdExecutor,
+        .UsageArgs = {
+            .pGenericArgs = NULL  // 轮询模式不需要回调参数
+        }
+    };
+    
+    Result = IOC_onlineService(&SrvID, &SrvArgs);
+    if (Result != IOC_RESULT_SUCCESS) {
+        printf("Failed to online command service: %d\n", Result);
+        return;
+    }
+    
+    // 2. 接受客户端连接
+    Result = IOC_acceptClient(SrvID, &AcceptedLinkID, NULL);
+    if (Result != IOC_RESULT_SUCCESS) {
+        printf("Failed to accept client connection: %d\n", Result);
+        return;
+    }
+    
+    printf("Client connected, waiting for commands...\n");
+    
+    // 3. 轮询处理命令
+    IOC_Option_defineTimeout(WaitOptions, 1000000);  // 1秒轮询超时（微秒）
+    
+    for (int i = 0; i < 30; i++) {  // 运行30次轮询
+        IOC_CmdDesc_T CmdDesc = {0};
+        
+        // 等待命令
+        Result = IOC_waitCMD(AcceptedLinkID, &CmdDesc, &WaitOptions);
+        
+        if (Result == IOC_RESULT_SUCCESS) {
+            printf("Received command: %s\n", IOC_CmdDesc_getCmdFullNameStr(&CmdDesc, NULL, 0));
+            
+            // 处理命令
+            IOC_CmdID_T CmdID = IOC_CmdDesc_getCmdID(&CmdDesc);
+            switch (CmdID) {
+                case IOC_CMDID_TEST_PING: {
+                    const char *Response = "PONG from polling mode";
+                    IOC_CmdDesc_setOutPayload(&CmdDesc, (void*)Response, strlen(Response));
+                    IOC_CmdDesc_setStatus(&CmdDesc, IOC_CMD_STATUS_SUCCESS);
+                    break;
+                }
+                default: {
+                    IOC_CmdDesc_setStatus(&CmdDesc, IOC_CMD_STATUS_FAILED);
+                    IOC_CmdDesc_setResult(&CmdDesc, IOC_RESULT_NOT_SUPPORT);
+                    break;
+                }
+            }
+            
+            // 发送响应
+            IOC_Option_defineTimeout(AckOptions, 1000000);  // 1秒超时（微秒）
+            
+            Result = IOC_ackCMD(AcceptedLinkID, &CmdDesc, &AckOptions);
+            if (Result != IOC_RESULT_SUCCESS) {
+                printf("Failed to send command response: %d\n", Result);
+            } else {
+                printf("Command response sent successfully\n");
+            }
+            
+        } else if (Result == IOC_RESULT_TIMEOUT) {
+            // 轮询超时，继续等待
+            printf("Polling timeout, continue waiting...\n");
+        } else {
+            printf("Failed to wait for command: %d\n", Result);
+            break;
+        }
+    }
+    
+    // 4. 清理资源
+    IOC_closeLink(AcceptedLinkID);
+    IOC_offlineService(SrvID);
+    printf("Command service is offline\n");
+}
+```
+
+### 最佳实践
+
+#### 1. 命令处理原则
+- **快速响应**：在回调模式下避免长时间处理
+- **错误处理**：总是设置合适的状态和结果码
+- **资源管理**：及时释放分配的内存资源
+
+#### 2. 性能优化
+- **批量处理**：对于高频命令，考虑批量处理
+- **异步处理**：复杂命令可在回调中启动异步处理
+- **缓存机制**：对于重复计算，使用缓存提高效率
+
+#### 3. 安全考虑
+- **输入验证**：验证命令参数的有效性
+- **权限检查**：根据需要检查命令执行权限
+- **资源限制**：防止命令消耗过多系统资源
+
+### 常见问题
+
+#### Q: 如何选择回调模式还是轮询模式？
+A: 
+- **回调模式**：适合简单、快速的命令处理
+- **轮询模式**：适合复杂处理或需要特定时机执行的命令
+
+#### Q: 如何处理长时间运行的命令？
+A: 建议在回调中启动异步任务，立即返回处理中状态，后续通过事件通知完成状态。
+
+#### Q: 命令执行失败如何通知发起者？
+A: 设置 `CmdDesc.Status = IOC_CMD_STATUS_FAILED` 和相应的 `CmdDesc.Result` 错误码。
+
+### 命令执行交互序列图
+
+#### 回调模式交互
+```mermaid
+sequenceDiagram
+    participant CI as CmdInitiator
+    participant IOC as IOC
+    participant CE as CmdExecutor
+    
+    Note over CE: 服务启动阶段
+    CE->>IOC: IOC_onlineService(CmdExecArgs with CbExecCmd_F)
+    IOC-->>CE: Return SrvID
+    
+    Note over CI: 客户端连接
+    CI->>IOC: IOC_connectService(CmdInitiator)
+    IOC-->>CI: Return LinkID
+    
+    Note over CI,CE: 命令执行阶段
+    CI->>IOC: IOC_execCMD(LinkID, CmdDesc)
+    IOC->>CE: CbExecCmd_F(LinkID, CmdDesc) [自动调用]
+    CE->>CE: 处理命令逻辑
+    CE-->>IOC: Return result [从回调返回]
+    IOC-->>CI: Return execution result
+```
+
+#### 轮询模式交互
+```mermaid
+sequenceDiagram
+    participant CI as CmdInitiator
+    participant IOC as IOC
+    participant CE as CmdExecutor
+    
+    Note over CE: 服务启动阶段
+    CE->>IOC: IOC_onlineService(无回调)
+    IOC-->>CE: Return SrvID
+    CE->>IOC: IOC_acceptClient(SrvID)
+    IOC-->>CE: Return AcceptedLinkID
+    
+    Note over CE: 开始轮询
+    CE->>IOC: IOC_waitCMD(AcceptedLinkID) [阻塞等待]
+    
+    Note over CI: 客户端连接并发送命令
+    CI->>IOC: IOC_connectService(CmdInitiator)
+    IOC-->>CI: Return LinkID
+    CI->>IOC: IOC_execCMD(LinkID, CmdDesc)
+    IOC-->>CE: IOC_waitCMD返回命令
+    
+    Note over CE: 处理并响应
+    CE->>CE: 处理命令逻辑
+    CE->>IOC: IOC_ackCMD(AcceptedLinkID, CmdDesc)
+    IOC-->>CI: Return execution result
+```
+
 ## asDataSender
+- TODO：数据发送者的使用示例
 
 ## asDataReceiver
+- TODO：数据接收者的使用示例
