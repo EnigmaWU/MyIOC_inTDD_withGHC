@@ -1139,7 +1139,7 @@ typedef enum {
     IOC_LinkUsageEvtProducer = (1U << 0),   // 事件生产者
     IOC_LinkUsageEvtConsumer = (1U << 1),   // 事件消费者
     IOC_LinkUsageCmdInitiator = (1U << 2),  // 命令发起者
-    IOC_LinkUsageCmdExecutor = (1U << 3),   // 命令执行者
+    IOC_LinkUsageCmdExecutor = (1U << 3),   // 命令执行者（服务端和客户端都可使用）
     IOC_LinkUsageDatSender = (1U << 4),     // 数据发送者
     IOC_LinkUsageDatReceiver = (1U << 5),   // 数据接收者
 } IOC_LinkUsage_T;
@@ -1149,6 +1149,7 @@ typedef enum {
 - 服务的 `UsageCapabilites` 与客户端的 `Usage` 必须配对
 - 服务端可以支持多种用途：`UsageCapabilites` 可以使用位运算符组合多个值
 - 客户端连接必须单一用途：`Usage` 每次只能指定一个值
+- **命令执行者**：`IOC_LinkUsageCmdExecutor` 可以在服务端和客户端使用，都支持 `CbExecCmd_F` 回调函数
 - 例如：服务声明 `IOC_LinkUsageEvtProducer`，则只能接受 `IOC_LinkUsageEvtConsumer` 的客户端
 
 **重要约束**：
@@ -1714,55 +1715,72 @@ if (Result == IOC_RESULT_BUSY) {
 
 ## asCmdExecutor
 
-作为命令执行者（Command Executor），你需要注册命令处理器来响应命令发起者的请求。
+作为命令执行者（Command Executor），你需要注册命令处理器来响应命令发起者的请求。命令执行者可以在服务端（Server side）或客户端（Client side）运行，两种场景都支持使用回调函数 `CbExecCmd_F` 进行命令处理。
+
+### 应用场景
+
+- **服务端命令执行者**：典型的服务提供方，等待客户端连接并处理命令请求
+- **客户端命令执行者**：作为客户端连接到远程服务，但同时也能处理来自服务端的命令请求
 
 ### 执行模式选择
 
-IOC 支持两种命令执行模式：
+IOC 支持两种命令执行模式，无论是在服务端还是客户端都可以使用：
 
 ```mermaid
 graph TD
-    A[CmdExecutor启动] --> B{选择执行模式}
+    A[CmdExecutor启动] --> B{部署位置选择}
     
-    B -->|回调模式| C[注册CbExecCmd_F]
-    C --> D[IOC_onlineService]
-    D --> E[等待命令自动到达]
-    E --> F[CbExecCmd_F自动调用]
-    F --> G[返回结果]
+    B -->|服务端部署| C[Server Side CmdExecutor]
+    B -->|客户端部署| D[Client Side CmdExecutor]
     
-    B -->|轮询模式| H[IOC_onlineService]
-    H --> I[IOC_acceptClient]
-    I --> J[循环调用IOC_waitCMD]
-    J --> K[处理命令]
-    K --> L[IOC_ackCMD发送响应]
-    L --> J
+    C --> E{执行模式选择}
+    D --> E
+    
+    E -->|回调模式| F[注册CbExecCmd_F]
+    F --> G[IOC_onlineService/IOC_connectService]
+    G --> H[等待命令自动到达]
+    H --> I[CbExecCmd_F自动调用]
+    I --> J[返回结果]
+    
+    E -->|轮询模式| K[IOC_onlineService/IOC_connectService]
+    K --> L[IOC_acceptClient/建立连接]
+    L --> M[循环调用IOC_waitCMD]
+    M --> N[处理命令]
+    N --> O[IOC_ackCMD发送响应]
+    O --> M
 ```
 
 #### 1. 回调模式（推荐）
 - **优点**：自动处理，响应迅速
 - **缺点**：需要在回调中快速处理，避免阻塞
 - **适用场景**：简单命令处理，快速响应
+- **部署位置**：服务端和客户端都可以使用 `CbExecCmd_F` 回调函数
 
 #### 2. 轮询模式
 - **优点**：可控制处理时机，适合复杂处理
 - **缺点**：需要主动轮询，可能有延迟
 - **适用场景**：复杂命令处理，需要特定时机处理
+- **部署位置**：服务端和客户端都支持
 
 ### 回调模式示例
+
+回调模式支持在服务端和客户端两种部署方式中使用 `CbExecCmd_F` 回调函数。
+
+#### 服务端回调模式示例
 
 ```c
 #include "IOC/IOC_CmdAPI.h"
 #include "IOC/IOC_SrvAPI.h"
 
-// 命令执行回调函数
-IOC_Result_T MyCommandCallback(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, void *pCbPriv) {
-    printf("Received command: %s\n", IOC_CmdDesc_getCmdFullNameStr(pCmdDesc, NULL, 0));
+// 命令执行回调函数（服务端）
+IOC_Result_T ServerCommandCallback(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, void *pCbPriv) {
+    printf("[Server] Received command: %s\n", IOC_CmdDesc_getCmdFullNameStr(pCmdDesc, NULL, 0));
     
     // 获取输入参数
     void *pInputData = IOC_CmdDesc_getInData(pCmdDesc);
     ULONG_T InputSize = IOC_CmdDesc_getInDataSize(pCmdDesc);
     
-    printf("Input: %.*s\n", (int)InputSize, (char*)pInputData);
+    printf("[Server] Input: %.*s\n", (int)InputSize, (char*)pInputData);
     
     // 处理命令逻辑
     IOC_CmdID_T CmdID = IOC_CmdDesc_getCmdID(pCmdDesc);
@@ -1771,7 +1789,7 @@ IOC_Result_T MyCommandCallback(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, voi
     switch (CmdID) {
         case IOC_CMDID_TEST_PING: {
             // 处理 PING 命令
-            const char *Response = "PONG";
+            const char *Response = "PONG from Server";
             IOC_CmdDesc_setOutPayload(pCmdDesc, (void*)Response, strlen(Response));
             IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_SUCCESS);
             break;
@@ -1791,11 +1809,11 @@ IOC_Result_T MyCommandCallback(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, voi
         }
     }
     
-    printf("Command processed with status: %s\n", IOC_CmdDesc_getStatusStr(pCmdDesc));
+    printf("[Server] Command processed with status: %s\n", IOC_CmdDesc_getStatusStr(pCmdDesc));
     return ProcessResult;
 }
 
-void CmdExecutorCallbackExample() {
+void ServerCmdExecutorCallbackExample() {
     IOC_Result_T Result;
     IOC_SrvID_T SrvID;
     
@@ -1807,8 +1825,8 @@ void CmdExecutorCallbackExample() {
     
     // 配置命令执行参数
     IOC_CmdExecArgs_T CmdExecArgs = {
-        .CbExecCmd_F = MyCommandCallback,  // 注册回调函数
-        .pCbPrivData = NULL,               // 回调私有数据
+        .CbExecCmd_F = ServerCommandCallback,  // 注册服务端回调函数
+        .pCbPrivData = NULL,                   // 回调私有数据
         .CmdNum = IOC_calcArrayElmtCnt(SupportedCmds),
         .pCmdIDs = SupportedCmds
     };
@@ -1834,7 +1852,7 @@ void CmdExecutorCallbackExample() {
         return;
     }
     
-    printf("Command service is online, waiting for commands...\n");
+    printf("[Server] Command service is online, waiting for commands...\n");
     
     // 2. 接受客户端连接（自动处理）
     // 在回调模式下，IOC 会自动接受连接并调用回调函数处理命令
@@ -1844,7 +1862,104 @@ void CmdExecutorCallbackExample() {
     
     // 4. 下线服务
     IOC_offlineService(SrvID);
-    printf("Command service is offline\n");
+    printf("[Server] Command service is offline\n");
+}
+```
+
+#### 客户端回调模式示例
+
+```c
+// 命令执行回调函数（客户端）
+IOC_Result_T ClientCommandCallback(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, void *pCbPriv) {
+    printf("[Client] Received command from server: %s\n", IOC_CmdDesc_getCmdFullNameStr(pCmdDesc, NULL, 0));
+    
+    // 获取输入参数
+    void *pInputData = IOC_CmdDesc_getInData(pCmdDesc);
+    ULONG_T InputSize = IOC_CmdDesc_getInDataSize(pCmdDesc);
+    
+    printf("[Client] Input: %.*s\n", (int)InputSize, (char*)pInputData);
+    
+    // 处理服务端发送的命令
+    IOC_CmdID_T CmdID = IOC_CmdDesc_getCmdID(pCmdDesc);
+    IOC_Result_T ProcessResult = IOC_RESULT_SUCCESS;
+    
+    switch (CmdID) {
+        case IOC_CMDID_TEST_HEARTBEAT: {
+            // 响应服务端心跳检测
+            const char *Response = "Client heartbeat response";
+            IOC_CmdDesc_setOutPayload(pCmdDesc, (void*)Response, strlen(Response));
+            IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_SUCCESS);
+            break;
+        }
+        case IOC_CMDID_TEST_STATUS_QUERY: {
+            // 响应服务端状态查询
+            const char *Status = "Client status: RUNNING";
+            IOC_CmdDesc_setOutPayload(pCmdDesc, (void*)Status, strlen(Status));
+            IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_SUCCESS);
+            break;
+        }
+        default: {
+            // 不支持的命令
+            IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_FAILED);
+            IOC_CmdDesc_setResult(pCmdDesc, IOC_RESULT_NOT_SUPPORT);
+            ProcessResult = IOC_RESULT_NOT_SUPPORT;
+            break;
+        }
+    }
+    
+    printf("[Client] Command processed with status: %s\n", IOC_CmdDesc_getStatusStr(pCmdDesc));
+    return ProcessResult;
+}
+
+void ClientCmdExecutorCallbackExample() {
+    IOC_Result_T Result;
+    IOC_LinkID_T LinkID;
+    
+    // 准备支持的命令列表
+    IOC_CmdID_T SupportedCmds[] = {
+        IOC_CMDID_TEST_HEARTBEAT,
+        IOC_CMDID_TEST_STATUS_QUERY
+    };
+    
+    // 配置命令执行参数
+    IOC_CmdExecArgs_T CmdExecArgs = {
+        .CbExecCmd_F = ClientCommandCallback,  // 注册客户端回调函数
+        .pCbPrivData = NULL,                   // 回调私有数据
+        .CmdNum = IOC_calcArrayElmtCnt(SupportedCmds),
+        .pCmdIDs = SupportedCmds
+    };
+    
+    // 1. 连接到服务端，同时声明自己也是命令执行者
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = {
+            .pProtocol = IOC_SRV_PROTO_FIFO,
+            .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+            .pPath = "RemoteService",
+            .Port = 0
+        },
+        .Usage = IOC_LinkUsageCmdExecutor,  // 声明为命令执行者
+        .UsageArgs = {
+            .pCmdExecArgs = &CmdExecArgs  // 提供回调模式的命令执行参数
+        }
+    };
+    
+    Result = IOC_connectService(&LinkID, &ConnArgs, NULL);
+    if (Result != IOC_RESULT_SUCCESS) {
+        printf("Failed to connect to remote service: %d\n", Result);
+        return;
+    }
+    
+    printf("[Client] Connected to remote service and ready to handle commands...\n");
+    
+    // 2. 在连接状态下，客户端可以同时发起命令和接收命令
+    // 接收来自服务端的命令会自动调用 ClientCommandCallback
+    
+    // 3. 保持连接运行
+    sleep(30);  // 运行30秒
+    
+    // 4. 关闭连接
+    IOC_closeLink(LinkID);
+    printf("[Client] Connection closed\n");
 }
 ```
 
@@ -1947,12 +2062,17 @@ void CmdExecutorPollingExample() {
 - **错误处理**：总是设置合适的状态和结果码
 - **资源管理**：及时释放分配的内存资源
 
-#### 2. 性能优化
+#### 2. 部署策略
+- **服务端命令执行者**：适用于提供稳定服务，处理来自多个客户端的命令请求
+- **客户端命令执行者**：适用于需要接收服务端控制命令的场景，如远程管理、配置更新等
+- **双向命令处理**：同一个连接可以同时支持命令发起和命令执行，实现双向通信
+
+#### 3. 性能优化
 - **批量处理**：对于高频命令，考虑批量处理
 - **异步处理**：复杂命令可在回调中启动异步处理
 - **缓存机制**：对于重复计算，使用缓存提高效率
 
-#### 3. 安全考虑
+#### 4. 安全考虑
 - **输入验证**：验证命令参数的有效性
 - **权限检查**：根据需要检查命令执行权限
 - **资源限制**：防止命令消耗过多系统资源
@@ -1961,8 +2081,13 @@ void CmdExecutorPollingExample() {
 
 #### Q: 如何选择回调模式还是轮询模式？
 A: 
-- **回调模式**：适合简单、快速的命令处理
+- **回调模式**：适合简单、快速的命令处理，服务端和客户端都可以使用 `CbExecCmd_F`
 - **轮询模式**：适合复杂处理或需要特定时机执行的命令
+
+#### Q: 服务端和客户端都可以使用 CbExecCmd_F 吗？
+A: 是的，无论是服务端（Server side）还是客户端（Client side），都可以使用 `CbExecCmd_F` 回调函数来处理命令：
+- **服务端**：通过 `IOC_onlineService()` 注册 `CbExecCmd_F` 处理客户端命令
+- **客户端**：通过 `IOC_connectService()` 注册 `CbExecCmd_F` 处理服务端命令
 
 #### Q: 如何处理长时间运行的命令？
 A: 建议在回调中启动异步任务，立即返回处理中状态，后续通过事件通知完成状态。
@@ -1970,29 +2095,55 @@ A: 建议在回调中启动异步任务，立即返回处理中状态，后续�
 #### Q: 命令执行失败如何通知发起者？
 A: 设置 `CmdDesc.Status = IOC_CMD_STATUS_FAILED` 和相应的 `CmdDesc.Result` 错误码。
 
+#### Q: 一个连接可以同时支持命令发起和命令执行吗？
+A: 是的，同一个连接可以同时作为命令发起者和命令执行者，实现双向命令通信。
+
 ### 命令执行交互序列图
 
-#### 回调模式交互
+#### 服务端回调模式交互
 ```mermaid
 sequenceDiagram
     participant CI as CmdInitiator
     participant IOC as IOC
-    participant CE as CmdExecutor
+    participant SE as ServerCmdExecutor
     
-    Note over CE: 服务启动阶段
-    CE->>IOC: IOC_onlineService(CmdExecArgs with CbExecCmd_F)
-    IOC-->>CE: Return SrvID
+    Note over SE: 服务端启动阶段
+    SE->>IOC: IOC_onlineService(CmdExecArgs with CbExecCmd_F)
+    IOC-->>SE: Return SrvID
     
     Note over CI: 客户端连接
     CI->>IOC: IOC_connectService(CmdInitiator)
     IOC-->>CI: Return LinkID
     
-    Note over CI,CE: 命令执行阶段
+    Note over CI,SE: 命令执行阶段
     CI->>IOC: IOC_execCMD(LinkID, CmdDesc)
-    IOC->>CE: CbExecCmd_F(LinkID, CmdDesc) [自动调用]
-    CE->>CE: 处理命令逻辑
-    CE-->>IOC: Return result [从回调返回]
+    IOC->>SE: CbExecCmd_F(LinkID, CmdDesc) [自动调用]
+    SE->>SE: 处理命令逻辑
+    SE-->>IOC: Return result [从回调返回]
     IOC-->>CI: Return execution result
+```
+
+#### 客户端回调模式交互
+```mermaid
+sequenceDiagram
+    participant SS as ServerSide
+    participant IOC as IOC
+    participant CE as ClientCmdExecutor
+    
+    Note over SS: 服务端在线
+    SS->>IOC: IOC_onlineService()
+    IOC-->>SS: Return SrvID
+    
+    Note over CE: 客户端连接并声明为命令执行者
+    CE->>IOC: IOC_connectService(CmdExecArgs with CbExecCmd_F)
+    IOC-->>CE: Return LinkID
+    
+    Note over SS,CE: 服务端向客户端发送命令
+    SS->>IOC: IOC_execCMD(ClientLinkID, CmdDesc)
+    IOC->>CE: CbExecCmd_F(LinkID, CmdDesc) [自动调用]
+    CE->>CE: 处理服务端命令
+    CE-->>IOC: Return result [从回调返回]
+    IOC-->>SS: Return execution result
 ```
 
 #### 轮询模式交互
