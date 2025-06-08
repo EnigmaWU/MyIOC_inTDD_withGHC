@@ -909,7 +909,7 @@ void RecommendedEventPublishing() {
     IOC_EvtDesc_T dataEvent = {.EvtID = IOC_EVTID_HIGH_FREQ_DATA};
     IOC_postEVT_inConlesMode(&dataEvent, &optNonBlock);
     
-    // 3. 关键控制事件 - 使用同步方式
+    // 3. 关键控制事件 - 使用同步方式确保被处理
     IOC_Option_defineSync(optSync);
     IOC_EvtDesc_T criticalEvent = {.EvtID = IOC_EVTID_CRITICAL_CONTROL};
     IOC_postEVT_inConlesMode(&criticalEvent, &optSync);
@@ -979,13 +979,19 @@ IOC_Result_T RobustEventPublish(IOC_EvtID_T eventId, void *pData, size_t dataLen
 
 #### IOC_SrvArgs_T 结构体详解
 
-`IOC_SrvArgs_T` 是用于配置服务参数的结构体，包含三个主要字段：
+`IOC_SrvArgs_T` 是用于配置服务参数的结构体，包含四个主要字段：
 
 ```c
 typedef struct {
     IOC_SrvURI_T SrvURI;           // 服务统一资源标识符
     IOC_SrvFlags_T Flags;          // 服务标志位
     IOC_LinkUsage_T UsageCapabilites; // 服务能力声明
+    struct {                       // 服务使用参数配置
+        IOC_EvtUsageArgs_pT pEvt;  // 事件相关参数
+        IOC_CmdUsageArgs_pT pCmd;  // 命令相关参数
+        IOC_DatUsageArgs_pT pDat;  // 数据相关参数
+        void *pGeneric;            // 通用扩展指针
+    } UsageArgs;
 } IOC_SrvArgs_T;
 ```
 
@@ -1255,7 +1261,7 @@ void OnlineEvtProducerService() {
         .Flags = IOC_SRVFLAG_NONE,                  // 点对点模式（或使用 IOC_SRVFLAG_BROADCAST_EVENT 启用广播）
         .UsageCapabilites = IOC_LinkUsageEvtProducer, // 声明此服务可以产生事件
         .UsageArgs = {
-            .pGenericArgs = NULL  // 事件产生者不需要回调参数
+            .pEvt = NULL  // 事件产生者不需要回调参数
         }
     };
 
@@ -1285,7 +1291,9 @@ void OnlineMultiCapabilityService() {
                            IOC_LinkUsageCmdExecutor | 
                            IOC_LinkUsageDatReceiver,
         .UsageArgs = {
-            .pGenericArgs = NULL  // 多功能服务使用polling模式
+            .pEvt = NULL,  // 事件相关参数
+            .pCmd = NULL,  // 命令相关参数 
+            .pDat = NULL   // 数据相关参数
         }
     };
 
@@ -1398,7 +1406,8 @@ void ServerLifecycleExample() {
         .Flags = IOC_SRVFLAG_NONE,
         .UsageCapabilites = IOC_LinkUsageEvtProducer | IOC_LinkUsageCmdExecutor,
         .UsageArgs = {
-            .pGenericArgs = NULL  // 使用polling模式，不需要回调参数
+            .pEvt = NULL,  // 事件相关参数
+            .pCmd = NULL   // 命令相关参数（使用polling模式，不需要回调参数）
         }
     };
     
@@ -1479,7 +1488,7 @@ sequenceDiagram
     IOC-->>ObjX: SrvLinkID
     IOC-->>ObjY: CliLinkID
 
-    Note over ObjX,ObjY: 通信阶段（事件、命令、数据传输）
+    Note over ObjX,ObjY: 通信阶段（事件发布、命令执行等）
 
     ObjX->>IOC: IOC_closeLink(SrvLinkID)
     ObjY->>IOC: IOC_closeLink(CliLinkID)
@@ -1607,12 +1616,12 @@ void CmdInitiatorExample() {
     // 1. 连接到命令执行服务
     IOC_ConnArgs_T ConnArgs = {
         .SrvURI = {
-            .pProtocol = IOC_SRV_PROTO_FIFO,
-            .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+            .pProtocol = IOC_SRV_PROTO_FIFO,        // 与服务端协议匹配
+            .pHost = IOC_SRV_HOST_LOCAL_PROCESS,    // 与服务端主机匹配
             .pPath = "CommandService",
             .Port = 0
         },
-        .Usage = IOC_LinkUsageCmdInitiator  // 声明为命令发起者
+        .Usage = IOC_LinkUsageCmdInitiator          // 声明为命令发起者
     };
     
     Result = IOC_connectService(&LinkID, &ConnArgs, NULL);
@@ -1824,7 +1833,7 @@ void ServerCmdExecutorCallbackExample() {
     };
     
     // 配置命令执行参数
-    IOC_CmdExecArgs_T CmdExecArgs = {
+    IOC_CmdUsageArgs_T CmdUsageArgs = {
         .CbExecCmd_F = ServerCommandCallback,  // 注册服务端回调函数
         .pCbPrivData = NULL,                   // 回调私有数据
         .CmdNum = IOC_calcArrayElmtCnt(SupportedCmds),
@@ -1842,7 +1851,7 @@ void ServerCmdExecutorCallbackExample() {
         .Flags = IOC_SRVFLAG_NONE,
         .UsageCapabilites = IOC_LinkUsageCmdExecutor,  // 声明为命令执行者
         .UsageArgs = {
-            .pCmdExecArgs = &CmdExecArgs  // 提供回调模式的命令执行参数
+            .pCmd = &CmdUsageArgs  // 提供回调模式的命令执行参数
         }
     };
     
@@ -1922,7 +1931,7 @@ void ClientCmdExecutorCallbackExample() {
     };
     
     // 配置命令执行参数
-    IOC_CmdExecArgs_T CmdExecArgs = {
+    IOC_CmdUsageArgs_T CmdUsageArgs = {
         .CbExecCmd_F = ClientCommandCallback,  // 注册客户端回调函数
         .pCbPrivData = NULL,                   // 回调私有数据
         .CmdNum = IOC_calcArrayElmtCnt(SupportedCmds),
@@ -1939,7 +1948,7 @@ void ClientCmdExecutorCallbackExample() {
         },
         .Usage = IOC_LinkUsageCmdExecutor,  // 声明为命令执行者
         .UsageArgs = {
-            .pCmdExecArgs = &CmdExecArgs  // 提供回调模式的命令执行参数
+            .pCmd = &CmdUsageArgs  // 提供回调模式的命令执行参数
         }
     };
     
@@ -1982,7 +1991,7 @@ void CmdExecutorPollingExample() {
         .Flags = IOC_SRVFLAG_NONE,
         .UsageCapabilites = IOC_LinkUsageCmdExecutor,
         .UsageArgs = {
-            .pGenericArgs = NULL  // 轮询模式不需要回调参数
+            .pCmd = NULL  // 轮询模式不需要回调参数
         }
     };
     
