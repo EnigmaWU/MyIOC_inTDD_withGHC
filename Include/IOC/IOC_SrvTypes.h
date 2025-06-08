@@ -1,9 +1,13 @@
 /**
- * @file IOC_TypeSrv.h
+ * @file IOC_SrvTypes.h
  * @brief IOC's Service Types defined here.
  *
  */
 
+#include "IOC_CmdDesc.h"
+#include "IOC_CmdID.h"
+#include "IOC_EvtDesc.h"
+#include "IOC_EvtID.h"
 #include "IOC_Types.h"
 
 #ifndef __IOC_TYPESRV_H__
@@ -11,6 +15,130 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+// Forward declaration for event processing callback
+typedef IOC_Result_T (*IOC_CbProcEvt_F)(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv);
+
+/**
+ * @brief Command execution callback function type
+ *        This callback is invoked when a command needs to be executed in callback mode
+ *
+ * @param LinkID: the link ID where the command was received
+ * @param pCmdDesc: pointer to command description containing command details and payload
+ * @param pCbPriv: callback private context data
+ *
+ * @return IOC_RESULT_SUCCESS: command executed successfully
+ * @return Other IOC_Result_T values: command execution failed with specific error
+ */
+typedef IOC_Result_T (*IOC_CbExecCmd_F)(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, void *pCbPriv);
+
+/**
+ * @brief Data reception callback function type
+ *        This callback is invoked when data is received in callback mode
+ *
+ * @param LinkID: the link ID where the data was received
+ * @param pData: pointer to the received data buffer
+ * @param DataSize: size of the received data in bytes
+ * @param pCbPriv: callback private context data
+ *
+ * @return IOC_RESULT_SUCCESS: data processed successfully
+ * @return Other IOC_Result_T values: data processing failed with specific error
+ */
+typedef IOC_Result_T (*IOC_CbRecvDat_F)(IOC_LinkID_T LinkID, void *pData, ULONG_T DataSize, void *pCbPriv);
+
+/**
+ * @brief Event usage arguments for IOC framework
+ *        Contains all event-related parameters and configurations
+ *        Used in both IOC_SrvArgs_T and IOC_ConnArgs_T for event capabilities
+ */
+typedef struct {
+    // Event callback configuration
+    IOC_CbProcEvt_F CbProcEvt_F;  // Callback function for processing events
+    void *pCbPrivData;            // Callback private context data
+
+    // Event subscription configuration
+    ULONG_T EvtNum;        // Number of EvtIDs to subscribe/produce
+    IOC_EvtID_T *pEvtIDs;  // Array of EvtIDs to subscribe/produce
+
+    // Event handling configuration
+    ULONG_T MaxEvtQueueSize;  // Maximum event queue size (0 = unlimited)
+    ULONG_T EvtTimeoutMs;     // Event timeout in milliseconds (0 = no timeout)
+
+    // Event filtering
+    ULONG_T EvtFilterNum;  // Number of event filters
+    void **ppEvtFilters;   // Array of event filter objects
+
+    // Reserved for future extensions
+    void *pReserved;
+} IOC_EvtUsageArgs_T, *IOC_EvtUsageArgs_pT;
+
+/**
+ * @brief Command usage arguments for IOC framework
+ *        Contains all command-related parameters and configurations
+ *        Used in both IOC_SrvArgs_T and IOC_ConnArgs_T for command capabilities
+ */
+typedef struct {
+    // Command execution callback configuration
+    IOC_CbExecCmd_F CbExecCmd_F;  // Callback function for executing commands
+    void *pCbPrivData;            // Callback private context data
+
+    // Command capability configuration
+    ULONG_T CmdNum;        // Number of CmdIDs that this executor handles
+    IOC_CmdID_T *pCmdIDs;  // Array of CmdIDs that this executor handles
+
+    // Command handling configuration
+    ULONG_T MaxCmdQueueSize;  // Maximum command queue size (0 = unlimited)
+    ULONG_T CmdTimeoutMs;     // Command timeout in milliseconds (0 = no timeout)
+
+    // Command validation
+    IOC_Bool_T EnableCmdValidation;  // Enable command validation
+    void *pCmdValidator;             // Command validator object
+
+    // Command statistics
+    IOC_Bool_T EnableCmdStats;  // Enable command execution statistics
+    void *pCmdStatsCollector;   // Statistics collector object
+
+    // Reserved for future extensions
+    void *pReserved;
+} IOC_CmdUsageArgs_T, *IOC_CmdUsageArgs_pT;
+
+/**
+ * @brief Data usage arguments for IOC framework
+ *        Contains all data transfer-related parameters and configurations
+ *        Used in both IOC_SrvArgs_T and IOC_ConnArgs_T for data transfer capabilities
+ */
+typedef struct {
+    // Data receiver configuration
+    IOC_CbRecvDat_F CbRecvDat_F;  // Callback function for receiving data
+    void *pRecvCbPrivData;        // Receiver callback private context data
+    ULONG_T MaxRecvDataSize;      // Maximum data size this receiver can handle (0 = unlimited)
+    ULONG_T RecvBufferSize;       // Internal buffer size for data reception
+
+    // Data sender configuration
+    ULONG_T MaxSendDataSize;  // Maximum data size this sender can send (0 = unlimited)
+    ULONG_T SendBufferSize;   // Internal buffer size for data transmission
+
+    // Data transfer configuration
+    ULONG_T MaxDatQueueSize;  // Maximum data queue size (0 = unlimited)
+    ULONG_T DatTimeoutMs;     // Data transfer timeout in milliseconds (0 = no timeout)
+
+    // Data compression and encryption
+    IOC_Bool_T EnableCompression;  // Enable data compression
+    IOC_Bool_T EnableEncryption;   // Enable data encryption
+    void *pCompressionConfig;      // Compression configuration
+    void *pEncryptionConfig;       // Encryption configuration
+
+    // Data integrity
+    IOC_Bool_T EnableChecksum;  // Enable data checksum validation
+    ULONG_T ChecksumType;       // Checksum algorithm type
+
+    // Flow control
+    ULONG_T FlowControlWindow;    // Flow control window size
+    ULONG_T RetransmissionLimit;  // Maximum retransmission attempts
+
+    // Reserved for future extensions
+    void *pReserved;
+} IOC_DatUsageArgs_T, *IOC_DatUsageArgs_pT;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #define IOC_SRV_URI_PROTOCOL_MAX_LEN 16
@@ -111,6 +239,22 @@ typedef struct {
      *      THEN: Service can accept a new link with usage IOC_LINK_USAGE_EVT_CONSUMER or IOC_LINK_USAGE_CMD_INITIATOR.
      */
     IOC_LinkUsage_T UsageCapabilites;
+
+    /**
+     * @brief Usage-specific arguments for different service capabilities
+     *        Since UsageCapabilites can be a combination of multiple capabilities,
+     *        we use struct to allow providing arguments for each capability:
+     *        - For IOC_LinkUsageEvtProducer: use EvtUsageArgs for event-related arguments
+     *        - For IOC_LinkUsageCmdExecutor: use CmdUsageArgs for command-related arguments
+     *        - For IOC_LinkUsageDatReceiver/DatSender: use DatUsageArgs for data transfer arguments
+     *        - Set unused capability arguments to their default/NULL values
+     */
+    struct {
+        IOC_EvtUsageArgs_T EvtUsageArgs;  // Event usage arguments (producer/consumer)
+        IOC_CmdUsageArgs_T CmdUsageArgs;  // Command usage arguments (executor/initiator)
+        IOC_DatUsageArgs_T DatUsageArgs;  // Data usage arguments (sender/receiver)
+        void *pGenericArgs;               // Generic pointer for future extensions
+    } UsageArgs;
 } IOC_SrvArgs_T, *IOC_SrvArgs_pT;
 
 typedef struct {
@@ -123,6 +267,20 @@ typedef struct {
      *      AND: Service must have IOC_LINK_USAGE_EVT_PRODUCER usage capability.
      */
     IOC_LinkUsage_T Usage;
+
+    /**
+     * @brief Usage-specific arguments for different link usages
+     *        The union member to use depends on the Usage flag:
+     *        - For IOC_LinkUsageEvtConsumer/EvtProducer: use pEvtUsageArgs
+     *        - For IOC_LinkUsageCmdExecutor/CmdInitiator: use pCmdUsageArgs
+     *        - For IOC_LinkUsageDatReceiver/DatSender: use pDatUsageArgs
+     */
+    union {
+        IOC_EvtUsageArgs_pT pEvtUsageArgs;  // Event usage arguments (consumer/producer)
+        IOC_CmdUsageArgs_pT pCmdUsageArgs;  // Command usage arguments (executor/initiator)
+        IOC_DatUsageArgs_pT pDatUsageArgs;  // Data usage arguments (receiver/sender)
+        void *pGenericArgs;                 // Generic pointer for future extensions
+    } UsageArgs;
 } IOC_ConnArgs_T, *IOC_ConnArgs_pT;
 
 #ifdef __cplusplus

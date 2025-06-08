@@ -9,33 +9,16 @@ extern "C" {
 #endif
 
 /**
- * @brief Command execution callback function type
- *        This callback is invoked when a command needs to be executed in callback mode
- *
- * @param LinkID: the link ID where the command was received
- * @param pCmdDesc: pointer to command description containing command details and payload
- * @param pCbPriv: callback private context data
- *
- * @return IOC_RESULT_SUCCESS: command executed successfully
- * @return Other IOC_Result_T values: command execution failed with specific error
+ * @brief Command execution callback function type is defined in IOC_SrvTypes.h
  */
-typedef IOC_Result_T (*IOC_CbExecCmd_F)(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, void *pCbPriv);
 
 /**
- * @brief Command executor callback arguments
+ * @brief Command executor callback arguments are defined in IOC_SrvTypes.h
  *    WHEN: onlineService with UsageCapabilities::CmdExecutor,
- *      THEN: IOC_CmdExecArgs_T in IOC_SrvArgs_T::pCmdExecArgs which indicates autoAcceptCmdInitiatorClient
+ *      THEN: IOC_CmdExecArgs_T in IOC_SrvArgs_T::UsageArgs.pCmdExecArgs
  *    WHEN: connectService with Usage::CmdExecutor,
- *      THEN: IOC_CmdExecArgs_T in IOC_ConnArgs_T::pCmdExecArgs
+ *      THEN: IOC_CmdExecArgs_T in IOC_ConnArgs_T::UsageArgs.pCmdExecArgs
  */
-typedef struct {
-    IOC_CbExecCmd_F CbExecCmd_F;  // Callback function for executing commands
-    void *pCbPrivData;            // Callback private context data
-
-    ULONG_T CmdNum;        // Number of CmdIDs, IOC_calcArrayElmtCnt(pCmdIDs)
-    IOC_CmdID_T *pCmdIDs;  // Array of CmdIDs that this executor handles
-
-} IOC_CmdExecArgs_T, *IOC_CmdExecArgs_pT;
 
 /**
  * @brief Execute a command on the specified link
