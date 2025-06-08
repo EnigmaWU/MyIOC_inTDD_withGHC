@@ -6,8 +6,8 @@
 
 #include "IOC_CmdDesc.h"
 #include "IOC_CmdID.h"
+#include "IOC_EvtAPI.h"
 #include "IOC_EvtDesc.h"
-#include "IOC_EvtID.h"
 #include "IOC_Types.h"
 
 #ifndef __IOC_TYPESRV_H__
@@ -15,9 +15,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-// Forward declaration for event processing callback
-typedef IOC_Result_T (*IOC_CbProcEvt_F)(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv);
 
 /**
  * @brief Command execution callback function type
@@ -60,16 +57,7 @@ typedef struct {
     ULONG_T EvtNum;        // Number of EvtIDs to subscribe/produce
     IOC_EvtID_T *pEvtIDs;  // Array of EvtIDs to subscribe/produce
 
-    // Event handling configuration
-    ULONG_T MaxEvtQueueSize;  // Maximum event queue size (0 = unlimited)
-    ULONG_T EvtTimeoutMs;     // Event timeout in milliseconds (0 = no timeout)
-
-    // Event filtering
-    ULONG_T EvtFilterNum;  // Number of event filters
-    void **ppEvtFilters;   // Array of event filter objects
-
-    // Reserved for future extensions
-    void *pReserved;
+    // TODO:Reserved;
 } IOC_EvtUsageArgs_T, *IOC_EvtUsageArgs_pT;
 
 /**
@@ -86,20 +74,7 @@ typedef struct {
     ULONG_T CmdNum;        // Number of CmdIDs that this executor handles
     IOC_CmdID_T *pCmdIDs;  // Array of CmdIDs that this executor handles
 
-    // Command handling configuration
-    ULONG_T MaxCmdQueueSize;  // Maximum command queue size (0 = unlimited)
-    ULONG_T CmdTimeoutMs;     // Command timeout in milliseconds (0 = no timeout)
-
-    // Command validation
-    IOC_Bool_T EnableCmdValidation;  // Enable command validation
-    void *pCmdValidator;             // Command validator object
-
-    // Command statistics
-    IOC_Bool_T EnableCmdStats;  // Enable command execution statistics
-    void *pCmdStatsCollector;   // Statistics collector object
-
-    // Reserved for future extensions
-    void *pReserved;
+    // TODO: Reserved;
 } IOC_CmdUsageArgs_T, *IOC_CmdUsageArgs_pT;
 
 /**
@@ -110,34 +85,10 @@ typedef struct {
 typedef struct {
     // Data receiver configuration
     IOC_CbRecvDat_F CbRecvDat_F;  // Callback function for receiving data
-    void *pRecvCbPrivData;        // Receiver callback private context data
-    ULONG_T MaxRecvDataSize;      // Maximum data size this receiver can handle (0 = unlimited)
-    ULONG_T RecvBufferSize;       // Internal buffer size for data reception
+    void *pCbPrivData;            // Receiver callback private context data
 
-    // Data sender configuration
-    ULONG_T MaxSendDataSize;  // Maximum data size this sender can send (0 = unlimited)
-    ULONG_T SendBufferSize;   // Internal buffer size for data transmission
+    // TODO: Reserved;
 
-    // Data transfer configuration
-    ULONG_T MaxDatQueueSize;  // Maximum data queue size (0 = unlimited)
-    ULONG_T DatTimeoutMs;     // Data transfer timeout in milliseconds (0 = no timeout)
-
-    // Data compression and encryption
-    IOC_Bool_T EnableCompression;  // Enable data compression
-    IOC_Bool_T EnableEncryption;   // Enable data encryption
-    void *pCompressionConfig;      // Compression configuration
-    void *pEncryptionConfig;       // Encryption configuration
-
-    // Data integrity
-    IOC_Bool_T EnableChecksum;  // Enable data checksum validation
-    ULONG_T ChecksumType;       // Checksum algorithm type
-
-    // Flow control
-    ULONG_T FlowControlWindow;    // Flow control window size
-    ULONG_T RetransmissionLimit;  // Maximum retransmission attempts
-
-    // Reserved for future extensions
-    void *pReserved;
 } IOC_DatUsageArgs_T, *IOC_DatUsageArgs_pT;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

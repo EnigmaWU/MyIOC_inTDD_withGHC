@@ -1,6 +1,5 @@
 #include "IOC_EvtDesc.h"
 #include "IOC_Option.h"
-#include "IOC_SrvTypes.h"
 
 #ifndef __IOC_EVENT_API_H__
 #define __IOC_EVENT_API_H__
