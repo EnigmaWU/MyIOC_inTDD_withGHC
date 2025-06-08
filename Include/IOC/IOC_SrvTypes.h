@@ -250,10 +250,10 @@ typedef struct {
      *        - Set unused capability arguments to their default/NULL values
      */
     struct {
-        IOC_EvtUsageArgs_T EvtUsageArgs;  // Event usage arguments (producer/consumer)
-        IOC_CmdUsageArgs_T CmdUsageArgs;  // Command usage arguments (executor/initiator)
-        IOC_DatUsageArgs_T DatUsageArgs;  // Data usage arguments (sender/receiver)
-        void *pGenericArgs;               // Generic pointer for future extensions
+        IOC_EvtUsageArgs_pT pEvt;  // Event usage arguments (producer/consumer)
+        IOC_CmdUsageArgs_pT pCmd;  // Command usage arguments (executor/initiator)
+        IOC_DatUsageArgs_pT pDat;  // Data usage arguments (sender/receiver)
+        void *pGeneric;            // Generic pointer for future extensions
     } UsageArgs;
 } IOC_SrvArgs_T, *IOC_SrvArgs_pT;
 
@@ -276,10 +276,10 @@ typedef struct {
      *        - For IOC_LinkUsageDatReceiver/DatSender: use pDatUsageArgs
      */
     union {
-        IOC_EvtUsageArgs_pT pEvtUsageArgs;  // Event usage arguments (consumer/producer)
-        IOC_CmdUsageArgs_pT pCmdUsageArgs;  // Command usage arguments (executor/initiator)
-        IOC_DatUsageArgs_pT pDatUsageArgs;  // Data usage arguments (receiver/sender)
-        void *pGenericArgs;                 // Generic pointer for future extensions
+        IOC_EvtUsageArgs_pT pEvt;  // Event usage arguments (consumer/producer)
+        IOC_CmdUsageArgs_pT pCmd;  // Command usage arguments (executor/initiator)
+        IOC_DatUsageArgs_pT pDat;  // Data usage arguments (receiver/sender)
+        void *pGeneric;            // Generic pointer for future extensions
     } UsageArgs;
 } IOC_ConnArgs_T, *IOC_ConnArgs_pT;
 
