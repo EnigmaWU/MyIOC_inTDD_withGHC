@@ -257,6 +257,8 @@ typedef struct {
     } UsageArgs;
 } IOC_SrvArgs_T, *IOC_SrvArgs_pT;
 
+void IOC_Helper_initSrvArgs(IOC_SrvArgs_pT pSrvArgs);
+
 typedef struct {
     IOC_SrvURI_T SrvURI;
     /**
@@ -282,6 +284,8 @@ typedef struct {
         void *pGeneric;            // Generic pointer for future extensions
     } UsageArgs;
 } IOC_ConnArgs_T, *IOC_ConnArgs_pT;
+
+void IOC_Helper_initConnArgs(IOC_ConnArgs_pT pConnArgs);
 
 #ifdef __cplusplus
 }
