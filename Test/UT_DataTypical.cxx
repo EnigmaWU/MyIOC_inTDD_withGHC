@@ -63,7 +63,25 @@
 /**************************************************************************************************
  * @brief 【User Story】
  *
- *  TODO: Add user stories as needed during TDD development
+ *  US-1: AS a DatSender developer,
+ *    I WANT to transfer data between objects using connection-based data (ConetData),
+ *   SO THAT I can implement object-to-object data communication efficiently.
+ *
+ *  US-2: AS a DatReceiver developer,
+ *    I WANT to receive transferred data through IOC framework callbacks,
+ *   SO THAT I can process incoming data from connected objects.
+ *
+ *  US-3: AS a DatSender developer,
+ *    I WANT to send large data using pointer mode (IOC_DATFLAG_PTR_MODE),
+ *   SO THAT I can avoid unnecessary data copying and improve performance.
+ *
+ *  US-4: AS a DatReceiver developer,
+ *    I WANT to handle different data buffer types (BufPtr, BufSize),
+ *   SO THAT I can process various data formats sent by senders.
+ *
+ *  US-5: AS a DatSender developer,
+ *    I WANT to use IOC_DatDesc_T to describe my data transfers,
+ *   SO THAT I can properly specify data characteristics and transfer modes.
  *
  *************************************************************************************************/
 //======>END OF USER STORY=========================================================================
