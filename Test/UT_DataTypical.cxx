@@ -182,7 +182,7 @@ TEST(UT_DataTypical, verifyDatSenderConnection_byConnectToOnlineService_expectSu
     IOC_SrvURI_T CSURI = {
         .pProtocol = IOC_SRV_PROTO_FIFO,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = (const char*)"DatReceiver",
+        .pPath = (const char *)"DatReceiver",
     };
 
     // Step-1: Setup DatReceiver service online
@@ -318,4 +318,159 @@ TEST(UT_DataTypical_Examples, typicalDatTransfer_example) {
     // 4. 正常完成传输
 
     ASSERT_TRUE(true);  // 典型场景演示，无实际验证
+}
+
+// Private data structure for DAT receiver callback (TDD Design)
+typedef struct {
+    int ReceivedDataCnt;
+    ULONG_T TotalReceivedSize;
+    char ReceivedContent[20480];  // Buffer for 10KB+ data
+    bool CallbackExecuted;
+} __DatReceiverPrivData_T;
+
+// Callback function for receiving DAT data (TDD Design)
+static IOC_Result_T __CbRecvDat_F(IOC_LinkID_T LinkID, void *pData, ULONG_T DataSize, void *pCbPriv) {
+    __DatReceiverPrivData_T *pPrivData = (__DatReceiverPrivData_T *)pCbPriv;
+
+    pPrivData->ReceivedDataCnt++;
+    pPrivData->CallbackExecuted = true;
+
+    // Copy received data to buffer for verification
+    if (pPrivData->TotalReceivedSize + DataSize < sizeof(pPrivData->ReceivedContent)) {
+        memcpy(pPrivData->ReceivedContent + pPrivData->TotalReceivedSize, pData, DataSize);
+        pPrivData->TotalReceivedSize += DataSize;
+    }
+
+    printf("DAT Callback: Received %lu bytes, total: %lu bytes\n", DataSize, pPrivData->TotalReceivedSize);
+    return IOC_RESULT_SUCCESS;
+}
+
+/**
+ * @[Name]: verifyDatSenderTransmission_bySendCommonData_expectCallbackReceiveSuccess
+ * @[Steps]:
+ *   1) Setup DatReceiver service with CbRecvDat_F callback and DatSender connection AS SETUP.
+ *      |-> DatReceiver online service with IOC_LinkUsageDatReceiver
+ *      |-> Configure DatUsageArgs with __CbRecvDat_F callback
+ *      |-> DatSender connect with IOC_LinkUsageDatSender
+ *   2) DatSender send typical 10KB text data using IOC_sendDAT AS BEHAVIOR.
+ *      |-> Create common text data (10KB)
+ *      |-> Setup IOC_DatDesc_T with data payload
+ *      |-> Call IOC_sendDAT with typical data chunk
+ *   3) Verify data transmission success and callback reception AS VERIFY.
+ *      |-> IOC_sendDAT returns IOC_RESULT_SUCCESS
+ *      |-> Callback receives complete data correctly
+ *      |-> Data integrity maintained (content matches)
+ *   4) Cleanup: close connections and offline service AS CLEANUP.
+ * @[Expect]: Data transmitted successfully and received via callback with integrity preserved.
+ * @[Notes]: Focus on typical 10KB text data transmission with callback pattern only.
+ */
+TEST(UT_DataTypical, verifyDatSenderTransmission_bySendCommonData_expectCallbackReceiveSuccess) {
+    //===SETUP===
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_SrvID_T DatReceiverSrvID = IOC_ID_INVALID;
+    IOC_LinkID_T DatReceiverLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T DatSenderLinkID = IOC_ID_INVALID;
+
+    // Private data for callback
+    __DatReceiverPrivData_T DatReceiverPrivData = {0};
+
+    // Standard SrvURI for typical DAT communication
+    IOC_SrvURI_T CSURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = (const char *)"DatReceiverCallback",
+    };
+
+    // Step-1: Setup DatReceiver service with callback
+    IOC_DatUsageArgs_T DatUsageArgs = {
+        .CbRecvDat_F = __CbRecvDat_F,
+        .pCbPrivData = &DatReceiverPrivData,
+    };
+
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = CSURI,
+        .UsageCapabilites = IOC_LinkUsageDatReceiver,
+        .UsageArgs =
+            {
+                .pDat = &DatUsageArgs,
+            },
+    };
+
+    Result = IOC_onlineService(&DatReceiverSrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint: Service online success
+
+    // Setup DatSender connection
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = CSURI,
+        .Usage = IOC_LinkUsageDatSender,
+    };
+
+    std::thread DatSenderThread([&] {
+        Result = IOC_connectService(&DatSenderLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);       // VerifyPoint: Connection success
+        ASSERT_NE(IOC_ID_INVALID, DatSenderLinkID);  // VerifyPoint: Valid LinkID
+    });
+
+    // Accept the connection
+    Result = IOC_acceptClient(DatReceiverSrvID, &DatReceiverLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint: Accept success
+
+    DatSenderThread.join();
+
+    //===BEHAVIOR===
+    printf("BEHAVIOR: verifyDatSenderTransmission_bySendCommonData_expectCallbackReceiveSuccess\n");
+
+    // Step-2: Create and send typical 10KB text data
+    const char *TextPattern = "TypicalDATTest_";
+    const int PatternLen = strlen(TextPattern);
+    const int TargetSize = 10240;  // 10KB
+    char *TestData = (char *)malloc(TargetSize + 1);
+
+    // Fill with repeating pattern
+    for (int i = 0; i < TargetSize; i++) {
+        TestData[i] = TextPattern[i % PatternLen];
+    }
+    TestData[TargetSize] = '\0';
+
+    // Setup IOC_DatDesc_T for transmission
+    IOC_DatDesc_T DatDesc = {0};
+    IOC_initDatDesc(&DatDesc);
+    DatDesc.Payload.pData = TestData;
+    DatDesc.Payload.PtrDataSize = TargetSize;
+
+    // Send data using IOC_sendDAT
+    Result = IOC_sendDAT(DatSenderLinkID, &DatDesc, NULL);
+
+    // Force send the data to ensure callback execution
+    IOC_flushDAT();
+
+    //===VERIFY===
+    // KeyVerifyPoint-1: IOC_sendDAT returns success
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    // KeyVerifyPoint-2: Callback was executed and received data
+    ASSERT_TRUE(DatReceiverPrivData.CallbackExecuted);
+    ASSERT_EQ(1, DatReceiverPrivData.ReceivedDataCnt);
+    ASSERT_EQ(TargetSize, DatReceiverPrivData.TotalReceivedSize);
+
+    // KeyVerifyPoint-3: Data integrity maintained
+    ASSERT_EQ(0, memcmp(TestData, DatReceiverPrivData.ReceivedContent, TargetSize));
+
+    printf("TDD VERIFY: All simulated verifications passed\n");
+
+    //===CLEANUP===
+    // Free test data
+    free(TestData);
+
+    // Close both links
+    if (DatSenderLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(DatSenderLinkID);
+    }
+    if (DatReceiverLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(DatReceiverLinkID);
+    }
+    // Offline service
+    if (DatReceiverSrvID != IOC_ID_INVALID) {
+        IOC_offlineService(DatReceiverSrvID);
+    }
 }
