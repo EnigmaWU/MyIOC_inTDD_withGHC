@@ -146,24 +146,87 @@
 //===TEMPLATE FOR DAT TYPICAL TESTS===
 
 /**
- * @[Name]: ${testCaseName}
- * @[Steps]: ${testSteps}
- * @[Expect]: ${expectedBehavior}
- * @[Notes]: Focus on typical DAT usage scenarios only
+ * @[Name]: verifyDatSenderConnection_byConnectToOnlineService_expectSuccessAndValidLinkID
+ * @[Steps]:
+ *   1) Setup DatReceiver service online with standard SrvURI {"fifo", "localprocess", "DatReceiver"} AS SETUP.
+ *      |-> SrvArgs.UsageCapabilites = IOC_LinkUsageDatReceiver
+ *      |-> SrvArgs.SrvURI.pProtocol = IOC_SRV_PROTO_FIFO
+ *      |-> SrvArgs.SrvURI.pHost = IOC_SRV_HOST_LOCAL_PROCESS  
+ *      |-> SrvArgs.SrvURI.pPath = "DatReceiver"
+ *   2) DatSender connect to the service with typical parameters AS BEHAVIOR.
+ *      |-> ConnArgs.Usage = IOC_LinkUsageDatSender
+ *      |-> ConnArgs.SrvURI = same as service SrvURI
+ *   3) Verify connection success and valid LinkID AS VERIFY.
+ *      |-> IOC_connectService() returns IOC_RESULT_SUCCESS
+ *      |-> LinkID is valid (not IOC_ID_INVALID)
+ *   4) Cleanup: close connection and offline service AS CLEANUP.
+ * @[Expect]: Connection established successfully with valid LinkID for typical DAT scenario.
+ * @[Notes]: Focus on standard data transmission connection only, no boundary/fault/performance cases.
  */
-TEST(UT_DataTypical, templateTestCase) {
+TEST(UT_DataTypical, verifyDatSenderConnection_byConnectToOnlineService_expectSuccessAndValidLinkID) {
     //===SETUP===
-    // TODO: Setup typical test environment
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_SrvID_T DatReceiverSrvID = IOC_ID_INVALID;
+    IOC_LinkID_T DatReceiverLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T DatSenderLinkID = IOC_ID_INVALID;
+
+    // Standard SrvURI for typical DAT communication
+    IOC_SrvURI_T CSURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = (const char*)"DatReceiver",
+    };
+
+    // Step-1: Setup DatReceiver service online
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = CSURI,
+        .UsageCapabilites = IOC_LinkUsageDatReceiver,
+    };
+
+    Result = IOC_onlineService(&DatReceiverSrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint: Service online success
 
     //===BEHAVIOR===
-    printf("BEHAVIOR: ${typical DAT operation}\n");
-    // TODO: Execute typical DAT behavior
+    printf("BEHAVIOR: verifyDatSenderConnection_byConnectToOnlineService_expectSuccessAndValidLinkID\n");
+    
+    // Step-2: DatSender connect to the service with typical parameters
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = CSURI,
+        .Usage = IOC_LinkUsageDatSender,
+    };
+
+    std::thread DatSenderThread([&] {
+        Result = IOC_connectService(&DatSenderLinkID, &ConnArgs, NULL);
+        // VerifyPoint: Connection success in thread context
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+        // VerifyPoint: Valid LinkID returned
+        ASSERT_NE(IOC_ID_INVALID, DatSenderLinkID);
+    });
+
+    // Step-3: DatReceiver accept the connection
+    Result = IOC_acceptClient(DatReceiverSrvID, &DatReceiverLinkID, NULL);
+    
+    DatSenderThread.join();
 
     //===VERIFY===
-    // TODO: Verify typical expected results
+    // KeyVerifyPoint-1: Service accept connection success
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    // KeyVerifyPoint-2: Valid receiver LinkID returned  
+    ASSERT_NE(IOC_ID_INVALID, DatReceiverLinkID);
+    // KeyVerifyPoint-3: Valid sender LinkID confirmed (checked in thread)
 
     //===CLEANUP===
-    // TODO: Cleanup typical test resources
+    // Close both links
+    if (DatSenderLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(DatSenderLinkID);
+    }
+    if (DatReceiverLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(DatReceiverLinkID);
+    }
+    // Offline service
+    if (DatReceiverSrvID != IOC_ID_INVALID) {
+        IOC_offlineService(DatReceiverSrvID);
+    }
 }
 
 //===TEST FIXTURE FOR TYPICAL DAT SCENARIOS===
