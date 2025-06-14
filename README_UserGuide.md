@@ -2184,7 +2184,429 @@ sequenceDiagram
 ```
 
 ## asDataSender
-- TODO：数据发送者的使用示例
+
+作为数据发送者，您需要建立一个专用的数据传输链接。IOC 的数据传输是流式的、异步的，并保证数据不丢失（NODROP）。
+
+### 1. 基础数据发送示例
+
+```c
+#include <IOC/IOC.h>
+
+// 数据发送者的私有数据结构
+typedef struct {
+    uint32_t sentChunkCount;
+    char senderName[32];
+} DataSenderPrivData_T;
+
+void DataSenderExample() {
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_LinkID_T DataLinkID = IOC_ID_INVALID;
+    
+    // 定义服务连接参数 - 连接到数据接收服务
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = {
+            .pProtocol = IOC_SRV_PROTO_FIFO,
+            .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+            .pPath = "DataReceiverService",
+            .Port = 0
+        },
+        .Usage = IOC_LinkUsageDatSender,    // 声明为数据发送者
+        .UsageArgs = {
+            .pDat = NULL    // 发送者不需要配置回调函数
+        }
+    };
+
+    // 步骤1：连接到数据接收服务
+    Result = IOC_connectService(&DataLinkID, &ConnArgs, NULL);
+    if (Result != IOC_RESULT_SUCCESS) {
+        printf("连接数据服务失败: %s\n", IOC_getResultStr(Result));
+        return;
+    }
+
+    printf("成功连接到数据服务，LinkID: %lu\n", DataLinkID);
+
+    // 步骤2：准备要发送的数据
+    const char* testData = "Hello, this is streaming data chunk!";
+    size_t dataSize = strlen(testData) + 1;
+
+    // 步骤3：创建数据描述符并发送数据
+    IOC_DatDesc_T datDesc;
+    IOC_initDatDesc(&datDesc, 0, dataSize);  // streamID=0 表示自动生成
+
+    // 设置数据载荷
+    if (dataSize <= sizeof(datDesc.Payload.EmdData)) {
+        // 小数据使用嵌入式缓冲区
+        memcpy(datDesc.Payload.EmdData, testData, dataSize);
+        datDesc.Payload.EmdDataSize = dataSize;
+        datDesc.Payload.PtrDataSize = 0;
+    } else {
+        // 大数据使用指针
+        datDesc.Payload.pData = (void*)testData;
+        datDesc.Payload.PtrDataSize = dataSize;
+        datDesc.Payload.EmdDataSize = 0;
+    }
+
+    // 发送数据块
+    Result = IOC_sendDAT(DataLinkID, &datDesc, NULL);
+    if (Result != IOC_RESULT_SUCCESS) {
+        printf("发送数据失败: %s\n", IOC_getResultStr(Result));
+    } else {
+        printf("成功发送数据块，大小: %zu 字节\n", dataSize);
+    }
+
+    // 步骤4：发送多个数据块示例
+    for (int i = 0; i < 5; i++) {
+        char buffer[64];
+        snprintf(buffer, sizeof(buffer), "Data chunk #%d", i + 1);
+        
+        IOC_DatDesc_T chunkDesc;
+        IOC_initDatDesc(&chunkDesc, 0, strlen(buffer) + 1);
+        
+        memcpy(chunkDesc.Payload.EmdData, buffer, strlen(buffer) + 1);
+        chunkDesc.Payload.EmdDataSize = strlen(buffer) + 1;
+        chunkDesc.Payload.PtrDataSize = 0;
+
+        Result = IOC_sendDAT(DataLinkID, &chunkDesc, NULL);
+        if (Result == IOC_RESULT_SUCCESS) {
+            printf("发送数据块 #%d 成功\n", i + 1);
+        } else {
+            printf("发送数据块 #%d 失败: %s\n", i + 1, IOC_getResultStr(Result));
+        }
+
+        usleep(100000);  // 100ms 间隔
+    }
+
+    // 步骤5：强制刷新缓冲数据（确保立即传输）
+    Result = IOC_flushDAT(DataLinkID, NULL);
+    if (Result == IOC_RESULT_SUCCESS) {
+        printf("成功刷新缓冲数据\n");
+    }
+
+    // 步骤6：清理资源
+    Result = IOC_closeLink(DataLinkID);
+    if (Result == IOC_RESULT_SUCCESS) {
+        printf("成功关闭数据链接\n");
+    }
+}
+```
+
+### 2. 大数据传输示例
+
+```c
+void LargeDataSenderExample() {
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_LinkID_T DataLinkID = IOC_ID_INVALID;
+    
+    // 连接参数（同上）
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = {
+            .pProtocol = IOC_SRV_PROTO_FIFO,
+            .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+            .pPath = "DataReceiverService",
+            .Port = 0
+        },
+        .Usage = IOC_LinkUsageDatSender
+    };
+
+    // 连接到服务
+    Result = IOC_connectService(&DataLinkID, &ConnArgs, NULL);
+    if (Result != IOC_RESULT_SUCCESS) {
+        printf("连接失败: %s\n", IOC_getResultStr(Result));
+        return;
+    }
+
+    // 模拟大文件传输 - 分块发送
+    const size_t CHUNK_SIZE = 1024;  // 1KB 每块
+    const size_t TOTAL_SIZE = 10240; // 10KB 总大小
+    
+    for (size_t offset = 0; offset < TOTAL_SIZE; offset += CHUNK_SIZE) {
+        size_t currentChunkSize = (offset + CHUNK_SIZE > TOTAL_SIZE) ? 
+                                  (TOTAL_SIZE - offset) : CHUNK_SIZE;
+        
+        // 创建测试数据
+        char* chunkData = malloc(currentChunkSize);
+        for (size_t i = 0; i < currentChunkSize; i++) {
+            chunkData[i] = (char)((offset + i) % 256);
+        }
+
+        // 创建数据描述符
+        IOC_DatDesc_T datDesc;
+        IOC_initDatDesc(&datDesc, 1, currentChunkSize);  // streamID=1
+        
+        // 大数据使用指针方式
+        datDesc.Payload.pData = chunkData;
+        datDesc.Payload.PtrDataSize = currentChunkSize;
+        datDesc.Payload.EmdDataSize = 0;
+
+        // 发送数据块
+        Result = IOC_sendDAT(DataLinkID, &datDesc, NULL);
+        if (Result == IOC_RESULT_SUCCESS) {
+            printf("发送数据块 [%zu-%zu] 成功\n", offset, offset + currentChunkSize - 1);
+        } else {
+            printf("发送数据块失败: %s\n", IOC_getResultStr(Result));
+            free(chunkData);
+            break;
+        }
+
+        free(chunkData);
+    }
+
+    // 刷新和关闭
+    IOC_flushDAT(DataLinkID, NULL);
+    IOC_closeLink(DataLinkID);
+}
+```
 
 ## asDataReceiver
-- TODO：数据接收者的使用示例
+
+作为数据接收者，您需要在线一个数据接收服务，并处理来自数据发送者的流式数据。IOC 支持两种接收模式：回调模式（推荐）和轮询模式。
+
+### 1. 回调模式数据接收示例
+
+```c
+#include <IOC/IOC.h>
+
+// 数据接收者的私有数据结构
+typedef struct {
+    uint32_t receivedChunkCount;
+    uint64_t totalReceivedBytes;
+    char receiverName[32];
+    FILE* outputFile;  // 可选：保存接收的数据到文件
+} DataReceiverPrivData_T;
+
+// 数据接收回调函数
+static IOC_Result_T DataReceiveCallback(IOC_LinkID_T LinkID, void *pData, ULONG_T DataSize, void *pCbPriv) {
+    DataReceiverPrivData_T *pPrivData = (DataReceiverPrivData_T *)pCbPriv;
+    
+    // 更新统计信息
+    pPrivData->receivedChunkCount++;
+    pPrivData->totalReceivedBytes += DataSize;
+    
+    printf("[%s] 接收数据块 #%u: %lu 字节，LinkID=%lu\n", 
+           pPrivData->receiverName, pPrivData->receivedChunkCount, DataSize, LinkID);
+    
+    // 处理接收到的数据
+    if (pData && DataSize > 0) {
+        // 示例1：打印文本数据（假设是字符串）
+        if (DataSize < 1024) {  // 小数据块，可能是文本
+            printf("  数据内容: %.*s\n", (int)DataSize, (char*)pData);
+        }
+        
+        // 示例2：写入文件（如果有配置输出文件）
+        if (pPrivData->outputFile) {
+            size_t written = fwrite(pData, 1, DataSize, pPrivData->outputFile);
+            if (written != DataSize) {
+                printf("  警告：写入文件不完整 (%zu/%lu)\n", written, DataSize);
+            }
+        }
+        
+        // 示例3：数据完整性检查（针对测试数据）
+        // 这里可以添加 CRC 校验、序列号验证等
+    }
+    
+    printf("  累计接收: %u 块，总计 %lu 字节\n", 
+           pPrivData->receivedChunkCount, pPrivData->totalReceivedBytes);
+    
+    return IOC_RESULT_SUCCESS;
+}
+
+void DataReceiverCallbackExample() {
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    
+    // 初始化私有数据
+    static DataReceiverPrivData_T receiverPrivData = {
+        .receivedChunkCount = 0,
+        .totalReceivedBytes = 0,
+        .receiverName = "DataReceiver",
+        .outputFile = NULL
+    };
+    
+    // 可选：打开输出文件
+    receiverPrivData.outputFile = fopen("/tmp/received_data.bin", "wb");
+    
+    // 配置数据使用参数
+    IOC_DatUsageArgs_T datUsageArgs = {
+        .CbRecvDat_F = DataReceiveCallback,
+        .pCbPrivData = &receiverPrivData
+    };
+
+    // 定义服务参数
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = {
+            .pProtocol = IOC_SRV_PROTO_FIFO,
+            .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+            .pPath = "DataReceiverService",
+            .Port = 0
+        },
+        .Flags = IOC_SRVFLAG_NONE,
+        .UsageCapabilites = IOC_LinkUsageDatReceiver,
+        .UsageArgs = {
+            .pDat = &datUsageArgs
+        }
+    };
+
+    // 步骤1：上线数据接收服务
+    Result = IOC_onlineService(&SrvID, &SrvArgs);
+    if (Result != IOC_RESULT_SUCCESS) {
+        printf("上线数据接收服务失败: %s\n", IOC_getResultStr(Result));
+        return;
+    }
+
+    printf("数据接收服务已上线，SrvID: %lu\n", SrvID);
+    printf("等待数据发送者连接...\n");
+
+    // 步骤2：接受客户端连接
+    IOC_LinkID_T ClientLinkID = IOC_ID_INVALID;
+    Result = IOC_acceptClient(SrvID, &ClientLinkID, NULL);
+    if (Result != IOC_RESULT_SUCCESS) {
+        printf("接受客户端连接失败: %s\n", IOC_getResultStr(Result));
+        IOC_offlineService(SrvID);
+        return;
+    }
+
+    printf("客户端已连接，LinkID: %lu\n", ClientLinkID);
+    printf("开始接收数据...\n");
+
+    // 步骤3：等待数据接收（回调模式自动处理）
+    // 在实际应用中，这里通常是主循环或等待退出条件
+    sleep(30);  // 等待30秒接收数据
+
+    // 步骤4：显示接收统计
+    printf("\n=== 数据接收统计 ===\n");
+    printf("接收块数: %u\n", receiverPrivData.receivedChunkCount);
+    printf("总字节数: %lu\n", receiverPrivData.totalReceivedBytes);
+
+    // 步骤5：清理资源
+    if (receiverPrivData.outputFile) {
+        fclose(receiverPrivData.outputFile);
+        printf("输出文件已保存到: /tmp/received_data.bin\n");
+    }
+
+    IOC_closeLink(ClientLinkID);
+    IOC_offlineService(SrvID);
+    printf("数据接收服务已下线\n");
+}
+```
+
+### 2. 轮询模式数据接收示例
+
+```c
+void DataReceiverPollingExample() {
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    IOC_LinkID_T ClientLinkID = IOC_ID_INVALID;
+    
+    // 定义服务参数（轮询模式不需要回调函数）
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = {
+            .pProtocol = IOC_SRV_PROTO_FIFO,
+            .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+            .pPath = "DataReceiverPollingService",
+            .Port = 0
+        },
+        .Flags = IOC_SRVFLAG_NONE,
+        .UsageCapabilites = IOC_LinkUsageDatReceiver,
+        .UsageArgs = {
+            .pDat = NULL  // 轮询模式不需要回调
+        }
+    };
+
+    // 上线服务
+    Result = IOC_onlineService(&SrvID, &SrvArgs);
+    if (Result != IOC_RESULT_SUCCESS) {
+        printf("上线服务失败: %s\n", IOC_getResultStr(Result));
+        return;
+    }
+
+    // 接受连接
+    Result = IOC_acceptClient(SrvID, &ClientLinkID, NULL);
+    if (Result != IOC_RESULT_SUCCESS) {
+        printf("接受连接失败: %s\n", IOC_getResultStr(Result));
+        IOC_offlineService(SrvID);
+        return;
+    }
+
+    printf("客户端已连接，开始轮询接收数据...\n");
+
+    // 轮询接收数据
+    uint32_t receivedCount = 0;
+    uint64_t totalBytes = 0;
+    
+    while (receivedCount < 100) {  // 最多接收100个数据块
+        IOC_DatDesc_T datDesc;
+        memset(&datDesc, 0, sizeof(datDesc));
+
+        // 设置接收超时（可选）
+        IOC_Options_T recvOption;
+        memset(&recvOption, 0, sizeof(recvOption));
+        recvOption.IDs = IOC_OPTID_TIMEOUT;
+        recvOption.Payload.TimeoutUS = 1000000;  // 1秒超时
+
+        // 轮询接收数据
+        Result = IOC_recvDAT(ClientLinkID, &datDesc, &recvOption);
+        
+        if (Result == IOC_RESULT_SUCCESS) {
+            // 成功接收到数据
+            void *pData = NULL;
+            ULONG_T dataSize = 0;
+            
+            IOC_Result_T getResult = IOC_getDatPayload(&datDesc, &pData, &dataSize);
+            if (getResult == IOC_RESULT_SUCCESS && pData && dataSize > 0) {
+                receivedCount++;
+                totalBytes += dataSize;
+                
+                printf("接收数据块 #%u: %lu 字节\n", receivedCount, dataSize);
+                
+                // 处理数据
+                if (dataSize < 256) {  // 打印小数据块
+                    printf("  内容: %.*s\n", (int)dataSize, (char*)pData);
+                }
+            }
+        } else if (Result == IOC_RESULT_TIMEOUT) {
+            // 接收超时，继续轮询
+            printf("接收超时，继续等待...\n");
+            continue;
+        } else if (Result == IOC_RESULT_STREAM_CLOSED) {
+            // 流关闭，退出循环
+            printf("数据流已关闭\n");
+            break;
+        } else {
+            // 其他错误
+            printf("接收数据失败: %s\n", IOC_getResultStr(Result));
+            break;
+        }
+    }
+
+    printf("\n=== 轮询接收统计 ===\n");
+    printf("接收块数: %u\n", receivedCount);
+    printf("总字节数: %lu\n", totalBytes);
+
+    // 清理资源
+    IOC_closeLink(ClientLinkID);
+    IOC_offlineService(SrvID);
+}
+```
+
+### 3. 使用注意事项
+
+#### 数据传输特性
+- **异步传输**：数据发送是异步的，`IOC_sendDAT` 立即返回
+- **流式传输**：支持连续的数据块传输，自动维护流状态
+- **可靠传输**：保证数据不丢失（NODROP），使用流控制机制
+
+#### 性能优化建议
+- 对于大数据，使用指针方式避免内存拷贝
+- 适当使用 `IOC_flushDAT` 强制传输缓冲数据
+- 回调模式比轮询模式性能更好
+- 考虑数据块大小，避免过小或过大的块
+
+#### 错误处理
+- 检查所有 API 返回值
+- 处理网络断开、缓冲区满等异常情况
+- 实现适当的重试机制
+
+#### 资源管理
+- 及时关闭不再使用的链接
+- 下线不再需要的服务
+- 释放动态分配的内存
