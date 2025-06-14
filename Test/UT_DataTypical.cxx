@@ -135,6 +135,14 @@
  *      @[Brief]: DatReceiver online service with standard SrvURI {"fifo", "localprocess", "DatReceiver"},
  *          DatSender connect with Usage=IOC_LinkUsageDatSender, verify IOC_RESULT_SUCCESS and valid LinkID
  *
+ * [@AC-2,US-1] - Standard Data Transmission with Callback
+ *  TC-1:
+ *      @[Name]: verifyDatSenderTransmission_bySendCommonData_expectCallbackReceiveSuccess
+ *      @[Purpose]: Verify AC-2 complete functionality - DatSender transmits typical data to DatReceiver
+ *          using IOC_sendDAT, received via CbRecvDat_F callback
+ *      @[Brief]: Establish connection, DatSender send common data chunk (text, 10KB),
+ *          verify IOC_RESULT_SUCCESS and DatReceiver gets complete data via callback in typical workflow
+ *
  *************************************************************************************************/
 //======>END OF TEST CASES=========================================================================
 //======>END OF UNIT TESTING DESIGN================================================================
@@ -151,7 +159,7 @@
  *   1) Setup DatReceiver service online with standard SrvURI {"fifo", "localprocess", "DatReceiver"} AS SETUP.
  *      |-> SrvArgs.UsageCapabilites = IOC_LinkUsageDatReceiver
  *      |-> SrvArgs.SrvURI.pProtocol = IOC_SRV_PROTO_FIFO
- *      |-> SrvArgs.SrvURI.pHost = IOC_SRV_HOST_LOCAL_PROCESS  
+ *      |-> SrvArgs.SrvURI.pHost = IOC_SRV_HOST_LOCAL_PROCESS
  *      |-> SrvArgs.SrvURI.pPath = "DatReceiver"
  *   2) DatSender connect to the service with typical parameters AS BEHAVIOR.
  *      |-> ConnArgs.Usage = IOC_LinkUsageDatSender
@@ -188,7 +196,7 @@ TEST(UT_DataTypical, verifyDatSenderConnection_byConnectToOnlineService_expectSu
 
     //===BEHAVIOR===
     printf("BEHAVIOR: verifyDatSenderConnection_byConnectToOnlineService_expectSuccessAndValidLinkID\n");
-    
+
     // Step-2: DatSender connect to the service with typical parameters
     IOC_ConnArgs_T ConnArgs = {
         .SrvURI = CSURI,
@@ -205,13 +213,13 @@ TEST(UT_DataTypical, verifyDatSenderConnection_byConnectToOnlineService_expectSu
 
     // Step-3: DatReceiver accept the connection
     Result = IOC_acceptClient(DatReceiverSrvID, &DatReceiverLinkID, NULL);
-    
+
     DatSenderThread.join();
 
     //===VERIFY===
     // KeyVerifyPoint-1: Service accept connection success
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
-    // KeyVerifyPoint-2: Valid receiver LinkID returned  
+    // KeyVerifyPoint-2: Valid receiver LinkID returned
     ASSERT_NE(IOC_ID_INVALID, DatReceiverLinkID);
     // KeyVerifyPoint-3: Valid sender LinkID confirmed (checked in thread)
 
