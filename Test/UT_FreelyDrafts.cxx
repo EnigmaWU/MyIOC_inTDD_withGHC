@@ -1,4 +1,12 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+// QUICK REFERENCE GUIDE - 快速参考指南
+// 📝 用途: 单元测试模板和草稿文件
+// 🔄 流程: User Story → Acceptance Criteria → Test Cases → Implementation
+// 📂 分类: FreelyDrafts, Typical, Demo, Boundary, State, Performance, Concurrency, Robust, Fault, Misuse
+// 🚀 快速开始: 滚动到文件末尾的TODO部分，开始自由编写想法
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF OVERVIEW OF THIS UNIT TESTING FILE===============================================
 /**
  * @brief
@@ -264,3 +272,56 @@ TEST_F(UT_NameofCategoryFixture, verifyBehaviorZ_byDoC_expectSomething) {
 
 // TODO(@W): Freely start a new UT just from here, if you have a idea in mind,
 //  and then refine it later, JUST keep smooth mind and low resistance.
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// 💡 EXAMPLE - 实际示例（帮助理解如何使用此模板）
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * @brief 【示例用户故事】
+ * US-Example: AS a developer using IOC framework,
+ *    I WANT to easily create and register a service,
+ *   SO THAT I can provide functionality to other components.
+ */
+
+/**
+ * @brief 【示例验收标准】
+ * AC-Example: GIVEN an IOC container is initialized,
+ *              WHEN I register a service with a unique ID,
+ *              THEN the service should be successfully stored and retrievable.
+ */
+
+/**
+ * @brief 【示例测试用例】
+ * TC-Example: verifyServiceRegistration_byRegisteringValidService_expectSuccess
+ */
+
+// 示例：快速草稿测试 - 这里可以自由写下任何想法
+TEST(UT_FreelyDrafts_Example, quickDraft_serviceRegistration) {
+    // 快速想法：测试服务注册是否正常工作
+    printf("DRAFT: Testing service registration concept\n");
+
+    // TODO: 实现具体的测试逻辑
+    // 1. 创建IOC容器
+    // 2. 注册一个服务
+    // 3. 验证服务可以被检索
+
+    ASSERT_TRUE(true);  // 占位符断言
+}
+
+// 示例：从草稿到正式测试的演进
+TEST(UT_FreelyDrafts_Example, refined_serviceRegistration_expectSuccess) {
+    //===SETUP===
+    // TODO: 初始化IOC容器
+
+    //===BEHAVIOR===
+    printf("BEHAVIOR: Register a service and verify it's accessible\n");
+    // TODO: 执行服务注册逻辑
+
+    //===VERIFY===
+    // TODO: 验证服务注册成功
+    ASSERT_TRUE(true);  // 替换为实际验证
+
+    //===CLEANUP===
+    // TODO: 清理资源
+}
