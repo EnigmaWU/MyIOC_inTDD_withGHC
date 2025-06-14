@@ -85,7 +85,37 @@
 /**************************************************************************************************
  * @brief 【Acceptance Criteria】
  *
- *  TODO: Add acceptance criteria as needed during TDD development
+ * 🎯 专注于 DAT TYPICAL 测试 - 只验证最常见、最标准的数据传输使用模式
+ * 
+ * [@US-1] AS a DatSender developer, I WANT to connect to a DatReceiver Service via IOC_connectService,
+ *         SO THAT I can reliably stream data chunks using IOC_sendDAT with NODROP guarantee.
+ *
+ * ⭐ TYPICAL SCENARIOS ONLY - 典型场景验收标准:
+ *
+ *  AC-1@US-1: GIVEN DatReceiver has onlined a standard service using IOC_onlineService,
+ *         WHEN DatSender calls IOC_connectService with typical SrvURI and Usage=IOC_LinkUsageDatSender,
+ *         THEN DatSender WILL get IOC_RESULT_SUCCESS and valid LinkID,
+ *          AND standard connection is established for typical data streaming.
+ *
+ *  AC-2@US-1: GIVEN DatSender has connected to DatReceiver service,
+ *         WHEN DatSender calls IOC_sendDAT with common data chunk (text/binary, 1KB-100KB) and NODROP,
+ *         THEN DatSender WILL get IOC_RESULT_SUCCESS,
+ *          AND DatReceiver receives complete data via CbRecvDat_F callback in typical workflow.
+ *
+ *  AC-3@US-1: GIVEN DatSender has connected to DatReceiver service,
+ *         WHEN DatSender calls IOC_sendDAT with typical data chunk and NODROP,
+ *         THEN DatReceiver can receive the data via IOC_recvDAT polling,
+ *          AND data integrity is maintained in standard usage pattern.
+ *
+ *  AC-4@US-1: GIVEN DatSender streaming typical data types (string, struct, binary array),
+ *         WHEN using standard IOC_sendDAT workflow with NODROP guarantee,
+ *         THEN all common data types are transmitted successfully,
+ *          AND DatReceiver processes them correctly in typical application scenarios.
+ *
+ *  AC-5@US-1: GIVEN DatSender needs to send simple data stream,
+ *         WHEN executing typical connect→send→receive→disconnect sequence,
+ *         THEN entire standard workflow completes successfully,
+ *          AND demonstrates typical DAT usage pattern for developers.
  *
  */
 //=======>END OF ACCEPTANCE CRITERIA================================================================
