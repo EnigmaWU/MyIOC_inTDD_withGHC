@@ -86,7 +86,7 @@
  * @brief 【Acceptance Criteria】
  *
  * 🎯 专注于 DAT TYPICAL 测试 - 只验证最常见、最标准的数据传输使用模式
- * 
+ *
  * [@US-1] AS a DatSender developer, I WANT to connect to a DatReceiver Service via IOC_connectService,
  *         SO THAT I can reliably stream data chunks using IOC_sendDAT with NODROP guarantee.
  *
@@ -125,7 +125,15 @@
 /**************************************************************************************************
  * @brief 【Test Cases】
  *
- *  TODO: Add test cases as needed during TDD development
+ * 🎯 专注于 DAT TYPICAL 测试用例 - 基于 FreelyDrafts 模板设计
+ *
+ * [@AC-1,US-1] - Standard Connection Establishment
+ *  TC-1:
+ *      @[Name]: verifyDatSenderConnection_byConnectToOnlineService_expectSuccessAndValidLinkID
+ *      @[Purpose]: Verify AC-1 complete functionality - DatSender connects to DatReceiver service
+ *          using typical parameters
+ *      @[Brief]: DatReceiver online service with standard SrvURI {"fifo", "localprocess", "DatReceiver"},
+ *          DatSender connect with Usage=IOC_LinkUsageDatSender, verify IOC_RESULT_SUCCESS and valid LinkID
  *
  *************************************************************************************************/
 //======>END OF TEST CASES=========================================================================
