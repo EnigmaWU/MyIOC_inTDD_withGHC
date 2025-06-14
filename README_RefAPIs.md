@@ -315,70 +315,220 @@ IOC_Result_T IOC_ackCMD(IOC_LinkID_T LinkID, IOC_CmdDesc_T *pCmdDesc, IOC_Option
 
 ### 5️⃣ 数据传输 APIs
 
+数据传输（DAT）是 IOC 框架中用于大数据流传输的机制。DAT 支持流式传输，具有 **ASYNC + MAYBLOCK + NODROP** 的特性，保证数据的可靠传输。
+
+#### 核心特性
+- **ASYNC（异步）**：发送方调用 `IOC_sendDAT` 后立即返回，接收方通过回调或轮询处理数据
+- **MAYBLOCK（可阻塞）**：当缓冲区满时可选择阻塞等待
+- **NODROP（不丢失）**：保证数据流的完整性，不会因资源不足而丢弃数据
+- **STREAM（流式）**：支持连续的数据块传输，自动维护流状态
+
 #### IOC_sendDAT
 ```c
-IOC_Result_T IOC_sendDAT(IOC_LinkID_T LinkID, IOC_DatDesc_T *pDatDesc, IOC_Options_T *pOption);
+IOC_Result_T IOC_sendDAT(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, IOC_Options_pT pOption);
 ```
 
-**功能**：发送数据块
+**功能**：发送数据块到指定连接
+
+**详细描述**：
+- 首次调用自动初始化数据流
+- 后续调用继续现有数据流
+- IOC 会复制数据内容以保证可靠性
+- 支持小数据嵌入存储和大数据指针存储
 
 **参数**：
-- `LinkID`: 连接ID
-- `pDatDesc`: 数据描述符
+- `LinkID`: 数据发送方和接收方之间的连接ID
+- `pDatDesc`: 数据描述符，包含要发送的数据
 - `pOption`: 选项配置（可选）
+  - `IOC_OPTID_TIMEOUT`: 设置发送超时
+  - `IOC_OPTID_BLOCKING_MODE`: 设置阻塞模式
 
 **返回值**：
-- `IOC_RESULT_SUCCESS`: 数据发送成功
-- `IOC_RESULT_BUFFER_FULL`: 缓冲区满
-- `IOC_RESULT_TIMEOUT`: 发送超时
-- `IOC_RESULT_STREAM_CLOSED`: 数据流已关闭
-- `IOC_RESULT_DATA_TOO_LARGE`: 数据过大
+- `IOC_RESULT_SUCCESS`: 数据块成功排队传输
+- `IOC_RESULT_BUFFER_FULL`: IOC 缓冲区满（立即非阻塞模式）
+- `IOC_RESULT_TIMEOUT`: 数据传输超时（带超时的非阻塞模式）
+- `IOC_RESULT_STREAM_CLOSED`: 数据流已被对端或错误关闭
+- `IOC_RESULT_LINK_BROKEN`: 传输过程中通信链路断开
+- `IOC_RESULT_INVALID_PARAM`: 参数无效
+- `IOC_RESULT_NOT_EXIST_LINK`: LinkID 不存在或已关闭
+- `IOC_RESULT_DATA_TOO_LARGE`: 数据块超过最大允许大小
 
 **示例**：
 ```c
-void SendData() {
-    const char *data = "Hello, World!";
-    IOC_DatDesc_T datDesc = {
-        .BufPtr = (void*)data,
-        .BufSize = strlen(data),
-        .Flags = IOC_DATFLAG_PTR_MODE  // 使用指针模式避免拷贝
-    };
+void SendStringData(IOC_LinkID_T linkID) {
+    const char *message = "Hello, World!";
+    
+    // 初始化数据描述符
+    IOC_DatDesc_T datDesc;
+    IOC_initDatDesc(&datDesc, 0, strlen(message));
+    
+    // 设置数据载荷（小数据用嵌入模式）
+    if (strlen(message) <= sizeof(datDesc.Payload.EmdData)) {
+        datDesc.Payload.EmdDataSize = strlen(message);
+        memcpy(datDesc.Payload.EmdData, message, strlen(message));
+        datDesc.Payload.pData = NULL;
+        datDesc.Payload.PtrDataSize = 0;
+    } else {
+        // 大数据用指针模式
+        datDesc.Payload.pData = (void*)message;
+        datDesc.Payload.PtrDataSize = strlen(message);
+        datDesc.Payload.EmdDataSize = 0;
+    }
     
     IOC_Result_T result = IOC_sendDAT(linkID, &datDesc, NULL);
     if (result == IOC_RESULT_SUCCESS) {
         printf("数据发送成功\n");
+    } else {
+        printf("数据发送失败: %s\n", IOC_getResultStr(result));
     }
+}
+
+void SendBinaryData(IOC_LinkID_T linkID, void *pData, size_t dataSize) {
+    IOC_DatDesc_T datDesc;
+    IOC_initDatDesc(&datDesc, 0, dataSize);
+    
+    // 设置二进制数据
+    datDesc.Payload.pData = pData;
+    datDesc.Payload.PtrDataSize = dataSize;
+    datDesc.Payload.EmdDataSize = 0;
+    
+    // 设置发送超时
+    IOC_Options_T options = {
+        .IDs = IOC_OPTID_TIMEOUT,
+        .Payload.TimeoutUS = 5000000  // 5秒超时
+    };
+    
+    IOC_Result_T result = IOC_sendDAT(linkID, &datDesc, &options);
+    printf("发送 %zu 字节数据: %s\n", dataSize, IOC_getResultStr(result));
 }
 ```
 
 #### IOC_recvDAT
 ```c
-IOC_Result_T IOC_recvDAT(IOC_LinkID_T LinkID, IOC_DatDesc_T *pDatDesc, IOC_Options_T *pOption);
+IOC_Result_T IOC_recvDAT(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, IOC_Options_pT pOption);
 ```
 
 **功能**：接收数据块（轮询模式）
 
+**详细描述**：
+- 用于轮询方式主动接收数据
+- 与回调模式互斥使用
+- 可配置阻塞或非阻塞接收
+
 **参数**：
-- `LinkID`: 连接ID
-- `pDatDesc`: 数据描述符缓冲区
+- `LinkID`: 接收数据的连接ID
+- `pDatDesc`: 数据描述符缓冲区，用于接收数据详情
 - `pOption`: 选项配置（可选）
+  - `IOC_OPTID_TIMEOUT`: 设置接收超时
+  - `IOC_OPTID_BLOCKING_MODE`: 设置阻塞模式
 
 **返回值**：
-- `IOC_RESULT_SUCCESS`: 数据接收成功
-- `IOC_RESULT_TIMEOUT`: 接收超时
-- `IOC_RESULT_NO_DATA`: 无数据可用
-- `IOC_RESULT_STREAM_CLOSED`: 数据流已关闭
+- `IOC_RESULT_SUCCESS`: 数据块接收成功
+- `IOC_RESULT_TIMEOUT`: 接收超时（配置超时时）
+- `IOC_RESULT_STREAM_CLOSED`: 数据流已被发送方关闭
+- `IOC_RESULT_LINK_BROKEN`: 通信链路断开
+- `IOC_RESULT_INVALID_PARAM`: 参数无效
+- `IOC_RESULT_NOT_EXIST_LINK`: LinkID 不存在或已关闭
+- `IOC_RESULT_NO_DATA`: 无数据可用（立即非阻塞模式）
+- `IOC_RESULT_DATA_CORRUPTED`: 数据完整性检查失败
+
+**示例**：
+```c
+void ReceiveData(IOC_LinkID_T linkID) {
+    IOC_DatDesc_T datDesc;
+    
+    // 设置接收超时
+    IOC_Options_T options = {
+        .IDs = IOC_OPTID_TIMEOUT,
+        .Payload.TimeoutUS = 3000000  // 3秒超时
+    };
+    
+    IOC_Result_T result = IOC_recvDAT(linkID, &datDesc, &options);
+    if (result == IOC_RESULT_SUCCESS) {
+        void *pData;
+        ULONG_T dataSize;
+        
+        if (IOC_getDatPayload(&datDesc, &pData, &dataSize) == IOC_RESULT_SUCCESS) {
+            printf("接收到 %lu 字节数据\n", dataSize);
+            // 处理接收到的数据
+            ProcessReceivedData(pData, dataSize);
+        }
+    } else if (result == IOC_RESULT_TIMEOUT) {
+        printf("接收数据超时\n");
+    } else {
+        printf("接收数据失败: %s\n", IOC_getResultStr(result));
+    }
+}
+```
 
 #### IOC_flushDAT
 ```c
-IOC_Result_T IOC_flushDAT(IOC_LinkID_T LinkID, IOC_Options_T *pOption);
+IOC_Result_T IOC_flushDAT(IOC_LinkID_T LinkID, IOC_Options_pT pOption);
 ```
 
 **功能**：刷新数据缓冲区，强制发送
 
+**详细描述**：
+- 确保缓冲的数据块立即传输
+- 这是数据流的唯一显式控制操作
+- 通常用于确保重要数据的及时传输
+
 **参数**：
-- `LinkID`: 连接ID
+- `LinkID`: 要刷新缓冲数据的连接ID
 - `pOption`: 选项配置（可选）
+  - `IOC_OPTID_TIMEOUT`: 设置刷新超时
+
+**返回值**：
+- `IOC_RESULT_SUCCESS`: 缓冲数据成功刷新
+- `IOC_RESULT_TIMEOUT`: 刷新超时
+- `IOC_RESULT_STREAM_CLOSED`: 数据流已关闭
+- `IOC_RESULT_LINK_BROKEN`: 通信链路断开
+- `IOC_RESULT_INVALID_PARAM`: 参数无效
+- `IOC_RESULT_NOT_EXIST_LINK`: LinkID 不存在或已关闭
+
+**示例**：
+```c
+void FlushPendingData(IOC_LinkID_T linkID) {
+    IOC_Options_T options = {
+        .IDs = IOC_OPTID_TIMEOUT,
+        .Payload.TimeoutUS = 1000000  // 1秒超时
+    };
+    
+    IOC_Result_T result = IOC_flushDAT(linkID, &options);
+    if (result == IOC_RESULT_SUCCESS) {
+        printf("数据缓冲区刷新成功\n");
+    } else {
+        printf("数据缓冲区刷新失败: %s\n", IOC_getResultStr(result));
+    }
+}
+```
+
+#### 数据接收回调模式
+
+除了轮询模式，IOC 还支持通过回调函数自动处理接收到的数据：
+
+```c
+// 数据接收回调函数
+IOC_Result_T MyDataCallback(IOC_LinkID_T LinkID, void *pData, ULONG_T DataSize, void *pCbPriv) {
+    printf("通过回调接收到 %lu 字节数据\n", DataSize);
+    
+    // 处理接收到的数据
+    ProcessReceivedData(pData, DataSize);
+    
+    return IOC_RESULT_SUCCESS;
+}
+
+// 设置数据接收回调（在连接建立时配置）
+void SetupDataReceiver() {
+    IOC_DatUsageArgs_T datArgs = {
+        .CbRecvDat_F = MyDataCallback,
+        .pCbPrivData = NULL  // 可选的私有数据
+    };
+    
+    // 在 onlineService 或 connectService 时配置
+    // ...
+}
+```
 
 ---
 
@@ -527,13 +677,78 @@ typedef struct {
 #### IOC_DatDesc_T
 ```c
 typedef struct {
-    void *BufPtr;             // 数据缓冲区指针
-    ULONG_T BufSize;          // 缓冲区大小
-    ULONG_T DataLen;          // 实际数据长度
-    IOC_DatFlags_T Flags;     // 数据标志
-    // 其他内部字段...
+    // 消息通用部分 - 继承自 IOC_MsgDesc_T
+    IOC_MsgDesc_T MsgDesc;      // 消息描述（SeqID、时间戳等）
+    
+    // 数据特定部分
+    IOC_DatStatus_E Status;     // 当前流状态
+    IOC_Result_T Result;        // 传输结果代码
+    
+    // 数据载荷
+    IOC_DatPayload_T Payload;   // 数据块载荷
 } IOC_DatDesc_T;
 ```
+
+#### IOC_DatPayload_T
+```c
+typedef struct {
+    void *pData;              // 指向数据块的指针
+    ULONG_T PtrDataSize;      // pData 中数据的大小（字节）
+    
+    ULONG_T EmdDataSize;      // EmbData 中数据的实际大小（字节）
+    ULONG_T EmdData[16];      // 嵌入式数据数组，用于小数据块（64位系统上64字节）
+} IOC_DatPayload_T;
+```
+
+#### IOC_DatStatus_E
+```c
+typedef enum {
+    IOC_DAT_STATUS_STREAM_READY = 0,    // 流已准备好进行数据传输
+    IOC_DAT_STATUS_SENDING = 1,         // 当前正在发送数据块
+    IOC_DAT_STATUS_RECEIVING = 2,       // 当前正在接收数据块
+    IOC_DAT_STATUS_PROCESSING = 3,      // 当前正在处理接收的数据
+    IOC_DAT_STATUS_STREAM_CLOSED = 4,   // 流已关闭
+    IOC_DAT_STATUS_STREAM_ERROR = 5,    // 流遇到错误
+} IOC_DatStatus_E;
+```
+
+#### IOC_DatUsageArgs_T
+```c
+typedef struct {
+    // 数据接收器配置
+    IOC_CbRecvDat_F CbRecvDat_F;    // 接收数据的回调函数
+    void *pCbPrivData;              // 接收器回调私有上下文数据
+    
+    // 预留扩展字段
+    // TODO: Reserved;
+} IOC_DatUsageArgs_T;
+```
+
+#### IOC_CbRecvDat_F 回调函数类型
+```c
+typedef IOC_Result_T (*IOC_CbRecvDat_F)(
+    IOC_LinkID_T LinkID,    // 接收数据的连接ID
+    void *pData,            // 指向接收数据缓冲区的指针
+    ULONG_T DataSize,       // 接收数据的大小（字节）
+    void *pCbPriv           // 回调私有上下文数据
+);
+```
+
+#### 数据初始化和操作函数
+
+```c
+// 初始化数据描述符
+static inline void IOC_initDatDesc(IOC_DatDesc_pT pDatDesc, ULONG_T streamID, ULONG_T chunkSize);
+
+// 获取数据载荷指针和大小
+static inline IOC_Result_T IOC_getDatPayload(const IOC_DatDesc_pT pDatDesc, void **ppData, ULONG_T *pDataSize);
+```
+
+**使用说明**：
+- **小数据优化**：当数据小于等于 64 字节（16个ULONG_T）时，使用 `EmbData` 嵌入存储
+- **大数据处理**：当数据超过 64 字节时，使用 `pData` 指针存储
+- **数据复制**：IOC 会复制数据内容以保证可靠性，发送方可在调用后立即释放原始数据
+- **流状态管理**：通过 `Status` 字段跟踪数据流的当前状态
 
 ---
 
@@ -644,23 +859,75 @@ IOC_Result_T HandleCommand(IOC_LinkID_T linkID, IOC_CmdDesc_pT pCmdDesc, void *p
 }
 ```
 
-### 3. 流式数据传输
+### 3. 数据流传输
 ```c
-// 发送端
-char data[] = "Large data chunk...";
-IOC_DatDesc_T datDesc = {
-    .BufPtr = data,
-    .BufSize = sizeof(data),
-    .Flags = IOC_DATFLAG_PTR_MODE
-};
-IOC_sendDAT(linkID, &datDesc, NULL);
-IOC_flushDAT(linkID, NULL);  // 强制发送
+// 数据发送方示例
+void SendFileData(IOC_LinkID_T linkID, const char *filePath) {
+    FILE *file = fopen(filePath, "rb");
+    if (!file) return;
+    
+    char buffer[4096];
+    size_t bytesRead;
+    
+    while ((bytesRead = fread(buffer, 1, sizeof(buffer), file)) > 0) {
+        IOC_DatDesc_T datDesc;
+        IOC_initDatDesc(&datDesc, 0, bytesRead);
+        
+        // 设置数据载荷
+        if (bytesRead <= sizeof(datDesc.Payload.EmdData)) {
+            // 小数据使用嵌入存储
+            datDesc.Payload.EmdDataSize = bytesRead;
+            memcpy(datDesc.Payload.EmdData, buffer, bytesRead);
+            datDesc.Payload.pData = NULL;
+            datDesc.Payload.PtrDataSize = 0;
+        } else {
+            // 大数据使用指针存储
+            datDesc.Payload.pData = buffer;
+            datDesc.Payload.PtrDataSize = bytesRead;
+            datDesc.Payload.EmdDataSize = 0;
+        }
+        
+        IOC_Result_T result = IOC_sendDAT(linkID, &datDesc, NULL);
+        if (result != IOC_RESULT_SUCCESS) {
+            printf("发送数据失败: %s\n", IOC_getResultStr(result));
+            break;
+        }
+    }
+    
+    IOC_flushDAT(linkID, NULL);  // 确保所有数据发送
+    fclose(file);
+}
 
-// 接收端
-IOC_DatDesc_T recvDesc;
-while (IOC_recvDAT(linkID, &recvDesc, NULL) == IOC_RESULT_SUCCESS) {
-    printf("接收到 %lu 字节数据\n", recvDesc.DataLen);
-    // 处理数据...
+// 数据接收方（回调模式）
+IOC_Result_T DataReceiveCallback(IOC_LinkID_T LinkID, void *pData, ULONG_T DataSize, void *pCbPriv) {
+    FILE *outputFile = (FILE*)pCbPriv;
+    
+    if (outputFile && pData && DataSize > 0) {
+        fwrite(pData, 1, DataSize, outputFile);
+        fflush(outputFile);
+        printf("接收到 %lu 字节数据\n", DataSize);
+    }
+    
+    return IOC_RESULT_SUCCESS;
+}
+
+// 数据接收方（轮询模式）
+void ReceiveDataPolling(IOC_LinkID_T linkID) {
+    IOC_DatDesc_T datDesc;
+    IOC_Options_T options = {
+        .IDs = IOC_OPTID_TIMEOUT,
+        .Payload.TimeoutUS = 5000000  // 5秒超时
+    };
+    
+    while (IOC_recvDAT(linkID, &datDesc, &options) == IOC_RESULT_SUCCESS) {
+        void *pData;
+        ULONG_T dataSize;
+        
+        if (IOC_getDatPayload(&datDesc, &pData, &dataSize) == IOC_RESULT_SUCCESS) {
+            printf("接收到 %lu 字节数据\n", dataSize);
+            // 处理数据...
+        }
+    }
 }
 ```
 
@@ -674,14 +941,21 @@ while (IOC_recvDAT(linkID, &recvDesc, NULL) == IOC_RESULT_SUCCESS) {
 - 避免在回调函数中执行长时间操作
 
 ### 数据传输优化
-- 使用指针模式 (`IOC_DATFLAG_PTR_MODE`) 避免内存拷贝
-- 适当的数据块大小（建议 4KB-64KB）
-- 在需要时使用 `IOC_flushDAT()` 强制发送
+- **小数据优化**：小于 64 字节的数据自动使用嵌入存储，无需额外配置
+- **大数据传输**：使用固定大小缓冲区分块传输大文件，避免内存占用过大
+- **批量发送**：多个数据块发送完成后调用 `IOC_flushDAT()` 确保及时传输
+- **非阻塞模式**：高频数据传输场景使用 `IOC_OPTID_TIMEOUT` 配置为立即返回模式
+- **回调vs轮询**：实时性要求高使用回调模式，需要精确控制使用轮询模式
 
-### 内存管理
-- 及时关闭不再使用的连接
-- 下线不再需要的服务
-- 避免在高频路径上进行动态内存分配
+### 连接管理优化
+- 重用已建立的连接，避免频繁建立/关闭连接
+- 实现连接断开重连机制，提高系统鲁棒性
+- 合理设置超时时间，平衡响应性和稳定性
+
+### 内存管理优化
+- 及时释放不再使用的资源
+- 注意回调函数的线程安全性
+- 避免在数据传输回调中分配大量内存
 
 ---
 
