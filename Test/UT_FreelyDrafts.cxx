@@ -24,25 +24,102 @@
 //======>BEGIN OF UNIT TESTING DESIGN==============================================================
 
 /**************************************************************************************************
- * We design Test Case from following aspects/category:
- *  FreelyDrafts, Typical, Demo, Boundary, State, Performance, Concurrency, Robust, Fault, Misuse, Others.
- *    align to IMPROVE VALUE、AVOID LOST、BALANCE SKILL vs COST.
+ * 📋 TEST CASE DESIGN ASPECTS/CATEGORIES - 测试用例设计方面/分类
  *
- * FREE DRAFTS: any natural or intuitive idea, first write down here freely and causally as quickly as possible,
- *  then refine it, rethink it, refactor it to a category from one a main aspect or category.
- * TYPICAL: a typical case, such as IOC's basic typical usage or call flow examples.
- * CAPABILITY: a capability case, such as max EvtConsumer may call subEVT success in ConlesMode.
- * BOUNDARY: a boundary case, used to verify API's argument boundary or use scenario boundary.
- * STATE: a state case, used to verify FSM of IOC's Objects, such as FSM_ofConlesEVT.
- * PERFORMANCE: such as how many times of API can be called in 1 second, or each API's time consumption.
- * CONCURRENCY: such as many threads call IOC's API at the same time and always related to:
- *     ASync/Sync, MayBlock/NonBlock/Timeout, Burst/RaceCondition/Priority/Parallel/Serial/DeadLock/Starvation/...
- * ROBUST: such as repeatly reach IOC's max capacity, let its buffer full then empty.
- * FAULT: such as one process crash or kill by OS, then it auto restarted.
- * MISUSE: such as call API in wrong order, or call API with wrong arguments.
- * DEMO/EXAMPLE: a demo case, used to demo a complete feature of a product model or series.
- * COMPATIBILITY: such as call API in different version of IOC, or call API in different OS.
- * OTHERS: any other cases, not have clear category, but still has value to verify.
+ * 🎯 DESIGN PRINCIPLE: IMPROVE VALUE、AVOID LOST、BALANCE SKILL vs COST
+ * 🔄 PRIORITY ORDER: Typical → Boundary → State → Fault → Performance → Concurrency → Others
+ *
+ * 🆓 FREELY DRAFTS (自由草稿):
+ *    💭 Purpose: Capture initial ideas without constraints
+ *    🎯 Focus: Quick brainstorming, creative thinking
+ *    📝 Examples: Any intuitive test idea, "what-if" scenarios
+ *    ⏰ When: Early exploration phase, new feature analysis
+ *
+ * ⭐ TYPICAL (典型用例):
+ *    💭 Purpose: Verify main usage scenarios and happy paths
+ *    🎯 Focus: Core functionality, standard workflows
+ *    📝 Examples: IOC service registration/lookup, event subscription/publishing
+ *    ⏰ When: First priority, fundamental behavior verification
+ *
+ * 🏆 CAPABILITY (能力验证):
+ *    💭 Purpose: Test maximum capacity and limits
+ *    🎯 Focus: Performance thresholds, resource limits
+ *    📝 Examples: Max concurrent events, buffer capacity limits
+ *    ⏰ When: After typical cases, capacity planning
+ *
+ * 🔲 BOUNDARY (边界测试):
+ *    💭 Purpose: Test edge cases and parameter limits
+ *    🎯 Focus: Min/max values, null/empty inputs, overflow conditions
+ *    📝 Examples: Zero timeout, maximum string length, null pointers
+ *    ⏰ When: High priority, right after typical cases
+ *
+ * 🔄 STATE (状态测试):
+ *    💭 Purpose: Verify state machine transitions
+ *    🎯 Focus: Object lifecycle, state consistency
+ *    📝 Examples: Service states (Init→Ready→Running→Stopped), event states
+ *    ⏰ When: For stateful components, FSM verification
+ *
+ * ⚡ PERFORMANCE (性能测试):
+ *    💭 Purpose: Measure execution time and resource usage
+ *    🎯 Focus: Speed, memory consumption, throughput
+ *    📝 Examples: API call latency, memory leak detection, CPU usage
+ *    ⏰ When: After functional tests, performance requirements
+ *
+ * 🚀 CONCURRENCY (并发测试):
+ *    💭 Purpose: Multi-threading and synchronization
+ *    🎯 Focus: Thread safety, race conditions, deadlocks
+ *    📝 Examples: Parallel API calls, shared resource access, async operations
+ *    ⏰ When: Multi-threaded components, high-complexity scenarios
+ *
+ * 🛡️ ROBUST (鲁棒性测试):
+ *    💭 Purpose: Stress testing and recovery
+ *    🎯 Focus: Resource exhaustion, repeated operations
+ *    📝 Examples: Buffer overflow/underflow cycles, repeated capacity reach
+ *    ⏰ When: Stability verification, long-running scenarios
+ *
+ * ⚠️ FAULT (故障测试):
+ *    💭 Purpose: Error handling and recovery
+ *    🎯 Focus: System failures, external dependencies
+ *    📝 Examples: Process crash recovery, network failures, disk full
+ *    ⏰ When: Critical system reliability requirements
+ *
+ * 🚫 MISUSE (误用测试):
+ *    💭 Purpose: Incorrect usage patterns
+ *    🎯 Focus: API misuse, wrong call sequences
+ *    📝 Examples: Wrong parameter order, illegal state transitions, API abuse
+ *    ⏰ When: API robustness, user error prevention
+ *
+ * 🎨 DEMO/EXAMPLE (演示用例):
+ *    💭 Purpose: End-to-end feature demonstration
+ *    🎯 Focus: Complete workflows, integration scenarios
+ *    📝 Examples: Full product feature demos, tutorial examples
+ *    ⏰ When: Documentation, user guides, feature showcases
+ *
+ * 🔄 COMPATIBILITY (兼容性测试):
+ *    💭 Purpose: Cross-platform and version compatibility
+ *    🎯 Focus: Different OS, versions, configurations
+ *    📝 Examples: Windows/Linux/macOS, API version compatibility
+ *    ⏰ When: Multi-platform products, version upgrades
+ *
+ * 🎛️ CONFIGURATION (配置测试):
+ *    💭 Purpose: Different configuration scenarios
+ *    🎯 Focus: Settings, environment variables, feature flags
+ *    📝 Examples: Debug/release modes, different log levels
+ *    ⏰ When: Configurable systems, deployment variations
+ *
+ * 🔧 OTHERS (其他):
+ *    💭 Purpose: Uncategorized but valuable tests
+ *    🎯 Focus: Special requirements, unique scenarios
+ *    📝 Examples: Customer-specific tests, experimental features
+ *    ⏰ When: Special requirements not fitting other categories
+ *
+ * 💡 SELECTION STRATEGY:
+ *    🥇 Start with TYPICAL (必须): Core functionality coverage
+ *    🥈 Add BOUNDARY (重要): Edge cases and error conditions
+ *    🥉 Include STATE (关键): For stateful components
+ *    🏅 Consider PERFORMANCE (按需): Based on requirements
+ *    🏅 Add CONCURRENCY (复杂系统): Multi-threaded scenarios
+ *    🏅 Include FAULT/MISUSE (高可靠性): Critical systems
  *************************************************************************************************/
 
 /**************************************************************************************************
