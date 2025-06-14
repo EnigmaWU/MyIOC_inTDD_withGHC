@@ -14,7 +14,30 @@
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF UNIT TESTING DESIGN==============================================================
-/**
+
+/**************************************************************************************************
+ * We design Test Case from following aspects/category:
+ *  FreelyDrafts, Typical, Demo, Boundary, State, Performance, Concurrency, Robust, Fault, Misuse, Others.
+ *    align to IMPROVE VALUE、AVOID LOST、BALANCE SKILL vs COST.
+ *
+ * FREE DRAFTS: any natural or intuitive idea, first write down here freely and causally as quickly as possible,
+ *  then refine it, rethink it, refactor it to a category from one a main aspect or category.
+ * TYPICAL: a typical case, such as IOC's basic typical usage or call flow examples.
+ * CAPABILITY: a capability case, such as max EvtConsumer may call subEVT success in ConlesMode.
+ * BOUNDARY: a boundary case, used to verify API's argument boundary or use scenario boundary.
+ * STATE: a state case, used to verify FSM of IOC's Objects, such as FSM_ofConlesEVT.
+ * PERFORMANCE: such as how many times of API can be called in 1 second, or each API's time consumption.
+ * CONCURRENCY: such as many threads call IOC's API at the same time and always related to:
+ *     ASync/Sync, MayBlock/NonBlock/Timeout, Burst/RaceCondition/Priority/Parallel/Serial/DeadLock/Starvation/...
+ * ROBUST: such as repeatly reach IOC's max capacity, let its buffer full then empty.
+ * FAULT: such as one process crash or kill by OS, then it auto restarted.
+ * MISUSE: such as call API in wrong order, or call API with wrong arguments.
+ * DEMO/EXAMPLE: a demo case, used to demo a complete feature of a product model or series.
+ * COMPATIBILITY: such as call API in different version of IOC, or call API in different OS.
+ * OTHERS: any other cases, not have clear category, but still has value to verify.
+ *************************************************************************************************/
+
+/**************************************************************************************************
  * At least one User Story(a.k.a US),
  *    and at least one Acceptance Criteria(a.k.a AC) for each US,
  *      and at least one Test Case(a.k.a TC) for each AC.
@@ -22,7 +45,7 @@
  * US takes VALUE from USR perspective.
  * AC clear CONDITIONS may relate to the USR.
  * TC details each condition's STEPS to verify.
- */
+ *************************************************************************************************/
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF USER STORY=======================================================================
