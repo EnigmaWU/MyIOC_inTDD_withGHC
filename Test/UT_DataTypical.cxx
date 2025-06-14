@@ -61,20 +61,21 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF USER STORY=======================================================================
 /**************************************************************************************************
- * @brief 【User Story】
+ * @brief 【User Story - Focus on US-1】
  *
  *  US-1: AS a DatSender developer,
- *    I WANT connect a DatReceiver Service,
- *   SO THAT I can send data to it using the IOC framework,
- *       AND the receiver can process it through callbacks in IOC's context,
- *        OR the receiver can receive data in its own context.
+ *    I WANT to **connect** to a DatReceiver Service via IOC_connectService,
+ *   SO THAT I can reliably stream data chunks using IOC_sendDAT with NODROP guarantee,
+ *       AND the receiver can process data either through automatic callback (CbRecvDat_F)
+ *        OR through manual polling (IOC_recvDAT) according to their design preference.
  *
- * US-2: AS a DatSender developer,
- *    I WANT to online a DatSender Service,
- *   SO THAT when a DatReceiver connects to the service,
- *       I can send data to it using the IOC framework,
- *        AND the receiver can process it through callbacks in IOC's context,
- *         OR the receiver can receive data in its own context.
+ *  US-2: AS a DatSender developer,
+ *    I WANT to **online** a service with IOC_onlineService,
+ *   SO THAT I can accept DatReceiver connect to this service,
+ *      THEN I can send data to the receiver using IOC_sendDAT,
+ *       AND the receiver can process data either through automatic callback (CbRecvDat_F)
+ *        OR through manual polling (IOC_recvDAT) according to their design preference.
+ *
  *
  *************************************************************************************************/
 //======>END OF USER STORY=========================================================================
