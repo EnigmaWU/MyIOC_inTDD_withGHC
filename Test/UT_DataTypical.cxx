@@ -137,6 +137,9 @@
  *      @[Brief]: DatReceiver online service with standard SrvURI {"fifo", "localprocess", "DatReceiver"},
  *          DatSender connect with Usage=IOC_LinkUsageDatSender, verify IOC_RESULT_SUCCESS and valid LinkID
  *
+ *  TODO:TC-2...
+ *
+ *-------------------------------------------------------------------------------------------------
  * [@AC-2,US-1] - Standard Data Transmission with Callback
  *  TC-1:
  *      @[Name]: verifyDatSenderTransmission_bySendCommonData_expectCallbackReceiveSuccess
@@ -145,6 +148,8 @@
  *      @[Brief]: Establish connection, DatSender send common data chunk (text, 10KB),
  *          verify IOC_RESULT_SUCCESS and DatReceiver gets complete data via callback in typical workflow
  *
+ *  TODO:TC-2...
+ *-------------------------------------------------------------------------------------------------
  * [@AC-3,US-1] - Standard Data Transmission with Polling
  *  TC-1:
  *      @[Name]: verifyDatPollingReceive_byManualRetrieve_expectCompleteDataIntegrity
@@ -153,6 +158,9 @@
  *      @[Brief]: Establish connection without callback, DatSender send common data chunk (binary, 5KB),
  *          DatReceiver poll with IOC_recvDAT in MAYBLOCK mode, verify data integrity and polling workflow
  *      @[Notes]: This complements callback-based reception, demonstrating pull-based data consumption
+ *
+ *  TODO:TC-2...
+ *-------------------------------------------------------------------------------------------------
  *
  *************************************************************************************************/
 //======>END OF TEST CASES=========================================================================
