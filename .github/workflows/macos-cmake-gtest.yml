@@ -1,9 +1,9 @@
-##OS: MacOS-latest
-##Toolchain: llvm(clang/clang++)
-##BuildTool: cmake
-    ##WithCfgType: RelWithDebInfo, DiagASAN, DiagTSAN
-##TestTool: ctest
-##DepLibs: gtest
+# OS: MacOS-latest
+# Toolchain: llvm(clang/clang++)
+# BuildTool: cmake
+#   WithCfgType: RelWithDebInfo, DiagASAN, DiagTSAN
+# TestTool: ctest
+# DepLibs: gtest
 
 name: MacOS-CMake-GTest
 
@@ -14,36 +14,57 @@ jobs:
     runs-on: macOS-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
-    - name: Install CMake
+    - name: Install dependencies
       run: |
-        brew install cmake
+        brew update
+        brew install cmake googletest llvm
 
-    - name: Install GTest
+    - name: Setup environment
       run: |
-        brew install googletest
+        echo "/opt/homebrew/opt/llvm/bin" >> $GITHUB_PATH
+        echo "CC=/opt/homebrew/opt/llvm/bin/clang" >> $GITHUB_ENV
+        echo "CXX=/opt/homebrew/opt/llvm/bin/clang++" >> $GITHUB_ENV
 
     - name: Build&Test RelWithDebInfo
       run: |
-        mkdir Dir4RelWithDebInfo
+        mkdir -p Dir4RelWithDebInfo
         cd Dir4RelWithDebInfo
-        cmake -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo ..
-        cmake --build . 
-        ctest
+        cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+              -DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm/bin/clang \
+              -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm/bin/clang++ \
+              ..
+        cmake --build . --parallel
+        ctest --output-on-failure
 
     - name: Build&Test DiagASAN
       run: |
-        mkdir Dir4DiagASAN
+        mkdir -p Dir4DiagASAN
         cd Dir4DiagASAN
-        cmake -DCMAKE_BUILD_TYPE:STRING=DiagASAN ..
-        cmake --build . 
-        ctest
+        cmake -DCMAKE_BUILD_TYPE=DiagASAN \
+              -DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm/bin/clang \
+              -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm/bin/clang++ \
+              ..
+        cmake --build . --parallel
+        ctest --output-on-failure
 
     - name: Build&Test DiagTSAN
       run: |
-        mkdir Dir4DiagTSAN
+        mkdir -p Dir4DiagTSAN
         cd Dir4DiagTSAN
-        cmake -DCMAKE_BUILD_TYPE:STRING=DiagTSAN ..
-        cmake --build .
-        ctest
+        cmake -DCMAKE_BUILD_TYPE=DiagTSAN \
+              -DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm/bin/clang \
+              -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm/bin/clang++ \
+              ..
+        cmake --build . --parallel
+        ctest --output-on-failure
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-macos
+        path: |
+          Dir4*/Testing/
+          Dir4*/Test/

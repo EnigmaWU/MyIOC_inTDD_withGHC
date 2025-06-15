@@ -1,0 +1,102 @@
+# OS: Ubuntu-latest
+# Toolchain: gcc/g++
+# BuildTool: cmake
+#   WithCfgType: RelWithDebInfo, DiagASAN, DiagTSAN, DiagUBSAN
+# TestTool: ctest
+# DepLibs: gtest
+
+name: Ubuntu-CMake-GTest
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          cmake \
+          libgtest-dev \
+          googletest \
+          gcc \
+          g++ \
+          ninja-build
+
+    - name: Setup environment
+      run: |
+        echo "CC=gcc" >> $GITHUB_ENV
+        echo "CXX=g++" >> $GITHUB_ENV
+
+    - name: Setup GTest
+      run: |
+        # On Ubuntu, googletest source is installed but not built
+        # We need to build it manually
+        sudo apt-get install -y googletest
+        cd /usr/src/googletest
+        sudo cmake .
+        sudo cmake --build . --config Release
+        sudo cp lib/*.a /usr/lib/
+        sudo cp googlemock/lib/*.a /usr/lib/ 2>/dev/null || true
+
+    - name: Build&Test RelWithDebInfo
+      run: |
+        mkdir -p Dir4RelWithDebInfo
+        cd Dir4RelWithDebInfo
+        cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+              -DCMAKE_C_COMPILER=gcc \
+              -DCMAKE_CXX_COMPILER=g++ \
+              -G Ninja \
+              ..
+        cmake --build . --parallel
+        ctest --output-on-failure
+
+    - name: Build&Test DiagASAN
+      run: |
+        mkdir -p Dir4DiagASAN
+        cd Dir4DiagASAN
+        cmake -DCMAKE_BUILD_TYPE=DiagASAN \
+              -DCMAKE_C_COMPILER=gcc \
+              -DCMAKE_CXX_COMPILER=g++ \
+              -G Ninja \
+              ..
+        cmake --build . --parallel
+        ctest --output-on-failure
+
+    - name: Build&Test DiagTSAN
+      run: |
+        mkdir -p Dir4DiagTSAN
+        cd Dir4DiagTSAN
+        cmake -DCMAKE_BUILD_TYPE=DiagTSAN \
+              -DCMAKE_C_COMPILER=gcc \
+              -DCMAKE_CXX_COMPILER=g++ \
+              -G Ninja \
+              ..
+        cmake --build . --parallel
+        ctest --output-on-failure
+
+    - name: Build&Test DiagUBSAN
+      run: |
+        mkdir -p Dir4DiagUBSAN
+        cd Dir4DiagUBSAN
+        cmake -DCMAKE_BUILD_TYPE=DiagUBSAN \
+              -DCMAKE_C_COMPILER=gcc \
+              -DCMAKE_CXX_COMPILER=g++ \
+              -G Ninja \
+              ..
+        cmake --build . --parallel
+        ctest --output-on-failure
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-ubuntu
+        path: |
+          Dir4*/Testing/
+          Dir4*/Test/

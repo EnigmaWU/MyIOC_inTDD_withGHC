@@ -2,14 +2,25 @@ cmake_minimum_required(VERSION 3.16)
 
 project(MyCraftCodes LANGUAGES C CXX)
 
-#IF CMAKE_C/CXX_COMPILER is not set, and on macOS, set default compiler to clang
+#IF CMAKE_C/CXX_COMPILER is not set, set default compiler based on platform
 if(NOT CMAKE_C_COMPILER AND NOT CMAKE_CXX_COMPILER)
     if(APPLE)
-        set(CMAKE_C_COMPILER /opt/homebrew/opt/llvm/bin/clang)
-        set(CMAKE_CXX_COMPILER /opt/homebrew/opt/llvm/bin/clang++)
+        # Try to find clang in common locations
+        if(EXISTS "/opt/homebrew/opt/llvm/bin/clang")
+            set(CMAKE_C_COMPILER /opt/homebrew/opt/llvm/bin/clang)
+            set(CMAKE_CXX_COMPILER /opt/homebrew/opt/llvm/bin/clang++)
+        elseif(EXISTS "/usr/local/opt/llvm/bin/clang")
+            set(CMAKE_C_COMPILER /usr/local/opt/llvm/bin/clang)
+            set(CMAKE_CXX_COMPILER /usr/local/opt/llvm/bin/clang++)
+        else()
+            # Fallback to system clang
+            set(CMAKE_C_COMPILER clang)
+            set(CMAKE_CXX_COMPILER clang++)
+        endif()
     else()
-        set(CMAKE_C_COMPILER /usr/bin/gcc)
-        set(CMAKE_CXX_COMPILER /usr/bin/g++)
+        # Use system gcc/g++ on Linux
+        set(CMAKE_C_COMPILER gcc)
+        set(CMAKE_CXX_COMPILER g++)
     endif()
 endif()
 
