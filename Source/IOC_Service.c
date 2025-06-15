@@ -52,6 +52,19 @@ static IOC_Result_T __IOC_allocSrvObj(/*ARG_INCONST*/ IOC_SrvArgs_pT pSrvArgs,
             pSrvObj->Args.UsageCapabilites = pSrvArgs->UsageCapabilites;
             pSrvObj->Args.Flags = pSrvArgs->Flags;
 
+            // 🚨 WHY CRITICAL FIX: The original code was missing this UsageArgs copy, causing
+            // DAT callback functions (CbRecvDat_F, pCbPrivData) to be lost when service objects
+            // were created. This led to test failures where DatReceiverPrivData.CallbackExecuted
+            // remained false because the callback was never registered with the protocol layer.
+            //
+            // 🔍 ROOT CAUSE: IOC_onlineService() → __IOC_allocSrvObj() only copied basic service
+            // parameters but ignored UsageArgs containing critical callback configurations.
+            // Without this, protocol layers couldn't access DAT receiver callbacks.
+            //
+            // 💡 SOLUTION: Perform shallow copy of UsageArgs structure. This preserves all
+            // callback function pointers and private data needed for protocol-specific operations.
+            pSrvObj->Args.UsageArgs = pSrvArgs->UsageArgs;
+
             _mIOC_SrvObjTbl[i] = pSrvObj;
             *ppSrvObj = pSrvObj;
             Result = IOC_RESULT_SUCCESS;

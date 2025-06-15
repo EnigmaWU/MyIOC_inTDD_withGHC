@@ -6,27 +6,6 @@
 
 #include "_IOC.h"
 
-// TDD GREEN: Constants needed for implementation
-#define _MAX_IOC_LINK_OBJ_NUM 8
-
-// TDD GREEN: Simple storage for pending data transmission
-typedef struct {
-    IOC_LinkID_T SenderLinkID;
-    void *pData;
-    ULONG_T DataSize;
-    bool HasPendingData;
-} __TDD_PendingData_T;
-
-// TDD GREEN: Simple storage for receiver callback info
-typedef struct {
-    IOC_CbRecvDat_F CbRecvDat_F;
-    void *pCbPrivData;
-    bool IsRegistered;
-} __TDD_ReceiverCallback_T;
-
-static __TDD_PendingData_T _gTDD_PendingData = {0};
-static __TDD_ReceiverCallback_T _gTDD_ReceiverCallback = {0};
-
 /**
  * @brief Send data chunk on the specified link
  * @param LinkID: the link ID to send data on
@@ -54,16 +33,35 @@ IOC_Result_T IOC_sendDAT(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, IOC_Optio
 
     printf("IOC_sendDAT: Sending %lu bytes on LinkID=%llu\n", pDatDesc->Payload.PtrDataSize, LinkID);
 
-    // TDD GREEN: Store data for later delivery during flush
-    _gTDD_PendingData.SenderLinkID = LinkID;
-    _gTDD_PendingData.pData = pDatDesc->Payload.pData;
-    _gTDD_PendingData.DataSize = pDatDesc->Payload.PtrDataSize;
-    _gTDD_PendingData.HasPendingData = true;
+    // 🔄 WHY ARCHITECTURE CHANGE: The original implementation used global variables
+    // (_gTDD_PendingData) to store data, completely bypassing the protocol layer.
+    // This violated the layered architecture where:
+    // - Application Layer (IOC_sendDAT) should call Service Layer
+    // - Service Layer should delegate to Protocol Layer (OpSendData_F)
+    // - Protocol Layer handles actual transmission (FIFO callbacks, TCP sockets, etc.)
+    //
+    // 🚫 PROBLEM WITH OLD APPROACH: Global variables meant only one protocol could work,
+    // no cross-protocol communication, and data never reached the receiver because
+    // IOC_flushDAT() only printed logs without triggering protocol transmission.
+    //
+    // ✅ NEW APPROACH: Delegate to protocol-specific implementation via method table.
+    // Each protocol (FIFO, TCP, UDP) can implement its own optimal transmission strategy.
+    _IOC_SrvProtoMethods_pT pMethods = pSenderLinkObj->pMethods;
+    if (!pMethods || !pMethods->OpSendData_F) {
+        return IOC_RESULT_NOT_SUPPORT;
+    }
 
-    pDatDesc->Status = IOC_DAT_STATUS_SENDING;
-    pDatDesc->Result = IOC_RESULT_SUCCESS;
+    IOC_Result_T Result = pMethods->OpSendData_F(pSenderLinkObj, pDatDesc, pOption);
 
-    return IOC_RESULT_SUCCESS;
+    if (Result == IOC_RESULT_SUCCESS) {
+        pDatDesc->Status = IOC_DAT_STATUS_STREAM_READY;  // Data sent successfully
+        pDatDesc->Result = IOC_RESULT_SUCCESS;
+    } else {
+        pDatDesc->Status = IOC_DAT_STATUS_STREAM_ERROR;  // Send failed
+        pDatDesc->Result = Result;
+    }
+
+    return Result;
 }
 
 /**
@@ -79,6 +77,18 @@ IOC_Result_T IOC_flushDAT(IOC_LinkID_T LinkID, IOC_Options_pT pOption) {
 
     printf("IOC_flushDAT: Flushing data on LinkID=%llu\n", LinkID);
 
+    // 🚀 WHY SIMPLIFIED FLUSH: For ProtoFifo protocol, data transmission is immediate
+    // and synchronous - when IOC_sendDAT() calls OpSendData_F(), the data is instantly
+    // delivered to the receiver's callback. No buffering occurs, so flush is a no-op.
+    //
+    // 📋 PROTOCOL DIFFERENCES: Other protocols might implement different strategies:
+    // - TCP: Could buffer data and flush() would force socket send
+    // - UDP: Might batch packets and flush() would send the batch
+    // - File: Could buffer writes and flush() would fsync() to disk
+    //
+    // 💡 DESIGN PRINCIPLE: Keep flush() simple for immediate protocols, let buffering
+    // protocols override with their own flush implementation via OpFlushData_F (future).
+    // Other protocols might buffer data and need actual flushing
     return IOC_RESULT_SUCCESS;
 }
 

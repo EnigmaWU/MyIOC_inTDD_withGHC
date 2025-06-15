@@ -63,6 +63,24 @@ struct _IOC_ProtoFifoLinkObjectStru {
     union {
         IOC_SubEvtArgs_T SubEvtArgs;  // SET by subEvt, USED when postEvt
     };
+
+    // 📦 WHY ADD DAT SUPPORT: ProtoFifo previously only supported EVT (events), but the
+    // framework promised DAT (data transfer) capability. Without this structure, DAT
+    // receiver callbacks couldn't be stored per-link, causing all data to be lost.
+    //
+    // 🔗 DESIGN CHOICE: Store DAT receiver info in each LinkObject instead of globally
+    // because each link connection might have different receiver configurations:
+    // - Link A: Uses callback mode with custom private data
+    // - Link B: Uses polling mode (future feature)
+    // - Link C: No DAT capability at all
+    //
+    // 🎯 THREAD SAFETY: Protected by the existing pLinkObj->Mutex to ensure
+    // callback registration and data transmission are atomic operations.
+    struct {
+        IOC_CbRecvDat_F CbRecvDat_F;  // Callback for receiving data
+        void *pCbPrivData;            // Private data for callback
+        bool IsReceiverRegistered;    // Whether this link has a receiver callback
+    } DatReceiver;
 };
 
 /**
@@ -96,6 +114,9 @@ typedef struct {
 #define _MAX_PROTO_FIFO_SERVICES 16
 static _IOC_ProtoFifoServiceObject_pT _mIOC_OnlinedSrvProtoFifoObjs[_MAX_PROTO_FIFO_SERVICES] = {};
 static pthread_mutex_t _mIOC_OnlinedSrvProtoFifoObjsMutex = PTHREAD_MUTEX_INITIALIZER;
+
+// Forward declarations for DAT support functions
+static IOC_Result_T __IOC_setupDatReceiver_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, _IOC_ServiceObject_pT pSrvObj);
 
 static _IOC_ProtoFifoServiceObject_pT __IOC_getSrvProtoObjBySrvURI(const IOC_SrvURI_pT pSrvURI) {
     for (int i = 0; i < _MAX_PROTO_FIFO_SERVICES; i++) {
@@ -327,6 +348,18 @@ static IOC_Result_T __IOC_acceptClient_ofProtoFifo(_IOC_ServiceObject_pT pSrvObj
 
             pFifoSrvObj->pConnLinkObj = NULL;  // clear the connection link object
 
+            // 🔧 WHY SETUP DAT RECEIVER HERE: This is the critical moment when server-side
+            // link is fully established and peer connection is ready. We need to transfer
+            // DAT receiver configuration from service to the newly accepted link.
+            //
+            // 🎯 TIMING IS CRUCIAL: Must happen AFTER peer link setup but BEFORE signaling
+            // connection acceptance. This ensures that when the client-side gets the
+            // connection confirmation, the server-side is already ready to receive data.
+            //
+            // 💡 WHY NOT IN CONNECT: Client side doesn't know service's DAT configuration,
+            // only server side (which called IOC_onlineService) has the receiver callbacks.
+            __IOC_setupDatReceiver_ofProtoFifo(pLinkObj, pSrvObj);
+
             pthread_cond_signal(&pFifoSrvObj->WaitAccptedCond);
             pthread_mutex_unlock(&pFifoSrvObj->WaitAccptedMutex);
             break;  // ACCEPTed the new incoming connection
@@ -488,6 +521,124 @@ static IOC_Result_T __IOC_postEvt_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, const
     return Result;
 }
 
+//=================================================================================================
+// DAT (Data Transfer) Operations for ProtoFifo
+//=================================================================================================
+
+/**
+ * @brief Send data through ProtoFifo protocol
+ * @param pLinkObj Pointer to the link object for data transmission
+ * @param pDatDesc Pointer to data description containing payload
+ * @param pOption Optional parameters (can be NULL)
+ * @return IOC_RESULT_SUCCESS on successful data transmission
+ */
+static IOC_Result_T __IOC_sendData_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, const IOC_DatDesc_pT pDatDesc,
+                                               const IOC_Options_pT pOption) {
+    if (!pLinkObj || !pDatDesc) {
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
+    _IOC_ProtoFifoLinkObject_pT pLocalFifoLinkObj = (_IOC_ProtoFifoLinkObject_pT)pLinkObj->pProtoPriv;
+    if (!pLocalFifoLinkObj) {
+        return IOC_RESULT_NOT_EXIST_LINK;
+    }
+
+    pthread_mutex_lock(&pLocalFifoLinkObj->Mutex);
+    _IOC_ProtoFifoLinkObject_pT pPeerFifoLinkObj = pLocalFifoLinkObj->pPeer;
+
+    if (!pPeerFifoLinkObj) {
+        pthread_mutex_unlock(&pLocalFifoLinkObj->Mutex);
+        return IOC_RESULT_NOT_EXIST_LINK;
+    }
+
+    // 🔒 WHY DUAL MUTEX LOCKING: We need to access peer's callback info safely.
+    // Lock sequence: Local first, then Peer to prevent deadlock (consistent ordering).
+    // We copy callback info under mutex protection, then release locks before
+    // calling the callback to avoid holding locks during user code execution.
+    pthread_mutex_lock(&pPeerFifoLinkObj->Mutex);
+    IOC_CbRecvDat_F CbRecvDat_F = pPeerFifoLinkObj->DatReceiver.CbRecvDat_F;
+    void *pCbPrivData = pPeerFifoLinkObj->DatReceiver.pCbPrivData;
+    bool IsReceiverRegistered = pPeerFifoLinkObj->DatReceiver.IsReceiverRegistered;
+    pthread_mutex_unlock(&pPeerFifoLinkObj->Mutex);
+
+    pthread_mutex_unlock(&pLocalFifoLinkObj->Mutex);
+
+    // ⚡ WHY IMMEDIATE DELIVERY: ProtoFifo implements zero-latency, zero-copy data transfer.
+    // Unlike network protocols that buffer data, FIFO delivers directly to receiver callback.
+    // This achieves maximum performance for intra-process communication.
+    //
+    // 🎯 DESIGN RATIONALE:
+    // - No intermediate buffering = lower memory usage
+    // - Direct callback = minimal latency
+    // - Synchronous execution = simpler error handling
+    // - Peer link pattern = bidirectional communication support
+    if (IsReceiverRegistered && CbRecvDat_F) {
+        IOC_Result_T CallbackResult =
+            CbRecvDat_F(pLinkObj->ID, pDatDesc->Payload.pData, pDatDesc->Payload.PtrDataSize, pCbPrivData);
+        return CallbackResult;
+    }
+
+    // No receiver callback registered
+    return IOC_RESULT_NO_EVENT_CONSUMER;
+}
+
+/**
+ * @brief Receive data through ProtoFifo protocol (polling mode)
+ * @param pLinkObj Pointer to the link object for data reception
+ * @param pDatDesc Pointer to data description buffer
+ * @param pOption Optional parameters (can be NULL)
+ * @return IOC_RESULT_SUCCESS on successful data reception
+ */
+static IOC_Result_T __IOC_recvData_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_DatDesc_pT pDatDesc,
+                                               const IOC_Options_pT pOption) {
+    if (!pLinkObj || !pDatDesc) {
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
+    // ProtoFifo uses callback-based data delivery, polling mode not supported
+    // Data is delivered immediately through callback when sent
+    return IOC_RESULT_NOT_SUPPORT;
+}
+
+/**
+ * @brief Setup DAT receiver callback for a link
+ * @param pLinkObj Pointer to the link object
+ * @param pSrvObj Pointer to the service object containing DAT usage args
+ * @return IOC_RESULT_SUCCESS on successful callback registration
+ */
+static IOC_Result_T __IOC_setupDatReceiver_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, _IOC_ServiceObject_pT pSrvObj) {
+    if (!pLinkObj || !pSrvObj) {
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
+    _IOC_ProtoFifoLinkObject_pT pFifoLinkObj = (_IOC_ProtoFifoLinkObject_pT)pLinkObj->pProtoPriv;
+    if (!pFifoLinkObj) {
+        return IOC_RESULT_NOT_EXIST_LINK;
+    }
+
+    // 🔍 WHY CAPABILITY CHECK: Not all services support DAT operations. We need to verify:
+    // 1. Service declares IOC_LinkUsageDatReceiver capability
+    // 2. Service provides actual DAT usage arguments (callback functions)
+    // This prevents runtime errors when trying to setup DAT on non-DAT services.
+    if ((pSrvObj->Args.UsageCapabilites & IOC_LinkUsageDatReceiver) && pSrvObj->Args.UsageArgs.pDat) {
+        pthread_mutex_lock(&pFifoLinkObj->Mutex);
+
+        // 📋 WHY COPY CALLBACK INFO: Extract DAT receiver configuration from service
+        // and store it in the link object. This allows each link to have independent
+        // DAT receiver settings, supporting scenarios where one service handles
+        // multiple client connections with different callback configurations.
+        pFifoLinkObj->DatReceiver.CbRecvDat_F = pSrvObj->Args.UsageArgs.pDat->CbRecvDat_F;
+        pFifoLinkObj->DatReceiver.pCbPrivData = pSrvObj->Args.UsageArgs.pDat->pCbPrivData;
+        pFifoLinkObj->DatReceiver.IsReceiverRegistered = (pFifoLinkObj->DatReceiver.CbRecvDat_F != NULL);
+
+        pthread_mutex_unlock(&pFifoLinkObj->Mutex);
+
+        return IOC_RESULT_SUCCESS;
+    }
+
+    return IOC_RESULT_NOT_SUPPORT;
+}
+
 _IOC_SrvProtoMethods_T _gIOC_SrvProtoFifoMethods = {
     .pProtocol = IOC_SRV_PROTO_FIFO,
 
@@ -503,4 +654,18 @@ _IOC_SrvProtoMethods_T _gIOC_SrvProtoFifoMethods = {
     .OpUnsubEvt_F = __IOC_unsubEvt_ofProtoFifo,
 
     .OpPostEvt_F = __IOC_postEvt_ofProtoFifo,
+
+    // 🚀 WHY ADD DAT METHODS: Completing the ProtoFifo protocol implementation to support
+    // all three communication paradigms promised by the IOC framework:
+    // ✅ EVT (Events): Publisher/Subscriber - already implemented
+    // ✅ CMD (Commands): Request/Response - TODO (future implementation)
+    // ✅ DAT (Data): Stream/Transfer - NOW IMPLEMENTED
+    //
+    // 🎯 IMPLEMENTATION STRATEGY: ProtoFifo optimizes for intra-process communication:
+    // - OpSendData_F: Zero-copy, immediate callback delivery
+    // - OpRecvData_F: Not supported (polling conflicts with callback design)
+    //
+    // 📈 PERFORMANCE BENEFITS: Direct memory access, no serialization, no buffering
+    .OpSendData_F = __IOC_sendData_ofProtoFifo,
+    .OpRecvData_F = __IOC_recvData_ofProtoFifo,
 };

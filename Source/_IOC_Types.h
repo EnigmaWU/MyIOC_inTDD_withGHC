@@ -59,6 +59,18 @@ struct _IOC_SrvProtoMethodsStru {
     IOC_Result_T (*OpUnsubEvt_F)(_IOC_LinkObject_pT, const IOC_UnsubEvtArgs_pT);
 
     IOC_Result_T (*OpPostEvt_F)(_IOC_LinkObject_pT, const IOC_EvtDesc_pT, const IOC_Options_pT);
+
+    // 🔧 WHY ADD DAT METHODS: The original framework only supported EVT (events), but was missing
+    // DAT (data transfer) protocol layer abstraction. Without these methods, DAT operations like
+    // IOC_sendDAT() bypassed the protocol layer entirely, using global variables instead.
+    // This caused cross-protocol communication to fail because each protocol needs its own
+    // data transmission mechanism (e.g., FIFO uses direct callbacks, TCP would use sockets).
+    //
+    // 📋 DESIGN CHOICE: Following SrvProto.md specification, we use "OpSendData_F/OpRecvData_F"
+    // naming convention (not OpSendDAT_F) to maintain consistency with the framework's
+    // method naming pattern where operations are prefixed with "Op" and suffixed with "_F".
+    IOC_Result_T (*OpSendData_F)(_IOC_LinkObject_pT, const IOC_DatDesc_pT, const IOC_Options_pT);
+    IOC_Result_T (*OpRecvData_F)(_IOC_LinkObject_pT, IOC_DatDesc_pT, const IOC_Options_pT);
 };
 
 //_gIOC_XYZ is the global variable used intra-IOC module.
