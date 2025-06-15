@@ -440,9 +440,11 @@ TEST(UT_DataTypical, verifyDatSenderTransmission_bySendCommonData_expectCallback
 
     // Send data using IOC_sendDAT
     Result = IOC_sendDAT(DatSenderLinkID, &DatDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint: Send success
+    printf("DAT Sender: Sent %d bytes of data\n", TargetSize);
 
     // Force send the data to ensure callback execution
-    IOC_flushDAT();
+    IOC_flushDAT(DatSenderLinkID, NULL);
 
     //===VERIFY===
     // KeyVerifyPoint-1: IOC_sendDAT returns success
