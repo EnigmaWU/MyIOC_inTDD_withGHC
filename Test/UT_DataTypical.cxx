@@ -105,7 +105,9 @@
  *  AC-3@US-1: GIVEN DatSender has connected to DatReceiver service,
  *         WHEN DatSender calls IOC_sendDAT with typical data chunk and NODROP,
  *         THEN DatReceiver can receive the data via IOC_recvDAT polling,
- *          AND data integrity is maintained in standard usage pattern.
+ *          AND data integrity is maintained in standard usage pattern,
+ *          AND DatReceiver gets IOC_RESULT_SUCCESS when data is available,
+ *          AND DatReceiver gets IOC_RESULT_NO_DATA when no data is available (for NONBLOCK polling).
  *
  *  AC-4@US-1: GIVEN DatSender streaming typical data types (string, struct, binary array),
  *         WHEN using standard IOC_sendDAT workflow with NODROP guarantee,
@@ -142,6 +144,15 @@
  *          using IOC_sendDAT, received via CbRecvDat_F callback
  *      @[Brief]: Establish connection, DatSender send common data chunk (text, 10KB),
  *          verify IOC_RESULT_SUCCESS and DatReceiver gets complete data via callback in typical workflow
+ *
+ * [@AC-3,US-1] - Standard Data Transmission with Polling
+ *  TC-1:
+ *      @[Name]: verifyDatPollingReceive_byManualRetrieve_expectCompleteDataIntegrity
+ *      @[Purpose]: Verify AC-3 complete functionality - DatReceiver receives data via IOC_recvDAT polling
+ *          instead of callback mechanism, maintaining data integrity
+ *      @[Brief]: Establish connection without callback, DatSender send common data chunk (binary, 5KB),
+ *          DatReceiver poll with IOC_recvDAT in MAYBLOCK mode, verify data integrity and polling workflow
+ *      @[Notes]: This complements callback-based reception, demonstrating pull-based data consumption
  *
  *************************************************************************************************/
 //======>END OF TEST CASES=========================================================================
@@ -362,7 +373,7 @@ static IOC_Result_T __CbRecvDat_F(IOC_LinkID_T LinkID, void *pData, ULONG_T Data
  *      |-> Data integrity maintained (content matches)
  *   4) Cleanup: close connections and offline service AS CLEANUP.
  * @[Expect]: Data transmitted successfully and received via callback with integrity preserved.
- * @[Notes]: Focus on typical 10KB text data transmission with callback pattern only.
+ * @[Notes]: Focus on typical 10KB text数据传输与回调模式。
  */
 TEST(UT_DataTypical, verifyDatSenderTransmission_bySendCommonData_expectCallbackReceiveSuccess) {
     //===SETUP===
@@ -463,6 +474,159 @@ TEST(UT_DataTypical, verifyDatSenderTransmission_bySendCommonData_expectCallback
     //===CLEANUP===
     // Free test data
     free(TestData);
+
+    // Close both links
+    if (DatSenderLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(DatSenderLinkID);
+    }
+    if (DatReceiverLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(DatReceiverLinkID);
+    }
+    // Offline service
+    if (DatReceiverSrvID != IOC_ID_INVALID) {
+        IOC_offlineService(DatReceiverSrvID);
+    }
+}
+
+/**
+ * @[Name]: verifyDatPollingReceive_byManualRetrieve_expectCompleteDataIntegrity
+ * @[Steps]:
+ *   1) Setup DatReceiver service WITHOUT callback (polling mode) and DatSender connection AS SETUP.
+ *      |-> DatReceiver online service with IOC_LinkUsageDatReceiver (no callback configured)
+ *      |-> DatSender connect with IOC_LinkUsageDatSender
+ *   2) DatSender send typical 5KB binary data using IOC_sendDAT AS BEHAVIOR.
+ *      |-> Create typical binary data (5KB pattern)
+ *      |-> Setup IOC_DatDesc_T with data payload
+ *      |-> Call IOC_sendDAT and IOC_flushDAT
+ *   3) DatReceiver poll for data using IOC_recvDAT AS BEHAVIOR.
+ *      |-> Setup IOC_DatDesc_T for receiving
+ *      |-> Call IOC_recvDAT with MAYBLOCK option
+ *      |-> Verify data reception and integrity
+ *   4) Cleanup: close connections and offline service AS CLEANUP.
+ * @[Expect]: Complete data polling functionality verified - data integrity, size correctness, and NONBLOCK behavior.
+ *           THIS TEST WILL FAIL (TDD RED) until IOC_recvDAT is fully implemented with actual data reception logic.
+ * @[Notes]: TDD RED phase - specifies full requirements for polling-based data reception.
+ */
+TEST(UT_DataTypical, verifyDatPollingReceive_byManualRetrieve_expectCompleteDataIntegrity) {
+    //===SETUP===
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_SrvID_T DatReceiverSrvID = IOC_ID_INVALID;
+    IOC_LinkID_T DatReceiverLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T DatSenderLinkID = IOC_ID_INVALID;
+
+    // Standard SrvURI for typical DAT communication
+    IOC_SrvURI_T CSURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = (const char *)"DatReceiverPolling",
+    };
+
+    // Step-1: Setup DatReceiver service WITHOUT callback (polling mode)
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = CSURI, .UsageCapabilites = IOC_LinkUsageDatReceiver,
+        // No UsageArgs means no callback - pure polling mode
+    };
+
+    Result = IOC_onlineService(&DatReceiverSrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint: Service online success
+
+    // Setup DatSender connection
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = CSURI,
+        .Usage = IOC_LinkUsageDatSender,
+    };
+
+    std::thread DatSenderThread([&] {
+        Result = IOC_connectService(&DatSenderLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);       // VerifyPoint: Connection success
+        ASSERT_NE(IOC_ID_INVALID, DatSenderLinkID);  // VerifyPoint: Valid LinkID
+    });
+
+    // Accept the connection
+    Result = IOC_acceptClient(DatReceiverSrvID, &DatReceiverLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint: Accept success
+
+    DatSenderThread.join();
+
+    //===BEHAVIOR===
+    printf("BEHAVIOR: verifyDatPollingReceive_byManualRetrieve_expectCompleteDataIntegrity\n");
+
+    // Step-2: Create and send typical 5KB binary data
+    const int TargetSize = 5120;  // 5KB
+    char *TestData = (char *)malloc(TargetSize);
+
+    // Fill with binary pattern (0x00, 0x01, 0x02, ..., 0xFF, 0x00, 0x01, ...)
+    for (int i = 0; i < TargetSize; i++) {
+        TestData[i] = (char)(i % 256);
+    }
+
+    // Setup IOC_DatDesc_T for transmission
+    IOC_DatDesc_T DatDesc = {0};
+    IOC_initDatDesc(&DatDesc);
+    DatDesc.Payload.pData = TestData;
+    DatDesc.Payload.PtrDataSize = TargetSize;
+
+    // Send data using IOC_sendDAT
+    Result = IOC_sendDAT(DatSenderLinkID, &DatDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint: Send success
+    printf("DAT Sender: Sent %d bytes of binary data\n", TargetSize);
+
+    // Force send the data
+    IOC_flushDAT(DatSenderLinkID, NULL);
+
+    // Step-3: DatReceiver poll for data using IOC_recvDAT
+    IOC_DatDesc_T ReceivedDatDesc = {0};
+    IOC_initDatDesc(&ReceivedDatDesc);
+
+    // Allocate buffer for received data
+    char *ReceivedData = (char *)malloc(TargetSize);
+    ReceivedDatDesc.Payload.pData = ReceivedData;
+    ReceivedDatDesc.Payload.PtrDataSize = TargetSize;
+
+    // Setup options for blocking polling
+    IOC_Option_defineSyncMayBlock(RecvOptions);
+
+    // Poll for data with MAYBLOCK (will wait until data arrives)
+    Result = IOC_recvDAT(DatReceiverLinkID, &ReceivedDatDesc, &RecvOptions);
+
+    //===VERIFY===
+    // TDD RED PHASE: Verify actual data reception functionality
+    // KeyVerifyPoint-1: IOC_recvDAT should return SUCCESS
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "IOC_recvDAT should succeed when data is available";
+
+    // KeyVerifyPoint-2: Should receive the exact amount of data sent
+    ASSERT_EQ(TargetSize, ReceivedDatDesc.Payload.PtrDataSize)
+        << "Received data size should match sent data size. Expected: " << TargetSize
+        << ", Actual: " << ReceivedDatDesc.Payload.PtrDataSize;
+
+    // KeyVerifyPoint-3: Data integrity should be maintained
+    ASSERT_EQ(0, memcmp(TestData, ReceivedData, TargetSize)) << "Received data content should match sent data content";
+
+    printf("DAT Receiver: Received %lu bytes via polling, data integrity verified\n",
+           ReceivedDatDesc.Payload.PtrDataSize);
+
+    // Test NONBLOCK polling API (TDD verification)
+    IOC_DatDesc_T NoDataDesc = {0};
+    IOC_initDatDesc(&NoDataDesc);
+    char NoDataBuffer[100];
+    NoDataDesc.Payload.pData = NoDataBuffer;
+    NoDataDesc.Payload.PtrDataSize = sizeof(NoDataBuffer);
+
+    IOC_Option_defineSyncNonBlock(NoDataOptions);
+    Result = IOC_recvDAT(DatReceiverLinkID, &NoDataDesc, &NoDataOptions);
+
+    // KeyVerifyPoint-4: NONBLOCK polling should return NO_DATA when no more data available
+    ASSERT_EQ(IOC_RESULT_NO_DATA, Result)
+        << "IOC_recvDAT in NONBLOCK mode should return NO_DATA when no data available";
+
+    printf(
+        "TDD RED PHASE: All polling functionality verification specified (will FAIL until IOC_recvDAT is fully "
+        "implemented)\n");
+
+    //===CLEANUP===
+    // Free test data
+    free(TestData);
+    free(ReceivedData);
 
     // Close both links
     if (DatSenderLinkID != IOC_ID_INVALID) {
