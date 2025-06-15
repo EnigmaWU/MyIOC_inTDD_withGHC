@@ -25,7 +25,8 @@ if(NOT CMAKE_C_COMPILER AND NOT CMAKE_CXX_COMPILER)
 endif()
 
 set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
@@ -63,21 +64,32 @@ set(LIB_IOC MyIOC)
 file(GLOB LIB_IOC_SRCFILES Source/*.c)
 add_library(${LIB_IOC} STATIC ${LIB_IOC_SRCFILES})
 
+# Set C++17 standard for the library when building tests
+if(CONFIG_BUILD_UNIT_TESTING)
+    target_compile_features(${LIB_IOC} PUBLIC cxx_std_17)
+endif()
+
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/Include)
 
 if(CONFIG_BUILD_UNIT_TESTING)
     enable_testing()
 
-    if(APPLE)
-        include_directories(/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1)
-        include_directories(/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include)
-    endif()
+    # Use modern CMake way to find Google Test
+    find_package(GTest REQUIRED)
+    
+    # If find_package fails, try the manual way (for older systems)
+    if(NOT GTest_FOUND)
+        if(APPLE)
+            include_directories(/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1)
+            include_directories(/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include)
+        endif()
 
-    # Find the googletest headers
-    find_path(INCGTST gtest/gtest.h)
-    # Find the googletest library
-    find_library(LIBGTST gtest)
-    find_library(LIBGTST_MAIN gtest_main)
+        # Find the googletest headers
+        find_path(INCGTST gtest/gtest.h)
+        # Find the googletest library
+        find_library(LIBGTST gtest)
+        find_library(LIBGTST_MAIN gtest_main)
+    endif()
 
     # Each *.cxx in current directory will be a standalone executable test case 
     #   to verify LIB_IOC use gtest as framework.
@@ -86,8 +98,16 @@ if(CONFIG_BUILD_UNIT_TESTING)
         foreach(UT_CXX_FILE ${UT_CXX_FILES})
             get_filename_component(UT_EXE_NAME ${UT_CXX_FILE} NAME_WE)
             add_executable(${UT_EXE_NAME} ${UT_CXX_FILE})
-            target_include_directories(${UT_EXE_NAME} PRIVATE ${INCGTST})
-            target_link_libraries(${UT_EXE_NAME} ${LIB_IOC} ${LIBGTST} ${LIBGTST_MAIN} pthread)
+            
+            # Use modern Google Test if available, otherwise fallback to manual
+            if(GTest_FOUND)
+                target_link_libraries(${UT_EXE_NAME} ${LIB_IOC} GTest::gtest GTest::gtest_main)
+                target_compile_features(${UT_EXE_NAME} PRIVATE cxx_std_17)
+            else()
+                target_include_directories(${UT_EXE_NAME} PRIVATE ${INCGTST})
+                target_link_libraries(${UT_EXE_NAME} ${LIB_IOC} ${LIBGTST} ${LIBGTST_MAIN} pthread)
+            endif()
+            
             add_test(NAME ${UT_EXE_NAME} COMMAND ${UT_EXE_NAME})
         endforeach()
     endfunction()

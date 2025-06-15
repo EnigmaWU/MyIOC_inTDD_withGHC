@@ -2,6 +2,12 @@
 
 This project includes GitHub Actions workflows for continuous integration and testing on multiple platforms.
 
+## Requirements
+
+- **C Standard**: C11
+- **C++ Standard**: C++17 (required by modern Google Test)
+- **CMake**: 3.16 or higher
+
 ## Workflows
 
 ### MacOS-CMake-GTest

@@ -35,14 +35,15 @@ jobs:
 
     - name: Setup GTest
       run: |
-        # On Ubuntu, googletest source is installed but not built
-        # We need to build it manually
+        # Install and build Google Test with C++17 support
         sudo apt-get install -y googletest
         cd /usr/src/googletest
-        sudo cmake .
+        sudo cmake . -DCMAKE_CXX_STANDARD=17
         sudo cmake --build . --config Release
-        sudo cp lib/*.a /usr/lib/
+        sudo cp lib/*.a /usr/lib/ 2>/dev/null || true
         sudo cp googlemock/lib/*.a /usr/lib/ 2>/dev/null || true
+        # Also install the modern way
+        sudo cmake --install . --prefix /usr/local 2>/dev/null || true
 
     - name: Build&Test RelWithDebInfo
       run: |
