@@ -100,20 +100,34 @@ IOC_Result_T IOC_flushDAT(IOC_LinkID_T LinkID, IOC_Options_pT pOption) {
  * @return IOC_RESULT_SUCCESS: data received successfully
  */
 IOC_Result_T IOC_recvDAT(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, IOC_Options_pT pOption) {
-    // TODO: Add parameter validation
+    // Parameter validation
     if (!pDatDesc) {
         return IOC_RESULT_INVALID_PARAM;
     }
 
-    // TODO: Add link validation
     if (LinkID == IOC_ID_INVALID) {
         return IOC_RESULT_NOT_EXIST_LINK;
     }
 
-    // TDD GREEN: Minimal implementation
+    // Get receiver link object
+    _IOC_LinkObject_pT pReceiverLinkObj = _IOC_getLinkObjByLinkID(LinkID);
+    if (!pReceiverLinkObj) {
+        return IOC_RESULT_NOT_EXIST_LINK;
+    }
+
     printf("IOC_recvDAT: Receiving data on LinkID=%llu\n", LinkID);
 
-    // TODO: Implement actual data reception logic
+    // 🔄 ARCHITECTURE IMPROVEMENT: Delegate to protocol-specific implementation
+    // Each protocol (FIFO, TCP, UDP) can implement its own optimal reception strategy:
+    // - FIFO: Polling buffer for intra-process communication
+    // - TCP: Socket receive operations
+    // - UDP: Packet reception
+    _IOC_SrvProtoMethods_pT pMethods = pReceiverLinkObj->pMethods;
+    if (!pMethods || !pMethods->OpRecvData_F) {
+        return IOC_RESULT_NOT_SUPPORT;
+    }
 
-    return IOC_RESULT_SUCCESS;
+    IOC_Result_T Result = pMethods->OpRecvData_F(pReceiverLinkObj, pDatDesc, pOption);
+
+    return Result;
 }

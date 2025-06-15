@@ -80,6 +80,18 @@ struct _IOC_ProtoFifoLinkObjectStru {
         IOC_CbRecvDat_F CbRecvDat_F;  // Callback for receiving data
         void *pCbPrivData;            // Private data for callback
         bool IsReceiverRegistered;    // Whether this link has a receiver callback
+
+        // 📦 POLLING MODE SUPPORT: Buffer for storing data when no callback is registered
+        // This enables hybrid mode - data can be delivered via callback OR stored for polling
+        struct {
+            char *pDataBuffer;                 // Circular buffer for received data
+            size_t BufferSize;                 // Total buffer size (allocated)
+            size_t DataStart;                  // Start position of valid data (read pointer)
+            size_t DataEnd;                    // End position of valid data (write pointer)
+            size_t AvailableData;              // Amount of valid data in buffer
+            pthread_cond_t DataAvailableCond;  // Condition variable for blocking reads
+            bool IsPollingMode;                // True if receiver is in polling mode (no callback)
+        } PollingBuffer;
     } DatReceiver;
 };
 
@@ -112,11 +124,18 @@ typedef struct {
 } _IOC_ProtoFifoServiceObject_T, *_IOC_ProtoFifoServiceObject_pT;
 
 #define _MAX_PROTO_FIFO_SERVICES 16
+#define _PROTO_FIFO_POLLING_BUFFER_SIZE (64 * 1024)  // 64KB buffer for polling mode
 static _IOC_ProtoFifoServiceObject_pT _mIOC_OnlinedSrvProtoFifoObjs[_MAX_PROTO_FIFO_SERVICES] = {};
 static pthread_mutex_t _mIOC_OnlinedSrvProtoFifoObjsMutex = PTHREAD_MUTEX_INITIALIZER;
 
 // Forward declarations for DAT support functions
 static IOC_Result_T __IOC_setupDatReceiver_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, _IOC_ServiceObject_pT pSrvObj);
+static IOC_Result_T __IOC_initPollingBuffer_ofProtoFifo(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj);
+static void __IOC_cleanupPollingBuffer_ofProtoFifo(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj);
+static IOC_Result_T __IOC_storeDataInPollingBuffer(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj, const void *pData,
+                                                   size_t DataSize);
+static IOC_Result_T __IOC_readDataFromPollingBuffer(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj, void *pBuffer,
+                                                    size_t BufferSize, size_t *pBytesRead, bool IsBlocking);
 
 static _IOC_ProtoFifoServiceObject_pT __IOC_getSrvProtoObjBySrvURI(const IOC_SrvURI_pT pSrvURI) {
     for (int i = 0; i < _MAX_PROTO_FIFO_SERVICES; i++) {
@@ -272,6 +291,15 @@ static IOC_Result_T __IOC_connectService_ofProtoFifo(_IOC_LinkObject_pT pLinkObj
     }
 
     pthread_mutex_init(&pFifoLinkObj->Mutex, NULL);
+
+    // Initialize polling buffer for potential DAT operations
+    IOC_Result_T BufferResult = __IOC_initPollingBuffer_ofProtoFifo(pFifoLinkObj);
+    if (BufferResult != IOC_RESULT_SUCCESS) {
+        free(pFifoLinkObj);
+        _IOC_LogBug("Failed to initialize polling buffer for FifoLinkObj");
+        return BufferResult;
+    }
+
     pLinkObj->pProtoPriv = pFifoLinkObj;
 
     // Step-4: Lock the connection accepting process
@@ -332,6 +360,15 @@ static IOC_Result_T __IOC_acceptClient_ofProtoFifo(_IOC_ServiceObject_pT pSrvObj
     }
 
     pthread_mutex_init(&pAceptedFifoLinkObj->Mutex, NULL);
+
+    // Initialize polling buffer for potential DAT operations
+    IOC_Result_T BufferResult = __IOC_initPollingBuffer_ofProtoFifo(pAceptedFifoLinkObj);
+    if (BufferResult != IOC_RESULT_SUCCESS) {
+        free(pAceptedFifoLinkObj);
+        _IOC_LogBug("Failed to initialize polling buffer for accepted FifoLinkObj");
+        return BufferResult;
+    }
+
     pLinkObj->pProtoPriv = pAceptedFifoLinkObj;
 
     // Step-3: IF new incoming connection is waiting, then accept it immediately, ELSE wait for it.
@@ -410,6 +447,10 @@ static IOC_Result_T __IOC_closeLink_ofProtoFifo(_IOC_LinkObject_pT pLinkObj) {
     }
 
     _IOC_LogAssert(NULL == pFifoLinkObj->pPeer);
+
+    // Clean up polling buffer before freeing the link object
+    __IOC_cleanupPollingBuffer_ofProtoFifo(pFifoLinkObj);
+
     free(pFifoLinkObj);
 
     //_IOC_LogNotTested();
@@ -573,13 +614,27 @@ static IOC_Result_T __IOC_sendData_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, cons
     // - Synchronous execution = simpler error handling
     // - Peer link pattern = bidirectional communication support
     if (IsReceiverRegistered && CbRecvDat_F) {
+        // Callback mode: deliver data immediately via callback
         IOC_Result_T CallbackResult =
             CbRecvDat_F(pLinkObj->ID, pDatDesc->Payload.pData, pDatDesc->Payload.PtrDataSize, pCbPrivData);
         return CallbackResult;
-    }
+    } else {
+        // 📦 POLLING MODE SUPPORT: If no callback is registered, store data in polling buffer
+        // This enables hybrid operation where some links use callbacks and others use polling
+        pPeerFifoLinkObj->DatReceiver.PollingBuffer.IsPollingMode = true;
 
-    // No receiver callback registered
-    return IOC_RESULT_NO_EVENT_CONSUMER;
+        IOC_Result_T StoreResult =
+            __IOC_storeDataInPollingBuffer(pPeerFifoLinkObj, pDatDesc->Payload.pData, pDatDesc->Payload.PtrDataSize);
+
+        if (StoreResult == IOC_RESULT_SUCCESS) {
+            return IOC_RESULT_SUCCESS;
+        } else if (StoreResult == IOC_RESULT_BUFFER_FULL) {
+            // Buffer is full, this could be treated as back-pressure
+            return IOC_RESULT_BUFFER_FULL;
+        } else {
+            return StoreResult;
+        }
+    }
 }
 
 /**
@@ -595,9 +650,54 @@ static IOC_Result_T __IOC_recvData_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_
         return IOC_RESULT_INVALID_PARAM;
     }
 
-    // ProtoFifo uses callback-based data delivery, polling mode not supported
-    // Data is delivered immediately through callback when sent
-    return IOC_RESULT_NOT_SUPPORT;
+    _IOC_ProtoFifoLinkObject_pT pFifoLinkObj = (_IOC_ProtoFifoLinkObject_pT)pLinkObj->pProtoPriv;
+    if (!pFifoLinkObj) {
+        return IOC_RESULT_NOT_EXIST_LINK;
+    }
+
+    // 🔒 THREAD SAFETY: Lock the link object mutex for polling buffer access
+    pthread_mutex_lock(&pFifoLinkObj->Mutex);
+
+    // 📊 CHECK POLLING MODE: Only proceed if this link is configured for polling
+    // Links with callbacks should use callback delivery, not polling
+    if (!pFifoLinkObj->DatReceiver.PollingBuffer.IsPollingMode) {
+        pthread_mutex_unlock(&pFifoLinkObj->Mutex);
+        return IOC_RESULT_NOT_SUPPORT;
+    }
+
+    // 🎛️ DETERMINE BLOCKING MODE: Check if options specify blocking or non-blocking
+    // Non-blocking mode is indicated by TIMEOUT option with TimeoutUS = 0
+    bool IsBlocking = true;  // Default to blocking
+    if (pOption && (pOption->IDs & IOC_OPTID_TIMEOUT) && (pOption->Payload.TimeoutUS == 0)) {
+        IsBlocking = false;
+    }
+
+    // 📦 READ DATA FROM POLLING BUFFER
+    size_t BytesRead = 0;
+    IOC_Result_T ReadResult = __IOC_readDataFromPollingBuffer(pFifoLinkObj, pDatDesc->Payload.pData,
+                                                              pDatDesc->Payload.PtrDataSize, &BytesRead, IsBlocking);
+
+    pthread_mutex_unlock(&pFifoLinkObj->Mutex);
+
+    if (ReadResult == IOC_RESULT_SUCCESS) {
+        // Update the data descriptor with actual bytes read
+        pDatDesc->Payload.PtrDataSize = BytesRead;
+        pDatDesc->Status = IOC_DAT_STATUS_STREAM_READY;
+        pDatDesc->Result = IOC_RESULT_SUCCESS;
+
+        printf("IOC_recvDAT: Received %zu bytes from polling buffer on LinkID=%llu\n", BytesRead, pLinkObj->ID);
+    } else if (ReadResult == IOC_RESULT_NO_DATA) {
+        // No data available in non-blocking mode
+        pDatDesc->Payload.PtrDataSize = 0;
+        pDatDesc->Status = IOC_DAT_STATUS_STREAM_READY;
+        pDatDesc->Result = IOC_RESULT_NO_DATA;
+    } else {
+        // Other error
+        pDatDesc->Status = IOC_DAT_STATUS_STREAM_ERROR;
+        pDatDesc->Result = ReadResult;
+    }
+
+    return ReadResult;
 }
 
 /**
@@ -637,6 +737,152 @@ static IOC_Result_T __IOC_setupDatReceiver_ofProtoFifo(_IOC_LinkObject_pT pLinkO
     }
 
     return IOC_RESULT_NOT_SUPPORT;
+}
+
+/**
+ * @brief Initialize polling buffer for a ProtoFifo link object
+ * @param pFifoLinkObj Pointer to the ProtoFifo link object
+ * @return IOC_RESULT_SUCCESS on success, IOC_RESULT_POSIX_ENOMEM on memory allocation failure
+ */
+static IOC_Result_T __IOC_initPollingBuffer_ofProtoFifo(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj) {
+    if (!pFifoLinkObj) {
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
+    // Initialize polling buffer for potential use
+    pFifoLinkObj->DatReceiver.PollingBuffer.pDataBuffer = malloc(_PROTO_FIFO_POLLING_BUFFER_SIZE);
+    if (!pFifoLinkObj->DatReceiver.PollingBuffer.pDataBuffer) {
+        return IOC_RESULT_POSIX_ENOMEM;
+    }
+
+    pFifoLinkObj->DatReceiver.PollingBuffer.BufferSize = _PROTO_FIFO_POLLING_BUFFER_SIZE;
+    pFifoLinkObj->DatReceiver.PollingBuffer.DataStart = 0;
+    pFifoLinkObj->DatReceiver.PollingBuffer.DataEnd = 0;
+    pFifoLinkObj->DatReceiver.PollingBuffer.AvailableData = 0;
+    pFifoLinkObj->DatReceiver.PollingBuffer.IsPollingMode = false;  // Default to callback mode
+
+    pthread_cond_init(&pFifoLinkObj->DatReceiver.PollingBuffer.DataAvailableCond, NULL);
+
+    return IOC_RESULT_SUCCESS;
+}
+
+/**
+ * @brief Clean up polling buffer for a ProtoFifo link object
+ * @param pFifoLinkObj Pointer to the ProtoFifo link object
+ */
+static void __IOC_cleanupPollingBuffer_ofProtoFifo(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj) {
+    if (!pFifoLinkObj) {
+        return;
+    }
+
+    if (pFifoLinkObj->DatReceiver.PollingBuffer.pDataBuffer) {
+        free(pFifoLinkObj->DatReceiver.PollingBuffer.pDataBuffer);
+        pFifoLinkObj->DatReceiver.PollingBuffer.pDataBuffer = NULL;
+    }
+
+    pthread_cond_destroy(&pFifoLinkObj->DatReceiver.PollingBuffer.DataAvailableCond);
+}
+
+/**
+ * @brief Store data in polling buffer (circular buffer implementation)
+ * @param pFifoLinkObj Pointer to the ProtoFifo link object
+ * @param pData Pointer to data to store
+ * @param DataSize Size of data to store
+ * @return IOC_RESULT_SUCCESS on success, IOC_RESULT_BUFFER_FULL if buffer is full
+ */
+static IOC_Result_T __IOC_storeDataInPollingBuffer(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj, const void *pData,
+                                                   size_t DataSize) {
+    if (!pFifoLinkObj || !pData || DataSize == 0) {
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
+    // Get direct reference to the polling buffer
+    char *pDataBuffer = pFifoLinkObj->DatReceiver.PollingBuffer.pDataBuffer;
+    size_t BufferSize = pFifoLinkObj->DatReceiver.PollingBuffer.BufferSize;
+    size_t DataEnd = pFifoLinkObj->DatReceiver.PollingBuffer.DataEnd;
+    size_t AvailableData = pFifoLinkObj->DatReceiver.PollingBuffer.AvailableData;
+
+    // Check if there's enough space in the buffer
+    size_t FreeSpace = BufferSize - AvailableData;
+    if (DataSize > FreeSpace) {
+        return IOC_RESULT_BUFFER_FULL;
+    }
+
+    // Store data in circular buffer
+    const char *pSrcData = (const char *)pData;
+    size_t BytesToEnd = BufferSize - DataEnd;
+
+    if (DataSize <= BytesToEnd) {
+        // Data fits without wrapping
+        memcpy(pDataBuffer + DataEnd, pSrcData, DataSize);
+        pFifoLinkObj->DatReceiver.PollingBuffer.DataEnd = (DataEnd + DataSize) % BufferSize;
+    } else {
+        // Data needs to wrap around
+        memcpy(pDataBuffer + DataEnd, pSrcData, BytesToEnd);
+        memcpy(pDataBuffer, pSrcData + BytesToEnd, DataSize - BytesToEnd);
+        pFifoLinkObj->DatReceiver.PollingBuffer.DataEnd = DataSize - BytesToEnd;
+    }
+
+    pFifoLinkObj->DatReceiver.PollingBuffer.AvailableData += DataSize;
+
+    // Signal that data is available for polling
+    pthread_cond_signal(&pFifoLinkObj->DatReceiver.PollingBuffer.DataAvailableCond);
+
+    return IOC_RESULT_SUCCESS;
+}
+
+/**
+ * @brief Read data from polling buffer (circular buffer implementation)
+ * @param pFifoLinkObj Pointer to the ProtoFifo link object
+ * @param pBuffer Destination buffer to store read data
+ * @param BufferSize Size of destination buffer
+ * @param pBytesRead Pointer to store actual bytes read
+ * @param IsBlocking Whether to block when no data is available
+ * @return IOC_RESULT_SUCCESS on success, IOC_RESULT_NO_DATA if no data available in non-blocking mode
+ */
+static IOC_Result_T __IOC_readDataFromPollingBuffer(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj, void *pBuffer,
+                                                    size_t BufferSize, size_t *pBytesRead, bool IsBlocking) {
+    if (!pFifoLinkObj || !pBuffer || !pBytesRead || BufferSize == 0) {
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
+    *pBytesRead = 0;
+
+    // Wait for data if blocking mode and no data available
+    if (IsBlocking) {
+        while (pFifoLinkObj->DatReceiver.PollingBuffer.AvailableData == 0) {
+            pthread_cond_wait(&pFifoLinkObj->DatReceiver.PollingBuffer.DataAvailableCond, &pFifoLinkObj->Mutex);
+        }
+    } else if (pFifoLinkObj->DatReceiver.PollingBuffer.AvailableData == 0) {
+        return IOC_RESULT_NO_DATA;
+    }
+
+    // Read data from circular buffer
+    size_t AvailableData = pFifoLinkObj->DatReceiver.PollingBuffer.AvailableData;
+    size_t DataToRead = (BufferSize < AvailableData) ? BufferSize : AvailableData;
+
+    char *pSrcBuffer = pFifoLinkObj->DatReceiver.PollingBuffer.pDataBuffer;
+    size_t DataStart = pFifoLinkObj->DatReceiver.PollingBuffer.DataStart;
+    size_t TotalBufferSize = pFifoLinkObj->DatReceiver.PollingBuffer.BufferSize;
+
+    char *pDestBuffer = (char *)pBuffer;
+    size_t BytesToEnd = TotalBufferSize - DataStart;
+
+    if (DataToRead <= BytesToEnd) {
+        // Data doesn't wrap around
+        memcpy(pDestBuffer, pSrcBuffer + DataStart, DataToRead);
+        pFifoLinkObj->DatReceiver.PollingBuffer.DataStart = (DataStart + DataToRead) % TotalBufferSize;
+    } else {
+        // Data wraps around
+        memcpy(pDestBuffer, pSrcBuffer + DataStart, BytesToEnd);
+        memcpy(pDestBuffer + BytesToEnd, pSrcBuffer, DataToRead - BytesToEnd);
+        pFifoLinkObj->DatReceiver.PollingBuffer.DataStart = DataToRead - BytesToEnd;
+    }
+
+    pFifoLinkObj->DatReceiver.PollingBuffer.AvailableData -= DataToRead;
+    *pBytesRead = DataToRead;
+
+    return IOC_RESULT_SUCCESS;
 }
 
 _IOC_SrvProtoMethods_T _gIOC_SrvProtoFifoMethods = {
