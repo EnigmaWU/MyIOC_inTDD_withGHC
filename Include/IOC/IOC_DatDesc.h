@@ -58,12 +58,12 @@ typedef struct {
  * @param streamID: stream identifier (auto-generated if 0)
  * @param chunkSize: size of data chunk to transfer
  */
-static inline void IOC_initDatDesc(IOC_DatDesc_pT pDatDesc, ULONG_T streamID, ULONG_T chunkSize) {
+static inline void IOC_initDatDesc(IOC_DatDesc_pT pDatDesc) {
     if (pDatDesc) {
         memset(pDatDesc, 0, sizeof(IOC_DatDesc_T));
         pDatDesc->Status = IOC_DAT_STATUS_STREAM_READY;
         pDatDesc->Result = IOC_RESULT_BUG;
-        clock_gettime(CLOCK_REALTIME, &pDatDesc->MsgDesc.TimeStamp);
+        // Note: No timestamp for simple version
     }
 }
 
