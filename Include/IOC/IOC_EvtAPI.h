@@ -116,8 +116,41 @@ IOC_Result_T IOC_unsubEVT(
  */
 void IOC_forceProcEVT(void);
 void IOC_wakeupProcEVT(void);
-// TODO: add IOC_forceProcEVT_byLinkID
-// TODO: add IOC_forceProcEVT_withOptionTimeout
+
+/**
+ * @brief EvtConsumer call this API to pull an event from the LinkID (polling mode).
+ *  IOC will deliver the event to the EvtConsumer who is pulling this event by the LinkID.
+ *  Here deliver means that IOC will copy the event description to the pEvtDesc.
+ *  This provides an alternative to the callback-based IOC_subEVT for controlled event consumption.
+ *
+ * @param LinkID: the link ID between EvtProducer and EvtConsumer.
+ *    RefMore: IOC_LinkID_T in IOC_Types.h
+ *    RefMore: README_ArchDesign::Object::Link
+ * @param pEvtDesc: pointer to the event description buffer to receive event details.
+ *    RefMore: IOC_EvtDesc_T in IOC_Types.h
+ * @param pOption: the options for this pullEVT.
+ *    Supported options: IOC_OPTID_TIMEOUT
+ *    - IOC_OPTID_TIMEOUT with TimeoutUS=0: non-blocking mode (immediate return)
+ *    - IOC_OPTID_TIMEOUT with TimeoutUS>0: blocking mode with timeout
+ *    - IOC_OPTID_TIMEOUT with TimeoutUS=IOC_TIMEOUT_INFINITE: blocking mode without timeout
+ *    - NULL or no IOC_OPTID_TIMEOUT: default non-blocking mode
+ *
+ * @return IOC_RESULT_SUCCESS: pullEVT successfully, event copied to pEvtDesc.
+ *         IOC_RESULT_NO_EVENT_CONSUMER: no events available (non-blocking mode).
+ *         IOC_RESULT_TIMEOUT: pullEVT timeout (when timeout configured).
+ *         IOC_RESULT_INVALID_PARAM: invalid parameters (pEvtDesc is NULL).
+ *         IOC_RESULT_NOT_EXIST_LINK: LinkID does not exist.
+ *         IOC_RESULT_XXX
+ *
+ * @note This API is thread-safe and can be used concurrently with IOC_subEVT on the same LinkID.
+ *       Each event will be delivered to only one consumer (first-come-first-served).
+ */
+IOC_Result_T IOC_pullEVT(
+    /*ARG_IN*/ IOC_LinkID_T LinkID,
+    /*ARG_OUT*/ IOC_EvtDesc_pT pEvtDesc,
+    /*ARG_IN_OPTIONAL*/ IOC_Options_pT pOption);
+
+#define IOC_pullEVT_inConlesMode(pEvtDesc, pOption) IOC_pullEVT(IOC_CONLES_MODE_AUTO_LINK_ID, pEvtDesc, pOption)
 #ifdef __cplusplus
 }
 #endif

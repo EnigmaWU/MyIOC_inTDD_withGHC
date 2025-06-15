@@ -19,7 +19,9 @@
   * Event Producer(a.k.a 【EvtProducer】) generates/triggers events.
     * EvtProducer will post events to IOC by IOC_postEVT API.
   * Event Consumer(a.k.a 【EvtConsumer】) processes events.
-    * EvtConsumer will subscribe or unsubscribe events to IOC by IOC_subEVT or IOC_unsubEVT API.
+    * EvtConsumer can consume events in two ways:
+      * **Callback Mode (Push)**: subscribe events via IOC_subEVT or IOC_unsubEVT API
+      * **Polling Mode (Pull)**: actively retrieve events via IOC_pullEVT API
 
 ## Conet vs Conles
 

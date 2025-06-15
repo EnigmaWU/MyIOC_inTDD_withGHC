@@ -104,6 +104,54 @@ IOC_Result_T IOC_postEVT_inConlesMode(const IOC_EvtDesc_T *pEvtDesc, IOC_Options
 - `IOC_OPTID_TIMEOUT`: 设置超时
 - `IOC_OPTID_SYNC_MODE`: 同步模式
 
+#### IOC_pullEVT_inConlesMode
+```c
+IOC_Result_T IOC_pullEVT_inConlesMode(IOC_EvtDesc_T *pEvtDesc, IOC_Options_T *pOption);
+```
+
+**功能**：主动拉取事件（无连接模式，轮询模式）
+
+**描述**：提供与回调模式 `IOC_subEVT` 互补的轮询模式事件获取机制，允许事件消费者主动控制事件处理时机。
+
+**参数**：
+- `pEvtDesc`: 输出参数，用于接收事件详情
+- `pOption`: 选项配置（可选）
+
+**返回值**：
+- `IOC_RESULT_SUCCESS`: 成功获取事件
+- `IOC_RESULT_NO_EVENT_CONSUMER`: 无可用事件（非阻塞模式）
+- `IOC_RESULT_TIMEOUT`: 等待超时
+- `IOC_RESULT_INVALID_PARAM`: 参数无效
+
+**支持的选项**：
+- `IOC_OPTID_TIMEOUT`: 设置阻塞模式和超时
+  - `TimeoutUS=0`: 非阻塞模式（立即返回）
+  - `TimeoutUS>0`: 阻塞模式，指定超时时间
+  - `TimeoutUS=IOC_TIMEOUT_INFINITE`: 无限等待模式
+- `NULL`: 默认非阻塞模式
+
+**使用场景**：
+- 状态机驱动的事件处理
+- 批量事件处理
+- 需要控制事件处理时机的场景
+- 与其他轮询操作集成
+
+**线程安全**：此 API 线程安全，可与 `IOC_subEVT` 同时使用，每个事件只会被一个消费者获取。
+
+**示例**：
+```c
+// 非阻塞轮询
+IOC_EvtDesc_T evtDesc;
+IOC_Result_T result = IOC_pullEVT_inConlesMode(&evtDesc, NULL);
+if (result == IOC_RESULT_SUCCESS) {
+    printf("Got event: %s\n", IOC_EvtDesc_printDetail(&evtDesc, NULL, 0));
+}
+
+// 带超时的阻塞模式
+IOC_Option_defineTimeout(timeoutOpt, 5000000);  // 5秒
+result = IOC_pullEVT_inConlesMode(&evtDesc, &timeoutOpt);
+```
+
 #### IOC_forceProcEVT
 ```c
 void IOC_forceProcEVT(void);
