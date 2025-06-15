@@ -1,6 +1,7 @@
 // Description: This file is the header file for the MyIOC module.
 
 #include "IOC_CmdAPI.h"
+#include "IOC_DatAPI.h"
 #include "IOC_EvtAPI.h"
 #include "IOC_Helpers.h"
 #include "IOC_SrvAPI.h"
