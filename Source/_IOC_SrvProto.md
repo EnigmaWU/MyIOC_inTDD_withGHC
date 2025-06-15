@@ -260,6 +260,7 @@ typedef struct _IOC_SrvProtoMethodsStru {
     
     // 通信接口
     IOC_Result_T (*OpSubEvt_F)(...);         // 订阅事件
+    IOC_Result_T (*OpUnsubEvt_F)(...);       // 取消订阅事件
     IOC_Result_T (*OpPostEvt_F)(...);        // 发布事件
     IOC_Result_T (*OpExecCmd_F)(...);        // 执行命令
     IOC_Result_T (*OpWaitCmd_F)(...);        // 等待命令
@@ -340,6 +341,7 @@ _IOC_SrvProtoMethods_T _gMyCustomProtoMethods = {
     
     // 通信接口（根据需要实现）
     .OpSubEvt_F = __my_subEvt,
+    .OpUnsubEvt_F = __my_unsubEvt,
     .OpPostEvt_F = __my_postEvt,
     .OpExecCmd_F = __my_execCmd,
     .OpWaitCmd_F = __my_waitCmd,
