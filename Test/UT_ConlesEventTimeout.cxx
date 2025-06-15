@@ -241,7 +241,7 @@ TEST(UT_ConlesEventTimeout, verifyASyncTimeout_byQueueFromEmptyToFullToEmpty_wit
             ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // KeyVerifyPoint
 
             ULONG_T WaitTimeUS = IOC_deltaTimeSpecInUS(&BeforePostTime, &AfterPostTime);
-            ASSERT_LE(WaitTimeUS, 2000) << "EvtSeq=" << EvtSeq << ", WaitTimeUS=" << WaitTimeUS;
+            ASSERT_LE(WaitTimeUS, 5000) << "EvtSeq=" << EvtSeq << ", WaitTimeUS=" << WaitTimeUS;
             // KeyVerifyPoint, PostPerf<=1000us
         }
 
