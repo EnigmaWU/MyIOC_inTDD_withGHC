@@ -348,9 +348,9 @@ TEST(UT_DataTypical, verifyDatSenderConnection_byConnectToOnlineService_expectSu
     };
 
     std::thread DatSenderThread([&] {
-        Result = IOC_connectService(&DatSenderLinkID, &ConnArgs, NULL);
+        IOC_Result_T ThreadResult = IOC_connectService(&DatSenderLinkID, &ConnArgs, NULL);
         // VerifyPoint: Connection success in thread context
-        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ThreadResult);
         // VerifyPoint: Valid LinkID returned
         ASSERT_NE(IOC_ID_INVALID, DatSenderLinkID);
     });
@@ -415,9 +415,11 @@ class UT_DataTypicalFixture : public ::testing::Test {
 
 /**
  * @[Name]: templateTypicalFixtureTestCase
- * @[Steps]: TODO
- * @[Expect]: TODO
- * @[Notes]: Template for typical DAT fixture-based tests
+ * @[Steps]:
+ *   1) Execute typical DAT operation using fixture setup AS BEHAVIOR.
+ *   2) Verify expected typical behavior AS VERIFY.
+ * @[Expect]: Template demonstrates fixture-based typical DAT test pattern.
+ * @[Notes]: Template for typical DAT fixture-based tests - replace with actual test implementation
  */
 TEST_F(UT_DataTypicalFixture, templateTypicalFixtureTestCase) {
     //===SETUP===
@@ -552,9 +554,9 @@ TEST(UT_DataTypical, verifyDatSenderTransmission_bySendCommonData_expectCallback
     };
 
     std::thread DatSenderThread([&] {
-        Result = IOC_connectService(&DatSenderLinkID, &ConnArgs, NULL);
-        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);       // VerifyPoint: Connection success
-        ASSERT_NE(IOC_ID_INVALID, DatSenderLinkID);  // VerifyPoint: Valid LinkID
+        IOC_Result_T ThreadResult = IOC_connectService(&DatSenderLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ThreadResult);  // VerifyPoint: Connection success
+        ASSERT_NE(IOC_ID_INVALID, DatSenderLinkID);   // VerifyPoint: Valid LinkID
     });
 
     // Accept the connection
