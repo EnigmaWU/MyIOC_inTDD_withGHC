@@ -58,6 +58,7 @@ typedef _IOC_ProtoFifoLinkObject_T *_IOC_ProtoFifoLinkObject_pT;
  */
 struct _IOC_ProtoFifoLinkObjectStru {
     pthread_mutex_t Mutex;
+    _IOC_LinkObject_pT pOwnerLinkObj;  // TDD FIX: Reference to the LinkObject that owns this ProtoFifoLinkObject
 
     _IOC_ProtoFifoLinkObject_pT pPeer;
     union {
@@ -291,6 +292,7 @@ static IOC_Result_T __IOC_connectService_ofProtoFifo(_IOC_LinkObject_pT pLinkObj
     }
 
     pthread_mutex_init(&pFifoLinkObj->Mutex, NULL);
+    pFifoLinkObj->pOwnerLinkObj = pLinkObj;  // TDD FIX: Store reference to owning LinkObject
 
     // Initialize polling buffer for potential DAT operations
     IOC_Result_T BufferResult = __IOC_initPollingBuffer_ofProtoFifo(pFifoLinkObj);
@@ -360,6 +362,7 @@ static IOC_Result_T __IOC_acceptClient_ofProtoFifo(_IOC_ServiceObject_pT pSrvObj
     }
 
     pthread_mutex_init(&pAceptedFifoLinkObj->Mutex, NULL);
+    pAceptedFifoLinkObj->pOwnerLinkObj = pLinkObj;  // TDD FIX: Store reference to owning LinkObject
 
     // Initialize polling buffer for potential DAT operations
     IOC_Result_T BufferResult = __IOC_initPollingBuffer_ofProtoFifo(pAceptedFifoLinkObj);
@@ -383,19 +386,30 @@ static IOC_Result_T __IOC_acceptClient_ofProtoFifo(_IOC_ServiceObject_pT pSrvObj
             pAceptedFifoLinkObj->pPeer = pConnFifoLinkObj;
             pConnFifoLinkObj->pPeer = pAceptedFifoLinkObj;
 
+            // TDD FIX: Save client link reference before clearing it
+            _IOC_LinkObject_pT pClientLinkObj = pFifoSrvObj->pConnLinkObj;
             pFifoSrvObj->pConnLinkObj = NULL;  // clear the connection link object
 
-            // 🔧 WHY SETUP DAT RECEIVER HERE: This is the critical moment when server-side
-            // link is fully established and peer connection is ready. We need to transfer
-            // DAT receiver configuration from service to the newly accepted link.
-            //
-            // 🎯 TIMING IS CRUCIAL: Must happen AFTER peer link setup but BEFORE signaling
-            // connection acceptance. This ensures that when the client-side gets the
-            // connection confirmation, the server-side is already ready to receive data.
-            //
-            // 💡 WHY NOT IN CONNECT: Client side doesn't know service's DAT configuration,
-            // only server side (which called IOC_onlineService) has the receiver callbacks.
-            __IOC_setupDatReceiver_ofProtoFifo(pLinkObj, pSrvObj);
+            // 🔧 TDD FIX: Setup DAT receiver for both server and client scenarios
+            // In US-1: Server is DatReceiver, setup server-side callbacks from service args
+            // In US-2: Client is DatReceiver, setup client-side callbacks from connection args
+            __IOC_setupDatReceiver_ofProtoFifo(pLinkObj, pSrvObj);  // Server-side setup
+
+            // TDD FIX: Also setup client-side DAT receiver if client connection has DAT receiver capability
+            if (pClientLinkObj && (pClientLinkObj->Args.Usage & IOC_LinkUsageDatReceiver) &&
+                pClientLinkObj->Args.UsageArgs.pDat) {
+                // Client is DatReceiver, setup callback for client-side link
+                _IOC_ProtoFifoLinkObject_pT pClientFifoLinkObj = pConnFifoLinkObj;  // Use saved reference
+
+                if (pClientFifoLinkObj) {
+                    pthread_mutex_lock(&pClientFifoLinkObj->Mutex);
+                    pClientFifoLinkObj->DatReceiver.CbRecvDat_F = pClientLinkObj->Args.UsageArgs.pDat->CbRecvDat_F;
+                    pClientFifoLinkObj->DatReceiver.pCbPrivData = pClientLinkObj->Args.UsageArgs.pDat->pCbPrivData;
+                    pClientFifoLinkObj->DatReceiver.IsReceiverRegistered =
+                        (pClientFifoLinkObj->DatReceiver.CbRecvDat_F != NULL);
+                    pthread_mutex_unlock(&pClientFifoLinkObj->Mutex);
+                }
+            }
 
             pthread_cond_signal(&pFifoSrvObj->WaitAccptedCond);
             pthread_mutex_unlock(&pFifoSrvObj->WaitAccptedMutex);
@@ -615,8 +629,10 @@ static IOC_Result_T __IOC_sendData_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, cons
     // - Peer link pattern = bidirectional communication support
     if (IsReceiverRegistered && CbRecvDat_F) {
         // Callback mode: deliver data immediately via callback
-        IOC_Result_T CallbackResult =
-            CbRecvDat_F(pLinkObj->ID, pDatDesc->Payload.pData, pDatDesc->Payload.PtrDataSize, pCbPrivData);
+        // 🔧 TDD FIX: Pass the receiver's LinkID (peer), not sender's LinkID (local)
+        // The callback should be invoked with the LinkID that the receiver registered for
+        IOC_Result_T CallbackResult = CbRecvDat_F(pPeerFifoLinkObj->pOwnerLinkObj->ID, pDatDesc->Payload.pData,
+                                                  pDatDesc->Payload.PtrDataSize, pCbPrivData);
         return CallbackResult;
     } else {
         // 📦 POLLING MODE SUPPORT: If no callback is registered, store data in polling buffer

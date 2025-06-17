@@ -457,6 +457,10 @@ static IOC_Result_T __IOC_connectServiceByProto(
     /*ARG_IN_OPTIONAL*/ const IOC_Options_pT pOption) {
     IOC_Result_T Result = IOC_RESULT_BUG;
 
+    // TDD FIX: Copy connection arguments to LinkObject before calling protocol-specific connect
+    // This ensures that protocol implementations can access the connection parameters
+    memcpy(&pLinkObj->Args, pConnArgs, sizeof(IOC_ConnArgs_T));
+
     // IF ProtoAuto, TRY OneByOne Proto in _mIOC_SrvProtoMethods until the first success or all failed.
     // ELSE: TRY the specified Proto in _mIOC_SrvProtoMethods and return the result.
     IOC_Bool_T IsProtoAuto = !strcmp(pConnArgs->SrvURI.pProtocol, IOC_SRV_PROTO_AUTO);
