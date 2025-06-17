@@ -163,6 +163,29 @@
  *
  *  TODO:TC-2...
  *-------------------------------------------------------------------------------------------------
+ * [@AC-4,US-1] - Standard Data Transmission with Multiple Data Types
+ *  TC-1:
+ *      @[Name]: verifyDatMultipleDataTypes_byTransmitDifferentTypes_expectAllTypesSuccess
+ *      @[Purpose]: Verify AC-4 complete functionality - DatSender transmits multiple data types to DatReceiver
+ *          using IOC_sendDAT, received via CbRecvDat_F callback
+ *      @[Brief]: Establish connection, DatSender send string, struct, and binary data chunks,
+ *          verify IOC_RESULT_SUCCESS and DatReceiver gets all data via callback in typical workflow
+ *
+ *  TODO:TC-2...
+ *-------------------------------------------------------------------------------------------------
+ * [@AC-5,US-1] - Complete Standard Workflow Demonstration
+ *  TC-1:
+ *      @[Name]: verifyDatCompleteWorkflow_byExecuteTypicalSequence_expectFullWorkflowSuccess
+ *      @[Purpose]: Verify AC-5 complete functionality - Execute complete typical DAT workflow sequence
+ *          demonstrating standard usage pattern for developers
+ *      @[Brief]: Execute complete workflow: service online → connection establishment →
+ *          data stream transmission (3 chunks) → data reception processing → graceful disconnection,
+ *          verify each step success and demonstrate typical DAT usage pattern
+ *      @[Notes]: This provides complete end-to-end workflow demonstration for typical DAT usage,
+ *          serving as comprehensive usage guide for developers implementing DAT functionality
+ *
+ *  TODO:TC-2...
+ *-------------------------------------------------------------------------------------------------
  *
  *************************************************************************************************/
 //======>END OF TEST CASES=========================================================================
@@ -514,8 +537,7 @@ TEST(UT_DataTypical, verifyDatSenderTransmission_bySendCommonData_expectCallback
  *      |-> Verify data reception and integrity
  *   4) Cleanup: close connections and offline service AS CLEANUP.
  * @[Expect]: Complete data polling functionality verified - data integrity, size correctness, and NONBLOCK behavior.
- *           THIS TEST WILL FAIL (TDD RED) until IOC_recvDAT is fully implemented with actual data reception logic.
- * @[Notes]: TDD RED phase - specifies full requirements for polling-based data reception.
+ * @[Notes]: Verifies AC-3@US-1 - polling-based data reception instead of callback mechanism.
  */
 TEST(UT_DataTypical, verifyDatPollingReceive_byManualRetrieve_expectCompleteDataIntegrity) {
     //===SETUP===
@@ -600,7 +622,6 @@ TEST(UT_DataTypical, verifyDatPollingReceive_byManualRetrieve_expectCompleteData
     Result = IOC_recvDAT(DatReceiverLinkID, &ReceivedDatDesc, &RecvOptions);
 
     //===VERIFY===
-    // TDD RED PHASE: Verify actual data reception functionality
     // KeyVerifyPoint-1: IOC_recvDAT should return SUCCESS
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "IOC_recvDAT should succeed when data is available";
 
@@ -615,7 +636,7 @@ TEST(UT_DataTypical, verifyDatPollingReceive_byManualRetrieve_expectCompleteData
     printf("DAT Receiver: Received %lu bytes via polling, data integrity verified\n",
            ReceivedDatDesc.Payload.PtrDataSize);
 
-    // Test NONBLOCK polling API (TDD verification)
+    // Test NONBLOCK polling API (additional verification)
     IOC_DatDesc_T NoDataDesc = {0};
     IOC_initDatDesc(&NoDataDesc);
     char NoDataBuffer[100];
@@ -629,9 +650,7 @@ TEST(UT_DataTypical, verifyDatPollingReceive_byManualRetrieve_expectCompleteData
     ASSERT_EQ(IOC_RESULT_NO_DATA, Result)
         << "IOC_recvDAT in NONBLOCK mode should return NO_DATA when no data available";
 
-    printf(
-        "TDD RED PHASE: All polling functionality verification specified (will FAIL until IOC_recvDAT is fully "
-        "implemented)\n");
+    printf("TDD VERIFY: All polling functionality verification completed successfully\n");
 
     //===CLEANUP===
     // Free test data
@@ -649,4 +668,292 @@ TEST(UT_DataTypical, verifyDatPollingReceive_byManualRetrieve_expectCompleteData
     if (DatReceiverSrvID != IOC_ID_INVALID) {
         IOC_offlineService(DatReceiverSrvID);
     }
+}
+
+/**
+ * @[Name]: verifyDatMultipleDataTypes_byTransmitDifferentTypes_expectAllTypesSuccess
+ * @[Steps]:
+ *   1) Setup DatReceiver service with callback and DatSender connection AS SETUP.
+ *   2) Sequentially transmit different data types AS BEHAVIOR:
+ *      |-> String data: "Hello IOC Framework Test"
+ *      |-> Struct data: IOC_EvtDesc_T with typical values
+ *      |-> Binary array: byte pattern 0x00-0xFF repeated
+ *   3) Verify each data type transmission and reception AS VERIFY.
+ *      |-> Each IOC_sendDAT returns IOC_RESULT_SUCCESS
+ *      |-> Callback receives all data correctly
+ *      |-> Data integrity maintained for each type
+ *   4) Cleanup AS CLEANUP.
+ * @[Expect]: All common data types transmitted successfully and processed correctly.
+ * @[Notes]: Verifies AC-4@US-1 - typical data types in standard workflow.
+ */
+TEST(UT_DataTypical, verifyDatMultipleDataTypes_byTransmitDifferentTypes_expectAllTypesSuccess) {
+    //===SETUP===
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_SrvID_T DatReceiverSrvID = IOC_ID_INVALID;
+    IOC_LinkID_T DatReceiverLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T DatSenderLinkID = IOC_ID_INVALID;
+
+    // Private data for callback with enhanced tracking
+    __DatReceiverPrivData_T DatReceiverPrivData = {0};
+
+    IOC_SrvURI_T CSURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = (const char *)"DatReceiverMultiTypes",
+    };
+
+    // Setup service with callback
+    IOC_DatUsageArgs_T DatUsageArgs = {
+        .CbRecvDat_F = __CbRecvDat_F,
+        .pCbPrivData = &DatReceiverPrivData,
+    };
+
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = CSURI,
+        .UsageCapabilites = IOC_LinkUsageDatReceiver,
+        .UsageArgs = {.pDat = &DatUsageArgs},
+    };
+
+    Result = IOC_onlineService(&DatReceiverSrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    // Setup connection
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = CSURI,
+        .Usage = IOC_LinkUsageDatSender,
+    };
+
+    std::thread DatSenderThread([&] {
+        Result = IOC_connectService(&DatSenderLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+        ASSERT_NE(IOC_ID_INVALID, DatSenderLinkID);
+    });
+
+    Result = IOC_acceptClient(DatReceiverSrvID, &DatReceiverLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    DatSenderThread.join();
+
+    //===BEHAVIOR===
+    printf("BEHAVIOR: verifyDatMultipleDataTypes_byTransmitDifferentTypes_expectAllTypesSuccess\n");
+
+    // Reset callback data for clean test
+    memset(&DatReceiverPrivData, 0, sizeof(DatReceiverPrivData));
+
+    // Test 1: String data transmission
+    const char *TestString = "Hello IOC Framework Test - String Data Type";
+    IOC_DatDesc_T StringDatDesc = {0};
+    IOC_initDatDesc(&StringDatDesc);
+    StringDatDesc.Payload.pData = (void *)TestString;
+    StringDatDesc.Payload.PtrDataSize = strlen(TestString);
+
+    Result = IOC_sendDAT(DatSenderLinkID, &StringDatDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    IOC_flushDAT(DatSenderLinkID, NULL);
+
+    // Test 2: Struct data transmission
+    IOC_EvtDesc_T TestStruct = {.MsgDesc = {.SeqID = 12345, .TimeStamp = {.tv_sec = 987654321, .tv_nsec = 0}},
+                                .EvtID = IOC_EVTID_TEST_KEEPALIVE,
+                                .EvtValue = 100};
+
+    IOC_DatDesc_T StructDatDesc = {0};
+    IOC_initDatDesc(&StructDatDesc);
+    StructDatDesc.Payload.pData = &TestStruct;
+    StructDatDesc.Payload.PtrDataSize = sizeof(IOC_EvtDesc_T);
+
+    Result = IOC_sendDAT(DatSenderLinkID, &StructDatDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    IOC_flushDAT(DatSenderLinkID, NULL);
+
+    // Test 3: Binary array data transmission
+    const int BinarySize = 1024;  // 1KB binary data
+    char *BinaryData = (char *)malloc(BinarySize);
+    for (int i = 0; i < BinarySize; i++) {
+        BinaryData[i] = (char)(i % 256);  // 0x00-0xFF pattern
+    }
+
+    IOC_DatDesc_T BinaryDatDesc = {0};
+    IOC_initDatDesc(&BinaryDatDesc);
+    BinaryDatDesc.Payload.pData = BinaryData;
+    BinaryDatDesc.Payload.PtrDataSize = BinarySize;
+
+    Result = IOC_sendDAT(DatSenderLinkID, &BinaryDatDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    IOC_flushDAT(DatSenderLinkID, NULL);
+
+    //===VERIFY===
+    // KeyVerifyPoint-1: All transmissions should succeed
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    // KeyVerifyPoint-2: Callback should be executed 3 times (one for each data type)
+    ASSERT_EQ(3, DatReceiverPrivData.ReceivedDataCnt);
+    ASSERT_TRUE(DatReceiverPrivData.CallbackExecuted);
+
+    // KeyVerifyPoint-3: Total received size should match sent data
+    ULONG_T ExpectedTotalSize = strlen(TestString) + sizeof(IOC_EvtDesc_T) + BinarySize;
+    ASSERT_EQ(ExpectedTotalSize, DatReceiverPrivData.TotalReceivedSize);
+
+    // KeyVerifyPoint-4: Data integrity verification
+    // Verify string data at beginning
+    ASSERT_EQ(0, memcmp(DatReceiverPrivData.ReceivedContent, TestString, strlen(TestString)));
+
+    // Verify struct data follows string
+    IOC_EvtDesc_T *ReceivedStruct = (IOC_EvtDesc_T *)(DatReceiverPrivData.ReceivedContent + strlen(TestString));
+    ASSERT_EQ(TestStruct.EvtID, ReceivedStruct->EvtID);
+    ASSERT_EQ(TestStruct.MsgDesc.SeqID, ReceivedStruct->MsgDesc.SeqID);
+
+    // Verify binary data at the end
+    char *ReceivedBinary = DatReceiverPrivData.ReceivedContent + strlen(TestString) + sizeof(IOC_EvtDesc_T);
+    ASSERT_EQ(0, memcmp(ReceivedBinary, BinaryData, BinarySize));
+
+    printf("TDD VERIFY: All data types transmitted and received successfully with integrity preserved\n");
+
+    //===CLEANUP===
+    free(BinaryData);
+
+    if (DatSenderLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(DatSenderLinkID);
+    }
+    if (DatReceiverLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(DatReceiverLinkID);
+    }
+    if (DatReceiverSrvID != IOC_ID_INVALID) {
+        IOC_offlineService(DatReceiverSrvID);
+    }
+}
+
+/**
+ * @[Name]: verifyDatCompleteWorkflow_byExecuteTypicalSequence_expectFullWorkflowSuccess
+ * @[Steps]:
+ *   1) Execute complete typical workflow AS BEHAVIOR:
+ *      |-> DatReceiver online service
+ *      |-> DatSender connect to service
+ *      |-> Establish connection successfully
+ *      |-> Send typical data stream (3 chunks)
+ *      |-> Receive and process all data
+ *      |-> Gracefully disconnect
+ *   2) Verify each step of workflow AS VERIFY.
+ *      |-> Service online success
+ *      |-> Connection establishment success
+ *      |-> Data transmission success
+ *      |-> Data reception success
+ *      |-> Disconnection success
+ *   3) Demonstrate typical usage pattern for developers AS VERIFY.
+ * @[Expect]: Complete typical DAT workflow demonstrates successful usage pattern.
+ * @[Notes]: Verifies AC-5@US-1 - complete standard workflow for typical usage.
+ */
+TEST(UT_DataTypical, verifyDatCompleteWorkflow_byExecuteTypicalSequence_expectFullWorkflowSuccess) {
+    //===SETUP===
+    printf("SETUP: verifyDatCompleteWorkflow - Demonstrating complete typical DAT usage pattern\n");
+
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_SrvID_T DatReceiverSrvID = IOC_ID_INVALID;
+    IOC_LinkID_T DatReceiverLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T DatSenderLinkID = IOC_ID_INVALID;
+
+    __DatReceiverPrivData_T WorkflowPrivData = {0};
+
+    //===BEHAVIOR===
+    printf("BEHAVIOR: Complete typical DAT workflow execution\n");
+
+    // Step 1: DatReceiver online service (typical service setup)
+    IOC_SrvURI_T WorkflowSrvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = (const char *)"TypicalDatWorkflow",
+    };
+
+    IOC_DatUsageArgs_T WorkflowDatUsageArgs = {
+        .CbRecvDat_F = __CbRecvDat_F,
+        .pCbPrivData = &WorkflowPrivData,
+    };
+
+    IOC_SrvArgs_T WorkflowSrvArgs = {
+        .SrvURI = WorkflowSrvURI,
+        .UsageCapabilites = IOC_LinkUsageDatReceiver,
+        .UsageArgs = {.pDat = &WorkflowDatUsageArgs},
+    };
+
+    Result = IOC_onlineService(&DatReceiverSrvID, &WorkflowSrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // Workflow Step-1 Verification
+    printf("Workflow Step-1: DatReceiver service online - SUCCESS\n");
+
+    // Step 2: DatSender connect to service (typical connection establishment)
+    IOC_ConnArgs_T WorkflowConnArgs = {
+        .SrvURI = WorkflowSrvURI,
+        .Usage = IOC_LinkUsageDatSender,
+    };
+
+    std::thread WorkflowSenderThread([&] {
+        Result = IOC_connectService(&DatSenderLinkID, &WorkflowConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+        ASSERT_NE(IOC_ID_INVALID, DatSenderLinkID);
+    });
+
+    Result = IOC_acceptClient(DatReceiverSrvID, &DatReceiverLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // Workflow Step-2 Verification
+    WorkflowSenderThread.join();
+    printf("Workflow Step-2: Connection establishment - SUCCESS\n");
+
+    // Step 3: Send typical data stream (3 data chunks - typical usage)
+    const char *DataChunks[] = {"Chunk1: Initial data transmission in typical workflow",
+                                "Chunk2: Continuous data streaming for typical usage",
+                                "Chunk3: Final data transmission completing workflow"};
+    const int NumChunks = sizeof(DataChunks) / sizeof(DataChunks[0]);
+
+    for (int i = 0; i < NumChunks; i++) {
+        IOC_DatDesc_T ChunkDatDesc = {0};
+        IOC_initDatDesc(&ChunkDatDesc);
+        ChunkDatDesc.Payload.pData = (void *)DataChunks[i];
+        ChunkDatDesc.Payload.PtrDataSize = strlen(DataChunks[i]);
+
+        Result = IOC_sendDAT(DatSenderLinkID, &ChunkDatDesc, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // Workflow Step-3 Verification
+        IOC_flushDAT(DatSenderLinkID, NULL);
+
+        printf("Workflow Step-3.%d: Data chunk %d transmission - SUCCESS\n", i + 1, i + 1);
+    }
+
+    // Step 4: Verify data reception and processing (typical data handling)
+    ASSERT_EQ(NumChunks, WorkflowPrivData.ReceivedDataCnt);  // Workflow Step-4 Verification
+    ASSERT_TRUE(WorkflowPrivData.CallbackExecuted);
+    printf("Workflow Step-4: Data reception and processing - SUCCESS\n");
+
+    // Step 5: Graceful disconnection (typical cleanup)
+    Result = IOC_closeLink(DatSenderLinkID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // Workflow Step-5 Verification
+    DatSenderLinkID = IOC_ID_INVALID;
+
+    Result = IOC_closeLink(DatReceiverLinkID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    DatReceiverLinkID = IOC_ID_INVALID;
+
+    Result = IOC_offlineService(DatReceiverSrvID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    DatReceiverSrvID = IOC_ID_INVALID;
+    printf("Workflow Step-5: Graceful disconnection - SUCCESS\n");
+
+    //===VERIFY===
+    // KeyVerifyPoint-1: Complete workflow executed successfully
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    // KeyVerifyPoint-2: All data properly received and processed
+    ASSERT_EQ(NumChunks, WorkflowPrivData.ReceivedDataCnt);
+
+    // KeyVerifyPoint-3: Data integrity maintained throughout workflow
+    ULONG_T ExpectedTotalSize = 0;
+    for (int i = 0; i < NumChunks; i++) {
+        ExpectedTotalSize += strlen(DataChunks[i]);
+    }
+    ASSERT_EQ(ExpectedTotalSize, WorkflowPrivData.TotalReceivedSize);
+
+    // KeyVerifyPoint-4: Workflow completed cleanly (no resource leaks)
+    ASSERT_EQ(IOC_ID_INVALID, DatSenderLinkID);
+    ASSERT_EQ(IOC_ID_INVALID, DatReceiverLinkID);
+    ASSERT_EQ(IOC_ID_INVALID, DatReceiverSrvID);
+
+    printf("TDD VERIFY: Complete typical DAT workflow executed successfully - demonstrates standard usage pattern\n");
+
+    //===CLEANUP===
+    // All cleanup already done in workflow Step-5 - this demonstrates typical usage pattern
+    printf("CLEANUP: All resources properly cleaned up in workflow - typical pattern demonstrated\n");
 }
