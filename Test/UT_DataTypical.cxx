@@ -20,7 +20,9 @@
  *  - DatSender发送数据到DatReceiver的标准流程
  *  - 常见数据大小和类型的传输
  *  - 标准的连接建立和数据传输模式
- *  - 典型的回调接收处理
+ *      - Service端作为DatReceiver，Client端作为DatSender
+ *      - Service端作为DatSender，Client端作为DatReceiver
+ *  - 典型的回调接收处理 和 手动轮询接收处理
  *
  *  不包括：
  *  - 边界条件测试
