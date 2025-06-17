@@ -160,6 +160,8 @@
  *         THEN entire standard server workflow completes successfully,
  *          AND demonstrates typical DAT server-side usage pattern for developers.
  *
+ *  TODO:AC-6@US-2: ... (其他典型场景验收标准)
+ *
  */
 //=======>END OF ACCEPTANCE CRITERIA================================================================
 
