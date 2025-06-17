@@ -49,7 +49,7 @@
  *
  * 🔲 BOUNDARY (边界测试):
  *    💭 Purpose: Test edge cases and parameter limits
- *    🎯 Focus: Min/max values, null/empty inputs, overflow conditions
+ *    🎯 Focus: Min/max values, null/empty inputs, overflow conditions, Block/NonBlock/Timeout
  *    📝 Examples: Zero timeout, maximum string length, null pointers
  *    ⏰ When: High priority, right after typical cases
  *
