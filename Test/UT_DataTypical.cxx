@@ -189,10 +189,18 @@
  *      @[Name]: verifyDatSenderTransmission_bySendCommonData_expectCallbackReceiveSuccess
  *      @[Purpose]: Verify AC-2 complete functionality - DatSender transmits typical data to DatReceiver
  *          using IOC_sendDAT, received via CbRecvDat_F callback
- *      @[Brief]: Establish connection, DatSender send common data chunk (text, 10KB),
+ *      @[Brief]: Establish connection, DatSender send common data chunk (**text**, 10KB),
  *          verify IOC_RESULT_SUCCESS and DatReceiver gets complete data via callback in typical workflow
  *
- *  TODO:TC-2...
+ *  TC-2:
+ *      @[Name]: verifyDatSenderTransmission_byBinaryDataRange_expectCallbackIntegritySuccess
+ *      @[Purpose]: Verify AC-2 **binary** data support - DatSender transmits typical binary data in different sizes
+ *          testing the 1KB-100KB range mentioned in AC-2.
+ *      @[Brief]: Establish connection, DatSender send binary data chunks (1KB, 50KB, 100KB) with default attributes,
+ *          verify IOC_RESULT_SUCCESS for all sizes and DatReceiver gets complete binary data via callback
+ *      @[Notes]: Complements TC-1 **text** data testing, covers binary data type and size range from AC-2
+ *
+ *  TODO:TC-3...
  *-------------------------------------------------------------------------------------------------
  * [@AC-3,US-1] - Standard Data Transmission with Polling
  *  TC-1:
