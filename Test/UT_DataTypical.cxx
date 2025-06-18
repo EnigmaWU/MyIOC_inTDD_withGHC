@@ -4,6 +4,7 @@
 // 🔄 流程: User Story → Acceptance Criteria → Test Cases → Implementation
 // 📂 分类: DataTypical - 专注于DAT数据传输的典型使用场景
 // 🎯 重点: 典型的DatSender/DatReceiver数据传输模式和常见使用方法
+// Reference Unit Testing Templates in UT_FreelyDrafts.cxx when needed.
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -295,8 +296,8 @@
 
 #include "_UT_IOC_Common.h"
 
-//===TEMPLATE FOR DAT TYPICAL TESTS===
-
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF: [@AC-1,US-1]====================================================================
 /**
  * @[Name]: verifyDatSenderConnection_byConnectToOnlineService_expectSuccessAndValidLinkID
  * @[Steps]:
@@ -380,92 +381,10 @@ TEST(UT_DataTypical, verifyDatSenderConnection_byConnectToOnlineService_expectSu
         IOC_offlineService(DatReceiverSrvID);
     }
 }
-
-//===TEST FIXTURE FOR TYPICAL DAT SCENARIOS===
-
-/**
- * @brief DataTypical测试夹具类，用于管理典型DAT传输测试场景
- */
-class UT_DataTypicalFixture : public ::testing::Test {
-   protected:
-    static void SetUpTestSuite() {
-        printf("UT_DataTypicalFixture->SETUP: SetUpTestSuite - Initializing typical DAT test environment\n");
-        // TODO: Global typical test environment setup
-    }
-
-    static void TearDownTestSuite() {
-        printf("UT_DataTypicalFixture->CLEANUP: TearDownTestSuite - Cleaning up typical DAT test environment\n");
-        // TODO: Global typical test environment cleanup
-    }
-
-    void SetUp() override {
-        printf("UT_DataTypicalFixture->SETUP: SetUp - Preparing typical DAT test scenario\n");
-        // TODO: Per-test typical setup
-    }
-
-    void TearDown() override {
-        printf("UT_DataTypicalFixture->CLEANUP: TearDown - Cleaning typical DAT test scenario\n");
-        // TODO: Per-test typical cleanup
-    }
-
-    // TODO: Add helper methods for typical DAT operations during TDD development
-
-    // TODO: Add typical test data members during TDD development
-};
-
-/**
- * @[Name]: templateTypicalFixtureTestCase
- * @[Steps]:
- *   1) Execute typical DAT operation using fixture setup AS BEHAVIOR.
- *   2) Verify expected typical behavior AS VERIFY.
- * @[Expect]: Template demonstrates fixture-based typical DAT test pattern.
- * @[Notes]: Template for typical DAT fixture-based tests - replace with actual test implementation
- */
-TEST_F(UT_DataTypicalFixture, templateTypicalFixtureTestCase) {
-    //===SETUP===
-    // TODO: Test-specific typical setup (Fixture handles common setup)
-
-    //===BEHAVIOR===
-    printf("DataTypicalFixture->BEHAVIOR: ${typical DAT operation}\n");
-    // TODO: Execute typical DAT behavior
-
-    //===VERIFY===
-    // TODO: Verify typical expected results
-
-    //===CLEANUP===
-    // TODO: Test-specific typical cleanup (Fixture handles common cleanup)
-}
-
-//======END OF UNIT TESTING IMPLEMENTATION=========================================================
-///////////////////////////////////////////////////////////////////////////////////////////////////
-
-// TODO(@DataTypical): Add typical DAT test cases during TDD development
-//  Focus ONLY on typical scenarios:
-//  - Standard DatSender/DatReceiver operations
-//  - Common data sizes and types
-//  - Normal connection and transfer flows
-//  - Regular callback handling
+//======>END OF: [@AC-1,US-1]======================================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// 💡 TYPICAL DAT EXAMPLES - 典型DAT使用场景示例
-///////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * @brief 【示例：典型DAT传输】
- * 演示最常见的DatSender到DatReceiver数据传输场景
- */
-TEST(UT_DataTypical_Examples, typicalDatTransfer_example) {
-    printf("EXAMPLE: Most common DAT transfer scenario\n");
-
-    // 典型场景演示：
-    // 1. 建立标准连接
-    // 2. 发送常见大小的数据
-    // 3. 接收方正常接收和处理
-    // 4. 正常完成传输
-
-    ASSERT_TRUE(true);  // 典型场景演示，无实际验证
-}
-
+//======>BEGIN OF: [@AC-2,US-1]====================================================================
 // Private data structure for DAT receiver callback (TDD Design)
 typedef struct {
     int ReceivedDataCnt;
@@ -624,7 +543,10 @@ TEST(UT_DataTypical, verifyDatSenderTransmission_bySendCommonData_expectCallback
         IOC_offlineService(DatReceiverSrvID);
     }
 }
+//======>END OF: [@AC-2,US-1]======================================================================
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF: [@AC-3,US-1]====================================================================
 /**
  * @[Name]: verifyDatPollingReceive_byManualRetrieve_expectCompleteDataIntegrity
  * @[Steps]:
@@ -773,7 +695,10 @@ TEST(UT_DataTypical, verifyDatPollingReceive_byManualRetrieve_expectCompleteData
         IOC_offlineService(DatReceiverSrvID);
     }
 }
+//======>END OF: [@AC-3,US-1]======================================================================
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF: [@AC-4,US-1]====================================================================
 /**
  * @[Name]: verifyDatMultipleDataTypes_byTransmitDifferentTypes_expectAllTypesSuccess
  * @[Steps]:
@@ -924,7 +849,10 @@ TEST(UT_DataTypical, verifyDatMultipleDataTypes_byTransmitDifferentTypes_expectA
         IOC_offlineService(DatReceiverSrvID);
     }
 }
+//======>END OF: [@AC-4,US-1]======================================================================
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF: [@AC-5,US-1]====================================================================
 /**
  * @[Name]: verifyDatCompleteWorkflow_byExecuteTypicalSequence_expectFullWorkflowSuccess
  * @[Steps]:
@@ -1061,9 +989,11 @@ TEST(UT_DataTypical, verifyDatCompleteWorkflow_byExecuteTypicalSequence_expectFu
     // All cleanup already done in workflow Step-5 - this demonstrates typical usage pattern
     printf("CLEANUP: All resources properly cleaned up in workflow - typical pattern demonstrated\n");
 }
+//======>END OF: [@AC-5,US-1]======================================================================
 
 // 🆕 US-2 TEST CASES - DatSender as Server Pattern
-
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF: [@AC-1,US-2]====================================================================
 /**
  * @[Name]: verifyDatSenderService_byOnlineAndAcceptReceiver_expectSuccessAndValidLinkID
  * @[Steps]:
@@ -1150,7 +1080,10 @@ TEST(UT_DataTypical, verifyDatSenderService_byOnlineAndAcceptReceiver_expectSucc
         IOC_offlineService(DatSenderSrvID);
     }
 }
+//======>END OF: [@AC-1,US-2]======================================================================
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF: [@AC-2,US-2]====================================================================
 /**
  * @[Name]: verifyDatSenderService_bySendToConnectedReceiver_expectCallbackSuccess
  * @[Steps]:
@@ -1299,7 +1232,10 @@ TEST(UT_DataTypical, verifyDatSenderService_bySendToConnectedReceiver_expectCall
         IOC_offlineService(DatSenderSrvID);
     }
 }
+//======>END OF: [@AC-2,US-2]======================================================================
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF: [@AC-3,US-2]====================================================================
 /**
  * @[Name]: verifyDatSenderService_bySendToPollingReceiver_expectPollingSuccess
  * @[Steps]:
@@ -1450,7 +1386,10 @@ TEST(UT_DataTypical, verifyDatSenderService_bySendToPollingReceiver_expectPollin
         IOC_offlineService(DatSenderSrvID);
     }
 }
+//======>END OF: [@AC-3,US-2]======================================================================
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF: [@AC-5,US-2]====================================================================
 /**
  * @[Name]: verifyDatSenderService_byCompleteServerWorkflow_expectFullWorkflowSuccess
  * @[Steps]:
@@ -1659,3 +1598,7 @@ TEST(UT_DataTypical, verifyDatSenderService_byCompleteServerWorkflow_expectFullW
         DatSenderSrvID = IOC_ID_INVALID;
     }
 }
+//======>END OF: [@AC-5,US-2]======================================================================
+
+//======END OF UNIT TESTING IMPLEMENTATION=========================================================
+///////////////////////////////////////////////////////////////////////////////////////////////////
