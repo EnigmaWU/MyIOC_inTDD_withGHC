@@ -305,7 +305,7 @@
  *      |-> SrvArgs.UsageCapabilites = IOC_LinkUsageDatReceiver
  *      |-> SrvArgs.SrvURI.pProtocol = IOC_SRV_PROTO_FIFO
  *      |-> SrvArgs.SrvURI.pHost = IOC_SRV_HOST_LOCAL_PROCESS
- *      |-> SrvArgs.SrvURI.pPath = "DatReceiver"
+ *      |-> SrvArgs.SrvURI.pPath = "DatReceiver_Connection"
  *   2) DatSender connect to the service with typical parameters AS BEHAVIOR.
  *      |-> ConnArgs.Usage = IOC_LinkUsageDatSender
  *      |-> ConnArgs.SrvURI = same as service SrvURI
@@ -324,15 +324,15 @@ TEST(UT_DataTypical, verifyDatSenderConnection_byConnectToOnlineService_expectSu
     IOC_LinkID_T DatSenderLinkID = IOC_ID_INVALID;
 
     // Standard SrvURI for typical DAT communication
-    IOC_SrvURI_T CSURI = {
+    IOC_SrvURI_T DatReceiverSrvURI = {
         .pProtocol = IOC_SRV_PROTO_FIFO,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = (const char *)"DatReceiver",
+        .pPath = (const char *)"DatReceiver_Connection",
     };
 
     // Step-1: Setup DatReceiver service online
     IOC_SrvArgs_T SrvArgs = {
-        .SrvURI = CSURI,
+        .SrvURI = DatReceiverSrvURI,
         .UsageCapabilites = IOC_LinkUsageDatReceiver,
     };
 
@@ -344,7 +344,7 @@ TEST(UT_DataTypical, verifyDatSenderConnection_byConnectToOnlineService_expectSu
 
     // Step-2: DatSender connect to the service with typical parameters
     IOC_ConnArgs_T ConnArgs = {
-        .SrvURI = CSURI,
+        .SrvURI = DatReceiverSrvURI,
         .Usage = IOC_LinkUsageDatSender,
     };
 
@@ -442,10 +442,10 @@ TEST(UT_DataTypical, verifyDatSenderTransmission_bySendCommonData_expectCallback
     __DatReceiverPrivData_T DatReceiverPrivData = {0};
 
     // Standard SrvURI for typical DAT communication
-    IOC_SrvURI_T CSURI = {
+    IOC_SrvURI_T DatReceiverSrvURI = {
         .pProtocol = IOC_SRV_PROTO_FIFO,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = (const char *)"DatReceiverCallback",
+        .pPath = (const char *)"DatReceiver_Callback",
     };
 
     // Step-1: Setup DatReceiver service with callback
@@ -455,7 +455,7 @@ TEST(UT_DataTypical, verifyDatSenderTransmission_bySendCommonData_expectCallback
     };
 
     IOC_SrvArgs_T SrvArgs = {
-        .SrvURI = CSURI,
+        .SrvURI = DatReceiverSrvURI,
         .UsageCapabilites = IOC_LinkUsageDatReceiver,
         .UsageArgs =
             {
@@ -466,9 +466,9 @@ TEST(UT_DataTypical, verifyDatSenderTransmission_bySendCommonData_expectCallback
     Result = IOC_onlineService(&DatReceiverSrvID, &SrvArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint: Service online success
 
-    // Setup DatSender connection
+    // Setup DatSender connection for callback test
     IOC_ConnArgs_T ConnArgs = {
-        .SrvURI = CSURI,
+        .SrvURI = DatReceiverSrvURI,
         .Usage = IOC_LinkUsageDatSender,
     };
 
@@ -573,24 +573,24 @@ TEST(UT_DataTypical, verifyDatPollingReceive_byManualRetrieve_expectCompleteData
     IOC_LinkID_T DatSenderLinkID = IOC_ID_INVALID;
 
     // Standard SrvURI for typical DAT communication
-    IOC_SrvURI_T CSURI = {
+    IOC_SrvURI_T DatReceiverSrvURI = {
         .pProtocol = IOC_SRV_PROTO_FIFO,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = (const char *)"DatReceiverPolling",
+        .pPath = (const char *)"DatReceiver_Polling",
     };
 
     // Step-1: Setup DatReceiver service WITHOUT callback (polling mode)
     IOC_SrvArgs_T SrvArgs = {
-        .SrvURI = CSURI, .UsageCapabilites = IOC_LinkUsageDatReceiver,
+        .SrvURI = DatReceiverSrvURI, .UsageCapabilites = IOC_LinkUsageDatReceiver,
         // No UsageArgs means no callback - pure polling mode
     };
 
     Result = IOC_onlineService(&DatReceiverSrvID, &SrvArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint: Service online success
 
-    // Setup DatSender connection
+    // Setup DatSender connection for polling test
     IOC_ConnArgs_T ConnArgs = {
-        .SrvURI = CSURI,
+        .SrvURI = DatReceiverSrvURI,
         .Usage = IOC_LinkUsageDatSender,
     };
 
@@ -725,10 +725,10 @@ TEST(UT_DataTypical, verifyDatMultipleDataTypes_byTransmitDifferentTypes_expectA
     // Private data for callback with enhanced tracking
     __DatReceiverPrivData_T DatReceiverPrivData = {0};
 
-    IOC_SrvURI_T CSURI = {
+    IOC_SrvURI_T DatReceiverSrvURI = {
         .pProtocol = IOC_SRV_PROTO_FIFO,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = (const char *)"DatReceiverMultiTypes",
+        .pPath = (const char *)"DatReceiver_MultiTypes",
     };
 
     // Setup service with callback
@@ -738,7 +738,7 @@ TEST(UT_DataTypical, verifyDatMultipleDataTypes_byTransmitDifferentTypes_expectA
     };
 
     IOC_SrvArgs_T SrvArgs = {
-        .SrvURI = CSURI,
+        .SrvURI = DatReceiverSrvURI,
         .UsageCapabilites = IOC_LinkUsageDatReceiver,
         .UsageArgs = {.pDat = &DatUsageArgs},
     };
@@ -746,9 +746,9 @@ TEST(UT_DataTypical, verifyDatMultipleDataTypes_byTransmitDifferentTypes_expectA
     Result = IOC_onlineService(&DatReceiverSrvID, &SrvArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
 
-    // Setup connection
+    // Setup connection for multiple data types test
     IOC_ConnArgs_T ConnArgs = {
-        .SrvURI = CSURI,
+        .SrvURI = DatReceiverSrvURI,
         .Usage = IOC_LinkUsageDatSender,
     };
 
@@ -888,10 +888,10 @@ TEST(UT_DataTypical, verifyDatCompleteWorkflow_byExecuteTypicalSequence_expectFu
     printf("BEHAVIOR: Complete typical DAT workflow execution\n");
 
     // Step 1: DatReceiver online service (typical service setup)
-    IOC_SrvURI_T WorkflowSrvURI = {
+    IOC_SrvURI_T DatWorkflowSrvURI = {
         .pProtocol = IOC_SRV_PROTO_FIFO,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = (const char *)"TypicalDatWorkflow",
+        .pPath = (const char *)"DatReceiver_Workflow",
     };
 
     IOC_DatUsageArgs_T WorkflowDatUsageArgs = {
@@ -900,7 +900,7 @@ TEST(UT_DataTypical, verifyDatCompleteWorkflow_byExecuteTypicalSequence_expectFu
     };
 
     IOC_SrvArgs_T WorkflowSrvArgs = {
-        .SrvURI = WorkflowSrvURI,
+        .SrvURI = DatWorkflowSrvURI,
         .UsageCapabilites = IOC_LinkUsageDatReceiver,
         .UsageArgs = {.pDat = &WorkflowDatUsageArgs},
     };
@@ -911,7 +911,7 @@ TEST(UT_DataTypical, verifyDatCompleteWorkflow_byExecuteTypicalSequence_expectFu
 
     // Step 2: DatSender connect to service (typical connection establishment)
     IOC_ConnArgs_T WorkflowConnArgs = {
-        .SrvURI = WorkflowSrvURI,
+        .SrvURI = DatWorkflowSrvURI,
         .Usage = IOC_LinkUsageDatSender,
     };
 
@@ -1001,7 +1001,7 @@ TEST(UT_DataTypical, verifyDatCompleteWorkflow_byExecuteTypicalSequence_expectFu
  *      |-> DatSender online service with IOC_LinkUsageDatSender
  *      |-> SrvArgs.SrvURI.pProtocol = IOC_SRV_PROTO_FIFO
  *      |-> SrvArgs.SrvURI.pHost = IOC_SRV_HOST_LOCAL_PROCESS
- *      |-> SrvArgs.SrvURI.pPath = "DatSenderService"
+ *      |-> SrvArgs.SrvURI.pPath = "DatSender_Connection"
  *   2) DatReceiver connect to the DatSender service AS BEHAVIOR.
  *      |-> DatReceiver calls IOC_connectService with Usage=IOC_LinkUsageDatReceiver
  *      |-> DatSender accepts connection with IOC_acceptClient
@@ -1021,15 +1021,15 @@ TEST(UT_DataTypical, verifyDatSenderService_byOnlineAndAcceptReceiver_expectSucc
     IOC_LinkID_T DatReceiverLinkID = IOC_ID_INVALID;
 
     // Standard SrvURI for DatSender service (reversed role)
-    IOC_SrvURI_T SenderSrvURI = {
+    IOC_SrvURI_T DatSenderSrvURI = {
         .pProtocol = IOC_SRV_PROTO_FIFO,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = (const char *)"DatSenderService",
+        .pPath = (const char *)"DatSender_Connection",
     };
 
     // Step-1: Setup DatSender service online (server role)
     IOC_SrvArgs_T SrvArgs = {
-        .SrvURI = SenderSrvURI,
+        .SrvURI = DatSenderSrvURI,
         .UsageCapabilites = IOC_LinkUsageDatSender,  // DatSender acts as server
     };
 
@@ -1041,7 +1041,7 @@ TEST(UT_DataTypical, verifyDatSenderService_byOnlineAndAcceptReceiver_expectSucc
 
     // Step-2: DatReceiver connect to DatSender service (client role)
     IOC_ConnArgs_T ConnArgs = {
-        .SrvURI = SenderSrvURI,
+        .SrvURI = DatSenderSrvURI,
         .Usage = IOC_LinkUsageDatReceiver,  // DatReceiver acts as client
     };
 
@@ -1114,15 +1114,15 @@ TEST(UT_DataTypical, verifyDatSenderService_bySendToConnectedReceiver_expectCall
     __DatReceiverPrivData_T DatReceiverPrivData = {0};
 
     // Standard SrvURI for DatSender service (reversed role)
-    IOC_SrvURI_T SenderSrvURI = {
+    IOC_SrvURI_T DatSenderSrvURI = {
         .pProtocol = IOC_SRV_PROTO_FIFO,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = (const char *)"DatSenderService",
+        .pPath = (const char *)"DatSender_Callback",
     };
 
     // Step-1: Setup DatSender service online (server role)
     IOC_SrvArgs_T SrvArgs = {
-        .SrvURI = SenderSrvURI,
+        .SrvURI = DatSenderSrvURI,
         .UsageCapabilites = IOC_LinkUsageDatSender,  // DatSender acts as server
     };
 
@@ -1136,7 +1136,7 @@ TEST(UT_DataTypical, verifyDatSenderService_bySendToConnectedReceiver_expectCall
     };
 
     IOC_ConnArgs_T ConnArgs = {
-        .SrvURI = SenderSrvURI,
+        .SrvURI = DatSenderSrvURI,
         .Usage = IOC_LinkUsageDatReceiver,  // DatReceiver acts as client
         .UsageArgs =
             {
@@ -1263,24 +1263,24 @@ TEST(UT_DataTypical, verifyDatSenderService_bySendToPollingReceiver_expectPollin
     IOC_LinkID_T DatReceiverLinkID = IOC_ID_INVALID;
 
     // Standard SrvURI for DatSender service (reversed role)
-    IOC_SrvURI_T SenderSrvURI = {
+    IOC_SrvURI_T DatSenderSrvURI = {
         .pProtocol = IOC_SRV_PROTO_FIFO,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = (const char *)"DatSenderService",
+        .pPath = (const char *)"DatSender_Polling",
     };
 
     // Step-1: Setup DatSender service online (server role)
     IOC_SrvArgs_T SrvArgs = {
-        .SrvURI = SenderSrvURI,
+        .SrvURI = DatSenderSrvURI,
         .UsageCapabilites = IOC_LinkUsageDatSender,  // DatSender acts as server
     };
 
     Result = IOC_onlineService(&DatSenderSrvID, &SrvArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint: DatSender service online success
 
-    // Setup DatReceiver connection (client role)
+    // Setup DatReceiver connection (client role) for polling test
     IOC_ConnArgs_T ConnArgs = {
-        .SrvURI = SenderSrvURI,
+        .SrvURI = DatSenderSrvURI,
         .Usage = IOC_LinkUsageDatReceiver,  // DatReceiver acts as client
     };
 
@@ -1429,15 +1429,15 @@ TEST(UT_DataTypical, verifyDatSenderService_byCompleteServerWorkflow_expectFullW
     }
 
     // Setup DatSender service URI (server role)
-    IOC_SrvURI_T ServerWorkflowSrvURI = {
+    IOC_SrvURI_T DatSenderWorkflowSrvURI = {
         .pProtocol = IOC_SRV_PROTO_FIFO,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = (const char *)"DatSenderServerWorkflow",
+        .pPath = (const char *)"DatSender_ServerWorkflow",
     };
 
     // Step-1: Setup DatSender service online (server role)
     IOC_SrvArgs_T SrvArgs = {
-        .SrvURI = ServerWorkflowSrvURI,
+        .SrvURI = DatSenderWorkflowSrvURI,
         .UsageCapabilites = IOC_LinkUsageDatSender,  // DatSender acts as server
     };
 
@@ -1460,7 +1460,7 @@ TEST(UT_DataTypical, verifyDatSenderService_byCompleteServerWorkflow_expectFullW
             };
 
             IOC_ConnArgs_T ClientConnArgs = {
-                .SrvURI = ServerWorkflowSrvURI,
+                .SrvURI = DatSenderWorkflowSrvURI,
                 .Usage = IOC_LinkUsageDatReceiver,  // DatReceiver acts as client
                 .UsageArgs = {.pDat = &ClientDatUsageArgs},
             };
