@@ -181,7 +181,9 @@ typedef enum {
 // RefAPI: IOC_getCapability
 typedef enum {
     IOC_CAPID_CONLES_MODE_EVENT = 1,  // RefDT: IOC_ConlesModeEventCapability_T
-    IOC_CAPID_CONET_MODE              // RefDT: IOC_ConetModeCapability_T
+    IOC_CAPID_CONET_MODE_EVENT,       // RefDT: IOC_ConetModeEventCapability_T
+    IOC_CAPID_CONET_MODE_DATA,        // RefDT: IOC_ConetModeDataCapability_T
+    IOC_CAPID_CONET_MODE_COMMAND,     // RefDT: IOC_ConetModeCommandCapability_T
                                       // TODO(@W): +More...
 } IOC_CapabilityID_T;
 
@@ -193,7 +195,24 @@ typedef struct {
 typedef struct {
     uint16_t MaxSrvNum;  // How many services can be onlined in ConetMode.
     uint16_t MaxCliNum;  // How many clients can be connected to a service in ConetMode.
-} IOC_ConetModeCapability_T, *IOC_ConetModeCapability_pT;
+} IOC_ConetModeCommonCapability_T, *IOC_ConetModeCommonCapability_pT;
+
+typedef struct {
+    IOC_ConetModeCommonCapability_T Common;  // RefType: IOC_ConetModeCommonCapability_T
+    // TODO(@W): +More event capability fields...
+} IOC_ConetModeEventCapability_T, *IOC_ConetModeEventCapability_pT;
+
+typedef struct {
+    IOC_ConetModeCommonCapability_T Common;  // RefType: IOC_ConetModeCommonCapability_T
+    // TODO(@W): +More command capability fields...
+} IOC_ConetModeCommandCapability_T, *IOC_ConetModeCommandCapability_pT;
+
+typedef struct {
+    IOC_ConetModeCommonCapability_T Common;  // RefType: IOC_ConetModeCommonCapability_T
+    // TODO(@W): +More data capability fields...
+    ULONG_T MaxDataQueueSize;  // Maximum size of the data queue in ConetMode.
+                               // which means how many data chunks can be buffered in the queue.
+} IOC_ConetModeDataCapability_T, *IOC_ConetModeDataCapability_pT;
 
 typedef struct {
     // set this CapID and get the capability description.
@@ -202,7 +221,10 @@ typedef struct {
     union {
         ULONG_T RZVD[8];  // reserve for MAX payload size.
         IOC_ConlesModeEventCapability_T ConlesModeEvent;
-        IOC_ConetModeCapability_T ConetMode;
+        IOC_ConetModeEventCapability_T ConetModeEvent;
+        IOC_ConetModeCommandCapability_T ConetModeCommand;
+        IOC_ConetModeDataCapability_T ConetModeData;
+        // TODO(@W): +More capability fields...
     };
 } IOC_CapabilityDescription_T, *IOC_CapabilityDescription_pT;
 
