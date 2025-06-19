@@ -219,11 +219,11 @@ typedef struct {
     IOC_CapabilityID_T CapID;  // RefType: IOC_CapabilityID_T
 
     union {
-        ULONG_T RZVD[8];  // reserve for MAX payload size.
-        IOC_ConlesModeEventCapability_T ConlesModeEvent;
-        IOC_ConetModeEventCapability_T ConetModeEvent;
-        IOC_ConetModeCommandCapability_T ConetModeCommand;
-        IOC_ConetModeDataCapability_T ConetModeData;
+        ULONG_T RZVD[8];                                    // reserve for MAX payload size.
+        IOC_ConlesModeEventCapability_T ConlesModeEvent;    // CapID: IOC_CAPID_CONLES_MODE_EVENT
+        IOC_ConetModeEventCapability_T ConetModeEvent;      // CapID: IOC_CAPID_CONET_MODE_EVENT
+        IOC_ConetModeCommandCapability_T ConetModeCommand;  // CapID: IOC_CAPID_CONET_MODE_COMMAND
+        IOC_ConetModeDataCapability_T ConetModeData;        // CapID: IOC_CAPID_CONET_MODE_DATA
         // TODO(@W): +More capability fields...
     };
 } IOC_CapabilityDescription_T, *IOC_CapabilityDescription_pT;
