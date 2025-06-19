@@ -110,36 +110,34 @@
  */
 TEST(UT_ServiceCapability, verifyOnlineMoreThanCapabilityServices_shouldGetTooManyServices_andRepeatable) {
     //===SETUP===
-    IOC_CapabilityDescription_T CapDesc = {.CapID = IOC_CAPID_CONET_MODE};
+    IOC_CapabilityDescription_T CapDesc = {.CapID = IOC_CAPID_CONET_MODE_EVENT};
     IOC_Result_T Result = IOC_getCapability(&CapDesc);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
 
-    printf("MaxSrvNum: %d\n", CapDesc.ConetMode.MaxSrvNum);
-    ASSERT_TRUE(CapDesc.ConetMode.MaxSrvNum > 0);
+    printf("MaxSrvNum: %d\n", CapDesc.ConetModeEvent.Common.MaxSrvNum);
+    ASSERT_TRUE(CapDesc.ConetModeEvent.Common.MaxSrvNum > 0);
 
 //===BEHAVIOR===
 #define _NxTimes 1
     for (int RptCnt = 0; RptCnt < _NxTimes; RptCnt++) {
         // define and initialize an array to store the online service IDs
-        IOC_SrvID_T OnlinedSrvIDs[CapDesc.ConetMode.MaxSrvNum + 1];
-        for (int SrvIdx = 0; SrvIdx <= CapDesc.ConetMode.MaxSrvNum; SrvIdx++) {
+        IOC_SrvID_T OnlinedSrvIDs[CapDesc.ConetModeEvent.Common.MaxSrvNum + 1];
+        for (int SrvIdx = 0; SrvIdx <= CapDesc.ConetModeEvent.Common.MaxSrvNum; SrvIdx++) {
             OnlinedSrvIDs[SrvIdx] = IOC_ID_INVALID;
         }
 
         // Online from [0,MAX_SRV_NUM] services
-        for (int SrvIdx = 0; SrvIdx <= CapDesc.ConetMode.MaxSrvNum; SrvIdx++) {
+        for (int SrvIdx = 0; SrvIdx <= CapDesc.ConetModeEvent.Common.MaxSrvNum; SrvIdx++) {
             char SrvPath[32] = {0};
             snprintf(SrvPath, sizeof(SrvPath), "SrvName(%d)", SrvIdx);
             IOC_SrvURI_T SrvURI = {
                 .pProtocol = IOC_SRV_PROTO_FIFO, .pHost = IOC_SRV_HOST_LOCAL_PROCESS, .pPath = SrvPath};
-            IOC_SrvArgs_T SrvArgs = {
-                .SrvURI = SrvURI, 
-                .Flags = (IOC_SrvFlags_T)0,  // No special flags needed for capacity testing
-                .UsageCapabilites = IOC_LinkUsageEvtProducer
-            };
+            IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI,
+                                     .Flags = (IOC_SrvFlags_T)0,  // No special flags needed for capacity testing
+                                     .UsageCapabilites = IOC_LinkUsageEvtProducer};
 
             Result = IOC_onlineService(&OnlinedSrvIDs[SrvIdx], &SrvArgs);
-            if (SrvIdx < CapDesc.ConetMode.MaxSrvNum) {
+            if (SrvIdx < CapDesc.ConetModeEvent.Common.MaxSrvNum) {
                 ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
             } else {
                 ASSERT_EQ(IOC_RESULT_TOO_MANY_SERVICES, Result);  // KeyVerifyPoint
@@ -155,7 +153,7 @@ TEST(UT_ServiceCapability, verifyOnlineMoreThanCapabilityServices_shouldGetTooMa
         }
 
         // Offline all services
-        for (int SrvIdx = 0; SrvIdx <= CapDesc.ConetMode.MaxSrvNum; SrvIdx++) {
+        for (int SrvIdx = 0; SrvIdx <= CapDesc.ConetModeEvent.Common.MaxSrvNum; SrvIdx++) {
             if (OnlinedSrvIDs[SrvIdx] != IOC_ID_INVALID) {
                 printf("Offlining service at index %d with ID %" PRIu64 "\n", SrvIdx, OnlinedSrvIDs[SrvIdx]);
                 Result = IOC_offlineService(OnlinedSrvIDs[SrvIdx]);
@@ -199,13 +197,13 @@ TEST(UT_ServiceCapability,
 #define _MxTimes 1
 
     //===SETUP===
-    IOC_CapabilityDescription_T CapDesc = {.CapID = IOC_CAPID_CONET_MODE};
+    IOC_CapabilityDescription_T CapDesc = {.CapID = IOC_CAPID_CONET_MODE_EVENT};
     IOC_Result_T Result = IOC_getCapability(&CapDesc);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
-    printf("MaxClientNum: %d\n", CapDesc.ConetMode.MaxCliNum);
-    ASSERT_TRUE(CapDesc.ConetMode.MaxCliNum > 0);
+    printf("MaxClientNum: %d\n", CapDesc.ConetModeEvent.Common.MaxCliNum);
+    ASSERT_TRUE(CapDesc.ConetModeEvent.Common.MaxCliNum > 0);
 
-    int MaxCliNum = CapDesc.ConetMode.MaxCliNum;
+    int MaxCliNum = CapDesc.ConetModeEvent.Common.MaxCliNum;
 
     //===BEHAVIOR===
     for (int SrvIdx = 0; SrvIdx < _NxServices; SrvIdx++) {
@@ -214,24 +212,20 @@ TEST(UT_ServiceCapability,
             char SrvPath[32];
             snprintf(SrvPath, sizeof(SrvPath), "SrvName(%d_%d)", SrvIdx, RptCnt);
             IOC_SrvURI_T SrvURI = {
-                .pProtocol = IOC_SRV_PROTO_FIFO, 
-                .pHost = IOC_SRV_HOST_LOCAL_PROCESS, 
-                .pPath = SrvPath
-            };
+                .pProtocol = IOC_SRV_PROTO_FIFO, .pHost = IOC_SRV_HOST_LOCAL_PROCESS, .pPath = SrvPath};
 
             IOC_SrvArgs_T SrvArgs = {
-                .SrvURI = SrvURI, 
+                .SrvURI = SrvURI,
                 .Flags = IOC_SRVFLAG_BROADCAST_EVENT,  // Enable broadcast event for client auto-accept
-                .UsageCapabilites = IOC_LinkUsageEvtProducer
-            };
-            
+                .UsageCapabilites = IOC_LinkUsageEvtProducer};
+
             IOC_SrvID_T SrvID;
             Result = IOC_onlineService(&SrvID, &SrvArgs);
             ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // CheckPoint
 
             // Test client connections for this service
             IOC_LinkID_T ConnectedLinkIDs[MaxCliNum + 1];
-            
+
             for (int LinkIdx = 0; LinkIdx <= MaxCliNum; LinkIdx++) {
                 ConnectedLinkIDs[LinkIdx] = IOC_ID_INVALID;
             }
