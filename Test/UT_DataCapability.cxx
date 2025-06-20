@@ -71,7 +71,8 @@
  *         WHEN reaching MaxSrvNum, MaxCliNum, or MaxDataQueueSize limits,
  *         THEN system should handle boundary conditions gracefully
  *          AND provide appropriate error codes when limits exceeded
- *          AND maintain system stability.
+ *          AND restore normal operation after returning to within limits
+ *          AND repeatable behavior should be observed without unexpected crashes or resource leaks.
  */
 //=======>END OF ACCEPTANCE CRITERIA================================================================
 
