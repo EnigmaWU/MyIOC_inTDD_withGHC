@@ -86,18 +86,23 @@
  *      @[Name]: verifyConetModeDataCapability_byQueryAPI_expectValidLimits
  *      @[Purpose]: 验证IOC_getCapability()能正确查询IOC_CAPID_CONET_MODE_DATA能力
  *      @[Brief]: 查询系统能力，验证返回的能力值有效且合理
+ *  TODO: TC-2...
  *
  * [@AC-2,US-2] DAT transmission within capability limits
- *  TC-2:
+ *  TC-1:
  *      @[Name]: verifyDatTransmission_byWithinMaxDataQueueSize_expectReliableBehavior
  *      @[Purpose]: 验证在MaxDataQueueSize限制内DAT传输的可靠性
  *      @[Brief]: 在系统能力范围内执行DAT传输，验证稳定性能
  *
+ *  TODO: TC-2...
+ *
  * [@AC-3,US-3] DAT behavior at capability boundaries
- *  TC-3:
+ *  TC-1:
  *      @[Name]: verifyDatBoundaryBehavior_byConnectionLimits_expectGracefulHandling
  *      @[Purpose]: 验证达到连接数限制时的DAT行为
  *      @[Brief]: 测试在MaxSrvNum/MaxCliNum边界时的系统行为
+ *
+ *  TODO: TC-2...
  *
  *************************************************************************************************/
 //======>END OF TEST CASES=========================================================================
