@@ -91,6 +91,8 @@
  *      @[Purpose]: Verify IOC_getCapability() handles invalid inputs gracefully and provides consistent results
  *      @[Brief]: Test edge cases including NULL pointers, invalid CapIDs, and repeated calls for robustness
  *
+ * TODO: TC-3...
+ *
  * [@AC-2,US-2] DAT transmission within capability limits
  *  TC-1:
  *      @[Name]: verifyDatTransmission_byWithinMaxDataQueueSize_expectReliableBehavior
