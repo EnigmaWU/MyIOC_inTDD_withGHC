@@ -61,7 +61,9 @@
  *  AC-2: GIVEN system capability limits queried successfully,
  *         WHEN performing DAT operations within MaxDataQueueSize limits,
  *         THEN all data transmissions should succeed
- *          AND system should maintain stable performance
+ *          AND if MaxDataQueueSize is reached,
+ *              THEN sender will BLOCKED by default OR return IMMEDIATELY in non-blocking mode
+ *          AND no data loss should occur
  *          AND no resource exhaustion should occur.
  *
  * [@US-3] DAT behavior at capability boundaries
