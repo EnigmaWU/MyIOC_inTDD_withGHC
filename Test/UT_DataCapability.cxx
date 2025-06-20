@@ -90,8 +90,10 @@
  *      @[Name]: verifyConetModeDataCapability_byInvalidInputs_expectGracefulHandling
  *      @[Purpose]: Verify IOC_getCapability() handles invalid inputs gracefully and provides consistent results
  *      @[Brief]: Test edge cases including NULL pointers, invalid CapIDs, and repeated calls for robustness
- *
- * TODO: TC-3...
+ *  TC-3:
+ *      @[Name]: verifyConetModeDataCapability_bySystemStateIndependence_expectConsistentBehavior
+ *      @[Purpose]: Verify capability queries are independent of system state and operational conditions
+ *      @[Brief]: Test capability consistency across different system states, loads, and cross-capability relationships
  *
  * [@AC-2,US-2] DAT transmission within capability limits
  *  TC-1:
@@ -127,6 +129,7 @@
  *  [Test Cases]
  *   - verifyConetModeDataCapability_byQueryAPI_expectValidLimits
  *   - verifyConetModeDataCapability_byInvalidInputs_expectGracefulHandling
+ *   - verifyConetModeDataCapability_bySystemStateIndependence_expectConsistentBehavior
  *   - verifyDatTransmission_byWithinMaxDataQueueSize_expectReliableBehavior
  *   - verifyDatBoundaryBehavior_byConnectionLimits_expectGracefulHandling
  *
@@ -772,4 +775,195 @@ TEST(UT_DataCapability, verifyDatBoundaryBehavior_byConnectionLimits_expectGrace
 
     printf("  ✅ Cleanup completed: %zu services, %zu server links, %zu client links\n", OnlinedServices.size(),
            ServerLinkIDs.size(), ClientLinkIDs.size());
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF: [@AC-1,US-1] TC-3===============================================================
+/**
+ * @[Name]: verifyConetModeDataCapability_bySystemStateIndependence_expectConsistentBehavior
+ * @[Steps]:
+ *   1) Query capabilities at system startup AS BASELINE
+ *   2) Create and destroy services to change system state AS BEHAVIOR
+ *   3) Query capabilities during active operations AS BEHAVIOR
+ *   4) Compare with baseline and verify independence AS VERIFY
+ *   5) Test cross-capability consistency AS BEHAVIOR
+ *   6) Clean up resources AS CLEANUP
+ * @[Expect]: Capability values remain consistent regardless of system operational state
+ * @[Notes]: Verify AC-1@US-1 - TC-3: System state independence and cross-capability consistency
+ */
+TEST(UT_DataCapability, verifyConetModeDataCapability_bySystemStateIndependence_expectConsistentBehavior) {
+    //===SETUP===
+    printf("BEHAVIOR: verifyConetModeDataCapability_bySystemStateIndependence_expectConsistentBehavior\n");
+
+    // Baseline capability query at system startup
+    IOC_CapabilityDescription_T BaselineCapDesc;
+    memset(&BaselineCapDesc, 0, sizeof(BaselineCapDesc));
+    BaselineCapDesc.CapID = IOC_CAPID_CONET_MODE_DATA;
+    IOC_Result_T BaselineResult = IOC_getCapability(&BaselineCapDesc);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, BaselineResult) << "Baseline capability query should succeed";
+
+    printf("Baseline DATA Capability Values:\n");
+    printf("  - MaxSrvNum: %u\n", BaselineCapDesc.ConetModeData.Common.MaxSrvNum);
+    printf("  - MaxCliNum: %u\n", BaselineCapDesc.ConetModeData.Common.MaxCliNum);
+    printf("  - MaxDataQueueSize: %u\n", (unsigned int)BaselineCapDesc.ConetModeData.MaxDataQueueSize);
+
+    //===BEHAVIOR===
+    // Test Point 1: Capability independence from service operations
+    printf("\nTest Point 1: System state independence during service operations\n");
+    
+    // Create some services to change system state
+    std::vector<IOC_SrvID_T> TestServices;
+    const int NumTestServices = std::min(2, (int)BaselineCapDesc.ConetModeData.Common.MaxSrvNum);
+    
+    for (int i = 0; i < NumTestServices; i++) {
+        char SrvPath[64];
+        snprintf(SrvPath, sizeof(SrvPath), "StateTest_Srv_%d", i);
+        
+        IOC_SrvURI_T SrvURI = {
+            .pProtocol = IOC_SRV_PROTO_FIFO,
+            .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+            .pPath = SrvPath,
+        };
+
+        IOC_SrvArgs_T SrvArgs = {
+            .SrvURI = SrvURI,
+            .UsageCapabilites = IOC_LinkUsageDatSender,
+        };
+
+        IOC_SrvID_T SrvID = IOC_ID_INVALID;
+        IOC_Result_T Result = IOC_onlineService(&SrvID, &SrvArgs);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Test service " << i << " should be created successfully";
+        TestServices.push_back(SrvID);
+        printf("  ✅ Created test service %d (ID=%llu)\n", i, SrvID);
+    }
+
+    // Query capabilities with active services
+    IOC_CapabilityDescription_T ActiveCapDesc;
+    memset(&ActiveCapDesc, 0, sizeof(ActiveCapDesc));
+    ActiveCapDesc.CapID = IOC_CAPID_CONET_MODE_DATA;
+    IOC_Result_T ActiveResult = IOC_getCapability(&ActiveCapDesc);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ActiveResult) << "Capability query during active operations should succeed";
+
+    // Test Point 2: Cross-capability consistency (DATA vs EVENT)
+    printf("\nTest Point 2: Cross-capability consistency testing\n");
+    
+    IOC_CapabilityDescription_T EventCapDesc;
+    memset(&EventCapDesc, 0, sizeof(EventCapDesc));
+    EventCapDesc.CapID = IOC_CAPID_CONET_MODE_EVENT;
+    IOC_Result_T EventResult = IOC_getCapability(&EventCapDesc);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, EventResult) << "EVENT capability query should succeed";
+
+    printf("EVENT Capability Values for comparison:\n");
+    printf("  - MaxSrvNum: %u\n", EventCapDesc.ConetModeEvent.Common.MaxSrvNum);
+    printf("  - MaxCliNum: %u\n", EventCapDesc.ConetModeEvent.Common.MaxCliNum);
+
+    // Test Point 3: Multiple queries during different system states
+    printf("\nTest Point 3: Multiple capability queries during system state changes\n");
+    
+    std::vector<IOC_CapabilityDescription_T> StateCapabilities;
+    
+    // Query before destroying services
+    IOC_CapabilityDescription_T PreDestroyCapDesc;
+    memset(&PreDestroyCapDesc, 0, sizeof(PreDestroyCapDesc));
+    PreDestroyCapDesc.CapID = IOC_CAPID_CONET_MODE_DATA;
+    IOC_Result_T PreDestroyResult = IOC_getCapability(&PreDestroyCapDesc);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, PreDestroyResult) << "Pre-destroy capability query should succeed";
+    StateCapabilities.push_back(PreDestroyCapDesc);
+
+    // Destroy one service and query again
+    if (!TestServices.empty()) {
+        IOC_offlineService(TestServices.back());
+        TestServices.pop_back();
+        printf("  ✅ Destroyed one test service, remaining: %zu\n", TestServices.size());
+        
+        IOC_CapabilityDescription_T PostDestroyCapDesc;
+        memset(&PostDestroyCapDesc, 0, sizeof(PostDestroyCapDesc));
+        PostDestroyCapDesc.CapID = IOC_CAPID_CONET_MODE_DATA;
+        IOC_Result_T PostDestroyResult = IOC_getCapability(&PostDestroyCapDesc);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, PostDestroyResult) << "Post-destroy capability query should succeed";
+        StateCapabilities.push_back(PostDestroyCapDesc);
+    }
+
+    //===VERIFY===
+    printf("\nVerification Phase:\n");
+    
+    // KeyVerifyPoint-1: Capabilities remain consistent regardless of system state
+    ASSERT_EQ(BaselineCapDesc.ConetModeData.Common.MaxSrvNum, ActiveCapDesc.ConetModeData.Common.MaxSrvNum)
+        << "MaxSrvNum should be consistent between baseline and active state";
+    ASSERT_EQ(BaselineCapDesc.ConetModeData.Common.MaxCliNum, ActiveCapDesc.ConetModeData.Common.MaxCliNum)
+        << "MaxCliNum should be consistent between baseline and active state";
+    ASSERT_EQ(BaselineCapDesc.ConetModeData.MaxDataQueueSize, ActiveCapDesc.ConetModeData.MaxDataQueueSize)
+        << "MaxDataQueueSize should be consistent between baseline and active state";
+
+    printf("  ✅ Capabilities consistent during active service operations\n");
+
+    // KeyVerifyPoint-2: Cross-capability relationships are logical
+    // Common fields should be consistent between DATA and EVENT capabilities
+    ASSERT_EQ(BaselineCapDesc.ConetModeData.Common.MaxSrvNum, EventCapDesc.ConetModeEvent.Common.MaxSrvNum)
+        << "MaxSrvNum should be consistent between DATA and EVENT capabilities";
+    ASSERT_EQ(BaselineCapDesc.ConetModeData.Common.MaxCliNum, EventCapDesc.ConetModeEvent.Common.MaxCliNum)
+        << "MaxCliNum should be consistent between DATA and EVENT capabilities";
+
+    printf("  ✅ Cross-capability consistency verified (DATA vs EVENT)\n");
+
+    // KeyVerifyPoint-3: All state transition queries return identical values
+    for (size_t i = 0; i < StateCapabilities.size(); i++) {
+        ASSERT_EQ(BaselineCapDesc.ConetModeData.Common.MaxSrvNum, StateCapabilities[i].ConetModeData.Common.MaxSrvNum)
+            << "MaxSrvNum should be consistent across all system states (state " << i << ")";
+        ASSERT_EQ(BaselineCapDesc.ConetModeData.Common.MaxCliNum, StateCapabilities[i].ConetModeData.Common.MaxCliNum)
+            << "MaxCliNum should be consistent across all system states (state " << i << ")";
+        ASSERT_EQ(BaselineCapDesc.ConetModeData.MaxDataQueueSize, StateCapabilities[i].ConetModeData.MaxDataQueueSize)
+            << "MaxDataQueueSize should be consistent across all system states (state " << i << ")";
+    }
+
+    printf("  ✅ Capabilities consistent across %zu different system states\n", StateCapabilities.size() + 2);
+
+    // KeyVerifyPoint-4: Capability values represent system design limits, not current usage
+    // This means they should never change based on current resource consumption
+    ASSERT_GT(BaselineCapDesc.ConetModeData.Common.MaxSrvNum, TestServices.size())
+        << "MaxSrvNum should represent design limit, not current usage";
+
+    printf("  ✅ Capabilities represent design limits, not current system usage\n");
+
+    // KeyVerifyPoint-5: System capability queries are reliable and predictable
+    // Multiple rapid queries should return identical results
+    printf("\nTest Point 4: Rapid sequential capability queries\n");
+    IOC_CapabilityDescription_T RapidQuery1, RapidQuery2, RapidQuery3;
+    
+    memset(&RapidQuery1, 0, sizeof(RapidQuery1)); RapidQuery1.CapID = IOC_CAPID_CONET_MODE_DATA;
+    memset(&RapidQuery2, 0, sizeof(RapidQuery2)); RapidQuery2.CapID = IOC_CAPID_CONET_MODE_DATA;
+    memset(&RapidQuery3, 0, sizeof(RapidQuery3)); RapidQuery3.CapID = IOC_CAPID_CONET_MODE_DATA;
+    
+    IOC_Result_T Rapid1 = IOC_getCapability(&RapidQuery1);
+    IOC_Result_T Rapid2 = IOC_getCapability(&RapidQuery2);
+    IOC_Result_T Rapid3 = IOC_getCapability(&RapidQuery3);
+    
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Rapid1) << "Rapid query 1 should succeed";
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Rapid2) << "Rapid query 2 should succeed";
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Rapid3) << "Rapid query 3 should succeed";
+    
+    ASSERT_EQ(RapidQuery1.ConetModeData.Common.MaxSrvNum, RapidQuery2.ConetModeData.Common.MaxSrvNum)
+        << "Rapid sequential queries should return identical MaxSrvNum";
+    ASSERT_EQ(RapidQuery2.ConetModeData.Common.MaxSrvNum, RapidQuery3.ConetModeData.Common.MaxSrvNum)
+        << "Rapid sequential queries should return identical MaxSrvNum";
+
+    printf("  ✅ Rapid sequential queries return consistent results\n");
+
+    printf("\nVERIFICATION SUMMARY:\n");
+    printf("  - System state independence: ✅ PASSED\n");
+    printf("  - Cross-capability consistency: ✅ PASSED\n");
+    printf("  - State transition consistency: ✅ PASSED\n");
+    printf("  - Design limit semantics: ✅ PASSED\n");
+    printf("  - Rapid query reliability: ✅ PASSED\n");
+    printf("  - Capability represents DESIGN LIMITS, not current usage\n");
+    printf("  - DATA and EVENT capabilities share consistent common fields\n");
+
+    //===CLEANUP===
+    // Clean up all test services
+    for (auto srvID : TestServices) {
+        if (srvID != IOC_ID_INVALID) {
+            IOC_offlineService(srvID);
+        }
+    }
+    printf("  ✅ Cleanup completed: %zu test services destroyed\n", TestServices.size());
 }
