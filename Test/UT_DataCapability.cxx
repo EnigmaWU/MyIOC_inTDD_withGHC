@@ -137,7 +137,7 @@
  *   3) Verify returned capability values are valid AS VERIFY
  *   4) No cleanup needed AS CLEANUP
  * @[Expect]: IOC_getCapability() returns valid IOC_ConetModeDataCapability_T values
- * @[Notes]: 验证AC-1@US-1 - 系统能力查询机制正确性
+ * @[Notes]: 验证AC-1@US-1 - TC-1: 系统能力查询机制正确性
  */
 TEST(UT_DataCapability, verifyConetModeDataCapability_byQueryAPI_expectValidLimits) {
     //===SETUP===
@@ -169,7 +169,7 @@ TEST(UT_DataCapability, verifyConetModeDataCapability_byQueryAPI_expectValidLimi
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF: [@AC-2,US-2] TC-2===============================================================
+//======>BEGIN OF: [@AC-2,US-2] TC-1===============================================================
 /**
  * @[Name]: verifyDatTransmission_byWithinMaxDataQueueSize_expectReliableBehavior
  * @[Steps]:
@@ -178,7 +178,7 @@ TEST(UT_DataCapability, verifyConetModeDataCapability_byQueryAPI_expectValidLimi
  *   3) Verify all transmissions succeed and remain stable AS VERIFY
  *   4) Clean up resources AS CLEANUP
  * @[Expect]: DAT transmission works reliably within MaxDataQueueSize constraints
- * @[Notes]: 验证AC-2@US-2 - 在系统能力限制内的可靠传输
+ * @[Notes]: 验证AC-2@US-2 - TC-1: 在系统能力限制内的可靠传输
  */
 TEST(UT_DataCapability, verifyDatTransmission_byWithinMaxDataQueueSize_expectReliableBehavior) {
     //===SETUP===
@@ -197,7 +197,7 @@ TEST(UT_DataCapability, verifyDatTransmission_byWithinMaxDataQueueSize_expectRel
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF: [@AC-3,US-3] TC-3===============================================================
+//======>BEGIN OF: [@AC-3,US-3] TC-1===============================================================
 /**
  * @[Name]: verifyDatBoundaryBehavior_byConnectionLimits_expectGracefulHandling
  * @[Steps]:
@@ -206,7 +206,7 @@ TEST(UT_DataCapability, verifyDatTransmission_byWithinMaxDataQueueSize_expectRel
  *   3) Verify boundary behavior and error handling AS VERIFY
  *   4) Clean up all connections AS CLEANUP
  * @[Expect]: System handles connection limits gracefully with appropriate error codes
- * @[Notes]: 验证AC-3@US-3 - 连接数边界时的优雅处理
+ * @[Notes]: 验证AC-3@US-3 - TC-1: 连接数边界时的优雅处理
  */
 TEST(UT_DataCapability, verifyDatBoundaryBehavior_byConnectionLimits_expectGracefulHandling) {
     //===SETUP===
