@@ -27,19 +27,19 @@
 /**************************************************************************************************
  * @brief 【User Story】
  *
- *  US-1: AS a system architect,
- *    I WANT to query IOC_CAPID_CONET_MODE_DATA capability using IOC_getCapability(),
- *   SO THAT I can understand the system limits (MaxSrvNum, MaxCliNum, MaxDataQueueSize)
+ *  US-1: AS: a system architect,
+ *    I WANT: to query IOC_CAPID_CONET_MODE_DATA capability using IOC_getCapability(),
+ *   SO THAT: I can understand the system limits (such as: MaxSrvNum, MaxCliNum, MaxDataQueueSize)
  *      AND design my DAT application within documented capabilities.
  *
- *  US-2: AS a DAT application developer,
- *    I WANT to verify DAT transmission works reliably within system capability limits,
- *   SO THAT I can achieve optimal performance within MaxDataQueueSize constraints
+ *  US-2: AS: a DAT application developer,
+ *    I WANT: to verify DAT transmission works reliably within system capability limits,
+ *   SO THAT: I can achieve optimal performance within MaxDataQueueSize constraints
  *      AND ensure stable operation within connection limits.
  *
- *  US-3: AS a system integrator,
- *    I WANT to test DAT behavior at system capability boundaries,
- *   SO THAT I can understand boundary behavior and plan proper error handling
+ *  US-3: AS: a system integrator,
+ *    I WANT: to test DAT behavior at system capability boundaries,
+ *   SO THAT: I can understand boundary behavior and plan proper error handling
  *      AND validate system stability at designed limits.
  *
  *************************************************************************************************/
@@ -57,7 +57,7 @@
  *          AND IOC_ConetModeDataCapability_T should contain valid values
  *          AND all capability values should be greater than 0.
  *
- * [@US-2] DAT transmission within capability limits  
+ * [@US-2] DAT transmission within capability limits
  *  AC-2: GIVEN system capability limits queried successfully,
  *         WHEN performing DAT operations within MaxDataQueueSize limits,
  *         THEN all data transmissions should succeed
@@ -86,11 +86,11 @@
  *
  * [@AC-2,US-2] DAT transmission within capability limits
  *  TC-2:
- *      @[Name]: verifyDatTransmission_byWithinMaxDataQueueSize_expectReliableBehavior  
+ *      @[Name]: verifyDatTransmission_byWithinMaxDataQueueSize_expectReliableBehavior
  *      @[Purpose]: 验证在MaxDataQueueSize限制内DAT传输的可靠性
  *      @[Brief]: 在系统能力范围内执行DAT传输，验证稳定性能
  *
- * [@AC-3,US-3] DAT behavior at capability boundaries  
+ * [@AC-3,US-3] DAT behavior at capability boundaries
  *  TC-3:
  *      @[Name]: verifyDatBoundaryBehavior_byConnectionLimits_expectGracefulHandling
  *      @[Purpose]: 验证达到连接数限制时的DAT行为
@@ -125,7 +125,7 @@
  * @[Name]: verifyConetModeDataCapability_byQueryAPI_expectValidLimits
  * @[Steps]:
  *   1) Initialize capability description structure AS SETUP
- *   2) Call IOC_getCapability() with IOC_CAPID_CONET_MODE_DATA AS BEHAVIOR  
+ *   2) Call IOC_getCapability() with IOC_CAPID_CONET_MODE_DATA AS BEHAVIOR
  *   3) Verify returned capability values are valid AS VERIFY
  *   4) No cleanup needed AS CLEANUP
  * @[Expect]: IOC_getCapability() returns valid IOC_ConetModeDataCapability_T values
@@ -134,7 +134,7 @@
 TEST(UT_DataCapability, verifyConetModeDataCapability_byQueryAPI_expectValidLimits) {
     //===SETUP===
     printf("BEHAVIOR: verifyConetModeDataCapability_byQueryAPI_expectValidLimits\n");
-    
+
     IOC_CapabilityDescription_T CapDesc;
     memset(&CapDesc, 0, sizeof(CapDesc));
     CapDesc.CapID = IOC_CAPID_CONET_MODE_DATA;
@@ -145,7 +145,7 @@ TEST(UT_DataCapability, verifyConetModeDataCapability_byQueryAPI_expectValidLimi
     //===VERIFY===
     // KeyVerifyPoint-1: Capability query should succeed
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "IOC_getCapability() should succeed for IOC_CAPID_CONET_MODE_DATA";
-    
+
     // KeyVerifyPoint-2: All capability values should be valid (> 0)
     ASSERT_GT(CapDesc.ConetModeData.Common.MaxSrvNum, 0) << "MaxSrvNum should be greater than 0";
     ASSERT_GT(CapDesc.ConetModeData.Common.MaxCliNum, 0) << "MaxCliNum should be greater than 0";
@@ -175,15 +175,15 @@ TEST(UT_DataCapability, verifyConetModeDataCapability_byQueryAPI_expectValidLimi
 TEST(UT_DataCapability, verifyDatTransmission_byWithinMaxDataQueueSize_expectReliableBehavior) {
     //===SETUP===
     printf("BEHAVIOR: verifyDatTransmission_byWithinMaxDataQueueSize_expectReliableBehavior\n");
-    
+
     // TODO: Query capability and setup DAT environment within limits
-    
+
     //===BEHAVIOR===
     // TODO: Perform DAT transmission within MaxDataQueueSize limits
-    
+
     //===VERIFY===
     // TODO: Verify transmission success and stability
-    
+
     //===CLEANUP===
     // TODO: Clean up DAT resources
 }
@@ -195,7 +195,7 @@ TEST(UT_DataCapability, verifyDatTransmission_byWithinMaxDataQueueSize_expectRel
  * @[Steps]:
  *   1) Query system capabilities for connection limits AS SETUP
  *   2) Create services/clients up to MaxSrvNum/MaxCliNum limits AS BEHAVIOR
- *   3) Verify boundary behavior and error handling AS VERIFY  
+ *   3) Verify boundary behavior and error handling AS VERIFY
  *   4) Clean up all connections AS CLEANUP
  * @[Expect]: System handles connection limits gracefully with appropriate error codes
  * @[Notes]: 验证AC-3@US-3 - 连接数边界时的优雅处理
@@ -203,15 +203,15 @@ TEST(UT_DataCapability, verifyDatTransmission_byWithinMaxDataQueueSize_expectRel
 TEST(UT_DataCapability, verifyDatBoundaryBehavior_byConnectionLimits_expectGracefulHandling) {
     //===SETUP===
     printf("BEHAVIOR: verifyDatBoundaryBehavior_byConnectionLimits_expectGracefulHandling\n");
-    
+
     // TODO: Query capabilities and prepare for boundary testing
-    
+
     //===BEHAVIOR===
     // TODO: Test connection limits and boundary conditions
-    
+
     //===VERIFY===
     // TODO: Verify graceful handling at boundaries
-    
+
     //===CLEANUP===
     // TODO: Clean up all connections and resources
 }
