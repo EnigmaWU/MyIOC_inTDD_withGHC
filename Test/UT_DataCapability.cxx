@@ -1,25 +1,25 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// QUICK REFERENCE GUIDE - 快速参考指南
-// 📝 用途: DAT（数据传输）系统能力验证单元测试
-// 🔄 流程: User Story → Acceptance Criteria → Test Cases → Implementation
-// 📂 分类: DataCapability - 专注于通过IOC_getCapability()查询的系统能力边界测试
-// 🎯 重点: IOC_ConetModeDataCapability_T定义的系统能力限制验证
+// QUICK REFERENCE GUIDE
+// 📝 Purpose: DAT (Data Transmission) system capability validation unit testing
+// 🔄 Process: User Story → Acceptance Criteria → Test Cases → Implementation
+// 📂 Category: DataCapability - Focus on system capability boundary testing through IOC_getCapability() query
+// 🎯 Focus: IOC_ConetModeDataCapability_T defined system capability limit validation
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF UNIT TESTING DESIGN==============================================================
 
 /**************************************************************************************************
- * 📋 DAT SYSTEM CAPABILITY TEST FOCUS - DAT系统能力测试重点
+ * 📋 DAT SYSTEM CAPABILITY TEST FOCUS
  *
- * 🎯 DESIGN PRINCIPLE: 验证IOC_getCapability()返回的系统能力描述中的DAT相关限制
- * 🔄 PRIORITY: 能力查询 → 基础传输 → 边界测试 → 错误处理
+ * 🎯 DESIGN PRINCIPLE: Validate DAT-related constraints in system capability description returned by
+ *IOC_getCapability() 🔄 PRIORITY: Capability query → Basic transmission → Boundary testing → Error handling
  *
- * ⭐ CAPABILITY (能力验证):
- *    💭 Purpose: 测试IOC_ConetModeDataCapability_T定义的系统能力边界
- *    🎯 Focus: MaxSrvNum, MaxCliNum, MaxDataQueueSize限制验证
- *    📝 Examples: 查询系统能力，在限制内传输，达到边界行为
- *    ⏰ When: 系统能力规划，容量验证
+ * ⭐ CAPABILITY (Capability verification):
+ *    💭 Purpose: Test system capability boundaries defined by IOC_ConetModeDataCapability_T
+ *    🎯 Focus: MaxSrvNum, MaxCliNum, MaxDataQueueSize constraint validation
+ *    📝 Examples: Query system capabilities, transmit within limits, reach boundary behavior
+ *    ⏰ When: System capability planning, capacity validation
  *************************************************************************************************/
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -84,23 +84,23 @@
  * [@AC-1,US-1] Query IOC_CAPID_CONET_MODE_DATA capability
  *  TC-1:
  *      @[Name]: verifyConetModeDataCapability_byQueryAPI_expectValidLimits
- *      @[Purpose]: 验证IOC_getCapability()能正确查询IOC_CAPID_CONET_MODE_DATA能力
- *      @[Brief]: 查询系统能力，验证返回的能力值有效且合理
+ *      @[Purpose]: Verify IOC_getCapability() can correctly query IOC_CAPID_CONET_MODE_DATA capability
+ *      @[Brief]: Query system capabilities and verify returned capability values are valid and reasonable
  *  TODO: TC-2...
  *
  * [@AC-2,US-2] DAT transmission within capability limits
  *  TC-1:
  *      @[Name]: verifyDatTransmission_byWithinMaxDataQueueSize_expectReliableBehavior
- *      @[Purpose]: 验证在MaxDataQueueSize限制内DAT传输的可靠性
- *      @[Brief]: 在系统能力范围内执行DAT传输，验证稳定性能
+ *      @[Purpose]: Verify DAT transmission reliability within MaxDataQueueSize constraints
+ *      @[Brief]: Execute DAT transmission within system capability range and verify stable performance
  *
  *  TODO: TC-2...
  *
  * [@AC-3,US-3] DAT behavior at capability boundaries
  *  TC-1:
  *      @[Name]: verifyDatBoundaryBehavior_byConnectionLimits_expectGracefulHandling
- *      @[Purpose]: 验证达到连接数限制时的DAT行为
- *      @[Brief]: 测试在MaxSrvNum/MaxCliNum边界时的系统行为
+ *      @[Purpose]: Verify DAT behavior when connection limits are reached
+ *      @[Brief]: Test system behavior at MaxSrvNum/MaxCliNum boundaries
  *
  *  TODO: TC-2...
  *
@@ -114,9 +114,10 @@
 /**************************************************************************************************
  * @brief 【Unit Testing Implementation】
  *
- *  - 本文件实现了针对DAT系统能力的单元测试，重点验证通过IOC_getCapability()查询的能力边界
- *  - 包含对IOC_ConetModeDataCapability_T结构体中各项限制的测试用例
- *  - 测试用例覆盖能力查询、基础数据传输、边界条件处理等方面
+ *  - This file implements unit tests for DAT system capabilities, focusing on verifying capability boundaries queried
+ *through IOC_getCapability()
+ *  - Contains test cases for constraints in IOC_ConetModeDataCapability_T structure
+ *  - Test cases cover capability queries, basic data transmission, boundary condition handling, etc.
  *
  *  [Test Cases]
  *   - verifyConetModeDataCapability_byQueryAPI_expectValidLimits
@@ -137,7 +138,7 @@
  *   3) Verify returned capability values are valid AS VERIFY
  *   4) No cleanup needed AS CLEANUP
  * @[Expect]: IOC_getCapability() returns valid IOC_ConetModeDataCapability_T values
- * @[Notes]: 验证AC-1@US-1 - TC-1: 系统能力查询机制正确性
+ * @[Notes]: Verify AC-1@US-1 - TC-1: System capability query mechanism correctness
  */
 TEST(UT_DataCapability, verifyConetModeDataCapability_byQueryAPI_expectValidLimits) {
     //===SETUP===
@@ -178,7 +179,7 @@ TEST(UT_DataCapability, verifyConetModeDataCapability_byQueryAPI_expectValidLimi
  *   3) Verify all transmissions succeed and remain stable AS VERIFY
  *   4) Clean up resources AS CLEANUP
  * @[Expect]: DAT transmission works reliably within MaxDataQueueSize constraints
- * @[Notes]: 验证AC-2@US-2 - TC-1: 在系统能力限制内的可靠传输
+ * @[Notes]: Verify AC-2@US-2 - TC-1: Reliable transmission within system capability constraints
  */
 TEST(UT_DataCapability, verifyDatTransmission_byWithinMaxDataQueueSize_expectReliableBehavior) {
     //===SETUP===
@@ -206,7 +207,7 @@ TEST(UT_DataCapability, verifyDatTransmission_byWithinMaxDataQueueSize_expectRel
  *   3) Verify boundary behavior and error handling AS VERIFY
  *   4) Clean up all connections AS CLEANUP
  * @[Expect]: System handles connection limits gracefully with appropriate error codes
- * @[Notes]: 验证AC-3@US-3 - TC-1: 连接数边界时的优雅处理
+ * @[Notes]: Verify AC-3@US-3 - TC-1: Graceful handling at connection count boundaries
  */
 TEST(UT_DataCapability, verifyDatBoundaryBehavior_byConnectionLimits_expectGracefulHandling) {
     //===SETUP===
