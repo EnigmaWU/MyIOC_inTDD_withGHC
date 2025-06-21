@@ -42,10 +42,6 @@ typedef struct {
     // MsgCommon - inherited from IOC_MsgDesc_T
     IOC_MsgDesc_T MsgDesc;
 
-    // DatSpecific
-    IOC_DatStatus_E Status;  // Current stream status
-    IOC_Result_T Result;     // Transfer result code
-
     // Data payload
     IOC_DatPayload_T Payload;  // Data chunk payload
 
