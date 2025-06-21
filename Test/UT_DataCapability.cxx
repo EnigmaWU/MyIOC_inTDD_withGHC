@@ -95,6 +95,8 @@
  *      @[Purpose]: Verify capability queries are independent of system state and operational conditions
  *      @[Brief]: Test capability consistency across different system states, loads, and cross-capability relationships
  *
+ *  TODO: TC-4...
+ *
  * [@AC-2,US-2] DAT transmission within capability limits
  *  TC-1:
  *      @[Name]: verifyDatTransmission_byWithinMaxDataQueueSize_expectReliableBehavior
@@ -203,18 +205,17 @@ TEST(UT_DataCapability, verifyConetModeDataCapability_byInvalidInputs_expectGrac
     printf("  ℹ️  IOC_getCapability() API Contract: Requires valid IOC_CapabilityDescription_T pointer\n");
     printf("  ℹ️  NULL input would cause segmentation fault - this is by design\n");
     printf("  ✅ API input validation contract documented and understood\n");
-    
+
     // Instead of testing NULL (which crashes), test with invalid memory patterns
     printf("  📋 Testing with uninitialized/invalid structure patterns...\n");
-    
+
     // Test with completely uninitialized structure (undefined CapID)
     IOC_CapabilityDescription_T UninitializedDesc;
     // Don't memset - leave with random data
-    UninitializedDesc.CapID = (IOC_CapabilityID_T)0xFFFFFFFF; // Clearly invalid CapID
-    
+    UninitializedDesc.CapID = (IOC_CapabilityID_T)0xFFFFFFFF;  // Clearly invalid CapID
+
     IOC_Result_T UninitResult = IOC_getCapability(&UninitializedDesc);
-    ASSERT_NE(IOC_RESULT_SUCCESS, UninitResult) 
-        << "IOC_getCapability() should fail with clearly invalid CapID";
+    ASSERT_NE(IOC_RESULT_SUCCESS, UninitResult) << "IOC_getCapability() should fail with clearly invalid CapID";
     printf("  ✅ Invalid CapID (0xFFFFFFFF) handled gracefully (Result=%d)\n", UninitResult);
 
     // Test Point 2: Invalid CapID handling
@@ -826,15 +827,15 @@ TEST(UT_DataCapability, verifyConetModeDataCapability_bySystemStateIndependence_
     //===BEHAVIOR===
     // Test Point 1: Capability independence from service operations
     printf("\nTest Point 1: System state independence during service operations\n");
-    
+
     // Create some services to change system state
     std::vector<IOC_SrvID_T> TestServices;
     const int NumTestServices = std::min(2, (int)BaselineCapDesc.ConetModeData.Common.MaxSrvNum);
-    
+
     for (int i = 0; i < NumTestServices; i++) {
         char SrvPath[64];
         snprintf(SrvPath, sizeof(SrvPath), "StateTest_Srv_%d", i);
-        
+
         IOC_SrvURI_T SrvURI = {
             .pProtocol = IOC_SRV_PROTO_FIFO,
             .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
@@ -862,7 +863,7 @@ TEST(UT_DataCapability, verifyConetModeDataCapability_bySystemStateIndependence_
 
     // Test Point 2: Cross-capability consistency (DATA vs EVENT)
     printf("\nTest Point 2: Cross-capability consistency testing\n");
-    
+
     IOC_CapabilityDescription_T EventCapDesc;
     memset(&EventCapDesc, 0, sizeof(EventCapDesc));
     EventCapDesc.CapID = IOC_CAPID_CONET_MODE_EVENT;
@@ -875,9 +876,9 @@ TEST(UT_DataCapability, verifyConetModeDataCapability_bySystemStateIndependence_
 
     // Test Point 3: Multiple queries during different system states
     printf("\nTest Point 3: Multiple capability queries during system state changes\n");
-    
+
     std::vector<IOC_CapabilityDescription_T> StateCapabilities;
-    
+
     // Query before destroying services
     IOC_CapabilityDescription_T PreDestroyCapDesc;
     memset(&PreDestroyCapDesc, 0, sizeof(PreDestroyCapDesc));
@@ -891,7 +892,7 @@ TEST(UT_DataCapability, verifyConetModeDataCapability_bySystemStateIndependence_
         IOC_offlineService(TestServices.back());
         TestServices.pop_back();
         printf("  ✅ Destroyed one test service, remaining: %zu\n", TestServices.size());
-        
+
         IOC_CapabilityDescription_T PostDestroyCapDesc;
         memset(&PostDestroyCapDesc, 0, sizeof(PostDestroyCapDesc));
         PostDestroyCapDesc.CapID = IOC_CAPID_CONET_MODE_DATA;
@@ -902,7 +903,7 @@ TEST(UT_DataCapability, verifyConetModeDataCapability_bySystemStateIndependence_
 
     //===VERIFY===
     printf("\nVerification Phase:\n");
-    
+
     // KeyVerifyPoint-1: Capabilities remain consistent regardless of system state
     ASSERT_EQ(BaselineCapDesc.ConetModeData.Common.MaxSrvNum, ActiveCapDesc.ConetModeData.Common.MaxSrvNum)
         << "MaxSrvNum should be consistent between baseline and active state";
@@ -945,19 +946,22 @@ TEST(UT_DataCapability, verifyConetModeDataCapability_bySystemStateIndependence_
     // Multiple rapid queries should return identical results
     printf("\nTest Point 4: Rapid sequential capability queries\n");
     IOC_CapabilityDescription_T RapidQuery1, RapidQuery2, RapidQuery3;
-    
-    memset(&RapidQuery1, 0, sizeof(RapidQuery1)); RapidQuery1.CapID = IOC_CAPID_CONET_MODE_DATA;
-    memset(&RapidQuery2, 0, sizeof(RapidQuery2)); RapidQuery2.CapID = IOC_CAPID_CONET_MODE_DATA;
-    memset(&RapidQuery3, 0, sizeof(RapidQuery3)); RapidQuery3.CapID = IOC_CAPID_CONET_MODE_DATA;
-    
+
+    memset(&RapidQuery1, 0, sizeof(RapidQuery1));
+    RapidQuery1.CapID = IOC_CAPID_CONET_MODE_DATA;
+    memset(&RapidQuery2, 0, sizeof(RapidQuery2));
+    RapidQuery2.CapID = IOC_CAPID_CONET_MODE_DATA;
+    memset(&RapidQuery3, 0, sizeof(RapidQuery3));
+    RapidQuery3.CapID = IOC_CAPID_CONET_MODE_DATA;
+
     IOC_Result_T Rapid1 = IOC_getCapability(&RapidQuery1);
     IOC_Result_T Rapid2 = IOC_getCapability(&RapidQuery2);
     IOC_Result_T Rapid3 = IOC_getCapability(&RapidQuery3);
-    
+
     ASSERT_EQ(IOC_RESULT_SUCCESS, Rapid1) << "Rapid query 1 should succeed";
     ASSERT_EQ(IOC_RESULT_SUCCESS, Rapid2) << "Rapid query 2 should succeed";
     ASSERT_EQ(IOC_RESULT_SUCCESS, Rapid3) << "Rapid query 3 should succeed";
-    
+
     ASSERT_EQ(RapidQuery1.ConetModeData.Common.MaxSrvNum, RapidQuery2.ConetModeData.Common.MaxSrvNum)
         << "Rapid sequential queries should return identical MaxSrvNum";
     ASSERT_EQ(RapidQuery2.ConetModeData.Common.MaxSrvNum, RapidQuery3.ConetModeData.Common.MaxSrvNum)
