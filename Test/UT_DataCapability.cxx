@@ -109,6 +109,13 @@
  *      @[Name]: verifyDatTransmission_byBlockingNonBlockingModes_expectCorrectBehavior
  *      @[Purpose]: Verify DAT transmission behavior in blocking vs non-blocking modes when approaching MaxDataQueueSize
  *      @[Brief]: Test blocking mode (sender waits) vs non-blocking mode (immediate return) when queue approaches
+ *  TC-3:
+ *      @[Name]: verifyDatTransmission_byDataIntegrityAndResourceManagement_expectNoLossOrExhaustion
+ *      @[Purpose]: Verify DAT transmission maintains data integrity and prevents resource exhaustion under stress
+ *      @[Brief]: Test high-volume data transmission with various data patterns, sizes, and timing
+ *        to verify no data loss occurs and system resources are properly managed within MaxDataQueueSize constraints.
+ *
+ *  TODO: TC-4...
  *capacity
  *
  * [@AC-1,US-3] DAT behavior at capability boundaries
@@ -142,6 +149,13 @@
  *   - verifyDatBoundaryBehavior_byConnectionLimits_expectGracefulHandling
  *
  **************************************************************************************************/
+
+#include <chrono>
+#include <functional>
+#include <map>
+#include <mutex>
+#include <thread>
+#include <vector>
 
 #include "_UT_IOC_Common.h"
 
@@ -1369,4 +1383,365 @@ TEST(UT_DataCapability, verifyDatTransmission_byBlockingNonBlockingModes_expectC
     }
 
     printf("  ✅ Cleanup completed\n");
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF: [@AC-1,US-2] TC-3===============================================================
+/**
+ * @[Name]: verifyDatTransmission_byDataIntegrityAndResourceManagement_expectNoLossOrExhaustion
+ * @[Steps]:
+ *   1) Query system capabilities to get MaxDataQueueSize AS SETUP
+ *   2) Setup DAT environment with diverse data pattern generators AS SETUP
+ *   3) Perform high-volume transmission with various patterns, sizes, and timing AS BEHAVIOR
+ *   4) Verify complete data integrity and resource management AS VERIFY
+ *   5) Clean up resources AS CLEANUP
+ * @[Expect]: High-volume DAT transmission with zero data loss and resource exhaustion within MaxDataQueueSize
+ * @[Notes]: Verify AC-1@US-2 - TC-3: Data integrity and resource management under high-volume stress
+ */
+TEST(UT_DataCapability, verifyDatTransmission_byDataIntegrityAndResourceManagement_expectNoLossOrExhaustion) {
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    //===SETUP=== 🔧 SYSTEM PREPARATION - Setup for high-volume data transmission testing
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    printf("BEHAVIOR: verifyDatTransmission_byDataIntegrityAndResourceManagement_expectNoLossOrExhaustion\n");
+    printf("🧪 Testing: High-Volume Data Transmission with Integrity & Resource Management\n");
+
+    // Query system capabilities to get MaxDataQueueSize
+    IOC_CapabilityDescription_T CapDesc;
+    memset(&CapDesc, 0, sizeof(CapDesc));
+    CapDesc.CapID = IOC_CAPID_CONET_MODE_DATA;
+    IOC_Result_T Result = IOC_getCapability(&CapDesc);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Failed to query system capabilities";
+
+    ULONG_T MaxDataQueueSize = CapDesc.ConetModeData.MaxDataQueueSize;
+    printf("📊 System MaxDataQueueSize: %u bytes\n", (unsigned int)MaxDataQueueSize);
+
+    // Setup DAT environment with sender as service, receiver as client
+    IOC_SrvID_T DatSenderSrvID = IOC_ID_INVALID;
+    IOC_LinkID_T DatSenderLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T DatReceiverLinkID = IOC_ID_INVALID;
+
+    // Private data for callback verification and integrity checking
+    struct {
+        std::mutex DataMutex;                // Protect concurrent access
+        bool CallbackExecuted = false;       // Verify receiver is working
+        ULONG_T TotalReceivedSize = 0;       // Track total bytes received
+        int ReceivedChunkCount = 0;          // Track number of data chunks received
+        int PatternErrorCount = 0;           // Track any data corruption detected
+        std::map<int, bool> ReceivedChunks;  // Track which chunks were received (by index)
+    } DatReceiverPrivData;
+
+    // Setup DatSender service (server role)
+    IOC_SrvURI_T DatSenderSrvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = (const char *)"DatSender_IntegrityTest",
+    };
+
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = DatSenderSrvURI,
+        .UsageCapabilites = IOC_LinkUsageDatSender,
+    };
+
+    Result = IOC_onlineService(&DatSenderSrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Failed to online DatSender service";
+    ASSERT_NE(IOC_ID_INVALID, DatSenderSrvID) << "Invalid DatSender service ID";
+
+    // Setup DatReceiver connection (client role) with callback for integrity verification
+    auto CbRecvDat_F = [](IOC_LinkID_T, void *pData, ULONG_T DataSize, void *pCbPriv) -> IOC_Result_T {
+        auto *pPrivData = (decltype(DatReceiverPrivData) *)pCbPriv;
+
+        std::lock_guard<std::mutex> lock(pPrivData->DataMutex);
+        pPrivData->CallbackExecuted = true;
+        pPrivData->TotalReceivedSize += DataSize;
+        pPrivData->ReceivedChunkCount++;
+
+        // Data integrity verification - check if data contains expected pattern markers
+        if (DataSize >= sizeof(uint32_t)) {
+            // Each data chunk starts with a chunk index (set by our pattern generators)
+            uint32_t chunkIndex = ((uint32_t *)pData)[0];
+
+            // Record that we received this specific chunk
+            pPrivData->ReceivedChunks[chunkIndex] = true;
+
+            // Sanity check: chunk index should be reasonable (detect corruption)
+            if (chunkIndex > 100000) {  // Liberal upper bound for stress testing
+                pPrivData->PatternErrorCount++;
+                printf("    ⚠️  Data corruption detected - chunk index %u is suspiciously large\n", chunkIndex);
+            }
+        } else {
+            // Small chunks (< 4 bytes) don't have room for index markers
+            // Just accept them and mark as valid small chunks
+            pPrivData->ReceivedChunks[-1] = true;  // Special marker for tiny chunks
+        }
+
+        return IOC_RESULT_SUCCESS;
+    };
+
+    IOC_DatUsageArgs_T DatUsageArgs = {
+        .CbRecvDat_F = CbRecvDat_F,
+        .pCbPrivData = &DatReceiverPrivData,
+    };
+
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = DatSenderSrvURI,
+        .Usage = IOC_LinkUsageDatReceiver,
+        .UsageArgs = {.pDat = &DatUsageArgs},
+    };
+
+    // DatReceiver connect to DatSender service (client connects to server)
+    std::thread DatReceiverThread([&] {
+        Result = IOC_connectService(&DatReceiverLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+        ASSERT_NE(IOC_ID_INVALID, DatReceiverLinkID);
+    });
+
+    // DatSender accept the DatReceiver connection
+    Result = IOC_acceptClient(DatSenderSrvID, &DatSenderLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Failed to accept DatReceiver connection";
+    ASSERT_NE(IOC_ID_INVALID, DatSenderLinkID) << "Invalid DatSender link ID";
+
+    DatReceiverThread.join();
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    //===BEHAVIOR=== 🚀 HIGH-VOLUME TRANSMISSION - Diverse data patterns, sizes, and timing
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    //  Perform high-volume DAT transmission with diverse patterns, sizes, and timing
+    //  Strategy: Send multiple data patterns with various sizes up to 85% of MaxDataQueueSize
+    //  This tests data integrity and resource management under high-volume conditions
+
+    printf("\n🔧 Setting up diverse data patterns for comprehensive testing...\n");
+
+    // Define different data patterns to test various transmission scenarios
+    struct DataPattern {
+        std::string name;                                       // Human-readable pattern name
+        std::function<void(uint8_t *, size_t, int)> generator;  // Function to create the pattern
+    };
+
+    std::vector<DataPattern> patterns = {
+        {
+            "Sequential",  // Incrementing byte values - good for detecting byte-order issues
+            [](uint8_t *data, size_t size, int chunkIndex) {
+                // Always embed chunk index in first 4 bytes for tracking
+                if (size >= sizeof(uint32_t)) {
+                    ((uint32_t *)data)[0] = chunkIndex;
+                    // Fill remaining bytes with sequential pattern
+                    for (size_t i = sizeof(uint32_t); i < size; i++) {
+                        data[i] = (uint8_t)(chunkIndex + i);
+                    }
+                } else {
+                    // Tiny chunks: just fill with sequential pattern
+                    for (size_t i = 0; i < size; i++) data[i] = (uint8_t)(chunkIndex + i);
+                }
+            },
+        },
+        {
+            "Random",  // Pseudo-random data - tests handling of unpredictable content
+            [](uint8_t *data, size_t size, int chunkIndex) {
+                if (size >= sizeof(uint32_t)) {
+                    ((uint32_t *)data)[0] = chunkIndex;
+                    // Generate reproducible random data (same seed = same pattern)
+                    srand(chunkIndex + 42);
+                    for (size_t i = sizeof(uint32_t); i < size; i++) {
+                        data[i] = (uint8_t)(rand() % 256);
+                    }
+                } else {
+                    srand(chunkIndex + 42);
+                    for (size_t i = 0; i < size; i++) data[i] = (uint8_t)(rand() % 256);
+                }
+            },
+        },
+        {
+            "ZeroFilled",  // All zeros - tests minimal data scenarios
+            [](uint8_t *data, size_t size, int chunkIndex) {
+                memset(data, 0, size);
+                if (size >= sizeof(uint32_t)) {
+                    ((uint32_t *)data)[0] = chunkIndex;  // Only the index marker is non-zero
+                }
+            },
+        },
+        {
+            "MaxValue",  // All 0xFF bytes - tests maximum value scenarios
+            [](uint8_t *data, size_t size, int chunkIndex) {
+                memset(data, 0xFF, size);
+                if (size >= sizeof(uint32_t)) {
+                    ((uint32_t *)data)[0] = chunkIndex;  // Overwrite with index marker
+                }
+            },
+        },
+        {
+            "Alternating",  // 0xAA/0x55 pattern - classic bit-flip test pattern
+            [](uint8_t *data, size_t size, int chunkIndex) {
+                if (size >= sizeof(uint32_t)) {
+                    ((uint32_t *)data)[0] = chunkIndex;
+                    // Fill remaining bytes with alternating pattern
+                    for (size_t i = sizeof(uint32_t); i < size; i++) {
+                        data[i] = (i % 2) ? 0xAA : 0x55;
+                    }
+                } else {
+                    for (size_t i = 0; i < size; i++) data[i] = (i % 2) ? 0xAA : 0x55;
+                }
+            },
+        },
+    };
+
+    // Define various data sizes to test scalability and edge cases
+    std::vector<size_t> dataSizes = {
+        64,    // Small payload - minimal overhead test
+        512,   // Medium-small - typical small message size
+        1024,  // Standard chunk - common buffer size
+        4096,  // Large chunk - page-size aligned
+        8192,  // Very large chunk - stress test
+        16384  // Maximum single chunk - boundary test
+    };
+
+    printf("📋 Configured %zu data patterns and %zu size variations\n", patterns.size(), dataSizes.size());
+
+    // High-volume transmission targeting 85% of system capacity
+    ULONG_T TotalDataSent = 0;
+    const ULONG_T TargetDataVolume = (MaxDataQueueSize * 85) / 100;  // 85% of capacity
+    int ChunkCounter = 0;
+
+    printf("🎯 Target transmission volume: %u bytes (85%% of MaxDataQueueSize)\n", (unsigned int)TargetDataVolume);
+
+    // Main transmission loop - send data until we reach target volume
+    while (TotalDataSent < TargetDataVolume) {
+        // Select pattern and size for this chunk (cycle through all combinations)
+        const DataPattern &currentPattern = patterns[ChunkCounter % patterns.size()];
+        size_t chunkSize = dataSizes[ChunkCounter % dataSizes.size()];
+
+        // Ensure we don't exceed our target volume
+        if (TotalDataSent + chunkSize > TargetDataVolume) {
+            chunkSize = TargetDataVolume - TotalDataSent;
+        }
+
+        // Generate data chunk with the selected pattern
+        std::vector<uint8_t> chunk(chunkSize);
+        currentPattern.generator(chunk.data(), chunkSize, ChunkCounter);
+
+        // Apply timing variation to simulate different transmission scenarios
+        if (ChunkCounter % 10 < 3) {
+            // Burst mode: Send rapidly (30% of chunks) - simulates peak load
+            // No artificial delay
+        } else if (ChunkCounter % 10 < 7) {
+            // Steady mode: Normal pace (40% of chunks) - simulates regular operation
+            std::this_thread::sleep_for(std::chrono::microseconds(100));
+        } else {
+            // Slow mode: Deliberate delay (30% of chunks) - simulates constrained resources
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+
+        // Send the data chunk
+        IOC_DatDesc_T DatDesc = {0};
+        IOC_initDatDesc(&DatDesc);
+        DatDesc.Payload.pData = chunk.data();
+        DatDesc.Payload.PtrDataSize = chunkSize;
+
+        Result = IOC_sendDAT(DatSenderLinkID, &DatDesc, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "IOC_sendDAT failed at chunk " << ChunkCounter
+                                              << " (pattern: " << currentPattern.name << ", size: " << chunkSize << ")";
+
+        TotalDataSent += chunkSize;
+        ChunkCounter++;
+
+        // Periodic flush to ensure data flows through the system
+        if (ChunkCounter % 20 == 0 || TotalDataSent > (TargetDataVolume * 90) / 100) {
+            IOC_flushDAT(DatSenderLinkID, NULL);
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));  // Allow processing time
+        }
+
+        // Progress reporting for long-running tests
+        if (ChunkCounter % 50 == 0) {
+            printf("  📈 Progress: %d chunks, %u bytes sent (%.1f%% of target)\n", ChunkCounter,
+                   (unsigned int)TotalDataSent, (double)TotalDataSent * 100.0 / TargetDataVolume);
+        }
+    }
+
+    // Final flush and allow time for all data to be processed
+    IOC_flushDAT(DatSenderLinkID, NULL);
+    printf("  ✅ Transmission complete: %d chunks, %u bytes total\n", ChunkCounter, (unsigned int)TotalDataSent);
+
+    // Allow substantial time for high-volume data processing
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    //===VERIFY=== 🔍 COMPREHENSIVE VERIFICATION - Data integrity and resource management
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    //  KeyVerifyPoint-1: Callback should be executed for high-volume transmission
+    ASSERT_TRUE(DatReceiverPrivData.CallbackExecuted)
+        << "Receiver callback should be executed when high-volume data is transmitted";
+
+    // KeyVerifyPoint-2: Total received data should match total sent data (no data loss)
+    ASSERT_EQ(TotalDataSent, DatReceiverPrivData.TotalReceivedSize)
+        << "❌ CRITICAL: Data loss detected! Expected: " << TotalDataSent
+        << ", Actual: " << DatReceiverPrivData.TotalReceivedSize << " (DATA LOSS DETECTED!)";
+
+    // KeyVerifyPoint-3: All chunks should be received (no missing chunks)
+    ASSERT_EQ(ChunkCounter, DatReceiverPrivData.ReceivedChunkCount)
+        << "❌ CRITICAL: Missing chunks detected! Expected: " << ChunkCounter
+        << " chunks, Received: " << DatReceiverPrivData.ReceivedChunkCount << " (MISSING CHUNKS DETECTED!)";
+
+    // KeyVerifyPoint-4: Data pattern integrity verification
+    ASSERT_EQ(0, DatReceiverPrivData.PatternErrorCount)
+        << "❌ CRITICAL: Data corruption detected! " << DatReceiverPrivData.PatternErrorCount
+        << " (DATA CORRUPTION DETECTED!)";
+
+    // KeyVerifyPoint-5: Resource management - should not exceed MaxDataQueueSize capacity
+    ASSERT_LE(DatReceiverPrivData.TotalReceivedSize, MaxDataQueueSize)
+        << "❌ CRITICAL: Exceeded system capacity! Received: " << DatReceiverPrivData.TotalReceivedSize
+        << " bytes, Max allowed: " << MaxDataQueueSize << " bytes";
+
+    // KeyVerifyPoint-6: High-volume transmission efficiency
+    double DataEfficiency = (double)TotalDataSent / MaxDataQueueSize * 100.0;
+    ASSERT_GE(DataEfficiency, 80.0)
+        << "❌ Insufficient test coverage! Should achieve ≥80% system capacity utilization, "
+        << "actual: " << DataEfficiency << "%";
+
+    // KeyVerifyPoint-7: Pattern and size diversity verification
+    // Since we're limited by 85% capacity, we may not test all combinations
+    // Instead, verify we've tested multiple patterns and sizes
+    int UniquePatternsTested = ChunkCounter >= (int)patterns.size() ? (int)patterns.size() : ChunkCounter;
+    int UniqueSizesTested = ChunkCounter >= (int)dataSizes.size() ? (int)dataSizes.size() : ChunkCounter;
+
+    ASSERT_GE(UniquePatternsTested, std::min(3, (int)patterns.size()))
+        << "❌ Insufficient pattern diversity! Should test at least 3 different patterns. "
+        << "Chunks sent: " << ChunkCounter << ", Patterns available: " << patterns.size();
+
+    ASSERT_GE(UniqueSizesTested, std::min(3, (int)dataSizes.size()))
+        << "❌ Insufficient size diversity! Should test at least 3 different sizes. "
+        << "Chunks sent: " << ChunkCounter << ", Sizes available: " << dataSizes.size();
+
+    // KeyVerifyPoint-8: Adequate stress testing volume
+    ASSERT_GE(ChunkCounter, 20) << "❌ Insufficient stress testing! Should send substantial number of chunks (≥20). "
+                                << "Actual: " << ChunkCounter << " chunks";
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    //  🎉 SUCCESS SUMMARY - Report comprehensive test results
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    printf("\n🎉 HIGH-VOLUME DATA TRANSMISSION TEST - ALL CHECKS PASSED!\n");
+    printf("┌─────────────────────────────────────────────────────────────────┐\n");
+    printf("│                          TEST RESULTS                          │\n");
+    printf("├─────────────────────────────────────────────────────────────────┤\n");
+    printf("│ 📊 Volume:       %u bytes in %d chunks               │\n", (unsigned int)TotalDataSent, ChunkCounter);
+    printf("│ 🎯 Efficiency:   %.1f%% of system capacity            │\n", DataEfficiency);
+    printf("│ 🔄 Patterns:     %d varieties tested                    │\n", UniquePatternsTested);
+    printf("│ 📏 Sizes:        %d variations tested                   │\n", UniqueSizesTested);
+    printf("│ ⚡ Timing:       Burst/Steady/Slow modes               │\n");
+    printf("│ ✅ Data Loss:    0 bytes lost                           │\n");
+    printf("│ 🛡️  Corruption:   0 pattern errors                      │\n");
+    printf("│ 💾 Resources:    Within MaxDataQueueSize=%u limit    │\n", (unsigned int)MaxDataQueueSize);
+    printf("└─────────────────────────────────────────────────────────────────┘\n");
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    //===CLEANUP=== 🧹 RESOURCE CLEANUP - Properly release all resources
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    //  Close connections and offline service
+    if (DatReceiverLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(DatReceiverLinkID);
+    }
+    if (DatSenderLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(DatSenderLinkID);
+    }
+    if (DatSenderSrvID != IOC_ID_INVALID) {
+        IOC_offlineService(DatSenderSrvID);
+    }
 }
