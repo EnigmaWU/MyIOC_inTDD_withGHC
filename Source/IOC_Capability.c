@@ -4,7 +4,9 @@ static IOC_Result_T __IOC_getCapability_inConetModeData(
     /*ARG_INOUT*/ IOC_CapabilityDescription_pT pCapDesc) {
     pCapDesc->ConetModeData.Common.MaxSrvNum = _MAX_IOC_SRV_OBJ_NUM;
     pCapDesc->ConetModeData.Common.MaxCliNum = _MAX_IOC_CLI_OBJ_NUM_PER_SRV;
-    pCapDesc->ConetModeData.MaxDataQueueSize = 1024;  // TODO(@W): Define proper constant
+    pCapDesc->ConetModeData.MaxDataQueueSize =
+        (128 << 10);  // TODO(@W): Define proper constant by Tiny/Typical/Titan Version
+                      // such as: CONFIG_IOC_TINY_VERSION, CONFIG_IOC_TYPICAL_VERSION, CONFIG_IOC_TITAN_VERSION
     return IOC_RESULT_SUCCESS;
 }
 
