@@ -56,23 +56,26 @@
  *         THEN system should return IOC_RESULT_SUCCESS
  *          AND IOC_ConetModeDataCapability_T should contain valid values
  *          AND all capability values should be greater than 0.
+ *  TODO: AC-2...
  *
  * [@US-2] DAT transmission within capability limits
- *  AC-2: GIVEN system capability limits queried successfully,
+ *  AC-1: GIVEN system capability limits queried successfully,
  *         WHEN performing DAT operations within MaxDataQueueSize limits,
  *         THEN all data transmissions should succeed
  *          AND if MaxDataQueueSize is reached,
  *              THEN sender will BLOCKED by default OR return IMMEDIATELY in non-blocking mode
  *          AND no data loss should occur
  *          AND no resource exhaustion should occur.
+ *  TODO: AC-2...
  *
  * [@US-3] DAT behavior at capability boundaries
- *  AC-3: GIVEN system operating at capability boundaries,
+ *  AC-1: GIVEN system operating at capability boundaries,
  *         WHEN reaching MaxSrvNum, MaxCliNum, or MaxDataQueueSize limits,
  *         THEN system should handle boundary conditions gracefully
  *          AND provide appropriate error codes when limits exceeded
  *          AND restore normal operation after returning to within limits
  *          AND repeatable behavior should be observed without unexpected crashes or resource leaks.
+ *  TODO: AC-2...
  */
 //=======>END OF ACCEPTANCE CRITERIA================================================================
 
@@ -97,7 +100,7 @@
  *
  *  TODO: TC-4...
  *
- * [@AC-2,US-2] DAT transmission within capability limits
+ * [@AC-1,US-2] DAT transmission within capability limits
  *  TC-1:
  *      @[Name]: verifyDatTransmission_byWithinMaxDataQueueSize_expectReliableBehavior
  *      @[Purpose]: Verify DAT transmission reliability within MaxDataQueueSize constraints
@@ -105,7 +108,7 @@
  *
  *  TODO: TC-2...
  *
- * [@AC-3,US-3] DAT behavior at capability boundaries
+ * [@AC-1,US-3] DAT behavior at capability boundaries
  *  TC-1:
  *      @[Name]: verifyDatBoundaryBehavior_byConnectionLimits_expectGracefulHandling
  *      @[Purpose]: Verify DAT behavior when connection limits are reached
@@ -315,7 +318,7 @@ TEST(UT_DataCapability, verifyConetModeDataCapability_byInvalidInputs_expectGrac
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF: [@AC-2,US-2] TC-1===============================================================
+//======>BEGIN OF: [@AC-1,US-2] TC-1===============================================================
 /**
  * @[Name]: verifyDatTransmission_byWithinMaxDataQueueSize_expectReliableBehavior
  * @[Steps]:
@@ -324,7 +327,7 @@ TEST(UT_DataCapability, verifyConetModeDataCapability_byInvalidInputs_expectGrac
  *   3) Verify all transmissions succeed and remain stable AS VERIFY
  *   4) Clean up resources AS CLEANUP
  * @[Expect]: DAT transmission works reliably within MaxDataQueueSize constraints
- * @[Notes]: Verify AC-2@US-2 - TC-1: Reliable transmission within system capability constraints
+ * @[Notes]: Verify AC-1@US-2 - TC-1: Reliable transmission within system capability constraints
  */
 TEST(UT_DataCapability, verifyDatTransmission_byWithinMaxDataQueueSize_expectReliableBehavior) {
     //===SETUP===
@@ -500,7 +503,7 @@ TEST(UT_DataCapability, verifyDatTransmission_byWithinMaxDataQueueSize_expectRel
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF: [@AC-3,US-3] TC-1===============================================================
+//======>BEGIN OF: [@AC-1,US-3] TC-1===============================================================
 /**
  * @[Name]: verifyDatBoundaryBehavior_byConnectionLimits_expectGracefulHandling
  * @[Steps]:
@@ -509,7 +512,7 @@ TEST(UT_DataCapability, verifyDatTransmission_byWithinMaxDataQueueSize_expectRel
  *   3) Verify boundary behavior and error handling AS VERIFY
  *   4) Clean up all connections AS CLEANUP
  * @[Expect]: System handles connection limits gracefully with appropriate error codes
- * @[Notes]: Verify AC-3@US-3 - TC-1: Graceful handling at connection count boundaries
+ * @[Notes]: Verify AC-1@US-3 - TC-1: Graceful handling at connection count boundaries
  */
 TEST(UT_DataCapability, verifyDatBoundaryBehavior_byConnectionLimits_expectGracefulHandling) {
     //===SETUP===
