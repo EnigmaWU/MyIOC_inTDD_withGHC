@@ -8,18 +8,6 @@ extern "C" {
 #endif
 
 /**
- * @brief Data stream status enumeration
- */
-typedef enum {
-    IOC_DAT_STATUS_STREAM_READY = 0,   // Stream is ready for data transfer
-    IOC_DAT_STATUS_SENDING = 1,        // Currently sending data chunk
-    IOC_DAT_STATUS_RECEIVING = 2,      // Currently receiving data chunk
-    IOC_DAT_STATUS_PROCESSING = 3,     // Currently processing received data
-    IOC_DAT_STATUS_STREAM_CLOSED = 4,  // Stream has been closed
-    IOC_DAT_STATUS_STREAM_ERROR = 5,   // Stream encountered error
-} IOC_DatStatus_E;
-
-/**
  * @brief Data payload structure for stream data chunks
  *     IF EmbDataSize > 0, then EmbData[] is used to store the data.
  *     IF EmbDataSize == 0, then pData is used to store the data in heap memory.
@@ -57,8 +45,6 @@ typedef struct {
 static inline void IOC_initDatDesc(IOC_DatDesc_pT pDatDesc) {
     if (pDatDesc) {
         memset(pDatDesc, 0, sizeof(IOC_DatDesc_T));
-        pDatDesc->Status = IOC_DAT_STATUS_STREAM_READY;
-        pDatDesc->Result = IOC_RESULT_BUG;
         // Note: No timestamp for simple version
     }
 }
