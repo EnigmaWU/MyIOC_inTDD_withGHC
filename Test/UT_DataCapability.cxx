@@ -1154,29 +1154,39 @@ TEST(UT_DataCapability, verifyDatTransmission_byBlockingNonBlockingModes_expectC
 
     printf("\n=== Phase 2: Testing Non-blocking Mode Behavior ===\n");
 
-    // Reset receiver to fast consumption to drain existing queue
-    DatReceiverPrivData.SlowConsumer = false;
+    // Keep slow consumer enabled to maintain queue pressure for non-blocking test
+    // Do NOT drain the queue - we want it to remain full to trigger non-blocking behavior
+    printf("Keeping queue full with slow consumer for non-blocking test...\n");
+    DatReceiverPrivData.SlowConsumer = true;
 
-    // Wait for queue to drain completely
-    printf("Waiting for queue to drain before non-blocking test...\n");
-    IOC_flushDAT(DatSenderLinkID, NULL);
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-
-    // Test non-blocking mode behavior
+    // Test non-blocking mode behavior with aggressive queue pressure
     printf("Testing non-blocking mode with IOC_Option_defineNonBlock\n");
 
-    // Adjust chunk size based on MaxDataQueueSize to ensure we can trigger non-blocking behavior
-    const int NonBlockingChunkSize = std::max(512, (int)(MaxDataQueueSize / 4));  // Use 1/4 of queue size per chunk
-    const int NumNonBlockingChunks = 8;  // Send more chunks to fill queue
+    // Use larger chunks to more aggressively fill the queue
+    const int NonBlockingChunkSize =
+        std::max(LargeChunkSize, (int)(MaxDataQueueSize / 2));  // Use 1/2 of queue size per chunk
+    const int NumNonBlockingChunks = 12;                        // Send many chunks to guarantee queue overflow
 
-    printf("Using chunk size: %d bytes, sending %d chunks\n", NonBlockingChunkSize, NumNonBlockingChunks);
+    printf("Using aggressive chunk size: %d bytes, sending %d chunks to force queue overflow\n", NonBlockingChunkSize,
+           NumNonBlockingChunks);
 
     // Fill queue again, but use non-blocking sends this time
     std::vector<IOC_Result_T> NonBlockingResults;
     std::vector<std::chrono::milliseconds> NonBlockingDurations;
 
-    // Enable slow consumer again to create queue pressure
-    DatReceiverPrivData.SlowConsumer = true;
+    // Send a few more blocking chunks first to ensure queue is completely full
+    printf("Pre-filling queue with 2 more blocking chunks...\n");
+    for (int prefill = 0; prefill < 2; prefill++) {
+        IOC_DatDesc_T PreFillDesc = {0};
+        IOC_initDatDesc(&PreFillDesc);
+        PreFillDesc.Payload.pData = LargeChunk;
+        PreFillDesc.Payload.PtrDataSize = LargeChunkSize;
+        IOC_sendDAT(DatSenderLinkID, &PreFillDesc, NULL);  // Blocking send to fill queue
+        printf("  Pre-fill chunk %d sent\n", prefill);
+    }
+
+    // Now attempt non-blocking sends on the already-full queue
+    printf("Now attempting non-blocking sends on full queue...\n");
 
     for (int chunk = 0; chunk < NumNonBlockingChunks; chunk++) {
         auto StartTime = std::chrono::high_resolution_clock::now();
@@ -1190,6 +1200,8 @@ TEST(UT_DataCapability, verifyDatTransmission_byBlockingNonBlockingModes_expectC
         IOC_Option_defineNonBlock(NonBlockingOptions);
 
         Result = IOC_sendDAT(DatSenderLinkID, &DatDesc, &NonBlockingOptions);
+        ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_BUFFER_FULL)
+            << "Non-blocking send should return either SUCCESS or BUFFER_FULL";
 
         auto EndTime = std::chrono::high_resolution_clock::now();
         auto Duration = std::chrono::duration_cast<std::chrono::milliseconds>(EndTime - StartTime);
@@ -1198,19 +1210,21 @@ TEST(UT_DataCapability, verifyDatTransmission_byBlockingNonBlockingModes_expectC
         NonBlockingDurations.push_back(Duration);
 
         printf("  Non-blocking chunk %d: Result=%d, Duration=%lldms", chunk, Result, Duration.count());
-        
+
         // Provide more detailed feedback on what we expect
         if (Result != IOC_RESULT_SUCCESS) {
             printf(" ✅ (Expected: non-blocking should fail when queue full)");
+        } else if (Duration.count() < 10) {
+            printf(" ✅ (Very fast success - true non-blocking)");
         } else if (Duration.count() < 50) {
-            printf(" ✅ (Fast send success)");
+            printf(" ✅ (Fast success - likely non-blocking)");
         } else {
             printf(" ⚠️ (Slow response in non-blocking mode)");
         }
         printf("\n");
 
-        // Very small delay between sends to observe queue behavior
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        // No delay between sends - send as fast as possible to test non-blocking behavior
+        // This should cause immediate failures if non-blocking is working properly
     }
 
     //===VERIFY===
@@ -1224,60 +1238,80 @@ TEST(UT_DataCapability, verifyDatTransmission_byBlockingNonBlockingModes_expectC
         // This might happen if MaxDataQueueSize is very large or consumption is fast
     }
 
-    // KeyVerifyPoint-2: Non-blocking mode behavior analysis - STRICT ENFORCEMENT
-    int QuickReturns = 0;
-    int SlowSuccesses = 0;
-    int Failures = 0;
-    
+    // KeyVerifyPoint-2: STRICT ENFORCEMENT of non-blocking API contract
+    // According to IOC API specification, non-blocking calls MUST only return:
+    // - IOC_RESULT_SUCCESS (with immediate return, typically < 10ms)
+    // - IOC_RESULT_BUFFER_FULL (when queue is full)
+    // Any other behavior (slow success, other error codes) violates the API contract
+
+    int QuickSuccesses = 0;    // IOC_RESULT_SUCCESS with < 10ms
+    int SlowSuccesses = 0;     // IOC_RESULT_SUCCESS with >= 10ms (CONTRACT VIOLATION)
+    int BufferFullErrors = 0;  // IOC_RESULT_BUFFER_FULL (expected when queue full)
+    int OtherErrors = 0;       // Any other result code (CONTRACT VIOLATION)
+
     for (size_t i = 0; i < NonBlockingDurations.size(); i++) {
-        if (NonBlockingResults[i] != IOC_RESULT_SUCCESS) {
-            Failures++;
-        } else if (NonBlockingDurations[i].count() < 50) {
-            QuickReturns++;
+        IOC_Result_T result = NonBlockingResults[i];
+        auto duration_ms = NonBlockingDurations[i].count();
+
+        if (result == IOC_RESULT_SUCCESS) {
+            if (duration_ms < 10) {
+                QuickSuccesses++;
+            } else {
+                SlowSuccesses++;
+                printf(
+                    "  ❌ CONTRACT VIOLATION: Non-blocking call returned SUCCESS but took %lld ms (should be < 10ms)\n",
+                    duration_ms);
+            }
+        } else if (result == IOC_RESULT_BUFFER_FULL) {
+            BufferFullErrors++;
         } else {
-            SlowSuccesses++;
+            OtherErrors++;
+            printf("  ❌ CONTRACT VIOLATION: Non-blocking call returned unexpected result code: %d\n", result);
         }
     }
-    
-    printf("  📊 Non-blocking analysis:\n");
-    printf("    - Quick returns (< 50ms): %d\n", QuickReturns);
-    printf("    - Slow successes (≥ 50ms): %d\n", SlowSuccesses);
-    printf("    - Failures (queue full): %d\n", Failures);
+
+    printf("  📊 STRICT Non-blocking analysis:\n");
+    printf("    - Quick successes (< 10ms): %d ✅\n", QuickSuccesses);
+    printf("    - Slow successes (≥ 10ms): %d %s\n", SlowSuccesses, SlowSuccesses > 0 ? "❌" : "✅");
+    printf("    - Buffer full errors: %d ✅\n", BufferFullErrors);
+    printf("    - Other error codes: %d %s\n", OtherErrors, OtherErrors > 0 ? "❌" : "✅");
     printf("    - Total attempts: %d\n", NumNonBlockingChunks);
 
-    // STRICT ENFORCEMENT: Non-blocking mode MUST demonstrate non-blocking behavior
-    bool NonBlockingVerified = false;
-    
-    if (QuickReturns > 0) {
-        printf("  ✅ Non-blocking mode verification: PASSED (found %d quick returns)\n", QuickReturns);
-        NonBlockingVerified = true;
-    } else if (Failures > 0) {
-        printf("  ✅ Non-blocking mode verification: PASSED (found %d failures - indicates non-blocking rejection)\n", Failures);
-        NonBlockingVerified = true;
-    } else {
-        // STRICT REQUIREMENT: If all operations succeeded but were slow, this is a FAILURE
-        printf("  ❌ Non-blocking mode verification: FAILED\n");
-        printf("  📋 STRICT REQUIREMENT VIOLATION:\n");
-        printf("      Non-blocking mode MUST demonstrate quick returns (<50ms) or immediate failures\n");
-        printf("      All %d attempts succeeded but took ≥50ms, indicating blocking behavior\n", SlowSuccesses);
-        printf("      This violates the non-blocking contract requirement\n");
-        NonBlockingVerified = false;
-    }
-    
-    // STRICT ASSERTION: Non-blocking mode must be properly enforced
-    ASSERT_TRUE(NonBlockingVerified)
-        << "STRICT REQUIREMENT: Non-blocking mode MUST demonstrate non-blocking behavior. "
-        << "Found " << QuickReturns << " quick returns and " << Failures << " failures out of " 
-        << NumNonBlockingChunks << " attempts. At least one quick return or failure is required to prove non-blocking enforcement.";
+    // STRICT ENFORCEMENT: Zero tolerance for API contract violations
+    bool StrictComplianceAchieved = (SlowSuccesses == 0) && (OtherErrors == 0);
 
-    // KeyVerifyPoint-3: Both modes should handle errors gracefully
-    bool FoundGracefulErrors = false;
-    for (auto result : NonBlockingResults) {
-        if (result != IOC_RESULT_SUCCESS) {
-            FoundGracefulErrors = true;
-            printf("  ✅ Found graceful error handling in non-blocking mode (Result=%d)\n", result);
-            break;
+    if (StrictComplianceAchieved) {
+        printf("  ✅ Non-blocking mode verification: STRICT COMPLIANCE ACHIEVED\n");
+        printf("    All non-blocking calls returned within API contract:\n");
+        printf("    - %d quick successes (IOC_RESULT_SUCCESS < 10ms)\n", QuickSuccesses);
+        printf("    - %d buffer full responses (IOC_RESULT_BUFFER_FULL)\n", BufferFullErrors);
+    } else {
+        printf("  ❌ Non-blocking mode verification: CONTRACT VIOLATIONS DETECTED\n");
+        printf("    Violations found:\n");
+        if (SlowSuccesses > 0) {
+            printf("    - %d slow successes (should return immediately)\n", SlowSuccesses);
         }
+        if (OtherErrors > 0) {
+            printf("    - %d unexpected error codes (only SUCCESS/BUFFER_FULL allowed)\n", OtherErrors);
+        }
+    }
+
+    // STRICT ASSERTION: Fail the test if any contract violations are found
+    ASSERT_EQ(SlowSuccesses, 0) << "Non-blocking API contract violation: Found " << SlowSuccesses
+                                << " slow successes. Non-blocking calls must return immediately (< 10ms).";
+
+    ASSERT_EQ(OtherErrors, 0)
+        << "Non-blocking API contract violation: Found " << OtherErrors
+        << " unexpected result codes. Only IOC_RESULT_SUCCESS and IOC_RESULT_BUFFER_FULL are allowed.";
+
+    printf("  ✅ Non-blocking mode verification: PASSED (strict API contract enforcement)\n");
+
+    // KeyVerifyPoint-3: Error handling is verified as part of strict contract enforcement above
+    // Non-blocking mode should gracefully return IOC_RESULT_BUFFER_FULL when queue is full
+    if (BufferFullErrors > 0) {
+        printf("  ✅ Graceful error handling verified: Found %d IOC_RESULT_BUFFER_FULL responses\n", BufferFullErrors);
+    } else {
+        printf("  ℹ️  No buffer full errors encountered (queue may not have reached capacity)\n");
     }
 
     // KeyVerifyPoint-4: No data should be lost (eventually)
