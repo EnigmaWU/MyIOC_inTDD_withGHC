@@ -231,55 +231,83 @@
 
 //===TEMPLATE OF UT CASE===
 /**
- * @[Name]: ${verifyBehaviorX_byDoA_expectSomething}
- * @[Steps]: ${how to do}
- *   1) do ..., with ..., as SETUP
- *   2) do ..., with ..., as BEHAVIOR
- *   3) do ..., with ..., as VERIFY
- *   4) do ..., with ..., as CLEANUP
- * @[Expect]: ${how to verify}
- * @[Notes]:
+ * ╔══════════════════════════════════════════════════════════════════════════════════════════╗
+ * ║                                  📋 TEST CASE TEMPLATE                                   ║
+ * ╠══════════════════════════════════════════════════════════════════════════════════════════╣
+ * ║ @[Name]: ${verifyBehaviorX_byDoA_expectSomething}                                        ║
+ * ║ @[Steps]: ${how to do}                                                                   ║
+ * ║   1) 🔧 do ..., with ..., as SETUP                                                       ║
+ * ║   2) 🎯 do ..., with ..., as BEHAVIOR                                                    ║
+ * ║   3) ✅ do ..., with ..., as VERIFY                                                       ║
+ * ║   4) 🧹 do ..., with ..., as CLEANUP                                                     ║
+ * ║ @[Expect]: ${how to verify}                                                              ║
+ * ║ @[Notes]: ${additional notes}                                                            ║
+ * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
 TEST(UT_NameOfCategory, verifyBehaviorX_byDoA_expectSomething) {
-    //===SETUP===
-    // 1. ...
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                🔧 SETUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    //  1. ...
 
-    //===BEHAVIOR===
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🎯 BEHAVIOR PHASE                                       │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    printf("🎯 BEHAVIOR: verifyBehaviorX_byDoA_expectSomething\n");
     //@VerifyPoint xN(each case MAY have many 'ASSERT_XYZ' check points)
-    printf("BEHAVIOR: verifyBehaviorX_byDoA_expectSomething\n");
 
-    //===VERIFY===
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                ✅ VERIFY PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
     //@KeyVerifyPoint<=3(each case SHOULD has less than 3 key 'ASSERT_XYZ' verify points)
 
-    //===CLEANUP===
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🧹 CLEANUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
 }
 
 TEST(UT_NameOfCategory, verifyBehaviorY_byDoB_expectSomething) {
-    //===SETUP===
-    // 1. ...
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                🔧 SETUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    //  1. ...
 
-    //===BEHAVIOR===
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🎯 BEHAVIOR PHASE                                       │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    printf("🎯 BEHAVIOR: verifyBehaviorY_byDoB_expectSomething\n");
     //@VerifyPoint xN(each case MAY have many 'ASSERT_XYZ' check points)
-    printf("BEHAVIOR: verifyBehaviorY_byDoB_expectSomething\n");
 
-    //===VERIFY===
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                ✅ VERIFY PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
     //@KeyVerifyPoint<=3(each case SHOULD has less than 3 key 'ASSERT_XYZ' verify points)
 
-    //===CLEANUP===
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🧹 CLEANUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
 }
 
 TEST(UT_NameOfCategory, verifyBehaviorZ_byDoC_expectSomething) {
-    //===SETUP===
-    // 1. ...
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                🔧 SETUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    //  1. ...
 
-    //===BEHAVIOR===
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🎯 BEHAVIOR PHASE                                       │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    printf("🎯 BEHAVIOR: verifyBehaviorZ_byDoC_expectSomething\n");
     //@VerifyPoint xN(each case MAY have many 'ASSERT_XYZ' check points)
-    printf("BEHAVIOR: verifyBehaviorZ_byDoC_expectSomething\n");
 
-    //===VERIFY===
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                ✅ VERIFY PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
     //@KeyVerifyPoint<=3(each case SHOULD has less than 3 key 'ASSERT_XYZ' verify points)
 
-    //===CLEANUP===
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🧹 CLEANUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
 }
 
 //---------------------------------------------------------------------------------------------------------------------
@@ -287,61 +315,85 @@ class UT_NameofCategoryFixture : public ::testing::Test {
    protected:
     static void SetUpTestSuite() {
         // 1. ...
-        printf("UT_NameofCategoryFixture->SETUP: SetUpTestSuite\n");
+        printf("🔧 UT_NameofCategoryFixture->SETUP: SetUpTestSuite\n");
     }
     static void TearDownTestSuite() {
         // 1. ...
-        printf("UT_NameofCategoryFixture->CLEANUP: TearDownTestSuite\n");
+        printf("🧹 UT_NameofCategoryFixture->CLEANUP: TearDownTestSuite\n");
     }
 
     void SetUp() override {
         // 1. ...
-        printf("UT_NameofCategoryFixture->SETUP: SetUp\n");
+        printf("🔧 UT_NameofCategoryFixture->SETUP: SetUp\n");
     }
 
     void TearDown() override {
         // 1. ...
-        printf("UT_NameofCategoryFixture->CLEANUP: TearDown\n");
+        printf("🧹 UT_NameofCategoryFixture->CLEANUP: TearDown\n");
     }
 };
 
 TEST_F(UT_NameofCategoryFixture, verifyBehaviorX_byDoA_expectSomething) {
-    //===SETUP===
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                🔧 SETUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
 
-    //===BEHAVIOR===
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🎯 BEHAVIOR PHASE                                       │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    printf("🎯 NameofCategoryFixture->BEHAVIOR: verifyBehaviorX_byDoA_expectSomething\n");
     //@VerifyPoint xN(each case MAY have many 'ASSERT_XYZ' check points)
-    printf("NameofCategoryFixture->BEHAVIOR: verifyBehaviorX_byDoA_expectSomething\n");
 
-    //===VERIFY===
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                ✅ VERIFY PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
     //@KeyVerifyPoint<=3(each case SHOULD has less than 3 key 'ASSERT_XYZ' verify points)
 
-    //===CLEANUP===
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🧹 CLEANUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
 }
 
 TEST_F(UT_NameofCategoryFixture, verifyBehaviorY_byDoB_expectSomething) {
-    //===SETUP===
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                🔧 SETUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
 
-    //===BEHAVIOR===
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🎯 BEHAVIOR PHASE                                       │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    printf("🎯 NameofCategoryFixture->BEHAVIOR: verifyBehaviorY_byDoB_expectSomething\n");
     //@VerifyPoint xN(each case MAY have many 'ASSERT_XYZ' check points)
-    printf("NameofCategoryFixture->BEHAVIOR: verifyBehaviorY_byDoB_expectSomething\n");
 
-    //===VERIFY===
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                ✅ VERIFY PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
     //@KeyVerifyPoint<=3(each case SHOULD has less than 3 key 'ASSERT_XYZ' verify points)
 
-    //===CLEANUP===
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🧹 CLEANUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
 }
 
 TEST_F(UT_NameofCategoryFixture, verifyBehaviorZ_byDoC_expectSomething) {
-    //===SETUP===
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                🔧 SETUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
 
-    //===BEHAVIOR===
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🎯 BEHAVIOR PHASE                                       │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    printf("🎯 NameofCategoryFixture->BEHAVIOR: verifyBehaviorZ_byDoC_expectSomething\n");
     //@VerifyPoint xN(each case MAY have many 'ASSERT_XYZ' check points)
-    printf("NameofCategoryFixture->BEHAVIOR: verifyBehaviorZ_byDoC_expectSomething\n");
 
-    //===VERIFY===
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                ✅ VERIFY PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
     //@KeyVerifyPoint<=3(each case SHOULD has less than 3 key 'ASSERT_XYZ' verify points)
 
-    //===CLEANUP===
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🧹 CLEANUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
 }
 
 //======END OF UNIT TESTING IMPLEMENTATION=========================================================
@@ -355,28 +407,39 @@ TEST_F(UT_NameofCategoryFixture, verifyBehaviorZ_byDoC_expectSomething) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * @brief 【示例用户故事】
- * US-Example: AS a developer using IOC framework,
- *    I WANT to easily create and register a service,
- *   SO THAT I can provide functionality to other components.
+ * ╔══════════════════════════════════════════════════════════════════════════════════════════╗
+ * ║                              📝 EXAMPLE USER STORY                                       ║
+ * ╠══════════════════════════════════════════════════════════════════════════════════════════╣
+ * ║ US-Example: AS a developer using IOC framework,                                         ║
+ * ║    I WANT to easily create and register a service,                                      ║
+ * ║   SO THAT I can provide functionality to other components.                              ║
+ * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
 
 /**
- * @brief 【示例验收标准】
- * AC-Example: GIVEN an IOC container is initialized,
- *              WHEN I register a service with a unique ID,
- *              THEN the service should be successfully stored and retrievable.
+ * ╔══════════════════════════════════════════════════════════════════════════════════════════╗
+ * ║                           ✅ EXAMPLE ACCEPTANCE CRITERIA                                 ║
+ * ╠══════════════════════════════════════════════════════════════════════════════════════════╣
+ * ║ AC-Example: GIVEN an IOC container is initialized,                                      ║
+ * ║              WHEN I register a service with a unique ID,                                ║
+ * ║              THEN the service should be successfully stored and retrievable.            ║
+ * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
 
 /**
- * @brief 【示例测试用例】
- * TC-Example: verifyServiceRegistration_byRegisteringValidService_expectSuccess
+ * ╔══════════════════════════════════════════════════════════════════════════════════════════╗
+ * ║                             🧪 EXAMPLE TEST CASE                                        ║
+ * ╠══════════════════════════════════════════════════════════════════════════════════════════╣
+ * ║ TC-Example: verifyServiceRegistration_byRegisteringValidService_expectSuccess           ║
+ * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
 
-// 示例：快速草稿测试 - 这里可以自由写下任何想法
+// 🎨 示例：快速草稿测试 - 这里可以自由写下任何想法
 TEST(UT_FreelyDrafts_Example, quickDraft_serviceRegistration) {
-    // 快速想法：测试服务注册是否正常工作
-    printf("DRAFT: Testing service registration concept\n");
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                          💭 QUICK DRAFT - 快速草稿                                    │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    printf("💭 DRAFT: Testing service registration concept\n");
 
     // TODO: 实现具体的测试逻辑
     // 1. 创建IOC容器
@@ -386,19 +449,116 @@ TEST(UT_FreelyDrafts_Example, quickDraft_serviceRegistration) {
     ASSERT_TRUE(true);  // 占位符断言
 }
 
-// 示例：从草稿到正式测试的演进
+// 🔄 示例：从草稿到正式测试的演进
 TEST(UT_FreelyDrafts_Example, refined_serviceRegistration_expectSuccess) {
-    //===SETUP===
-    // TODO: 初始化IOC容器
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                🔧 SETUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    //  TODO: 初始化IOC容器
 
-    //===BEHAVIOR===
-    printf("BEHAVIOR: Register a service and verify it's accessible\n");
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🎯 BEHAVIOR PHASE                                       │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    printf("🎯 BEHAVIOR: Register a service and verify it's accessible\n");
     // TODO: 执行服务注册逻辑
 
-    //===VERIFY===
-    // TODO: 验证服务注册成功
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                ✅ VERIFY PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    //  TODO: 验证服务注册成功
     ASSERT_TRUE(true);  // 替换为实际验证
 
-    //===CLEANUP===
-    // TODO: 清理资源
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🧹 CLEANUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    //  TODO: 清理资源
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// 🎨 VISUAL ENHANCEMENT EXAMPLES - 可视化增强示例
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * ╔══════════════════════════════════════════════════════════════════════════════════════════╗
+ * ║                        🌟 ADVANCED VISUAL PATTERNS 高级可视化模式                        ║
+ * ╠══════════════════════════════════════════════════════════════════════════════════════════╣
+ * ║ 🎯 Purpose: Show various visual enhancement patterns for test cases                      ║
+ * ║ 📋 Usage: Copy and adapt these patterns in your own test implementations                 ║
+ * ║ 🔧 Customization: Modify emojis and box styles to match your project needs              ║
+ * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
+ */
+
+// 🔄 Pattern 1: Progress Tracking with Visual Steps
+TEST(UT_VisualPatterns, demonstrateProgressTracking) {
+    printf("\n");
+    printf("╔══════════════════════════════════════════════════════════════════════════════════════════╗\n");
+    printf("║                           🎯 PROGRESS TRACKING EXAMPLE                                   ║\n");
+    printf("╚══════════════════════════════════════════════════════════════════════════════════════════╝\n");
+
+    // Step 1
+    printf("├─ 📋 Step 1/4: Initializing test environment...                               [⏳]\n");
+    // Simulate initialization
+    printf("├─ 📋 Step 1/4: Initializing test environment...                               [✅]\n");
+
+    // Step 2
+    printf("├─ 🔧 Step 2/4: Setting up test data...                                        [⏳]\n");
+    // Simulate setup
+    printf("├─ 🔧 Step 2/4: Setting up test data...                                        [✅]\n");
+
+    // Step 3
+    printf("├─ 🎯 Step 3/4: Executing main test logic...                                   [⏳]\n");
+    // Simulate execution
+    printf("├─ 🎯 Step 3/4: Executing main test logic...                                   [✅]\n");
+
+    // Step 4
+    printf("└─ ✅ Step 4/4: Verifying results...                                           [✅]\n");
+
+    printf("\n🎉 Test completed successfully!\n\n");
+
+    ASSERT_TRUE(true);
+}
+
+// 🔄 Pattern 2: Data Summary with Visual Tables
+TEST(UT_VisualPatterns, demonstrateDataSummary) {
+    printf("\n");
+    printf("╔══════════════════════════════════════════════════════════════════════════════════════════╗\n");
+    printf("║                            📊 DATA SUMMARY EXAMPLE                                       ║\n");
+    printf("╚══════════════════════════════════════════════════════════════════════════════════════════╝\n");
+
+    // Example data summary table
+    printf("┌─────────────────────────┬─────────────┬─────────────┬─────────────┬─────────────┐\n");
+    printf("│      📈 Metric          │   Expected  │   Actual    │   Status    │   Variance  │\n");
+    printf("├─────────────────────────┼─────────────┼─────────────┼─────────────┼─────────────┤\n");
+    printf("│ 🔢 Items Processed      │    1000     │    1000     │     ✅      │     0%%     │\n");
+    printf("│ ⏱️  Processing Time     │   <100ms    │    85ms     │     ✅      │    -15%%    │\n");
+    printf("│ 💾 Memory Usage         │   <50MB     │    42MB     │     ✅      │    -16%%    │\n");
+    printf("│ 🚀 Throughput          │  >10k/sec   │   12k/sec   │     ✅      │    +20%%    │\n");
+    printf("└─────────────────────────┴─────────────┴─────────────┴─────────────┴─────────────┘\n");
+
+    printf("\n📋 Summary: All metrics within expected ranges\n\n");
+
+    ASSERT_TRUE(true);
+}
+
+// 🔄 Pattern 3: Test Result Matrix
+TEST(UT_VisualPatterns, demonstrateResultMatrix) {
+    printf("\n");
+    printf("╔══════════════════════════════════════════════════════════════════════════════════════════╗\n");
+    printf("║                           🎯 TEST RESULT MATRIX                                          ║\n");
+    printf("╚══════════════════════════════════════════════════════════════════════════════════════════╝\n");
+
+    // Result matrix for multiple test scenarios
+    printf("          ┌─────────┬─────────┬─────────┬─────────┬─────────┐\n");
+    printf("          │ Size 1K │ Size 4K │ Size 8K │ Size16K │ Size32K │\n");
+    printf("┌─────────┼─────────┼─────────┼─────────┼─────────┼─────────┤\n");
+    printf("│Pattern A│   ✅    │   ✅    │   ✅    │   ✅    │   ✅    │\n");
+    printf("│Pattern B│   ✅    │   ✅    │   ✅    │   ✅    │   ⚠️    │\n");
+    printf("│Pattern C│   ✅    │   ✅    │   ✅    │   ❌    │   ❌    │\n");
+    printf("│Pattern D│   ✅    │   ✅    │   ⚠️    │   ❌    │   ❌    │\n");
+    printf("└─────────┴─────────┴─────────┴─────────┴─────────┴─────────┘\n");
+
+    printf("\n📊 Legend: ✅ Pass | ⚠️ Warning | ❌ Fail\n");
+    printf("🎯 Result: 16/20 combinations passed (80%% success rate)\n\n");
+
+    ASSERT_TRUE(true);
 }
