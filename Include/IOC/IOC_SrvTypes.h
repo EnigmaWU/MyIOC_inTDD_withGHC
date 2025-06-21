@@ -6,6 +6,7 @@
 
 #include "IOC_CmdDesc.h"
 #include "IOC_CmdID.h"
+#include "IOC_DatDesc.h"
 #include "IOC_EvtAPI.h"
 #include "IOC_EvtDesc.h"
 #include "IOC_Types.h"
@@ -34,14 +35,13 @@ typedef IOC_Result_T (*IOC_CbExecCmd_F)(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmd
  *        This callback is invoked when data is received in callback mode
  *
  * @param LinkID: the link ID where the data was received
- * @param pData: pointer to the received data buffer
- * @param DataSize: size of the received data in bytes
+ * @param pDataDesc: pointer to data description containing data details and payload
  * @param pCbPriv: callback private context data
  *
  * @return IOC_RESULT_SUCCESS: data processed successfully
  * @return Other IOC_Result_T values: data processing failed with specific error
  */
-typedef IOC_Result_T (*IOC_CbRecvDat_F)(IOC_LinkID_T LinkID, void *pData, ULONG_T DataSize, void *pCbPriv);
+typedef IOC_Result_T (*IOC_CbRecvDat_F)(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDataDesc, void *pCbPriv);
 
 /**
  * @brief Event usage arguments for IOC framework
