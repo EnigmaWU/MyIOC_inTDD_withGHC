@@ -1,9 +1,9 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// QUICK REFERENCE GUIDE - 快速参考指南
-// 📝 用途: DAT（数据传输）边界测试单元测试骨架
-// 🔄 流程: User Story → Acceptance Criteria → Test Cases → Implementation
-// 📂 分类: DataBoundary - 专注于DAT数据传输的边界条件和极限参数测试
-// 🎯 重点: 边界值、空值、超时、阻塞/非阻塞模式、数据大小限制等边界情况
+// QUICK REFERENCE GUIDE
+// 📝 Purpose: DAT (Data Transfer) boundary testing unit test framework
+// 🔄 Process: User Story → Acceptance Criteria → Test Cases → Implementation
+// 📂 Category: DataBoundary - Focus on DAT data transfer boundary conditions and limit parameter testing
+// 🎯 Focus: Boundary values, null values, timeouts, blocking/non-blocking modes, data size limits and other edge cases
 // Reference Unit Testing Templates in UT_FreelyDrafts.cxx when needed.
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -11,34 +11,35 @@
 //======>BEGIN OF OVERVIEW OF THIS UNIT TESTING FILE===============================================
 /**
  * @brief
- *  验证IOC框架中DAT（数据传输）的边界测试场景，专注于边界条件、极限参数、
- *  异常输入和错误处理的验证。
+ *  Validate IOC framework DAT (Data Transfer) boundary test scenarios, focusing on boundary conditions,
+ *  limit parameters, exceptional inputs and error handling verification.
  *
  *-------------------------------------------------------------------------------------------------
- *++DAT边界测试是对DAT数据传输机制的边界条件验证，本测试文件关注边界场景：
+ *++DAT boundary testing validates boundary conditions of DAT data transfer mechanism. This test file focuses on edge
+ *scenarios:
  *
- *  边界测试场景：
- *  - 数据大小边界：最小数据(0字节)、最大允许数据、超大数据(超限)
- *  - 参数边界：NULL指针、无效LinkID、空数据描述符
- *  - 超时边界：0超时、极短超时、极长超时、超时行为验证
- *  - 阻塞模式边界：阻塞/非阻塞/超时模式的边界行为
- *  - 连接边界：连接数限制、队列容量边界、资源耗尽情况
- *  - 状态边界：连接关闭、链路断开、服务停止时的边界行为
+ *  Boundary test scenarios:
+ *  - Data size boundaries: minimum data (0 bytes), maximum allowed data, oversized data (exceeding limits)
+ *  - Parameter boundaries: NULL pointers, invalid LinkID, empty data descriptors
+ *  - Timeout boundaries: 0 timeout, extremely short timeout, extremely long timeout, timeout behavior validation
+ *  - Blocking mode boundaries: blocking/non-blocking/timeout mode boundary behaviors
+ *  - Connection boundaries: connection count limits, queue capacity boundaries, resource exhaustion scenarios
+ *  - State boundaries: boundary behaviors when connection closed, link broken, service stopped
  *
- *  与其他测试文件的区别：
- *  - DataTypical: 验证典型使用场景和常见数据类型
- *  - DataCapability: 验证系统能力限制和容量测试
- *  - DataBoundary: 验证边界条件、异常输入和错误处理
+ *  Differences from other test files:
+ *  - DataTypical: validates typical usage scenarios and common data types
+ *  - DataCapability: validates system capability limits and capacity testing
+ *  - DataBoundary: validates boundary conditions, exceptional inputs and error handling
  *
- *  不包括：
- *  - 典型使用场景（由DataTypical覆盖）
- *  - 性能测试和压力测试
- *  - 并发和复杂状态场景
- *  - 故障恢复场景
+ *  Not included:
+ *  - Typical usage scenarios (covered by DataTypical)
+ *  - Performance testing and stress testing
+ *  - Concurrency and complex state scenarios
+ *  - Failure recovery scenarios
  *
- *  参考文档：
- *  - README_ArchDesign.md::MSG::DAT（边界条件部分）
- *  - README_RefAPIs.md::IOC_sendDAT/IOC_recvDAT（错误代码）
+ *  Reference documentation:
+ *  - README_ArchDesign.md::MSG::DAT (boundary conditions section)
+ *  - README_RefAPIs.md::IOC_sendDAT/IOC_recvDAT (error codes)
  */
 //======>END OF OVERVIEW OF THIS UNIT TESTING FILE=================================================
 
@@ -46,25 +47,25 @@
 //======>BEGIN OF UNIT TESTING DESIGN==============================================================
 
 /**************************************************************************************************
- * 📋 DAT BOUNDARY TEST FOCUS - DAT边界测试重点
+ * 📋 DAT BOUNDARY TEST FOCUS
  *
- * 🎯 DESIGN PRINCIPLE: 验证DAT在边界条件下的行为和错误处理能力
- * 🔄 PRIORITY: 参数边界 → 数据大小边界 → 超时边界 → 模式边界 → 状态边界
+ * 🎯 DESIGN PRINCIPLE: Validate DAT behavior under boundary conditions and error handling capabilities
+ * 🔄 PRIORITY: Parameter boundaries → Data size boundaries → Timeout boundaries → Mode boundaries → State boundaries
  *
- * ✅ BOUNDARY SCENARIOS INCLUDED (包含的边界场景):
- *    🔲 Parameter Boundaries: NULL指针、无效参数、边界值
- *    📏 Data Size Boundaries: 0字节、最小/最大数据、超限数据
- *    ⏱️ Timeout Boundaries: 0超时、极值超时、超时行为验证
- *    🔄 Mode Boundaries: 阻塞/非阻塞/超时模式的边界切换
- *    🔗 Connection Boundaries: 连接数限制、队列边界、资源边界
- *    🔧 State Boundaries: 异常状态下的边界行为
+ * ✅ BOUNDARY SCENARIOS INCLUDED:
+ *    🔲 Parameter Boundaries: NULL pointers, invalid parameters, boundary values
+ *    📏 Data Size Boundaries: 0 bytes, minimum/maximum data, oversized data
+ *    ⏱️ Timeout Boundaries: 0 timeout, extreme timeout values, timeout behavior validation
+ *    🔄 Mode Boundaries: blocking/non-blocking/timeout mode boundary switching
+ *    🔗 Connection Boundaries: connection count limits, queue boundaries, resource boundaries
+ *    🔧 State Boundaries: boundary behaviors under abnormal states
  *
- * ❌ NON-BOUNDARY SCENARIOS EXCLUDED (排除的非边界场景):
- *    ✅ 典型使用模式（DataTypical测试）
- *    🚀 性能优化场景
- *    🔄 复杂并发场景
- *    🛠️ 故障恢复机制
- *    📊 长期稳定性测试
+ * ❌ NON-BOUNDARY SCENARIOS EXCLUDED:
+ *    ✅ Typical usage patterns (DataTypical testing)
+ *    🚀 Performance optimization scenarios
+ *    🔄 Complex concurrency scenarios
+ *    🛠️ Failure recovery mechanisms
+ *    📊 Long-term stability testing
  *************************************************************************************************/
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -104,7 +105,7 @@
 /**************************************************************************************************
  * @brief 【Acceptance Criteria】
  *
- * 🎯 专注于 DAT BOUNDARY 测试 - 验证边界条件下的系统行为和错误处理
+ * 🎯 Focus on DAT BOUNDARY testing - validate system behavior and error handling under boundary conditions
  *
  * [@US-1] Parameter boundary validation
  *  AC-1: GIVEN invalid parameters (NULL pointers, invalid LinkID, malformed DatDesc),
@@ -561,20 +562,20 @@ TEST(UT_DataBoundary, verifyDatQueueBoundary_byQueueCapacityLimits_expectProperP
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF TODO SECTION=====================================================================
 /**
- * 🚀 IMPLEMENTATION ROADMAP - 实施路线图
+ * 🚀 IMPLEMENTATION ROADMAP
  *
- * PHASE 1 - BASIC BOUNDARY TESTS (基础边界测试):
+ * PHASE 1 - BASIC BOUNDARY TESTS:
  * ✅ verifyDatParameterBoundary_byInvalidInputs_expectGracefulErrorHandling
  * 🔧 verifyDatDataSizeBoundary_byZeroSizeData_expectConsistentBehavior
  * 🔧 verifyDatDataSizeBoundary_byMaximumAllowedSize_expectSuccessfulTransmission
  * 🔧 verifyDatDataSizeBoundary_byOversizedData_expectDataTooLargeError
  *
- * PHASE 2 - TIMING BOUNDARY TESTS (时序边界测试):
+ * PHASE 2 - TIMING BOUNDARY TESTS:
  * 🔧 verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateReturn
  * 🔧 verifyDatBlockingModeBoundary_byModeTransitions_expectConsistentBehavior
  * 🔧 verifyDatTimeoutBoundary_byExtremeValues_expectProperHandling
  *
- * PHASE 3 - CONNECTION BOUNDARY TESTS (连接边界测试):
+ * PHASE 3 - CONNECTION BOUNDARY TESTS:
  * 🔧 verifyDatConnectionBoundary_byInvalidConnections_expectErrorHandling
  * 🔧 verifyDatConnectionBoundary_byConnectionLimits_expectGracefulLimitHandling
  * 🔧 verifyDatQueueBoundary_byQueueCapacityLimits_expectProperPressureHandling
