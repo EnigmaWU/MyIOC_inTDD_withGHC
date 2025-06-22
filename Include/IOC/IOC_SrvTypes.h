@@ -208,7 +208,11 @@ typedef struct {
     } UsageArgs;
 } IOC_SrvArgs_T, *IOC_SrvArgs_pT;
 
-void IOC_Helper_initSrvArgs(IOC_SrvArgs_pT pSrvArgs);
+static inline void IOC_Helper_initSrvArgs(IOC_SrvArgs_pT pSrvArgs) {
+    if (pSrvArgs) {
+        memset(pSrvArgs, 0, sizeof(IOC_SrvArgs_T));
+    }
+}
 
 typedef struct {
     IOC_SrvURI_T SrvURI;
@@ -236,7 +240,11 @@ typedef struct {
     } UsageArgs;
 } IOC_ConnArgs_T, *IOC_ConnArgs_pT;
 
-void IOC_Helper_initConnArgs(IOC_ConnArgs_pT pConnArgs);
+static inline void IOC_Helper_initConnArgs(IOC_ConnArgs_pT pConnArgs) {
+    if (pConnArgs) {
+        memset(pConnArgs, 0, sizeof(IOC_ConnArgs_T));
+    }
+}
 
 #ifdef __cplusplus
 }
