@@ -15,26 +15,14 @@
  *  limit parameters, exceptional inputs and error handling verification.
  *
  *-------------------------------------------------------------------------------------------------
- *++DAT boundary testing validates boundary conditions of DAT data transfer mechanism. This test file focuses on edge
- *scenarios:
+ *++DAT boundary testing validates boundary conditions of DAT data transfer mechanism. This test file
+ *complements other test files in the test suite:
  *
- *  Boundary test scenarios:
- *  - Data size boundaries: minimum data (0 bytes), maximum allowed data, oversized data (exceeding limits)
- *  - Parameter boundaries: NULL pointers, invalid LinkID, empty data descriptors
- *  - Timeout boundaries: 0 timeout, extremely short timeout, extremely long timeout, timeout behavior validation
- *  - Blocking mode boundaries: blocking/non-blocking/timeout mode boundary behaviors
- *
- *  Differences from other test files:
+ *  Test file scope differentiation:
  *  - DataTypical: validates typical usage scenarios and common data types
  *  - DataCapability: validates system capability limits and capacity testing
  *  - DataBoundary: validates boundary conditions, exceptional inputs and error handling
  *  - DataState: validates connection and state boundary behaviors
- *
- *  Not included:
- *  - Typical usage scenarios (covered by DataTypical)
- *  - Performance testing and stress testing
- *  - Concurrency and complex state scenarios
- *  - Failure recovery scenarios
  *
  *  Reference documentation:
  *  - README_ArchDesign.md::MSG::DAT (boundary conditions section)
@@ -49,20 +37,26 @@
  * 📋 DAT BOUNDARY TEST FOCUS
  *
  * 🎯 DESIGN PRINCIPLE: Validate DAT behavior under boundary conditions and error handling capabilities
- * 🔄 PRIORITY: Parameter boundaries → Data size boundaries → Timeout boundaries → Mode boundaries → State boundaries
+ * 🔄 TESTING PRIORITY: Parameter boundaries → Data size boundaries → Timeout boundaries → Mode boundaries
  *
- * ✅ BOUNDARY SCENARIOS INCLUDED:
- *    🔲 Parameter Boundaries: NULL pointers, invalid parameters, boundary values
- *    📏 Data Size Boundaries: 0 bytes, minimum/maximum data, oversized data
- *    ⏱️ Timeout Boundaries: 0 timeout, extreme timeout values, timeout behavior validation
+ * ✅ BOUNDARY SCENARIOS COVERED:
+ *    🔲 Parameter Boundaries: NULL pointers, invalid LinkID, malformed DatDesc, edge case values
+ *    📏 Data Size Boundaries: 0 bytes, minimum/maximum data, oversized data (exceeding limits)
+ *    ⏱️ Timeout Boundaries: 0 timeout, extremely short/long timeout, timeout behavior validation
  *    🔄 Mode Boundaries: blocking/non-blocking/timeout mode boundary switching
  *
- * ❌ NON-BOUNDARY SCENARIOS EXCLUDED:
- *    ✅ Typical usage patterns (DataTypical testing)
- *    🚀 Performance optimization scenarios
+ * ❌ EXCLUDED FROM BOUNDARY TESTING:
+ *    ✅ Typical usage scenarios (covered by DataTypical)
+ *    🚀 Performance testing and stress testing
  *    🔄 Complex concurrency scenarios
- *    🛠️ Failure recovery mechanisms
+ *    🛠️ Failure recovery scenarios
  *    📊 Long-term stability testing
+ *
+ * 🎯 IMPLEMENTATION FOCUS:
+ *    📋 Error code validation and system stability under edge conditions
+ *    🔧 System protection against invalid inputs and edge case attacks
+ *    ⚡ Deterministic behavior verification at boundary conditions
+ *    🛡️ Memory safety and crash prevention with malformed inputs
  *************************************************************************************************/
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
