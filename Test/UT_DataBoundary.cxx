@@ -23,13 +23,12 @@
  *  - Parameter boundaries: NULL pointers, invalid LinkID, empty data descriptors
  *  - Timeout boundaries: 0 timeout, extremely short timeout, extremely long timeout, timeout behavior validation
  *  - Blocking mode boundaries: blocking/non-blocking/timeout mode boundary behaviors
- *  - Connection boundaries: connection count limits, queue capacity boundaries, resource exhaustion scenarios
- *  - State boundaries: boundary behaviors when connection closed, link broken, service stopped
  *
  *  Differences from other test files:
  *  - DataTypical: validates typical usage scenarios and common data types
  *  - DataCapability: validates system capability limits and capacity testing
  *  - DataBoundary: validates boundary conditions, exceptional inputs and error handling
+ *  - DataState: validates connection and state boundary behaviors
  *
  *  Not included:
  *  - Typical usage scenarios (covered by DataTypical)
@@ -57,8 +56,6 @@
  *    📏 Data Size Boundaries: 0 bytes, minimum/maximum data, oversized data
  *    ⏱️ Timeout Boundaries: 0 timeout, extreme timeout values, timeout behavior validation
  *    🔄 Mode Boundaries: blocking/non-blocking/timeout mode boundary switching
- *    🔗 Connection Boundaries: connection count limits, queue boundaries, resource boundaries
- *    🔧 State Boundaries: boundary behaviors under abnormal states
  *
  * ❌ NON-BOUNDARY SCENARIOS EXCLUDED:
  *    ✅ Typical usage patterns (DataTypical testing)
@@ -90,12 +87,6 @@
  *   SO THAT I can implement proper timeout handling in time-critical scenarios
  *      AND understand the precise behavior of blocking/non-blocking modes,
  *      AND ensure deterministic behavior at timeout boundaries.
- *
- *  US-4: AS a robust system developer,
- *    I WANT to validate DAT behavior during connection state boundaries,
- *   SO THAT I can handle connection failures and state transitions gracefully
- *      AND ensure data integrity during abnormal connection states,
- *      AND implement proper cleanup and recovery mechanisms.
  *
  *************************************************************************************************/
 //======>END OF USER STORY=========================================================================
@@ -158,25 +149,6 @@
  *          AND respect timeout constraints accurately,
  *          AND not overflow or underflow time calculations.
  *
- * [@US-4] Connection state boundaries
- *  AC-1: GIVEN closed or invalid connections,
- *         WHEN attempting DAT operations on defunct links,
- *         THEN system should return IOC_RESULT_NOT_EXIST_LINK or IOC_RESULT_LINK_BROKEN
- *          AND not access invalid memory,
- *          AND provide clear error indication.
- *
- *  AC-2: GIVEN connection limits reached (MaxSrvNum, MaxCliNum),
- *         WHEN operating at connection capacity boundaries,
- *         THEN system should handle connection limits gracefully
- *          AND reject excess connections with proper error codes,
- *          AND maintain stability of existing connections.
- *
- *  AC-3: GIVEN queue capacity boundaries (MaxDataQueueSize),
- *         WHEN queue is full or nearly full,
- *         THEN system should handle queue pressure appropriately
- *          AND either block (blocking mode) or return IOC_RESULT_BUFFER_FULL (non-blocking),
- *          AND not lose data or corrupt queue state.
- *
  *************************************************************************************************/
 //=======>END OF ACCEPTANCE CRITERIA================================================================
 
@@ -230,24 +202,6 @@
  *      @[Name]: verifyDatTimeoutBoundary_byExtremeValues_expectProperHandling
  *      @[Purpose]: Verify extreme timeout value handling
  *      @[Brief]: Test very small and very large timeout values, verify proper handling
- *
- * [@AC-1,US-4] Connection state boundaries - Invalid connections
- *  TC-1:
- *      @[Name]: verifyDatConnectionBoundary_byInvalidConnections_expectErrorHandling
- *      @[Purpose]: Verify behavior with closed/invalid connections
- *      @[Brief]: Attempt operations on closed links, verify proper error codes
- *
- * [@AC-2,US-4] Connection limit boundaries
- *  TC-1:
- *      @[Name]: verifyDatConnectionBoundary_byConnectionLimits_expectGracefulLimitHandling
- *      @[Purpose]: Verify connection limit boundary behavior
- *      @[Brief]: Reach connection limits, verify graceful handling and error codes
- *
- * [@AC-3,US-4] Queue capacity boundaries
- *  TC-1:
- *      @[Name]: verifyDatQueueBoundary_byQueueCapacityLimits_expectProperPressureHandling
- *      @[Purpose]: Verify queue capacity boundary behavior
- *      @[Brief]: Fill queue to capacity, verify blocking/buffer_full behavior
  *
  *************************************************************************************************/
 //======>END OF TEST CASES=========================================================================
@@ -504,57 +458,30 @@ TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byModeTransitions_expectCons
     printf("   - Verify clean transitions between modes\n");
 }
 
-//======>BEGIN OF: [@AC-1,US-4] TC-1===============================================================
+//======>BEGIN OF: [@AC-3,US-3] TC-1===============================================================
 /**
- * @[Name]: verifyDatConnectionBoundary_byInvalidConnections_expectErrorHandling
+ * @[Name]: verifyDatTimeoutBoundary_byExtremeValues_expectProperHandling
  * @[Steps]:
- *   1) Setup and then close DAT connections AS SETUP.
- *   2) Attempt operations on closed connections AS BEHAVIOR.
- *   3) Test operations on never-existed connections AS BEHAVIOR.
- *   4) Verify proper error codes returned AS VERIFY.
- *   5) Cleanup any remaining resources AS CLEANUP.
- * @[Expect]: Operations on invalid connections return proper error codes.
- * @[Notes]: Ensures robust handling of connection lifecycle edge cases.
+ *   1) Setup DAT connection for extreme timeout testing AS SETUP.
+ *   2) Test very small timeout values (near zero) AS BEHAVIOR.
+ *   3) Test very large timeout values (near maximum) AS BEHAVIOR.
+ *   4) Verify proper handling without overflow/underflow AS VERIFY.
+ *   5) Cleanup connections AS CLEANUP.
+ * @[Expect]: Extreme timeout values handled properly without calculation errors.
+ * @[Notes]: Ensures timeout calculations don't overflow or cause system issues.
  */
-TEST(UT_DataBoundary, verifyDatConnectionBoundary_byInvalidConnections_expectErrorHandling) {
+TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byExtremeValues_expectProperHandling) {
     //===SETUP===
-    printf("BEHAVIOR: verifyDatConnectionBoundary_byInvalidConnections_expectErrorHandling\n");
+    printf("BEHAVIOR: verifyDatTimeoutBoundary_byExtremeValues_expectProperHandling\n");
 
-    // TODO: Implement invalid connection boundary testing
-    // Test operations on closed/invalid connections
+    // TODO: Implement extreme timeout boundary testing
+    // Test very small and very large timeout values
 
-    printf("🔧 TODO: Implement invalid connection boundary test\n");
-    printf("   - Create and close connections\n");
-    printf("   - Test DAT operations on closed links\n");
-    printf("   - Test with fabricated invalid LinkIDs\n");
-    printf("   - Verify IOC_RESULT_NOT_EXIST_LINK errors\n");
-}
-
-//======>BEGIN OF: [@AC-3,US-4] TC-1===============================================================
-/**
- * @[Name]: verifyDatQueueBoundary_byQueueCapacityLimits_expectProperPressureHandling
- * @[Steps]:
- *   1) Query MaxDataQueueSize capability AS SETUP.
- *   2) Setup slow receiver to create queue pressure AS SETUP.
- *   3) Fill queue to near capacity AS BEHAVIOR.
- *   4) Test behavior at queue boundary AS BEHAVIOR.
- *   5) Verify blocking/buffer_full behavior AS VERIFY.
- *   6) Cleanup and drain queue AS CLEANUP.
- * @[Expect]: Queue boundaries handled properly, no data corruption or loss.
- * @[Notes]: Critical for high-throughput applications and resource management.
- */
-TEST(UT_DataBoundary, verifyDatQueueBoundary_byQueueCapacityLimits_expectProperPressureHandling) {
-    //===SETUP===
-    printf("BEHAVIOR: verifyDatQueueBoundary_byQueueCapacityLimits_expectProperPressureHandling\n");
-
-    // TODO: Implement queue capacity boundary testing
-    // Test behavior when queue reaches capacity limits
-
-    printf("🔧 TODO: Implement queue capacity boundary test\n");
-    printf("   - Query system MaxDataQueueSize capability\n");
-    printf("   - Setup slow receiver to create backpressure\n");
-    printf("   - Fill queue to boundary conditions\n");
-    printf("   - Test blocking vs buffer_full behavior\n");
+    printf("🔧 TODO: Implement extreme timeout boundary test\n");
+    printf("   - Test minimum positive timeout values\n");
+    printf("   - Test maximum timeout values\n");
+    printf("   - Verify no overflow in timeout calculations\n");
+    printf("   - Test timeout accuracy at extreme values\n");
 }
 
 //======>END OF TEST IMPLEMENTATIONS===============================================================
@@ -575,22 +502,18 @@ TEST(UT_DataBoundary, verifyDatQueueBoundary_byQueueCapacityLimits_expectProperP
  * 🔧 verifyDatBlockingModeBoundary_byModeTransitions_expectConsistentBehavior
  * 🔧 verifyDatTimeoutBoundary_byExtremeValues_expectProperHandling
  *
- * PHASE 3 - CONNECTION BOUNDARY TESTS:
- * 🔧 verifyDatConnectionBoundary_byInvalidConnections_expectErrorHandling
- * 🔧 verifyDatConnectionBoundary_byConnectionLimits_expectGracefulLimitHandling
- * 🔧 verifyDatQueueBoundary_byQueueCapacityLimits_expectProperPressureHandling
- *
  * 💡 IMPLEMENTATION NOTES:
  * - Follow patterns from DataTypical and DataCapability tests
  * - Use __CbRecvDat_Boundary_F callback for boundary-specific tracking
  * - Focus on error code validation and system stability
  * - Test both success and failure boundary conditions
  * - Ensure no memory leaks or crashes in boundary conditions
+ * - Connection and state boundary tests moved to DataState test file
  *
  * 📋 TESTING STRATEGY:
  * - Start with parameter validation (safest, easiest to implement)
  * - Progress to data size boundaries (moderate complexity)
- * - Advance to timing and connection boundaries (higher complexity)
+ * - Advance to timing boundaries (higher complexity)
  * - Each test should be independent and self-contained
  * - Use consistent naming and structure across all tests
  */
