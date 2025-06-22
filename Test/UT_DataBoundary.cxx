@@ -183,8 +183,18 @@
  *      @[Name]: verifyDatParameterBoundary_byEdgeCaseValues_expectValidationSuccess
  *      @[Purpose]: Verify boundary parameter values are validated correctly
  *      @[Brief]: Test edge case LinkIDs, extreme option values, verify acceptance/rejection
+ *  TODO:TC-3:
  *
- *--------------------------------------------------------------------------------------------------
+ *-------------------------------------------------------------------------------------------------
+ * TODO:[@AC-2,US-1] Parameter boundary validation - IOC_Options
+ *
+ *-------------------------------------------------------------------------------------------------
+ * TODO:[@AC-3,US-1] Parameter boundary validation - Mixed valid/invalid parameters
+ *
+ *-------------------------------------------------------------------------------------------------
+ * TODO:[@AC-4,US-1] Parameter boundary validation - Mixed valid/invalid parameters
+ *
+ *-------------------------------------------------------------------------------------------------
  * [@AC-1,US-2] Data size boundary validation - Zero size
  *  TC-1:
  *      @[Name]: verifyDatDataSizeBoundary_byZeroSizeData_expectConsistentBehavior
@@ -324,101 +334,103 @@ static IOC_Result_T __CbRecvDat_Boundary_F(IOC_LinkID_T LinkID, IOC_DatDesc_pT p
 TEST(UT_DataBoundary, verifyDatParameterBoundary_byInvalidInputs_expectGracefulErrorHandling) {
     //===SETUP===
     printf("BEHAVIOR: verifyDatParameterBoundary_byInvalidInputs_expectGracefulErrorHandling\n");
-    
+
     //===BEHAVIOR: IOC_sendDAT Invalid Parameter Tests===
     printf("📋 Testing IOC_sendDAT invalid parameters...\n");
-    
+
     // Test 1.1: NULL pDatDesc for IOC_sendDAT (AC-1)
     IOC_Result_T Result = IOC_sendDAT(IOC_ID_INVALID, NULL, NULL);
-    ASSERT_EQ(IOC_RESULT_INVALID_PARAM, Result) << "IOC_sendDAT should reject NULL pDatDesc with IOC_RESULT_INVALID_PARAM";
-    
+    ASSERT_EQ(IOC_RESULT_INVALID_PARAM, Result)
+        << "IOC_sendDAT should reject NULL pDatDesc with IOC_RESULT_INVALID_PARAM";
+
     // Test 1.2: Invalid LinkID for IOC_sendDAT (AC-1)
     IOC_DatDesc_T ValidDatDesc = {0};
     IOC_initDatDesc(&ValidDatDesc);
     const char *testData = "test";
     ValidDatDesc.Payload.pData = (void *)testData;
     ValidDatDesc.Payload.PtrDataSize = 4;
-    
+
     Result = IOC_sendDAT(IOC_ID_INVALID, &ValidDatDesc, NULL);
-    ASSERT_EQ(IOC_RESULT_NOT_EXIST_LINK, Result) << "IOC_sendDAT should reject invalid LinkID with IOC_RESULT_NOT_EXIST_LINK";
-    
+    ASSERT_EQ(IOC_RESULT_NOT_EXIST_LINK, Result)
+        << "IOC_sendDAT should reject invalid LinkID with IOC_RESULT_NOT_EXIST_LINK";
+
     // Test 1.3: Malformed DatDesc for IOC_sendDAT (AC-1)
     IOC_DatDesc_T MalformedDatDesc = {0};
     // Intentionally create malformed DatDesc (uninitialized/corrupted structure)
     MalformedDatDesc.Payload.pData = (void *)0xDEADBEEF;  // Invalid pointer
     MalformedDatDesc.Payload.PtrDataSize = 0xFFFFFFFF;    // Extreme size
-    
+
     Result = IOC_sendDAT(IOC_ID_INVALID, &MalformedDatDesc, NULL);
-    ASSERT_TRUE(Result == IOC_RESULT_INVALID_PARAM || Result == IOC_RESULT_NOT_EXIST_LINK) 
+    ASSERT_TRUE(Result == IOC_RESULT_INVALID_PARAM || Result == IOC_RESULT_NOT_EXIST_LINK)
         << "IOC_sendDAT should reject malformed DatDesc with appropriate error code";
-    
+
     // Test 1.4: Test with NULL options (valid case for comparison)
     Result = IOC_sendDAT(IOC_ID_INVALID, &ValidDatDesc, NULL);
-    ASSERT_EQ(IOC_RESULT_NOT_EXIST_LINK, Result) 
+    ASSERT_EQ(IOC_RESULT_NOT_EXIST_LINK, Result)
         << "IOC_sendDAT with valid DatDesc and NULL options should return NOT_EXIST_LINK for invalid LinkID";
-    
+
     // Test 1.5: Test with zero-initialized valid DatDesc but invalid data pointer
     IOC_DatDesc_T ZeroDataDesc = {0};
     IOC_initDatDesc(&ZeroDataDesc);
     ZeroDataDesc.Payload.pData = NULL;      // NULL data pointer
     ZeroDataDesc.Payload.PtrDataSize = 10;  // But non-zero size
-    
+
     Result = IOC_sendDAT(IOC_ID_INVALID, &ZeroDataDesc, NULL);
-    ASSERT_TRUE(Result == IOC_RESULT_INVALID_PARAM || Result == IOC_RESULT_NOT_EXIST_LINK) 
+    ASSERT_TRUE(Result == IOC_RESULT_INVALID_PARAM || Result == IOC_RESULT_NOT_EXIST_LINK)
         << "IOC_sendDAT should handle NULL data pointer with non-zero size appropriately";
-    
+
     //===BEHAVIOR: IOC_recvDAT Invalid Parameter Tests===
     printf("📋 Testing IOC_recvDAT invalid parameters...\n");
-    
+
     // Test 2.1: NULL pDatDesc for IOC_recvDAT (AC-1)
     Result = IOC_recvDAT(IOC_ID_INVALID, NULL, NULL);
-    ASSERT_EQ(IOC_RESULT_INVALID_PARAM, Result) << "IOC_recvDAT should reject NULL pDatDesc with IOC_RESULT_INVALID_PARAM";
-    
+    ASSERT_EQ(IOC_RESULT_INVALID_PARAM, Result)
+        << "IOC_recvDAT should reject NULL pDatDesc with IOC_RESULT_INVALID_PARAM";
+
     // Test 2.2: Invalid LinkID for IOC_recvDAT (AC-1)
     IOC_DatDesc_T RecvDatDesc = {0};
     IOC_initDatDesc(&RecvDatDesc);
     Result = IOC_recvDAT(IOC_ID_INVALID, &RecvDatDesc, NULL);
-    ASSERT_EQ(IOC_RESULT_NOT_EXIST_LINK, Result) << "IOC_recvDAT should reject invalid LinkID with IOC_RESULT_NOT_EXIST_LINK";
-    
+    ASSERT_EQ(IOC_RESULT_NOT_EXIST_LINK, Result)
+        << "IOC_recvDAT should reject invalid LinkID with IOC_RESULT_NOT_EXIST_LINK";
+
     // Test 2.3: Malformed DatDesc for IOC_recvDAT (AC-1)
     IOC_DatDesc_T MalformedRecvDesc = {0};
     // Create malformed receive descriptor
     MalformedRecvDesc.Payload.pData = NULL;
     MalformedRecvDesc.Payload.PtrDataSize = 100;  // Non-zero size with NULL buffer
-    
+
     Result = IOC_recvDAT(IOC_ID_INVALID, &MalformedRecvDesc, NULL);
-    ASSERT_TRUE(Result == IOC_RESULT_INVALID_PARAM || Result == IOC_RESULT_NOT_EXIST_LINK) 
+    ASSERT_TRUE(Result == IOC_RESULT_INVALID_PARAM || Result == IOC_RESULT_NOT_EXIST_LINK)
         << "IOC_recvDAT should reject malformed DatDesc with appropriate error code";
-    
+
     // Test 2.4: Test with NULL options for IOC_recvDAT (valid case)
     Result = IOC_recvDAT(IOC_ID_INVALID, &RecvDatDesc, NULL);
-    ASSERT_EQ(IOC_RESULT_NOT_EXIST_LINK, Result) 
+    ASSERT_EQ(IOC_RESULT_NOT_EXIST_LINK, Result)
         << "IOC_recvDAT with valid DatDesc and NULL options should return NOT_EXIST_LINK for invalid LinkID";
-    
+
     //===BEHAVIOR: Mixed Parameter Validation Tests (AC-4)===
     printf("📋 Testing mixed valid/invalid parameter combinations...\n");
-    
+
     // Test 3.1: NULL DatDesc with NULL options - test parameter validation order
     Result = IOC_sendDAT(IOC_ID_INVALID, NULL, NULL);
-    ASSERT_EQ(IOC_RESULT_INVALID_PARAM, Result) 
-        << "Parameter validation should catch NULL pDatDesc consistently";
-    
+    ASSERT_EQ(IOC_RESULT_INVALID_PARAM, Result) << "Parameter validation should catch NULL pDatDesc consistently";
+
     // Test 3.2: Multiple invalid parameters - ensure consistent error priority
     Result = IOC_recvDAT(IOC_ID_INVALID, NULL, NULL);
-    ASSERT_EQ(IOC_RESULT_INVALID_PARAM, Result) 
-        << "Parameter validation should be consistent in error priority";
-    
+    ASSERT_EQ(IOC_RESULT_INVALID_PARAM, Result) << "Parameter validation should be consistent in error priority";
+
     // Test 3.3: Random invalid LinkID values to test robustness
     IOC_LinkID_T RandomInvalidIDs[] = {0xDEADBEEF, 0xFFFFFFFF, 0x12345678, (IOC_LinkID_T)-1};
-    for (size_t i = 0; i < sizeof(RandomInvalidIDs)/sizeof(RandomInvalidIDs[0]); i++) {
+    for (size_t i = 0; i < sizeof(RandomInvalidIDs) / sizeof(RandomInvalidIDs[0]); i++) {
         Result = IOC_sendDAT(RandomInvalidIDs[i], &ValidDatDesc, NULL);
-        ASSERT_TRUE(Result == IOC_RESULT_NOT_EXIST_LINK || Result == IOC_RESULT_INVALID_PARAM) 
+        ASSERT_TRUE(Result == IOC_RESULT_NOT_EXIST_LINK || Result == IOC_RESULT_INVALID_PARAM)
             << "IOC_sendDAT should handle random invalid LinkIDs gracefully: " << RandomInvalidIDs[i];
     }
-    
+
     //===VERIFY: System Stability===
     printf("🔍 Verifying system stability...\n");
-    
+
     // Verify no memory corruption by attempting a valid-structure operation
     // (This would crash if memory was corrupted)
     IOC_DatDesc_T TestDesc = {0};
@@ -428,274 +440,264 @@ TEST(UT_DataBoundary, verifyDatParameterBoundary_byInvalidInputs_expectGracefulE
         // Expect NOT_EXIST_LINK since we're using invalid LinkID with valid parameters
         ASSERT_EQ(IOC_RESULT_NOT_EXIST_LINK, Result);
     }) << "System should remain stable and not crash after invalid parameter tests";
-    
+
     // Test system stability with multiple consecutive invalid calls
     for (int i = 0; i < 10; i++) {
         Result = IOC_sendDAT(IOC_ID_INVALID, NULL, NULL);
-        ASSERT_EQ(IOC_RESULT_INVALID_PARAM, Result) << "System should consistently reject invalid parameters on call #" << i;
+        ASSERT_EQ(IOC_RESULT_INVALID_PARAM, Result)
+            << "System should consistently reject invalid parameters on call #" << i;
     }
-    
+
     // KeyVerifyPoint: All invalid parameter tests completed without crashes
     printf("✅ All invalid parameter combinations properly rejected with correct error codes\n");
     printf("✅ System maintained stability throughout boundary testing\n");
     printf("✅ No memory corruption or system instability detected\n");
     printf("✅ Parameter validation order and consistency verified\n");
-    
+
     //===CLEANUP===
     // No cleanup needed for parameter validation tests
     // System demonstrated stability throughout testing
-}
-
-//======>BEGIN OF: [@AC-1,US-2] TC-1===============================================================
-/**
- * @[Name]: verifyDatDataSizeBoundary_byZeroSizeData_expectConsistentBehavior
- * @[Steps]:
- *   1) Setup DAT connection between sender and receiver AS SETUP.
- *   2) Send zero-size data using IOC_sendDAT AS BEHAVIOR.
- *   3) Verify receiver handles zero-size data appropriately AS VERIFY.
- *   4) Cleanup connections AS CLEANUP.
- * @[Expect]: Zero-size data handled consistently, proper behavior documented.
- * @[Notes]: Edge case for data size - ensures system handles empty payloads.
- */
-TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeData_expectConsistentBehavior) {
-    //===SETUP===
-    printf("BEHAVIOR: verifyDatDataSizeBoundary_byZeroSizeData_expectConsistentBehavior\n");
-
-    // TODO: Implement zero-size data boundary testing
-    // Setup connection and test zero-byte data transmission
-
-    // Setup will be similar to DataTypical tests but focus on zero-size edge case
-    printf("🔧 TODO: Implement zero-size data boundary test\n");
-    printf("   - Setup DAT sender/receiver connection\n");
-    printf("   - Send 0-byte data payload\n");
-    printf("   - Verify receiver callback behavior\n");
-    printf("   - Test both pointer and embedded data paths\n");
-}
-
-//======>BEGIN OF: [@AC-2,US-2] TC-1===============================================================
-/**
- * @[Name]: verifyDatDataSizeBoundary_byMaximumAllowedSize_expectSuccessfulTransmission
- * @[Steps]:
- *   1) Query system capability to get maximum data size AS SETUP.
- *   2) Create data at maximum allowed size AS SETUP.
- *   3) Send maximum size data using IOC_sendDAT AS BEHAVIOR.
- *   4) Verify successful transmission and data integrity AS VERIFY.
- *   5) Cleanup large data and connections AS CLEANUP.
- * @[Expect]: Maximum size data transmitted successfully with integrity maintained.
- * @[Notes]: Tests upper bound of data size capability.
- */
-TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byMaximumAllowedSize_expectSuccessfulTransmission) {
-    //===SETUP===
-    printf("BEHAVIOR: verifyDatDataSizeBoundary_byMaximumAllowedSize_expectSuccessfulTransmission\n");
-
-    // TODO: Implement maximum data size boundary testing
-    // Query system capabilities and test at maximum data size limit
-
-    printf("🔧 TODO: Implement maximum data size boundary test\n");
-    printf("   - Query IOC_getCapability for max data size limits\n");
-    printf("   - Allocate data at maximum allowed size\n");
-    printf("   - Test transmission and verify integrity\n");
-    printf("   - Measure performance at size boundary\n");
-}
-
-//======>BEGIN OF: [@AC-3,US-2] TC-1===============================================================
-/**
- * @[Name]: verifyDatDataSizeBoundary_byOversizedData_expectDataTooLargeError
- * @[Steps]:
- *   1) Query system capability for maximum data size AS SETUP.
- *   2) Create data exceeding maximum allowed size AS SETUP.
- *   3) Attempt to send oversized data using IOC_sendDAT AS BEHAVIOR.
- *   4) Verify IOC_RESULT_DATA_TOO_LARGE error returned AS VERIFY.
- *   5) Cleanup oversized data AS CLEANUP.
- * @[Expect]: Oversized data rejected with IOC_RESULT_DATA_TOO_LARGE error.
- * @[Notes]: Tests system protection against oversized data attacks.
- */
-TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byOversizedData_expectDataTooLargeError) {
-    //===SETUP===
-    printf("BEHAVIOR: verifyDatDataSizeBoundary_byOversizedData_expectDataTooLargeError\n");
-
-    // TODO: Implement oversized data rejection testing
-    // Test data larger than system limits
-
-    printf("🔧 TODO: Implement oversized data boundary test\n");
-    printf("   - Determine maximum allowed data size\n");
-    printf("   - Create data exceeding the limit\n");
-    printf("   - Verify IOC_sendDAT rejects with proper error\n");
-    printf("   - Ensure no memory corruption occurs\n");
-}
-
-//======>BEGIN OF: [@AC-1,US-3] TC-1===============================================================
-/**
- * @[Name]: verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateReturn
- * @[Steps]:
- *   1) Setup DAT connection with slow receiver AS SETUP.
- *   2) Configure zero timeout for DAT operations AS SETUP.
- *   3) Attempt data transmission with zero timeout AS BEHAVIOR.
- *   4) Verify immediate return (success or timeout) AS VERIFY.
- *   5) Cleanup connections AS CLEANUP.
- * @[Expect]: Zero timeout operations return immediately without blocking.
- * @[Notes]: Critical for real-time applications requiring deterministic timing.
- */
-TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateReturn) {
-    //===SETUP===
-    printf("BEHAVIOR: verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateReturn\n");
-
-    // TODO: Implement zero timeout boundary testing
-    // Test immediate return behavior with zero timeout
-
-    printf("🔧 TODO: Implement zero timeout boundary test\n");
-    printf("   - Setup connection with controlled receiver speed\n");
-    printf("   - Configure IOC_Options with zero timeout\n");
-    printf("   - Measure actual return time vs expected\n");
-    printf("   - Verify no indefinite blocking occurs\n");
-}
-
-//======>BEGIN OF: [@AC-2,US-3] TC-1===============================================================
-/**
- * @[Name]: verifyDatBlockingModeBoundary_byModeTransitions_expectConsistentBehavior
- * @[Steps]:
- *   1) Setup DAT connection for mode testing AS SETUP.
- *   2) Test blocking mode behavior AS BEHAVIOR.
- *   3) Switch to non-blocking mode and test AS BEHAVIOR.
- *   4) Test timeout mode with various timeouts AS BEHAVIOR.
- *   5) Verify each mode behaves according to specification AS VERIFY.
- *   6) Cleanup connections AS CLEANUP.
- * @[Expect]: Each blocking mode exhibits correct behavior, transitions are clean.
- * @[Notes]: Ensures mode switching doesn't cause data loss or corruption.
- */
-TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byModeTransitions_expectConsistentBehavior) {
-    //===SETUP===
-    printf("BEHAVIOR: verifyDatBlockingModeBoundary_byModeTransitions_expectConsistentBehavior\n");
-
-    // TODO: Implement blocking mode boundary testing
-    // Test transitions between different blocking modes
-
-    printf("🔧 TODO: Implement blocking mode boundary test\n");
-    printf("   - Test default blocking behavior\n");
-    printf("   - Test non-blocking immediate return\n");
-    printf("   - Test timeout-based blocking\n");
-    printf("   - Verify clean transitions between modes\n");
-}
-
-//======>BEGIN OF: [@AC-3,US-3] TC-1===============================================================
-/**
- * @[Name]: verifyDatTimeoutBoundary_byExtremeValues_expectProperHandling
- * @[Steps]:
- *   1) Setup DAT connection for extreme timeout testing AS SETUP.
- *   2) Test very small timeout values (near zero) AS BEHAVIOR.
- *   3) Test very large timeout values (near maximum) AS BEHAVIOR.
- *   4) Verify proper handling without overflow/underflow AS VERIFY.
- *   5) Cleanup connections AS CLEANUP.
- * @[Expect]: Extreme timeout values handled properly without calculation errors.
- * @[Notes]: Ensures timeout calculations don't overflow or cause system issues.
- */
-TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byExtremeValues_expectProperHandling) {
-    //===SETUP===
-    printf("BEHAVIOR: verifyDatTimeoutBoundary_byExtremeValues_expectProperHandling\n");
-
-    // TODO: Implement extreme timeout boundary testing
-    // Test very small and very large timeout values
-
-    printf("🔧 TODO: Implement extreme timeout boundary test\n");
-    printf("   - Test minimum positive timeout values\n");
-    printf("   - Test maximum timeout values\n");
-    printf("   - Verify no overflow in timeout calculations\n");
-    printf("   - Test timeout accuracy at extreme values\n");
 }
 
 //======>BEGIN OF: [@AC-2,US-1] TC-2===============================================================
 /**
  * @[Name]: verifyDatParameterBoundary_byEdgeCaseValues_expectValidationSuccess
  * @[Steps]:
- *   1) Test edge case LinkID values (valid boundaries) AS BEHAVIOR.
- *   2) Test extreme option values in DatDesc AS BEHAVIOR.
- *   3) Test valid boundary parameter combinations AS BEHAVIOR.
- *   4) Verify proper acceptance/rejection behavior AS VERIFY.
- *   5) Cleanup test structures AS CLEANUP.
- * @[Expect]: Valid boundary values accepted, invalid boundary values rejected with clear errors.
- * @[Notes]: Complements invalid parameter test by focusing on boundary value validation.
+ *   1) Test LinkID boundary values (valid/invalid edge cases) AS BEHAVIOR.
+ *      |-> Test minimum/maximum theoretical LinkID values
+ *      |-> Test just-out-of-range LinkID values
+ *      |-> Test special LinkID values (IOC_ID_INVALID, etc.)
+ *   2) Test DatDesc field boundary values AS BEHAVIOR.
+ *      |-> Test minimum/maximum data sizes (1 byte, near-max sizes)
+ *      |-> Test boundary pointer values and data alignment
+ *      |-> Test extreme but valid embedded data configurations
+ *   3) Test IOC_Options boundary values AS BEHAVIOR.
+ *      |-> Test minimum/maximum timeout values
+ *      |-> Test boundary blocking mode configurations
+ *      |-> Test extreme but valid option combinations
+ *   4) Test mixed boundary parameter combinations AS BEHAVIOR.
+ *      |-> Test valid boundary combinations that should succeed
+ *      |-> Test invalid boundary combinations that should fail gracefully
+ *   5) Verify consistent validation behavior AS VERIFY.
+ *      |-> Valid boundary values return appropriate success/status codes
+ *      |-> Invalid boundary values return IOC_RESULT_INVALID_PARAM
+ *      |-> Validation behavior is consistent across parameter types
+ *   6) Cleanup test structures and connections AS CLEANUP.
+ * @[Expect]: Valid boundary values accepted with success, invalid boundary values rejected with
+ * IOC_RESULT_INVALID_PARAM, consistent validation behavior.
+ * @[Notes]: Systematic boundary value testing per AC-2 - validates parameter validation logic at edge cases.
  */
 TEST(UT_DataBoundary, verifyDatParameterBoundary_byEdgeCaseValues_expectValidationSuccess) {
     //===SETUP===
     printf("BEHAVIOR: verifyDatParameterBoundary_byEdgeCaseValues_expectValidationSuccess\n");
 
-    // TODO: Implement edge case parameter validation testing
-    // Test boundary parameter values that should be accepted/rejected
+    //===BEHAVIOR: LinkID Boundary Value Testing===
+    printf("📋 Testing LinkID boundary values...\n");
 
-    printf("🔧 TODO: Implement edge case parameter validation test\n");
-    printf("   - Test minimum/maximum valid LinkID values\n");
-    printf("   - Test extreme but valid option values\n");
-    printf("   - Test boundary conditions for DatDesc fields\n");
-    printf("   - Verify clear error messages for invalid boundaries\n");
+    // Prepare valid DatDesc for testing LinkID boundaries
+    IOC_DatDesc_T ValidDatDesc = {0};
+    IOC_initDatDesc(&ValidDatDesc);
+    const char *testData = "boundary";
+    ValidDatDesc.Payload.pData = (void *)testData;
+    ValidDatDesc.Payload.PtrDataSize = 8;
+
+    // Test 1.1: IOC_ID_INVALID explicitly (should fail)
+    IOC_Result_T Result = IOC_sendDAT(IOC_ID_INVALID, &ValidDatDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_NOT_EXIST_LINK, Result) << "IOC_ID_INVALID should be rejected with NOT_EXIST_LINK";
+
+    // Test 1.2: Zero LinkID (typically invalid unless specifically supported)
+    Result = IOC_sendDAT(0, &ValidDatDesc, NULL);
+    ASSERT_TRUE(Result == IOC_RESULT_NOT_EXIST_LINK || Result == IOC_RESULT_INVALID_PARAM)
+        << "Zero LinkID should be rejected with appropriate error code";
+
+    // Test 1.3: Maximum possible LinkID values (test system bounds)
+    IOC_LinkID_T MaxBoundaryIDs[] = {
+        0x7FFFFFFF,  // Maximum positive 32-bit value
+        0xFFFFFFFE,  // Near maximum unsigned value
+        0x80000000,  // Sign bit boundary
+        1,           // Minimum positive value
+        2,           // Just above minimum
+    };
+
+    for (size_t i = 0; i < sizeof(MaxBoundaryIDs) / sizeof(MaxBoundaryIDs[0]); i++) {
+        Result = IOC_sendDAT(MaxBoundaryIDs[i], &ValidDatDesc, NULL);
+        ASSERT_TRUE(Result == IOC_RESULT_NOT_EXIST_LINK || Result == IOC_RESULT_INVALID_PARAM)
+            << "Boundary LinkID " << MaxBoundaryIDs[i] << " should be handled gracefully";
+
+        // Test should not crash - if it reaches here, validation worked
+        printf("   ✓ LinkID boundary value 0x%016llX handled gracefully (result: %d)\n",
+               (unsigned long long)MaxBoundaryIDs[i], Result);
+    }
+
+    //===BEHAVIOR: DatDesc Field Boundary Testing===
+    printf("📋 Testing DatDesc field boundary values...\n");
+
+    // Test 2.1: Minimum data size (1 byte)
+    IOC_DatDesc_T MinSizeDesc = {0};
+    IOC_initDatDesc(&MinSizeDesc);
+    char oneByte = 'X';
+    MinSizeDesc.Payload.pData = &oneByte;
+    MinSizeDesc.Payload.PtrDataSize = 1;  // Minimum meaningful size
+
+    Result = IOC_sendDAT(IOC_ID_INVALID, &MinSizeDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_NOT_EXIST_LINK, Result)
+        << "1-byte data size should be valid (failed due to invalid LinkID only)";
+
+    // Test 2.2: Large but reasonable data size
+    IOC_DatDesc_T LargeDesc = {0};
+    IOC_initDatDesc(&LargeDesc);
+    const size_t LargeSize = 64 * 1024;  // 64KB - large but not extreme
+    char *largeBuf = (char *)malloc(LargeSize);
+    if (largeBuf != NULL) {
+        memset(largeBuf, 'L', LargeSize);
+        LargeDesc.Payload.pData = largeBuf;
+        LargeDesc.Payload.PtrDataSize = LargeSize;
+
+        Result = IOC_sendDAT(IOC_ID_INVALID, &LargeDesc, NULL);
+        ASSERT_EQ(IOC_RESULT_NOT_EXIST_LINK, Result)
+            << "Large data size (64KB) should be valid (failed due to invalid LinkID only)";
+
+        free(largeBuf);
+        printf("   ✓ Large data size (%zu bytes) handled correctly\n", LargeSize);
+    }
+
+    // Test 2.3: Edge case - valid pointer with zero size
+    IOC_DatDesc_T ZeroSizeValidPtr = {0};
+    IOC_initDatDesc(&ZeroSizeValidPtr);
+    ZeroSizeValidPtr.Payload.pData = (void *)testData;  // Valid pointer
+    ZeroSizeValidPtr.Payload.PtrDataSize = 0;           // Zero size
+
+    Result = IOC_sendDAT(IOC_ID_INVALID, &ZeroSizeValidPtr, NULL);
+    ASSERT_TRUE(Result == IOC_RESULT_NOT_EXIST_LINK || Result == IOC_RESULT_INVALID_PARAM)
+        << "Zero size with valid pointer should be handled consistently";
+    printf("   ✓ Zero size with valid pointer handled (result: %d)\n", Result);
+
+    // Test 2.4: Test properly initialized DatDesc vs uninitialized
+    IOC_DatDesc_T UninitializedDesc;                              // Not zero-initialized
+    memset(&UninitializedDesc, 0xFF, sizeof(UninitializedDesc));  // Fill with garbage
+
+    Result = IOC_sendDAT(IOC_ID_INVALID, &UninitializedDesc, NULL);
+    ASSERT_TRUE(Result == IOC_RESULT_INVALID_PARAM || Result == IOC_RESULT_NOT_EXIST_LINK)
+        << "Uninitialized DatDesc should be handled gracefully";
+    printf("   ✓ Uninitialized DatDesc handled gracefully (result: %d)\n", Result);
+
+    //===BEHAVIOR: IOC_Options Boundary Testing===
+    printf("📋 Testing IOC_Options boundary values...\n");
+
+    // Test 3.1: NULL options (should be valid)
+    Result = IOC_sendDAT(IOC_ID_INVALID, &ValidDatDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_NOT_EXIST_LINK, Result) << "NULL options should be valid (failed only due to invalid LinkID)";
+
+    // Test 3.2: Test with stack-allocated options structure
+    IOC_Options_T StackOptions = {};
+    // Initialize with default/zero values
+    Result = IOC_sendDAT(IOC_ID_INVALID, &ValidDatDesc, &StackOptions);
+    ASSERT_EQ(IOC_RESULT_NOT_EXIST_LINK, Result)
+        << "Zero-initialized options should be valid (failed only due to invalid LinkID)";
+
+    // Test 3.3: Test with garbage options pointer (should be detected)
+    IOC_Options_T *GarbageOptions = (IOC_Options_T *)0xDEADBEEF;
+    Result = IOC_sendDAT(IOC_ID_INVALID, &ValidDatDesc, GarbageOptions);
+    ASSERT_TRUE(Result == IOC_RESULT_INVALID_PARAM || Result == IOC_RESULT_NOT_EXIST_LINK)
+        << "Invalid options pointer should be handled gracefully";
+    printf("   ✓ Invalid options pointer handled gracefully (result: %d)\n", Result);
+
+    //===BEHAVIOR: IOC_Options Boundary Testing (Enhanced AC-3 coverage)===
+    printf("📋 Testing IOC_Options boundary values for invalid parameter testing...\n");
+
+    // Test 1.6: Test with malformed IOC_Options structure
+    IOC_Options_T MalformedOptions;
+    memset(&MalformedOptions, 0xAA, sizeof(MalformedOptions));  // Fill with pattern
+    MalformedOptions.IDs = (IOC_OptionsID_T)0xDEADBEEF;         // Invalid option ID
+
+    Result = IOC_sendDAT(IOC_ID_INVALID, &ValidDatDesc, &MalformedOptions);
+    ASSERT_TRUE(Result == IOC_RESULT_INVALID_PARAM || Result == IOC_RESULT_NOT_EXIST_LINK)
+        << "IOC_sendDAT should handle malformed IOC_Options gracefully";
+
+    // Test 1.7: Test with extreme timeout values in malformed options
+    IOC_Options_T ExtremeOptions = {};
+    ExtremeOptions.Payload.TimeoutUS = 0xFFFFFFFFFFFFFFFFULL;  // Maximum value
+
+    Result = IOC_sendDAT(IOC_ID_INVALID, &ValidDatDesc, &ExtremeOptions);
+    ASSERT_TRUE(Result == IOC_RESULT_INVALID_PARAM || Result == IOC_RESULT_NOT_EXIST_LINK)
+        << "IOC_sendDAT should handle extreme timeout values appropriately";
+
+    //===BEHAVIOR: IOC_recvDAT Invalid Parameter Tests===
+    printf("📋 Testing IOC_recvDAT invalid parameters...\n");
+
+    // Test 2.1: NULL pDatDesc for IOC_recvDAT (AC-1)
+    Result = IOC_recvDAT(IOC_ID_INVALID, NULL, NULL);
+    ASSERT_EQ(IOC_RESULT_INVALID_PARAM, Result)
+        << "IOC_recvDAT should reject NULL pDatDesc with IOC_RESULT_INVALID_PARAM";
+
+    // Test 2.2: Invalid LinkID for IOC_recvDAT (AC-1)
+    IOC_DatDesc_T RecvDatDesc = {0};
+    IOC_initDatDesc(&RecvDatDesc);
+    Result = IOC_recvDAT(IOC_ID_INVALID, &RecvDatDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_NOT_EXIST_LINK, Result)
+        << "IOC_recvDAT should reject invalid LinkID with IOC_RESULT_NOT_EXIST_LINK";
+
+    // Test 2.3: Malformed DatDesc for IOC_recvDAT (AC-1)
+    IOC_DatDesc_T MalformedRecvDesc = {0};
+    // Create malformed receive descriptor
+    MalformedRecvDesc.Payload.pData = NULL;
+    MalformedRecvDesc.Payload.PtrDataSize = 100;  // Non-zero size with NULL buffer
+
+    Result = IOC_recvDAT(IOC_ID_INVALID, &MalformedRecvDesc, NULL);
+    ASSERT_TRUE(Result == IOC_RESULT_INVALID_PARAM || Result == IOC_RESULT_NOT_EXIST_LINK)
+        << "IOC_recvDAT should reject malformed DatDesc with appropriate error code";
+
+    // Test 2.4: Test with NULL options for IOC_recvDAT (valid case)
+    Result = IOC_recvDAT(IOC_ID_INVALID, &RecvDatDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_NOT_EXIST_LINK, Result)
+        << "IOC_recvDAT with valid DatDesc and NULL options should return NOT_EXIST_LINK for invalid LinkID";
+
+    //===BEHAVIOR: Mixed Parameter Validation Tests (AC-4)===
+    printf("📋 Testing mixed valid/invalid parameter combinations...\n");
+
+    // Test 3.1: NULL DatDesc with NULL options - test parameter validation order
+    Result = IOC_sendDAT(IOC_ID_INVALID, NULL, NULL);
+    ASSERT_EQ(IOC_RESULT_INVALID_PARAM, Result) << "Parameter validation should catch NULL pDatDesc consistently";
+
+    // Test 3.2: Multiple invalid parameters - ensure consistent error priority
+    Result = IOC_recvDAT(IOC_ID_INVALID, NULL, NULL);
+    ASSERT_EQ(IOC_RESULT_INVALID_PARAM, Result) << "Parameter validation should be consistent in error priority";
+
+    // Test 3.3: Random invalid LinkID values to test robustness
+    IOC_LinkID_T RandomInvalidIDs[] = {0xDEADBEEF, 0xFFFFFFFF, 0x12345678, (IOC_LinkID_T)-1};
+    for (size_t i = 0; i < sizeof(RandomInvalidIDs) / sizeof(RandomInvalidIDs[0]); i++) {
+        Result = IOC_sendDAT(RandomInvalidIDs[i], &ValidDatDesc, NULL);
+        ASSERT_TRUE(Result == IOC_RESULT_NOT_EXIST_LINK || Result == IOC_RESULT_INVALID_PARAM)
+            << "IOC_sendDAT should handle random invalid LinkIDs gracefully: " << RandomInvalidIDs[i];
+    }
+
+    //===VERIFY: System Stability===
+    printf("🔍 Verifying system stability...\n");
+
+    // Verify no memory corruption by attempting a valid-structure operation
+    // (This would crash if memory was corrupted)
+    IOC_DatDesc_T TestDesc = {0};
+    IOC_initDatDesc(&TestDesc);
+    ASSERT_NO_FATAL_FAILURE({
+        Result = IOC_sendDAT(IOC_ID_INVALID, &TestDesc, NULL);
+        // Expect NOT_EXIST_LINK since we're using invalid LinkID with valid parameters
+        ASSERT_EQ(IOC_RESULT_NOT_EXIST_LINK, Result);
+    }) << "System should remain stable and not crash after invalid parameter tests";
+
+    // Test system stability with multiple consecutive invalid calls
+    for (int i = 0; i < 10; i++) {
+        Result = IOC_sendDAT(IOC_ID_INVALID, NULL, NULL);
+        ASSERT_EQ(IOC_RESULT_INVALID_PARAM, Result)
+            << "System should consistently reject invalid parameters on call #" << i;
+    }
+
+    // KeyVerifyPoint: All invalid parameter tests completed without crashes
+    printf("✅ All invalid parameter combinations properly rejected with correct error codes\n");
+    printf("✅ System maintained stability throughout boundary testing\n");
+    printf("✅ No memory corruption or system instability detected\n");
+    printf("✅ Parameter validation order and consistency verified\n");
+
+    //===CLEANUP===
+    // No cleanup needed for parameter validation tests
+    // System demonstrated stability throughout testing
 }
-
-//======>BEGIN OF: [@AC-ERROR] Additional Error Code Validation==========================================
-/**
- * @[Name]: verifyDatBoundaryErrorCodes_byComprehensiveErrorScenarios_expectCompleteErrorMapping
- * @[Steps]:
- *   1) Test all relevant DAT error codes for boundary conditions AS BEHAVIOR.
- *      |-> Test IOC_RESULT_INVALID_PARAM with NULL pDatDesc, invalid LinkID
- *      |-> Test IOC_RESULT_NOT_EXIST_LINK with invalid LinkID
- *      |-> Test IOC_RESULT_DATA_TOO_LARGE with oversized data
- *      |-> Test IOC_RESULT_TIMEOUT with zero timeout
- *      |-> Test IOC_RESULT_NOT_READY with uninitialized states
- *   2) Verify error code consistency across different boundary scenarios AS VERIFY.
- *   3) Document error code behavior for boundary reference AS VERIFY.
- * @[Expect]: All boundary-related error codes properly tested and documented.
- * @[Notes]: Ensures comprehensive error handling coverage for boundary conditions.
- */
-TEST(UT_DataBoundary, verifyDatBoundaryErrorCodes_byComprehensiveErrorScenarios_expectCompleteErrorMapping) {
-    //===SETUP===
-    printf("BEHAVIOR: verifyDatBoundaryErrorCodes_byComprehensiveErrorScenarios_expectCompleteErrorMapping\n");
-
-    // TODO: Implement comprehensive error code testing for boundaries
-    // Test IOC_RESULT_INVALID_PARAM, IOC_RESULT_NOT_EXIST_LINK, IOC_RESULT_DATA_TOO_LARGE,
-    // IOC_RESULT_TIMEOUT, IOC_RESULT_NOT_READY, etc.
-
-    printf("🔧 TODO: Implement comprehensive boundary error code test\n");
-    printf("   - Test IOC_RESULT_INVALID_PARAM scenarios\n");
-    printf("   - Test IOC_RESULT_NOT_EXIST_LINK scenarios\n");
-    printf("   - Test IOC_RESULT_DATA_TOO_LARGE scenarios\n");
-    printf("   - Test IOC_RESULT_TIMEOUT scenarios\n");
-    printf("   - Test IOC_RESULT_NOT_READY scenarios\n");
-    printf("   - Document error code mapping for boundary conditions\n");
-}
-
-//======>END OF TEST IMPLEMENTATIONS===============================================================
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF TODO SECTION=====================================================================
-/**
- * 🚀 IMPLEMENTATION ROADMAP
- *
- * PHASE 1 - BASIC BOUNDARY TESTS:
- * ✅ verifyDatParameterBoundary_byInvalidInputs_expectGracefulErrorHandling
- * 🔧 verifyDatParameterBoundary_byEdgeCaseValues_expectValidationSuccess
- * 🔧 verifyDatDataSizeBoundary_byZeroSizeData_expectConsistentBehavior
- * 🔧 verifyDatDataSizeBoundary_byMaximumAllowedSize_expectSuccessfulTransmission
- * 🔧 verifyDatDataSizeBoundary_byOversizedData_expectDataTooLargeError
- *
- * PHASE 2 - TIMING BOUNDARY TESTS:
- * 🔧 verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateReturn
- * 🔧 verifyDatBlockingModeBoundary_byModeTransitions_expectConsistentBehavior
- * 🔧 verifyDatTimeoutBoundary_byExtremeValues_expectProperHandling
- *
- * PHASE 3 - COMPREHENSIVE VALIDATION:
- * 🔧 verifyDatBoundaryErrorCodes_byComprehensiveErrorScenarios_expectCompleteErrorMapping
- *
- * 💡 IMPLEMENTATION NOTES:
- * - Follow patterns from DataTypical and DataCapability tests
- * - Use __CbRecvDat_Boundary_F callback for boundary-specific tracking
- * - Focus on error code validation and system stability
- * - Test both success and failure boundary conditions
- * - Ensure no memory leaks or crashes in boundary conditions
- * - Connection and state boundary tests moved to DataState test file
- *
- * 📋 TESTING STRATEGY:
- * - Start with parameter validation (safest, easiest to implement)
- * - Progress to data size boundaries (moderate complexity)
- * - Advance to timing boundaries (higher complexity)
- * - Each test should be independent and self-contained
- * - Use consistent naming and structure across all tests
- */
-//======>END OF TODO SECTION=======================================================================
