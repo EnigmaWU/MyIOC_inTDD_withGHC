@@ -104,14 +104,29 @@
  *         WHEN calling IOC_sendDAT or IOC_recvDAT,
  *         THEN system should return appropriate error codes (IOC_RESULT_INVALID_PARAM, IOC_RESULT_NOT_EXIST_LINK)
  *          AND not crash or corrupt memory,
- *          AND handle each invalid parameter combination gracefully.
+ *          AND handle each invalid parameter combination gracefully,
+ *          AND maintain system state consistency after invalid calls.
  *
  *  AC-2: GIVEN boundary parameter values (edge case LinkIDs, extreme option values),
  *         WHEN performing DAT operations,
  *         THEN system should validate parameters properly
- *          AND reject invalid values with clear error messages,
- *          AND accept valid boundary values without issues.
+ *          AND reject invalid boundary values with IOC_RESULT_INVALID_PARAM,
+ *          AND accept valid boundary values with IOC_RESULT_SUCCESS or appropriate status,
+ *          AND provide consistent validation behavior across all parameter types.
  *
+ *  AC-3: GIVEN invalid IOC_Options parameter combinations,
+ *         WHEN calling IOC_sendDAT or IOC_recvDAT with malformed options,
+ *         THEN system should return IOC_RESULT_INVALID_PARAM
+ *          AND not attempt the operation with invalid options,
+ *          AND validate options before processing other parameters.
+ *
+ *  AC-4: GIVEN mixed valid/invalid parameter combinations,
+ *         WHEN calling DAT functions with some valid and some invalid parameters,
+ *         THEN system should prioritize parameter validation order consistently
+ *          AND return the most appropriate error code for the first invalid parameter detected,
+ *          AND not process any operation when any parameter is invalid.
+ *
+ *-------------------------------------------------------------------------------------------------
  * [@US-2] Data size boundary validation
  *  AC-1: GIVEN zero-size data (0 bytes),
  *         WHEN calling IOC_sendDAT with empty payload,
@@ -131,6 +146,7 @@
  *          AND not attempt transmission,
  *          AND not cause memory issues or system instability.
  *
+ *-------------------------------------------------------------------------------------------------
  * [@US-3] Timeout and blocking mode boundaries
  *  AC-1: GIVEN zero timeout configuration,
  *         WHEN performing DAT operations with immediate timeout,
@@ -168,36 +184,42 @@
  *      @[Purpose]: Verify boundary parameter values are validated correctly
  *      @[Brief]: Test edge case LinkIDs, extreme option values, verify acceptance/rejection
  *
+ *--------------------------------------------------------------------------------------------------
  * [@AC-1,US-2] Data size boundary validation - Zero size
  *  TC-1:
  *      @[Name]: verifyDatDataSizeBoundary_byZeroSizeData_expectConsistentBehavior
  *      @[Purpose]: Verify zero-size data transmission behavior
  *      @[Brief]: Send 0-byte data, verify transmission and reception behavior
  *
+ *---------------------------------------------------------------------------------------------------
  * [@AC-2,US-2] Data size boundary validation - Maximum size
  *  TC-1:
  *      @[Name]: verifyDatDataSizeBoundary_byMaximumAllowedSize_expectSuccessfulTransmission
  *      @[Purpose]: Verify maximum allowed data size transmission
  *      @[Brief]: Send data at maximum size limit, verify successful transmission and integrity
  *
+ *---------------------------------------------------------------------------------------------------
  * [@AC-3,US-2] Data size boundary validation - Oversized data
  *  TC-1:
  *      @[Name]: verifyDatDataSizeBoundary_byOversizedData_expectDataTooLargeError
  *      @[Purpose]: Verify oversized data rejection
  *      @[Brief]: Attempt to send data exceeding limits, verify IOC_RESULT_DATA_TOO_LARGE
  *
+ *---------------------------------------------------------------------------------------------------
  * [@AC-1,US-3] Timeout boundary validation - Zero timeout
  *  TC-1:
  *      @[Name]: verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateReturn
  *      @[Purpose]: Verify zero timeout behavior
  *      @[Brief]: Configure zero timeout, verify immediate return without blocking
  *
+ *---------------------------------------------------------------------------------------------------
  * [@AC-2,US-3] Blocking mode boundaries
  *  TC-1:
  *      @[Name]: verifyDatBlockingModeBoundary_byModeTransitions_expectConsistentBehavior
  *      @[Purpose]: Verify blocking/non-blocking mode transitions
  *      @[Brief]: Switch between blocking modes, verify each mode behaves correctly
  *
+ *---------------------------------------------------------------------------------------------------
  * [@AC-3,US-3] Extreme timeout boundaries
  *  TC-1:
  *      @[Name]: verifyDatTimeoutBoundary_byExtremeValues_expectProperHandling
