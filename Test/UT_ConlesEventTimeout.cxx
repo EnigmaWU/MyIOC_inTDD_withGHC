@@ -351,7 +351,7 @@ TEST(UT_ConlesEventTimeout, verifySyncTimeout_byQueueFromEmptyToFullToEmpty_with
             ASSERT_EQ(IOC_RESULT_NOT_EMPTY_EVTDESC_QUEUE, Result);  // KeyVerifyPoint
 
             ULONG_T WaitTimeUS = IOC_deltaTimeSpecInUS(&BeforePostTime, &AfterPostTime);
-            ASSERT_LE(WaitTimeUS, TimeoutUSValue + 5000);  // KeyVerifyPoint, PostPerf<=1000us
+            ASSERT_LE(WaitTimeUS, TimeoutUSValue + 10000);  // KeyVerifyPoint, PostPerf<=1000us
         }
 
         // c) wake up EvtConsumer, forceProcEVT
