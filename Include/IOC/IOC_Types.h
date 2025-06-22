@@ -95,7 +95,7 @@ typedef enum {
 } IOC_BoolResult_T,
     IOC_Bool_T;
 
-#define IOC_ID_INVALID ULONG_MAX
+#define IOC_ID_INVALID ULONG_MAX  // Used for default variable value assignment, e.g. IOC_LinkID_T, IOC_SrvID_T, etc.
 
 /**
  * @brief LinkID is a unique ID to identify a link between two objects in communication.
@@ -110,7 +110,7 @@ typedef enum {
 typedef uint64_t IOC_LinkID_T;
 typedef IOC_LinkID_T *IOC_LinkID_pT;
 
-#define IOC_INVALID_LINK_ID IOC_ID_INVALID
+#define IOC_INVALID_LINK_ID IOC_ID_INVALID  // Used for default variable value assignment, e.g. IOC_LinkID_T
 
 /**
  * @brief SrvID is a unique ID to identify a service in IOC.
@@ -119,8 +119,14 @@ typedef IOC_LinkID_T *IOC_LinkID_pT;
 typedef uint64_t IOC_SrvID_T;
 typedef IOC_SrvID_T *IOC_SrvID_pT;
 
-#define IOC_INVALID_SRV_ID IOC_ID_INVALID
+#define IOC_INVALID_SRV_ID IOC_ID_INVALID  // Used for default variable value assignment, e.g. IOC_SrvID_T
 
+/**
+ * @brief AutoLinkID is a unique ID to identify an automatic link in IOC.
+ *    CONLES_MODE is used in ConlesMode, CONET_MODE is used in ConetMode.
+ *    AutoLinkID is VALID without connectService or acceptClient.
+ *      which means all other LinkID is INVALID by default before connectService or acceptClient.
+ */
 enum IOC_AutoLinkID_enum {
     IOC_CONLES_MODE_AUTO_LINK_ID_0 = 0U,
     IOC_CONLES_MODE_AUTO_LINK_ID = IOC_CONLES_MODE_AUTO_LINK_ID_0,  // Default
