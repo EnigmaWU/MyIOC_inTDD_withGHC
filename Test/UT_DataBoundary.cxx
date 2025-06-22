@@ -866,6 +866,216 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeData_expectConsistentB
     }
     printf("   ✓ Consistency verified across multiple zero-size calls\n");
 
+    //===BEHAVIOR: Additional Boundary Scenarios===
+    printf("📋 Testing additional boundary scenarios...\n");
+
+    // Test 5: Service as DatSender (reversed role) - zero-size data from service to client
+    printf("🧪 Test 5: Service as DatSender with zero-size data...\n");
+
+    // Setup DatSender service (reversed role)
+    IOC_SrvID_T DatSenderSrvID = IOC_ID_INVALID;
+    IOC_LinkID_T DatSenderServiceLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T DatReceiverClientLinkID = IOC_ID_INVALID;
+
+    __DatBoundaryPrivData_T DatReceiverClientPrivData = {0};
+    DatReceiverClientPrivData.ClientIndex = 2;
+
+    IOC_SrvURI_T DatSenderSrvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "DatSenderService_ZeroSize",
+    };
+
+    // DatSender as service (server role)
+    IOC_SrvArgs_T DatSenderSrvArgs = {
+        .SrvURI = DatSenderSrvURI,
+        .UsageCapabilites = IOC_LinkUsageDatSender,
+    };
+
+    Result = IOC_onlineService(&DatSenderSrvID, &DatSenderSrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "DatSender service should online successfully";
+    printf("   ✓ DatSender service onlined with SrvID=%llu\n", DatSenderSrvID);
+
+    // DatReceiver as client with callback
+    IOC_DatUsageArgs_T DatReceiverClientUsageArgs = {
+        .CbRecvDat_F = __CbRecvDat_Boundary_F,
+        .pCbPrivData = &DatReceiverClientPrivData,
+    };
+
+    IOC_ConnArgs_T DatReceiverClientConnArgs = {
+        .SrvURI = DatSenderSrvURI,
+        .Usage = IOC_LinkUsageDatReceiver,
+        .UsageArgs =
+            {
+                .pDat = &DatReceiverClientUsageArgs,
+            },
+    };
+
+    std::thread DatReceiverClientThread([&] {
+        IOC_Result_T ThreadResult = IOC_connectService(&DatReceiverClientLinkID, &DatReceiverClientConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ThreadResult);
+        ASSERT_NE(IOC_ID_INVALID, DatReceiverClientLinkID);
+    });
+
+    // DatSender service accept connection
+    Result = IOC_acceptClient(DatSenderSrvID, &DatSenderServiceLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "DatSender service should accept connection";
+
+    DatReceiverClientThread.join();
+    printf("   ✓ DatReceiver client connected with LinkID=%llu\n", DatReceiverClientLinkID);
+    printf("   ✓ DatSender service accepted with LinkID=%llu\n", DatSenderServiceLinkID);
+
+    // Test zero-size data transmission from service (DatSender) to client (DatReceiver)
+    IOC_DatDesc_T ServiceZeroSizeDesc = {0};
+    IOC_initDatDesc(&ServiceZeroSizeDesc);
+    ServiceZeroSizeDesc.Payload.pData = (void *)validPtr;
+    ServiceZeroSizeDesc.Payload.PtrDataSize = 0;  // Zero size
+
+    Result = IOC_sendDAT(DatSenderServiceLinkID, &ServiceZeroSizeDesc, NULL);
+    printf("   Service-to-client zero-size data returned: %d\n", Result);
+
+    ASSERT_EQ(IOC_RESULT_ZERO_DATA, Result)
+        << "Service as DatSender should return IOC_RESULT_ZERO_DATA for zero-size data";
+
+    // Cleanup DatSender service before creating polling receiver (service limit is 2)
+    printf("🧹 Cleaning up DatSender service before polling test...\n");
+
+    if (DatReceiverClientLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(DatReceiverClientLinkID);
+        printf("   ✓ DatReceiver client connection closed\n");
+    }
+
+    if (DatSenderServiceLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(DatSenderServiceLinkID);
+        printf("   ✓ DatSender service connection closed\n");
+    }
+
+    if (DatSenderSrvID != IOC_ID_INVALID) {
+        IOC_offlineService(DatSenderSrvID);
+        printf("   ✓ DatSender service offline\n");
+        DatSenderSrvID = IOC_ID_INVALID;  // Mark as cleaned up
+    }
+
+    // Test 6: Polling mode without recvDAT - setup polling receiver for zero-size boundary
+    printf("🧪 Test 6: Polling mode receiver (no callback) with zero-size data detection...\n");
+
+    // Setup DatReceiver service without callback (polling mode)
+    IOC_SrvID_T DatPollingReceiverSrvID = IOC_ID_INVALID;
+    IOC_LinkID_T DatPollingReceiverLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T DatPollingSenderLinkID = IOC_ID_INVALID;
+
+    IOC_SrvURI_T DatPollingReceiverSrvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "DatPollingReceiver_ZeroSize",
+    };
+
+    // DatReceiver service WITHOUT callback - pure polling mode
+    IOC_SrvArgs_T DatPollingReceiverSrvArgs = {
+        .SrvURI = DatPollingReceiverSrvURI, .UsageCapabilites = IOC_LinkUsageDatReceiver,
+        // No UsageArgs means no callback - enables polling mode
+    };
+
+    Result = IOC_onlineService(&DatPollingReceiverSrvID, &DatPollingReceiverSrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "DatReceiver polling service should online successfully";
+    printf("   ✓ DatReceiver polling service onlined with SrvID=%llu\n", DatPollingReceiverSrvID);
+
+    // DatSender connect to polling receiver
+    IOC_ConnArgs_T DatPollingSenderConnArgs = {
+        .SrvURI = DatPollingReceiverSrvURI,
+        .Usage = IOC_LinkUsageDatSender,
+    };
+
+    std::thread DatPollingSenderThread([&] {
+        IOC_Result_T ThreadResult = IOC_connectService(&DatPollingSenderLinkID, &DatPollingSenderConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ThreadResult);
+        ASSERT_NE(IOC_ID_INVALID, DatPollingSenderLinkID);
+    });
+
+    // DatReceiver accept connection
+    Result = IOC_acceptClient(DatPollingReceiverSrvID, &DatPollingReceiverLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "DatReceiver polling service should accept connection";
+
+    DatPollingSenderThread.join();
+    printf("   ✓ DatSender connected to polling receiver with LinkID=%llu\n", DatPollingSenderLinkID);
+    printf("   ✓ DatReceiver polling service accepted with LinkID=%llu\n", DatPollingReceiverLinkID);
+
+    // Test normal data first to ensure polling mode is working
+    printf("   🧪 Test 6a: Verify polling mode works with normal data...\n");
+    IOC_DatDesc_T NormalDataDesc = {0};
+    IOC_initDatDesc(&NormalDataDesc);
+    const char *normalData = "test_polling";
+    NormalDataDesc.Payload.pData = (void *)normalData;
+    NormalDataDesc.Payload.PtrDataSize = strlen(normalData);
+
+    Result = IOC_sendDAT(DatPollingSenderLinkID, &NormalDataDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Normal data should send successfully in polling mode";
+
+    IOC_flushDAT(DatPollingSenderLinkID, NULL);
+
+    // Poll for normal data to verify polling mode functionality
+    IOC_DatDesc_T PollingReceiveDesc = {0};
+    IOC_initDatDesc(&PollingReceiveDesc);
+    char pollingBuffer[100];
+    PollingReceiveDesc.Payload.pData = pollingBuffer;
+    PollingReceiveDesc.Payload.PtrDataSize = sizeof(pollingBuffer);
+
+    IOC_Option_defineSyncMayBlock(PollingOptions);
+    Result = IOC_recvDAT(DatPollingReceiverLinkID, &PollingReceiveDesc, &PollingOptions);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Polling should receive normal data successfully";
+    ASSERT_EQ(strlen(normalData), PollingReceiveDesc.Payload.PtrDataSize) << "Polling should receive correct data size";
+    printf("   ✓ Polling mode verified: received %lu bytes of normal data\n", PollingReceiveDesc.Payload.PtrDataSize);
+
+    // Test zero-size data with polling - this should return IOC_RESULT_ZERO_DATA at send time
+    printf("   🧪 Test 6b: Zero-size data behavior in polling mode...\n");
+    IOC_DatDesc_T PollingZeroSizeDesc = {0};
+    IOC_initDatDesc(&PollingZeroSizeDesc);
+    PollingZeroSizeDesc.Payload.pData = (void *)validPtr;
+    PollingZeroSizeDesc.Payload.PtrDataSize = 0;  // Zero size
+
+    Result = IOC_sendDAT(DatPollingSenderLinkID, &PollingZeroSizeDesc, NULL);
+    printf("   Zero-size data to polling receiver returned: %d\n", Result);
+
+    ASSERT_EQ(IOC_RESULT_ZERO_DATA, Result) << "Zero-size data should return IOC_RESULT_ZERO_DATA even in polling mode";
+
+    // Verify no data is available for polling after zero-size send attempt
+    IOC_DatDesc_T NoDataPollingDesc = {0};
+    IOC_initDatDesc(&NoDataPollingDesc);
+    char noDataBuffer[100];
+    NoDataPollingDesc.Payload.pData = noDataBuffer;
+    NoDataPollingDesc.Payload.PtrDataSize = sizeof(noDataBuffer);
+
+    IOC_Option_defineSyncNonBlock(NoDataOptions);
+    Result = IOC_recvDAT(DatPollingReceiverLinkID, &NoDataPollingDesc, &NoDataOptions);
+    ASSERT_EQ(IOC_RESULT_NO_DATA, Result)
+        << "Polling should return NO_DATA when zero-size data was rejected at send time";
+    printf("   ✓ Polling correctly returns NO_DATA when no actual data was sent\n");
+
+    // Cleanup additional test resources
+    printf("🧹 Cleaning up remaining test resources...\n");
+
+    // Note: DatSender service was already cleaned up before polling test
+
+    if (DatPollingSenderLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(DatPollingSenderLinkID);
+        printf("   ✓ DatSender polling connection closed\n");
+    }
+
+    if (DatPollingReceiverLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(DatPollingReceiverLinkID);
+        printf("   ✓ DatReceiver polling connection closed\n");
+    }
+
+    if (DatPollingReceiverSrvID != IOC_ID_INVALID) {
+        IOC_offlineService(DatPollingReceiverSrvID);
+        printf("   ✓ DatReceiver polling service offline\n");
+    }
+
+    // KeyVerifyPoint: Additional boundary scenarios completed
+    printf("✅ Service as DatSender zero-size data handling verified\n");
+    printf("✅ Polling mode zero-size data boundary behavior verified\n");
+    printf("✅ Both reversed roles and polling modes handle zero-size data consistently\n");
+
     //===BEHAVIOR: Receiver Behavior Testing===
     printf("📋 Testing receiver behavior with zero-size data...\n");
 
@@ -935,5 +1145,3 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeData_expectConsistentB
 
     printf("✅ Zero-size data boundary testing completed successfully\n");
 }
-
-//======>END OF: [@AC-1,US-2] TC-1=================================================================

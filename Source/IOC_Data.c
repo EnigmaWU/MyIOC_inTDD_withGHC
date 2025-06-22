@@ -25,6 +25,11 @@ IOC_Result_T IOC_sendDAT(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, IOC_Optio
         return IOC_RESULT_NOT_EXIST_LINK;
     }
 
+    // Zero-size data validation - check if both PtrDataSize and EmdDataSize are zero
+    if (pDatDesc->Payload.PtrDataSize == 0 && pDatDesc->Payload.EmdDataSize == 0) {
+        return IOC_RESULT_ZERO_DATA;
+    }
+
     // Get sender link object
     _IOC_LinkObject_pT pSenderLinkObj = _IOC_getLinkObjByLinkID(LinkID);
     if (!pSenderLinkObj) {
