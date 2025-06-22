@@ -403,8 +403,16 @@ typedef struct {
 } __DatReceiverPrivData_T;
 
 // Callback function for receiving DAT data (TDD Design)
-static IOC_Result_T __CbRecvDat_F(IOC_LinkID_T LinkID, void *pData, ULONG_T DataSize, void *pCbPriv) {
+static IOC_Result_T __CbRecvDat_F(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, void *pCbPriv) {
     __DatReceiverPrivData_T *pPrivData = (__DatReceiverPrivData_T *)pCbPriv;
+
+    // Extract data from DatDesc
+    void *pData;
+    ULONG_T DataSize;
+    IOC_Result_T result = IOC_getDatPayload(pDatDesc, &pData, &DataSize);
+    if (result != IOC_RESULT_SUCCESS) {
+        return result;
+    }
 
     pPrivData->ReceivedDataCnt++;
     pPrivData->CallbackExecuted = true;
@@ -413,7 +421,7 @@ static IOC_Result_T __CbRecvDat_F(IOC_LinkID_T LinkID, void *pData, ULONG_T Data
     if (pPrivData->TotalReceivedSize + DataSize <= sizeof(pPrivData->ReceivedContent)) {
         memcpy(pPrivData->ReceivedContent + pPrivData->TotalReceivedSize, pData, DataSize);
     }
-    
+
     // Always update TotalReceivedSize for accurate tracking
     pPrivData->TotalReceivedSize += DataSize;
 

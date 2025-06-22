@@ -53,14 +53,6 @@ IOC_Result_T IOC_sendDAT(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, IOC_Optio
 
     IOC_Result_T Result = pMethods->OpSendData_F(pSenderLinkObj, pDatDesc, pOption);
 
-    if (Result == IOC_RESULT_SUCCESS) {
-        pDatDesc->Status = IOC_DAT_STATUS_STREAM_READY;  // Data sent successfully
-        pDatDesc->Result = IOC_RESULT_SUCCESS;
-    } else {
-        pDatDesc->Status = IOC_DAT_STATUS_STREAM_ERROR;  // Send failed
-        pDatDesc->Result = Result;
-    }
-
     return Result;
 }
 

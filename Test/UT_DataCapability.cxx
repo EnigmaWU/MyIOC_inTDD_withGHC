@@ -390,8 +390,17 @@ TEST(UT_DataCapability, verifyDatTransmission_byWithinMaxDataQueueSize_expectRel
     ASSERT_NE(IOC_ID_INVALID, DatSenderSrvID) << "Invalid DatSender service ID";
 
     // Setup DatReceiver connection (client role) with callback
-    auto CbRecvDat_F = [](IOC_LinkID_T LinkID, void *pData, ULONG_T DataSize, void *pCbPriv) -> IOC_Result_T {
+    auto CbRecvDat_F = [](IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, void *pCbPriv) -> IOC_Result_T {
         auto *pPrivData = (decltype(DatReceiverPrivData) *)pCbPriv;
+
+        // Extract data from DatDesc
+        void *pData;
+        ULONG_T DataSize;
+        IOC_Result_T result = IOC_getDatPayload(pDatDesc, &pData, &DataSize);
+        if (result != IOC_RESULT_SUCCESS) {
+            return result;
+        }
+
         pPrivData->CallbackExecuted = true;
         pPrivData->TotalReceivedSize += DataSize;
         pPrivData->ReceivedChunkCount++;
@@ -611,8 +620,17 @@ TEST(UT_DataCapability, verifyDatBoundaryBehavior_byConnectionLimits_expectGrace
 
         std::vector<std::unique_ptr<ClientCallbackData>> ClientDataList;
 
-        auto CbRecvDat_F = [](IOC_LinkID_T LinkID, void *pData, ULONG_T DataSize, void *pCbPriv) -> IOC_Result_T {
+        auto CbRecvDat_F = [](IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, void *pCbPriv) -> IOC_Result_T {
             auto *pClientData = (ClientCallbackData *)pCbPriv;
+
+            // Extract data from DatDesc
+            void *pData;
+            ULONG_T DataSize;
+            IOC_Result_T result = IOC_getDatPayload(pDatDesc, &pData, &DataSize);
+            if (result != IOC_RESULT_SUCCESS) {
+                return result;
+            }
+
             pClientData->CallbackExecuted = true;
             pClientData->ReceivedDataSize += DataSize;
             printf("    Client[%d] received %lu bytes via callback\n", pClientData->ClientIndex, DataSize);
@@ -1067,8 +1085,16 @@ TEST(UT_DataCapability, verifyDatTransmission_byBlockingNonBlockingModes_expectC
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Failed to online DatSender service";
 
     // Setup DatReceiver with controllable consumption rate
-    auto CbRecvDat_F = [](IOC_LinkID_T LinkID, void *pData, ULONG_T DataSize, void *pCbPriv) -> IOC_Result_T {
+    auto CbRecvDat_F = [](IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, void *pCbPriv) -> IOC_Result_T {
         auto *pPrivData = (decltype(DatReceiverPrivData) *)pCbPriv;
+
+        // Extract data from DatDesc
+        void *pData;
+        ULONG_T DataSize;
+        IOC_Result_T result = IOC_getDatPayload(pDatDesc, &pData, &DataSize);
+        if (result != IOC_RESULT_SUCCESS) {
+            return result;
+        }
 
         std::lock_guard<std::mutex> lock(pPrivData->Mutex);
         pPrivData->CallbackExecuted = true;
@@ -1447,8 +1473,16 @@ TEST(UT_DataCapability, verifyDatTransmission_byDataIntegrityAndResourceManageme
     ASSERT_NE(IOC_ID_INVALID, DatSenderSrvID) << "Invalid DatSender service ID";
 
     // Setup DatReceiver connection (client role) with callback for integrity verification
-    auto CbRecvDat_F = [](IOC_LinkID_T, void *pData, ULONG_T DataSize, void *pCbPriv) -> IOC_Result_T {
+    auto CbRecvDat_F = [](IOC_LinkID_T, IOC_DatDesc_pT pDatDesc, void *pCbPriv) -> IOC_Result_T {
         auto *pPrivData = (decltype(DatReceiverPrivData) *)pCbPriv;
+
+        // Extract data from DatDesc
+        void *pData;
+        ULONG_T DataSize;
+        IOC_Result_T result = IOC_getDatPayload(pDatDesc, &pData, &DataSize);
+        if (result != IOC_RESULT_SUCCESS) {
+            return result;
+        }
 
         std::lock_guard<std::mutex> lock(pPrivData->DataMutex);
         pPrivData->CallbackExecuted = true;

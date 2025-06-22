@@ -689,8 +689,7 @@ static IOC_Result_T __IOC_sendData_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, cons
 
         } else {
             // Blocking mode: execute callback synchronously and wait for completion
-            CallbackResult = CbRecvDat_F(pPeerFifoLinkObj->pOwnerLinkObj->ID, pDatDesc->Payload.pData,
-                                         pDatDesc->Payload.PtrDataSize, pCbPrivData);
+            CallbackResult = CbRecvDat_F(pPeerFifoLinkObj->pOwnerLinkObj->ID, pDatDesc, pCbPrivData);
         }
 
         return CallbackResult;
@@ -759,19 +758,13 @@ static IOC_Result_T __IOC_recvData_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_
     if (ReadResult == IOC_RESULT_SUCCESS) {
         // Update the data descriptor with actual bytes read
         pDatDesc->Payload.PtrDataSize = BytesRead;
-        pDatDesc->Status = IOC_DAT_STATUS_STREAM_READY;
-        pDatDesc->Result = IOC_RESULT_SUCCESS;
 
         printf("IOC_recvDAT: Received %zu bytes from polling buffer on LinkID=%llu\n", BytesRead, pLinkObj->ID);
     } else if (ReadResult == IOC_RESULT_NO_DATA) {
         // No data available in non-blocking mode
         pDatDesc->Payload.PtrDataSize = 0;
-        pDatDesc->Status = IOC_DAT_STATUS_STREAM_READY;
-        pDatDesc->Result = IOC_RESULT_NO_DATA;
     } else {
-        // Other error
-        pDatDesc->Status = IOC_DAT_STATUS_STREAM_ERROR;
-        pDatDesc->Result = ReadResult;
+        // Other error - no additional action needed
     }
 
     return ReadResult;
