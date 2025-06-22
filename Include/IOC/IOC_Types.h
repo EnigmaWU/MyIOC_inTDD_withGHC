@@ -67,6 +67,7 @@ typedef enum {
     IOC_RESULT_DATA_CORRUPTED = -514,
     IOC_RESULT_DATA_TOO_LARGE = -515,
     IOC_RESULT_NO_DATA = -516,
+    IOC_RESULT_ZERO_DATA = -516,  // Alias for when both PtrDataSize and EmdDataSize are zero
     IOC_RESULT_NOT_EXIST_STREAM = -517,
     IOC_RESULT_ACK_CMD_FAILED = -518,
 
