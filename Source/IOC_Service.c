@@ -165,7 +165,18 @@ void __IOC_freeLinkObj(_IOC_LinkObject_pT pLinkObj) {
 }
 
 _IOC_LinkObject_pT _IOC_getLinkObjByLinkID(IOC_LinkID_T LinkID) {
-    return _mIOC_LinkObjTbl[___IOC_convertLinkIDToLinkObjTblIdx(LinkID)];
+    // Validate LinkID range before conversion to avoid assertion failure
+    if (LinkID == IOC_ID_INVALID) {
+        return NULL;
+    }
+    
+    // Check if LinkID is in valid range for our link object table
+    int TblIdx = LinkID - IOC_CONLES_MODE_AUTO_LINK_ID_MAX - 1;
+    if (TblIdx < 0 || TblIdx >= _MAX_IOC_LINK_OBJ_NUM) {
+        return NULL;
+    }
+    
+    return _mIOC_LinkObjTbl[TblIdx];
 }
 
 // TODO: __IOC_putLinkObj
