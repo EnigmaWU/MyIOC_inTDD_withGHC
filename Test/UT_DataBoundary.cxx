@@ -23,6 +23,7 @@
  *  - DataCapability: validates system capability limits and capacity testing
  *  - DataBoundary: validates boundary conditions, exceptional inputs and error handling
  *  - DataState: validates connection and state boundary behaviors
+ *  - DataPerformance: validates performance characteristics and optimization scenarios
  *
  *  Reference documentation:
  *  - README_ArchDesign.md::MSG::DAT (boundary conditions section)
@@ -47,7 +48,7 @@
  *
  * ❌ EXCLUDED FROM BOUNDARY TESTING:
  *    ✅ Typical usage scenarios (covered by DataTypical)
- *    🚀 Performance testing and stress testing
+ *    🚀 Performance testing and stress testing (covered by DataPerformance)
  *    🔄 Complex concurrency scenarios
  *    🛠️ Failure recovery scenarios
  *    📊 Long-term stability testing
@@ -81,6 +82,12 @@
  *   SO THAT I can implement proper timeout handling in time-critical scenarios
  *      AND understand the precise behavior of blocking/non-blocking modes,
  *      AND ensure deterministic behavior at timeout boundaries.
+ *
+ *  US-4: AS a quality assurance engineer,
+ *    I WANT to validate comprehensive error code coverage for all boundary conditions,
+ *   SO THAT I can ensure consistent error reporting across all boundary scenarios
+ *      AND verify that error codes match their documented meanings,
+ *      AND confirm that all boundary error paths are properly tested.
  *
  *************************************************************************************************/
 //======>END OF USER STORY=========================================================================
@@ -220,6 +227,12 @@ typedef struct {
     bool MaxSizeDataReceived;
     bool ErrorOccurred;
     IOC_Result_T LastErrorCode;
+
+    // Additional boundary tracking
+    ULONG_T MaxDataSizeReceived;
+    bool TimeoutOccurred;
+    bool BlockingModeChanged;
+    ULONG_T CallbackExecutionTime;  // For timeout testing
 } __DatBoundaryPrivData_T;
 
 // Callback function for DAT boundary testing
@@ -478,6 +491,64 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byExtremeValues_expectProperHandl
     printf("   - Test timeout accuracy at extreme values\n");
 }
 
+//======>BEGIN OF: [@AC-2,US-1] TC-2===============================================================
+/**
+ * @[Name]: verifyDatParameterBoundary_byEdgeCaseValues_expectValidationSuccess
+ * @[Steps]:
+ *   1) Test edge case LinkID values (valid boundaries) AS BEHAVIOR.
+ *   2) Test extreme option values in DatDesc AS BEHAVIOR.
+ *   3) Test valid boundary parameter combinations AS BEHAVIOR.
+ *   4) Verify proper acceptance/rejection behavior AS VERIFY.
+ *   5) Cleanup test structures AS CLEANUP.
+ * @[Expect]: Valid boundary values accepted, invalid boundary values rejected with clear errors.
+ * @[Notes]: Complements invalid parameter test by focusing on boundary value validation.
+ */
+TEST(UT_DataBoundary, verifyDatParameterBoundary_byEdgeCaseValues_expectValidationSuccess) {
+    //===SETUP===
+    printf("BEHAVIOR: verifyDatParameterBoundary_byEdgeCaseValues_expectValidationSuccess\n");
+
+    // TODO: Implement edge case parameter validation testing
+    // Test boundary parameter values that should be accepted/rejected
+
+    printf("🔧 TODO: Implement edge case parameter validation test\n");
+    printf("   - Test minimum/maximum valid LinkID values\n");
+    printf("   - Test extreme but valid option values\n");
+    printf("   - Test boundary conditions for DatDesc fields\n");
+    printf("   - Verify clear error messages for invalid boundaries\n");
+}
+
+//======>BEGIN OF: [@AC-ERROR] Additional Error Code Validation==========================================
+/**
+ * @[Name]: verifyDatBoundaryErrorCodes_byComprehensiveErrorScenarios_expectCompleteErrorMapping
+ * @[Steps]:
+ *   1) Test all relevant DAT error codes for boundary conditions AS BEHAVIOR.
+ *      |-> Test IOC_RESULT_INVALID_PARAM with NULL pDatDesc, invalid LinkID
+ *      |-> Test IOC_RESULT_NOT_EXIST_LINK with invalid LinkID
+ *      |-> Test IOC_RESULT_DATA_TOO_LARGE with oversized data
+ *      |-> Test IOC_RESULT_TIMEOUT with zero timeout
+ *      |-> Test IOC_RESULT_NOT_READY with uninitialized states
+ *   2) Verify error code consistency across different boundary scenarios AS VERIFY.
+ *   3) Document error code behavior for boundary reference AS VERIFY.
+ * @[Expect]: All boundary-related error codes properly tested and documented.
+ * @[Notes]: Ensures comprehensive error handling coverage for boundary conditions.
+ */
+TEST(UT_DataBoundary, verifyDatBoundaryErrorCodes_byComprehensiveErrorScenarios_expectCompleteErrorMapping) {
+    //===SETUP===
+    printf("BEHAVIOR: verifyDatBoundaryErrorCodes_byComprehensiveErrorScenarios_expectCompleteErrorMapping\n");
+
+    // TODO: Implement comprehensive error code testing for boundaries
+    // Test IOC_RESULT_INVALID_PARAM, IOC_RESULT_NOT_EXIST_LINK, IOC_RESULT_DATA_TOO_LARGE,
+    // IOC_RESULT_TIMEOUT, IOC_RESULT_NOT_READY, etc.
+
+    printf("🔧 TODO: Implement comprehensive boundary error code test\n");
+    printf("   - Test IOC_RESULT_INVALID_PARAM scenarios\n");
+    printf("   - Test IOC_RESULT_NOT_EXIST_LINK scenarios\n");
+    printf("   - Test IOC_RESULT_DATA_TOO_LARGE scenarios\n");
+    printf("   - Test IOC_RESULT_TIMEOUT scenarios\n");
+    printf("   - Test IOC_RESULT_NOT_READY scenarios\n");
+    printf("   - Document error code mapping for boundary conditions\n");
+}
+
 //======>END OF TEST IMPLEMENTATIONS===============================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -487,6 +558,7 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byExtremeValues_expectProperHandl
  *
  * PHASE 1 - BASIC BOUNDARY TESTS:
  * ✅ verifyDatParameterBoundary_byInvalidInputs_expectGracefulErrorHandling
+ * 🔧 verifyDatParameterBoundary_byEdgeCaseValues_expectValidationSuccess
  * 🔧 verifyDatDataSizeBoundary_byZeroSizeData_expectConsistentBehavior
  * 🔧 verifyDatDataSizeBoundary_byMaximumAllowedSize_expectSuccessfulTransmission
  * 🔧 verifyDatDataSizeBoundary_byOversizedData_expectDataTooLargeError
@@ -495,6 +567,9 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byExtremeValues_expectProperHandl
  * 🔧 verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateReturn
  * 🔧 verifyDatBlockingModeBoundary_byModeTransitions_expectConsistentBehavior
  * 🔧 verifyDatTimeoutBoundary_byExtremeValues_expectProperHandling
+ *
+ * PHASE 3 - COMPREHENSIVE VALIDATION:
+ * 🔧 verifyDatBoundaryErrorCodes_byComprehensiveErrorScenarios_expectCompleteErrorMapping
  *
  * 💡 IMPLEMENTATION NOTES:
  * - Follow patterns from DataTypical and DataCapability tests
