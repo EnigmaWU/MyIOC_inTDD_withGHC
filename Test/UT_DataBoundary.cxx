@@ -365,8 +365,8 @@ TEST(UT_DataBoundary, verifyDatParameterBoundary_byInvalidInputs_expectGracefulE
     MalformedDatDesc.Payload.PtrDataSize = 0xFFFFFFFF;    // Extreme size
 
     Result = IOC_sendDAT(IOC_ID_INVALID, &MalformedDatDesc, NULL);
-    ASSERT_TRUE(Result == IOC_RESULT_INVALID_PARAM || Result == IOC_RESULT_NOT_EXIST_LINK)
-        << "IOC_sendDAT should reject malformed DatDesc with appropriate error code";
+    ASSERT_EQ(IOC_RESULT_NOT_EXIST_LINK, Result)
+        << "IOC_sendDAT with IOC_ID_INVALID should return IOC_RESULT_NOT_EXIST_LINK only";
 
     // Test 1.4: Test with NULL options (valid case for comparison)
     Result = IOC_sendDAT(IOC_ID_INVALID, &ValidDatDesc, NULL);
@@ -380,8 +380,8 @@ TEST(UT_DataBoundary, verifyDatParameterBoundary_byInvalidInputs_expectGracefulE
     ZeroDataDesc.Payload.PtrDataSize = 10;  // But non-zero size
 
     Result = IOC_sendDAT(IOC_ID_INVALID, &ZeroDataDesc, NULL);
-    ASSERT_TRUE(Result == IOC_RESULT_INVALID_PARAM || Result == IOC_RESULT_NOT_EXIST_LINK)
-        << "IOC_sendDAT should handle NULL data pointer with non-zero size appropriately";
+    ASSERT_EQ(IOC_RESULT_NOT_EXIST_LINK, Result)
+        << "IOC_sendDAT with IOC_ID_INVALID should return IOC_RESULT_NOT_EXIST_LINK only";
 
     //===BEHAVIOR: IOC_recvDAT Invalid Parameter Tests===
     printf("📋 Testing IOC_recvDAT invalid parameters...\n");
@@ -1213,9 +1213,10 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobust
     IOC_SrvArgs_T DatReceiverSrvArgs = {
         .SrvURI = DatReceiverSrvURI,
         .UsageCapabilites = IOC_LinkUsageDatReceiver,
-        .UsageArgs = {
-            .pDat = &DatReceiverUsageArgs,
-        },
+        .UsageArgs =
+            {
+                .pDat = &DatReceiverUsageArgs,
+            },
     };
 
     Result = IOC_onlineService(&DatReceiverSrvID, &DatReceiverSrvArgs);
@@ -1246,7 +1247,7 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobust
 
     // Test 1: Zero-size data with blocking timeout options
     printf("🧪 Test 1: Zero-size data with blocking timeout options...\n");
-    
+
     IOC_DatDesc_T ZeroSizeDesc = {0};
     IOC_initDatDesc(&ZeroSizeDesc);
     const char *validPtr = "dummy";
@@ -1256,29 +1257,26 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobust
     // Test 1a: Zero-size with blocking option
     IOC_Option_defineSyncMayBlock(BlockingOptions);
     Result = IOC_sendDAT(DatSenderLinkID, &ZeroSizeDesc, &BlockingOptions);
-    ASSERT_EQ(IOC_RESULT_ZERO_DATA, Result) 
-        << "Zero-size data with blocking option should return IOC_RESULT_ZERO_DATA";
+    ASSERT_EQ(IOC_RESULT_ZERO_DATA, Result) << "Zero-size data with blocking option should return IOC_RESULT_ZERO_DATA";
     printf("   ✓ Zero-size data with blocking option: result=%d\n", Result);
 
     // Test 1b: Zero-size with non-blocking option
     IOC_Option_defineSyncNonBlock(NonBlockingOptions);
     Result = IOC_sendDAT(DatSenderLinkID, &ZeroSizeDesc, &NonBlockingOptions);
-    ASSERT_EQ(IOC_RESULT_ZERO_DATA, Result) 
+    ASSERT_EQ(IOC_RESULT_ZERO_DATA, Result)
         << "Zero-size data with non-blocking option should return IOC_RESULT_ZERO_DATA";
     printf("   ✓ Zero-size data with non-blocking option: result=%d\n", Result);
 
     // Test 1c: Zero-size with specific timeout
     IOC_Option_defineSyncTimeout(TimeoutOptions, 1000000);  // 1 second timeout
     Result = IOC_sendDAT(DatSenderLinkID, &ZeroSizeDesc, &TimeoutOptions);
-    ASSERT_EQ(IOC_RESULT_ZERO_DATA, Result) 
-        << "Zero-size data with timeout option should return IOC_RESULT_ZERO_DATA";
+    ASSERT_EQ(IOC_RESULT_ZERO_DATA, Result) << "Zero-size data with timeout option should return IOC_RESULT_ZERO_DATA";
     printf("   ✓ Zero-size data with timeout option: result=%d\n", Result);
 
     // Test 1d: Zero-size with extreme timeout values
     IOC_Option_defineSyncTimeout(ExtremeTimeoutOptions, 0);  // Zero timeout
     Result = IOC_sendDAT(DatSenderLinkID, &ZeroSizeDesc, &ExtremeTimeoutOptions);
-    ASSERT_EQ(IOC_RESULT_ZERO_DATA, Result) 
-        << "Zero-size data with zero timeout should return IOC_RESULT_ZERO_DATA";
+    ASSERT_EQ(IOC_RESULT_ZERO_DATA, Result) << "Zero-size data with zero timeout should return IOC_RESULT_ZERO_DATA";
     printf("   ✓ Zero-size data with zero timeout: result=%d\n", Result);
 
     //===BEHAVIOR: Zero-Size Data Mixed with Normal Data Transmission===
@@ -1324,13 +1322,12 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobust
     ULONG_T ExpectedSize = strlen(normalData1) + strlen(normalData2);
     ASSERT_EQ(ExpectedSize, DatReceiverPrivData.TotalReceivedSize)
         << "Only normal data should be received, zero-size data should not affect receiver";
-    ASSERT_EQ(2, DatReceiverPrivData.ReceivedDataCnt) 
+    ASSERT_EQ(2, DatReceiverPrivData.ReceivedDataCnt)
         << "Should receive exactly 2 normal data packets (zero-size rejected at send)";
-    ASSERT_FALSE(DatReceiverPrivData.ZeroSizeDataReceived)
-        << "Zero-size data should not reach receiver";
+    ASSERT_FALSE(DatReceiverPrivData.ZeroSizeDataReceived) << "Zero-size data should not reach receiver";
 
     printf("   ✓ Normal data transmission unaffected by zero-size attempts\n");
-    printf("   ✓ Received %lu bytes in %lu packets (zero-size properly rejected)\n", 
+    printf("   ✓ Received %lu bytes in %lu packets (zero-size properly rejected)\n",
            DatReceiverPrivData.TotalReceivedSize, DatReceiverPrivData.ReceivedDataCnt);
 
     // Test 3: Rapid alternating zero-size and normal data
@@ -1347,7 +1344,7 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobust
     for (int i = 0; i < 10; i++) {
         // Try to send zero-size data
         Result = IOC_sendDAT(DatSenderLinkID, &ZeroSizeDesc, NULL);
-        ASSERT_EQ(IOC_RESULT_ZERO_DATA, Result) 
+        ASSERT_EQ(IOC_RESULT_ZERO_DATA, Result)
             << "Zero-size data should consistently return IOC_RESULT_ZERO_DATA in iteration " << i;
         ZeroSizeAttempts++;
 
@@ -1360,8 +1357,7 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobust
         RapidNormalDesc.Payload.PtrDataSize = strlen(rapidData);
 
         Result = IOC_sendDAT(DatSenderLinkID, &RapidNormalDesc, NULL);
-        ASSERT_EQ(IOC_RESULT_SUCCESS, Result) 
-            << "Normal data should succeed consistently in iteration " << i;
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Normal data should succeed consistently in iteration " << i;
         SuccessfulNormalSends++;
     }
 
@@ -1375,7 +1371,7 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobust
     ASSERT_EQ(10, ZeroSizeAttempts) << "Should have attempted 10 zero-size sends";
     ASSERT_EQ(10, SuccessfulNormalSends) << "Should have successfully sent 10 normal data packets";
 
-    printf("   ✓ Rapid alternating test: %llu zero-size attempts (all rejected), %llu normal data received\n",
+    printf("   ✓ Rapid alternating test: %lu zero-size attempts (all rejected), %lu normal data received\n",
            ZeroSizeAttempts, DatReceiverPrivData.ReceivedDataCnt);
 
     //===BEHAVIOR: Zero-Size Data Under Different System Conditions===
@@ -1392,7 +1388,7 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobust
     // Start concurrent normal data transmission in background
     std::atomic<bool> StopConcurrent{false};
     std::atomic<int> ConcurrentSentCount{0};
-    
+
     std::thread ConcurrentSender([&] {
         int concurrentIndex = 0;
         while (!StopConcurrent.load()) {
@@ -1417,7 +1413,7 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobust
     // Attempt zero-size data during concurrent transmissions
     for (int i = 0; i < 5; i++) {
         Result = IOC_sendDAT(DatSenderLinkID, &ZeroSizeDesc, NULL);
-        ASSERT_EQ(IOC_RESULT_ZERO_DATA, Result) 
+        ASSERT_EQ(IOC_RESULT_ZERO_DATA, Result)
             << "Zero-size data should return IOC_RESULT_ZERO_DATA even during concurrent transmissions";
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
@@ -1431,8 +1427,8 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobust
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
     printf("   ✓ Zero-size data handled correctly during concurrent transmissions\n");
-    printf("   ✓ Concurrent normal data sent: %d, received: %lu\n", 
-           ConcurrentSentCount.load(), DatReceiverPrivData.ReceivedDataCnt);
+    printf("   ✓ Concurrent normal data sent: %d, received: %lu\n", ConcurrentSentCount.load(),
+           DatReceiverPrivData.ReceivedDataCnt);
 
     //===BEHAVIOR: Zero-Size Data Error Recovery Scenarios===
     printf("📋 Testing zero-size data error recovery scenarios...\n");
@@ -1456,7 +1452,7 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobust
 
         // Immediately try zero-size data after large transmission
         Result = IOC_sendDAT(DatSenderLinkID, &ZeroSizeDesc, NULL);
-        ASSERT_EQ(IOC_RESULT_ZERO_DATA, Result) 
+        ASSERT_EQ(IOC_RESULT_ZERO_DATA, Result)
             << "Zero-size data should return IOC_RESULT_ZERO_DATA consistently after large data transmission";
 
         free(largeBuf);
@@ -1466,12 +1462,269 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobust
     // Test 6: Multiple consecutive zero-size attempts
     printf("🧪 Test 6: Multiple consecutive zero-size attempts...\n");
 
-       for (int i = 0; i < 20; i++) {
+    for (int i = 0; i < 20; i++) {
         Result = IOC_sendDAT(DatSenderLinkID, &ZeroSizeDesc, NULL);
-        ASSERT_EQ(IOC_RESULT_ZERO_DATA, Result) 
+        ASSERT_EQ(IOC_RESULT_ZERO_DATA, Result)
             << "Consecutive zero-size attempt #" << i << " should return IOC_RESULT_ZERO_DATA";
     }
     printf("   ✓ 20 consecutive zero-size attempts all handled consistently\n");
+
+    //===BEHAVIOR: Server as DatSender Zero-Size Edge Case Testing===
+    printf("📋 Testing server as DatSender with zero-size edge cases...\n");
+    
+    // Test 7: Server as DatSender (reversed role) - zero-size data from service to client
+    printf("🧪 Test 7: Service as DatSender with zero-size data...\n");
+
+    // Setup DatSender service (reversed role)
+    IOC_SrvID_T DatSenderSrvID = IOC_ID_INVALID;
+    IOC_LinkID_T DatSenderServiceLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T DatReceiverClientLinkID = IOC_ID_INVALID;
+
+    __DatBoundaryPrivData_T DatReceiverClientPrivData = {0};
+    DatReceiverClientPrivData.ClientIndex = 20;
+
+    IOC_SrvURI_T DatSenderSrvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "DatSenderServiceEdgeCase",
+    };
+
+    // DatSender as service (server role)
+    IOC_SrvArgs_T DatSenderSrvArgs = {
+        .SrvURI = DatSenderSrvURI,
+        .UsageCapabilites = IOC_LinkUsageDatSender,
+    };
+
+    Result = IOC_onlineService(&DatSenderSrvID, &DatSenderSrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "DatSender service should online successfully";
+    printf("   ✓ DatSender service onlined with SrvID=%llu\n", DatSenderSrvID);
+
+    // DatReceiver as client with callback
+    IOC_DatUsageArgs_T DatReceiverClientUsageArgs = {
+        .CbRecvDat_F = __CbRecvDat_Boundary_F,
+        .pCbPrivData = &DatReceiverClientPrivData,
+    };
+
+    IOC_ConnArgs_T DatReceiverClientConnArgs = {
+        .SrvURI = DatSenderSrvURI,
+        .Usage = IOC_LinkUsageDatReceiver,
+        .UsageArgs = {
+            .pDat = &DatReceiverClientUsageArgs,
+        },
+    };
+
+    std::thread DatReceiverClientThread([&] {
+        IOC_Result_T ThreadResult = IOC_connectService(&DatReceiverClientLinkID, &DatReceiverClientConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ThreadResult);
+        ASSERT_NE(IOC_ID_INVALID, DatReceiverClientLinkID);
+    });
+
+    // DatSender service accept connection
+    Result = IOC_acceptClient(DatSenderSrvID, &DatSenderServiceLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "DatSender service should accept connection";
+
+    DatReceiverClientThread.join();
+    printf("   ✓ DatReceiver client connected with LinkID=%llu\n", DatReceiverClientLinkID);
+    printf("   ✓ DatSender service accepted with LinkID=%llu\n", DatSenderServiceLinkID);
+
+    // Test zero-size data transmission from service (DatSender) to client (DatReceiver)
+    IOC_DatDesc_T ServiceZeroSizeDesc = {0};
+    IOC_initDatDesc(&ServiceZeroSizeDesc);
+    ServiceZeroSizeDesc.Payload.pData = (void *)validPtr;
+    ServiceZeroSizeDesc.Payload.PtrDataSize = 0;  // Zero size
+
+    Result = IOC_sendDAT(DatSenderServiceLinkID, &ServiceZeroSizeDesc, NULL);
+    printf("   Service-to-client zero-size data returned: %d\n", Result);
+
+    ASSERT_EQ(IOC_RESULT_ZERO_DATA, Result)
+        << "Service as DatSender should return IOC_RESULT_ZERO_DATA for zero-size data";
+
+    // Test normal data from service to verify functionality
+    IOC_DatDesc_T ServiceNormalDesc = {0};
+    IOC_initDatDesc(&ServiceNormalDesc);
+    const char *serviceData = "service_to_client_data";
+    ServiceNormalDesc.Payload.pData = (void *)serviceData;
+    ServiceNormalDesc.Payload.PtrDataSize = strlen(serviceData);
+
+    Result = IOC_sendDAT(DatSenderServiceLinkID, &ServiceNormalDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Normal data from service should succeed";
+
+    // Flush and allow callback processing
+    IOC_flushDAT(DatSenderServiceLinkID, NULL);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Verify client received normal data but not zero-size data
+    ASSERT_EQ(strlen(serviceData), DatReceiverClientPrivData.TotalReceivedSize)
+        << "Client should receive only normal data from service";
+    ASSERT_FALSE(DatReceiverClientPrivData.ZeroSizeDataReceived)
+        << "Client should not receive zero-size data (rejected at service send time)";
+
+    printf("   ✓ Service as DatSender zero-size data handling verified\n");
+
+    // Cleanup DatSender service before polling test
+    printf("🧹 Cleaning up DatSender service before polling test...\n");
+
+    if (DatReceiverClientLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(DatReceiverClientLinkID);
+        printf("   ✓ DatReceiver client connection closed\n");
+    }
+
+    if (DatSenderServiceLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(DatSenderServiceLinkID);
+        printf("   ✓ DatSender service connection closed\n");
+    }
+
+    if (DatSenderSrvID != IOC_ID_INVALID) {
+        IOC_offlineService(DatSenderSrvID);
+        printf("   ✓ DatSender service offline\n");
+        DatSenderSrvID = IOC_ID_INVALID;  // Mark as cleaned up
+    }
+
+    //===BEHAVIOR: Polling Mode Zero-Size Edge Case Testing===
+    printf("📋 Testing polling mode with zero-size edge cases...\n");
+    
+    // Test 8: Polling mode receiver (no callback) with zero-size data detection
+    printf("🧪 Test 8: Polling mode receiver with zero-size data edge cases...\n");
+
+    // Setup DatReceiver service without callback (polling mode)
+    IOC_SrvID_T DatPollingReceiverSrvID = IOC_ID_INVALID;
+    IOC_LinkID_T DatPollingReceiverLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T DatPollingSenderLinkID = IOC_ID_INVALID;
+
+    IOC_SrvURI_T DatPollingReceiverSrvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "DatPollingReceiverEdgeCase",
+    };
+
+    // DatReceiver service WITHOUT callback - pure polling mode
+    IOC_SrvArgs_T DatPollingReceiverSrvArgs = {
+        .SrvURI = DatPollingReceiverSrvURI, 
+        .UsageCapabilites = IOC_LinkUsageDatReceiver,
+        // No UsageArgs means no callback - enables polling mode
+    };
+
+    Result = IOC_onlineService(&DatPollingReceiverSrvID, &DatPollingReceiverSrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "DatReceiver polling service should online successfully";
+    printf("   ✓ DatReceiver polling service onlined with SrvID=%llu\n", DatPollingReceiverSrvID);
+
+    // DatSender connect to polling receiver
+    IOC_ConnArgs_T DatPollingSenderConnArgs = {
+        .SrvURI = DatPollingReceiverSrvURI,
+        .Usage = IOC_LinkUsageDatSender,
+    };
+
+    std::thread DatPollingSenderThread([&] {
+        IOC_Result_T ThreadResult = IOC_connectService(&DatPollingSenderLinkID, &DatPollingSenderConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ThreadResult);
+        ASSERT_NE(IOC_ID_INVALID, DatPollingSenderLinkID);
+    });
+
+    // DatReceiver accept connection
+    Result = IOC_acceptClient(DatPollingReceiverSrvID, &DatPollingReceiverLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "DatReceiver polling service should accept connection";
+
+    DatPollingSenderThread.join();
+    printf("   ✓ DatSender connected to polling receiver with LinkID=%llu\n", DatPollingSenderLinkID);
+    printf("   ✓ DatReceiver polling service accepted with LinkID=%llu\n", DatPollingReceiverLinkID);
+
+    // Test normal data first to verify polling mode functionality
+    printf("   🧪 Test 8a: Verify polling mode works with normal data...\n");
+    IOC_DatDesc_T PollingNormalDesc = {0};
+    IOC_initDatDesc(&PollingNormalDesc);
+    const char *pollingData = "polling_normal_data";
+    PollingNormalDesc.Payload.pData = (void *)pollingData;
+    PollingNormalDesc.Payload.PtrDataSize = strlen(pollingData);
+
+    Result = IOC_sendDAT(DatPollingSenderLinkID, &PollingNormalDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Normal data should send successfully in polling mode";
+
+    IOC_flushDAT(DatPollingSenderLinkID, NULL);
+
+    // Poll for normal data to verify polling mode functionality
+    IOC_DatDesc_T PollingReceiveDesc = {0};
+    IOC_initDatDesc(&PollingReceiveDesc);
+    char pollingBuffer[100];
+    PollingReceiveDesc.Payload.pData = pollingBuffer;
+    PollingReceiveDesc.Payload.PtrDataSize = sizeof(pollingBuffer);
+
+    IOC_Option_defineSyncMayBlock(PollingMayBlockOpts);
+    Result = IOC_recvDAT(DatPollingReceiverLinkID, &PollingReceiveDesc, &PollingMayBlockOpts);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Polling should receive normal data successfully";
+    ASSERT_EQ(strlen(pollingData), PollingReceiveDesc.Payload.PtrDataSize) 
+        << "Polling should receive correct data size";
+    printf("   ✓ Polling mode verified: received %lu bytes of normal data\n", PollingReceiveDesc.Payload.PtrDataSize);
+
+    // Test zero-size data with polling - should return IOC_RESULT_ZERO_DATA at send time
+    printf("   🧪 Test 8b: Zero-size data behavior in polling mode...\n");
+    IOC_DatDesc_T PollingZeroSizeDesc = {0};
+    IOC_initDatDesc(&PollingZeroSizeDesc);
+    PollingZeroSizeDesc.Payload.pData = (void *)validPtr;
+    PollingZeroSizeDesc.Payload.PtrDataSize = 0;  // Zero size
+
+    Result = IOC_sendDAT(DatPollingSenderLinkID, &PollingZeroSizeDesc, NULL);
+    printf("   Zero-size data to polling receiver returned: %d\n", Result);
+
+    ASSERT_EQ(IOC_RESULT_ZERO_DATA, Result) 
+        << "Zero-size data should return IOC_RESULT_ZERO_DATA even in polling mode";
+
+    // Verify no data is available for polling after zero-size send attempt
+    IOC_DatDesc_T NoDataPollingDesc = {0};
+    IOC_initDatDesc(&NoDataPollingDesc);
+    char noDataBuffer[100];
+    NoDataPollingDesc.Payload.pData = noDataBuffer;
+    NoDataPollingDesc.Payload.PtrDataSize = sizeof(noDataBuffer);
+
+    IOC_Option_defineSyncNonBlock(PollingNonBlockOpts);
+    Result = IOC_recvDAT(DatPollingReceiverLinkID, &NoDataPollingDesc, &PollingNonBlockOpts);
+    ASSERT_EQ(IOC_RESULT_NO_DATA, Result)
+        << "Polling should return NO_DATA when zero-size data was rejected at send time";
+    printf("   ✓ Polling correctly returns NO_DATA when no actual data was sent\n");
+
+    // Test multiple zero-size attempts in polling mode
+    printf("   🧪 Test 8c: Multiple zero-size attempts in polling mode...\n");
+    for (int i = 0; i < 5; i++) {
+        Result = IOC_sendDAT(DatPollingSenderLinkID, &PollingZeroSizeDesc, NULL);
+        ASSERT_EQ(IOC_RESULT_ZERO_DATA, Result) 
+            << "Zero-size attempt #" << i << " should return IOC_RESULT_ZERO_DATA in polling mode";
+    }
+
+    // Verify polling still returns no data after multiple zero-size attempts
+    // Create a fresh descriptor for the second polling test
+    IOC_DatDesc_T FreshPollingDesc = {0};
+    IOC_initDatDesc(&FreshPollingDesc);
+    char freshBuffer[100];
+    FreshPollingDesc.Payload.pData = freshBuffer;
+    FreshPollingDesc.Payload.PtrDataSize = sizeof(freshBuffer);
+
+    Result = IOC_recvDAT(DatPollingReceiverLinkID, &FreshPollingDesc, &PollingNonBlockOpts);
+    ASSERT_EQ(IOC_RESULT_NO_DATA, Result)
+        << "Polling should still return NO_DATA after multiple zero-size attempts";
+
+    printf("   ✓ Multiple zero-size attempts in polling mode handled consistently\n");
+
+    // Cleanup polling test resources
+    printf("🧹 Cleaning up polling test resources...\n");
+
+    if (DatPollingSenderLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(DatPollingSenderLinkID);
+        printf("   ✓ DatSender polling connection closed\n");
+    }
+
+    if (DatPollingReceiverLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(DatPollingReceiverLinkID);
+        printf("   ✓ DatReceiver polling connection closed\n");
+    }
+
+    if (DatPollingReceiverSrvID != IOC_ID_INVALID) {
+        IOC_offlineService(DatPollingReceiverSrvID);
+        printf("   ✓ DatReceiver polling service offline\n");
+    }
+
+    // KeyVerifyPoint: Additional edge case scenarios completed
+    printf("✅ Service as DatSender zero-size data handling verified\n");
+    printf("✅ Polling mode zero-size data boundary behavior verified\n");
+    printf("✅ Both reversed roles and polling modes handle zero-size data consistently\n");
 
     //===VERIFY: Robust Zero-Size Data Handling===
     printf("🔍 Verifying robust zero-size data handling...\n");
@@ -1490,7 +1743,7 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobust
 
     // Final zero-size test to verify consistency
     Result = IOC_sendDAT(DatSenderLinkID, &ZeroSizeDesc, NULL);
-    ASSERT_EQ(IOC_RESULT_ZERO_DATA, Result) 
+    ASSERT_EQ(IOC_RESULT_ZERO_DATA, Result)
         << "Final zero-size test should still return IOC_RESULT_ZERO_DATA consistently";
 
     // KeyVerifyPoint: Comprehensive zero-size edge case testing completed
