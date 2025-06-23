@@ -1471,7 +1471,7 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobust
 
     //===BEHAVIOR: Server as DatSender Zero-Size Edge Case Testing===
     printf("📋 Testing server as DatSender with zero-size edge cases...\n");
-    
+
     // Test 7: Server as DatSender (reversed role) - zero-size data from service to client
     printf("🧪 Test 7: Service as DatSender with zero-size data...\n");
 
@@ -1508,9 +1508,10 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobust
     IOC_ConnArgs_T DatReceiverClientConnArgs = {
         .SrvURI = DatSenderSrvURI,
         .Usage = IOC_LinkUsageDatReceiver,
-        .UsageArgs = {
-            .pDat = &DatReceiverClientUsageArgs,
-        },
+        .UsageArgs =
+            {
+                .pDat = &DatReceiverClientUsageArgs,
+            },
     };
 
     std::thread DatReceiverClientThread([&] {
@@ -1582,7 +1583,7 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobust
 
     //===BEHAVIOR: Polling Mode Zero-Size Edge Case Testing===
     printf("📋 Testing polling mode with zero-size edge cases...\n");
-    
+
     // Test 8: Polling mode receiver (no callback) with zero-size data detection
     printf("🧪 Test 8: Polling mode receiver with zero-size data edge cases...\n");
 
@@ -1599,8 +1600,7 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobust
 
     // DatReceiver service WITHOUT callback - pure polling mode
     IOC_SrvArgs_T DatPollingReceiverSrvArgs = {
-        .SrvURI = DatPollingReceiverSrvURI, 
-        .UsageCapabilites = IOC_LinkUsageDatReceiver,
+        .SrvURI = DatPollingReceiverSrvURI, .UsageCapabilites = IOC_LinkUsageDatReceiver,
         // No UsageArgs means no callback - enables polling mode
     };
 
@@ -1651,7 +1651,7 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobust
     IOC_Option_defineSyncMayBlock(PollingMayBlockOpts);
     Result = IOC_recvDAT(DatPollingReceiverLinkID, &PollingReceiveDesc, &PollingMayBlockOpts);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Polling should receive normal data successfully";
-    ASSERT_EQ(strlen(pollingData), PollingReceiveDesc.Payload.PtrDataSize) 
+    ASSERT_EQ(strlen(pollingData), PollingReceiveDesc.Payload.PtrDataSize)
         << "Polling should receive correct data size";
     printf("   ✓ Polling mode verified: received %lu bytes of normal data\n", PollingReceiveDesc.Payload.PtrDataSize);
 
@@ -1665,8 +1665,7 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobust
     Result = IOC_sendDAT(DatPollingSenderLinkID, &PollingZeroSizeDesc, NULL);
     printf("   Zero-size data to polling receiver returned: %d\n", Result);
 
-    ASSERT_EQ(IOC_RESULT_ZERO_DATA, Result) 
-        << "Zero-size data should return IOC_RESULT_ZERO_DATA even in polling mode";
+    ASSERT_EQ(IOC_RESULT_ZERO_DATA, Result) << "Zero-size data should return IOC_RESULT_ZERO_DATA even in polling mode";
 
     // Verify no data is available for polling after zero-size send attempt
     IOC_DatDesc_T NoDataPollingDesc = {0};
@@ -1685,7 +1684,7 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobust
     printf("   🧪 Test 8c: Multiple zero-size attempts in polling mode...\n");
     for (int i = 0; i < 5; i++) {
         Result = IOC_sendDAT(DatPollingSenderLinkID, &PollingZeroSizeDesc, NULL);
-        ASSERT_EQ(IOC_RESULT_ZERO_DATA, Result) 
+        ASSERT_EQ(IOC_RESULT_ZERO_DATA, Result)
             << "Zero-size attempt #" << i << " should return IOC_RESULT_ZERO_DATA in polling mode";
     }
 
@@ -1698,8 +1697,7 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobust
     FreshPollingDesc.Payload.PtrDataSize = sizeof(freshBuffer);
 
     Result = IOC_recvDAT(DatPollingReceiverLinkID, &FreshPollingDesc, &PollingNonBlockOpts);
-    ASSERT_EQ(IOC_RESULT_NO_DATA, Result)
-        << "Polling should still return NO_DATA after multiple zero-size attempts";
+    ASSERT_EQ(IOC_RESULT_NO_DATA, Result) << "Polling should still return NO_DATA after multiple zero-size attempts";
 
     printf("   ✓ Multiple zero-size attempts in polling mode handled consistently\n");
 
