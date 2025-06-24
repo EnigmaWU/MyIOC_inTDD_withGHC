@@ -7,7 +7,7 @@ extern "C" {
 #endif
 
 typedef enum {
-    IOC_OPTID_NONE    = 0,
+    IOC_OPTID_NONE = 0,
     IOC_OPTID_TIMEOUT = 1 << 0,    // set this IDs and Payload.TimeoutUS>=0, to set timeout for
                                    // execCMD,waitCMD,sendDAT,recvDAT,...
     IOC_OPTID_SYNC_MODE = 1 << 1,  // set this IDs and Payload.RZVD=0, to set SYNC mode for postEVT.
@@ -15,7 +15,8 @@ typedef enum {
 } IOC_OptionsID_T;
 
 #define IOC_TIMEOUT_INFINITE ULONG_MAX
-#define IOC_TIMEOUT_IMMEDIATE 0
+#define IOC_TIMEOUT_NONBLOCK 0       // NonBlock means no timeout, which is equivalent to 0us
+#define IOC_TIMEOUT_IMMEDIATE 1000   // 1ms = 1000us means immediate timeout
 #define IOC_TIMEOUT_MAX 86400000000  // 24*60*60*1000ms*1000us
 
 typedef struct {
@@ -49,7 +50,7 @@ static inline IOC_BoolResult_T IOC_Option_isNonBlockMode(IOC_Options_pT pOption)
     IOC_BoolResult_T IsNonBlockMode = IOC_RESULT_NO;  // Default is BlockMode
     if (pOption) {
         if (pOption->IDs & IOC_OPTID_TIMEOUT) {
-            if (pOption->Payload.TimeoutUS == 0) {
+            if (pOption->Payload.TimeoutUS == IOC_TIMEOUT_NONBLOCK) {
                 IsNonBlockMode = IOC_RESULT_YES;
             }
         }
@@ -58,16 +59,16 @@ static inline IOC_BoolResult_T IOC_Option_isNonBlockMode(IOC_Options_pT pOption)
     return IsNonBlockMode;
 }
 
-#define IOC_Option_defineNonBlock(OptVarName)         \
-    IOC_Options_T OptVarName     = {};                \
-    OptVarName.IDs               = IOC_OPTID_TIMEOUT; \
-    OptVarName.Payload.TimeoutUS = 0;
+#define IOC_Option_defineNonBlock(OptVarName) \
+    IOC_Options_T OptVarName = {};            \
+    OptVarName.IDs = IOC_OPTID_TIMEOUT;       \
+    OptVarName.Payload.TimeoutUS = IOC_TIMEOUT_NONBLOCK;
 
 #define IOC_Option_defineASyncNonBlock IOC_Option_defineNonBlock
 
 #define IOC_Option_defineTimeout(OptVarName, ArgTimeoutUS) \
-    IOC_Options_T OptVarName     = {};                     \
-    OptVarName.IDs               = IOC_OPTID_TIMEOUT;      \
+    IOC_Options_T OptVarName = {};                         \
+    OptVarName.IDs = IOC_OPTID_TIMEOUT;                    \
     OptVarName.Payload.TimeoutUS = ArgTimeoutUS;
 
 #define IOC_Option_defineASyncTimeout IOC_Option_defineTimeout
@@ -75,19 +76,19 @@ static inline IOC_BoolResult_T IOC_Option_isNonBlockMode(IOC_Options_pT pOption)
 #define IOC_Option_defineASyncMayBlock(OptVarName) IOC_Options_T OptVarName = {};
 #define IOC_Option_defineASyncMode IOC_Option_defineASyncMayBlock
 
-#define IOC_Option_defineSyncNonBlock(OptVarName)                                              \
-    IOC_Options_T OptVarName     = {};                                                         \
-    OptVarName.IDs               = (IOC_OptionsID_T)(IOC_OPTID_SYNC_MODE | IOC_OPTID_TIMEOUT); \
-    OptVarName.Payload.TimeoutUS = 0;
+#define IOC_Option_defineSyncNonBlock(OptVarName)                                \
+    IOC_Options_T OptVarName = {};                                               \
+    OptVarName.IDs = (IOC_OptionsID_T)(IOC_OPTID_SYNC_MODE | IOC_OPTID_TIMEOUT); \
+    OptVarName.Payload.TimeoutUS = IOC_TIMEOUT_NONBLOCK;
 
-#define IOC_Option_defineSyncTimeout(OptVarName, ArgTimeoutUS)                                 \
-    IOC_Options_T OptVarName     = {};                                                         \
-    OptVarName.IDs               = (IOC_OptionsID_T)(IOC_OPTID_SYNC_MODE | IOC_OPTID_TIMEOUT); \
+#define IOC_Option_defineSyncTimeout(OptVarName, ArgTimeoutUS)                   \
+    IOC_Options_T OptVarName = {};                                               \
+    OptVarName.IDs = (IOC_OptionsID_T)(IOC_OPTID_SYNC_MODE | IOC_OPTID_TIMEOUT); \
     OptVarName.Payload.TimeoutUS = ArgTimeoutUS;
 
 #define IOC_Option_defineSyncMayBlock(OptVarName) \
     IOC_Options_T OptVarName = {};                \
-    OptVarName.IDs           = IOC_OPTID_SYNC_MODE;
+    OptVarName.IDs = IOC_OPTID_SYNC_MODE;
 
 #define IOC_Option_defineSyncMode IOC_Option_defineSyncMayBlock
 
@@ -112,7 +113,7 @@ static inline IOC_BoolResult_T IOC_Option_isTimeoutMode(IOC_Options_pT pOption) 
 
 static inline IOC_BoolResult_T IOC_Option_isMayBlockMode(IOC_Options_pT pOption) {
     IOC_BoolResult_T IsNonBlock = IOC_Option_isNonBlockMode(pOption);
-    IOC_BoolResult_T IsTimeout  = IOC_Option_isTimeoutMode(pOption);
+    IOC_BoolResult_T IsTimeout = IOC_Option_isTimeoutMode(pOption);
 
     if (IsNonBlock == IOC_RESULT_NO && IsTimeout == IOC_RESULT_NO) {
         return IOC_RESULT_YES;  // MayBlock means not NonBlock and not Timeout
