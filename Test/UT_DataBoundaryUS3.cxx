@@ -160,8 +160,8 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
     TestDatDesc.Payload.pData = (void *)testData;
     TestDatDesc.Payload.PtrDataSize = strlen(testData);
 
-    // Test 1: Single zero timeout sendDAT call with timing measurement
-    printf("🧪 Test 1: Single zero timeout sendDAT call...\n");
+    // Test 1: Zero timeout sendDAT when buffer has space (initial state)
+    printf("🧪 Test 1: Zero timeout sendDAT with empty buffer...\n");
 
     auto startTime = std::chrono::high_resolution_clock::now();
     Result = IOC_sendDAT(DatSenderLinkID, &TestDatDesc, &ZeroTimeoutOption);
@@ -170,16 +170,93 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
     printf("   ⏱️ Zero timeout sendDAT execution time: %lld microseconds\n", (long long)duration.count());
 
-    // Zero timeout should either succeed immediately or return timeout
-    ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_TIMEOUT)
-        << "Zero timeout sendDAT should return immediately with appropriate result code, got: " << Result;
+    // With empty buffer, zero timeout should succeed immediately
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result)
+        << "Zero timeout sendDAT with empty buffer should return IOC_RESULT_SUCCESS, got: " << Result;
 
     // Verify timing - should complete very quickly (< 10ms for immediate operation)
     ASSERT_LT(duration.count(), 10000) << "Zero timeout operation should complete within 10ms, took: "
                                        << duration.count() << " microseconds";
 
-    // Test 2: Multiple consecutive zero timeout calls
-    printf("🧪 Test 2: Multiple consecutive zero timeout calls...\n");
+    // Test 2: Fill the send buffer to create timeout scenario
+    printf("🧪 Test 2: Fill send buffer to create timeout scenario...\n");
+    
+    // Query IOC capability to get actual buffer sizes
+    IOC_CapabilityDescription_T CapDesc;
+    memset(&CapDesc, 0, sizeof(CapDesc));
+    CapDesc.CapID = IOC_CAPID_CONET_MODE_DATA;
+    
+    Result = IOC_getCapability(&CapDesc);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Should be able to query CONET mode data capability";
+    
+    ULONG_T MaxDataQueueSize = CapDesc.ConetModeData.MaxDataQueueSize;
+    printf("   📋 CONET Data Capability: MaxDataQueueSize=%lu bytes\n", MaxDataQueueSize);
+    
+    // Calculate how much data to send to fill the queue
+    // Use moderate-sized packets to better control queue filling
+    size_t packetSize = 512; // 512 bytes per packet
+    size_t packetsToFill = (MaxDataQueueSize / packetSize) + 3; // +3 to ensure overflow
+    
+    printf("   📏 Using packet size: %zu bytes, packets to fill queue: %zu\n", packetSize, packetsToFill);
+    
+    // Send multiple packets to fill the buffer without allowing receiver to drain
+    // Use blocking mode to ensure data gets queued
+    IOC_Option_defineASyncMayBlock(BlockingOption);
+    
+    // Create test data sized according to our calculation
+    std::vector<char> largeData(packetSize, 'X');
+    IOC_DatDesc_T LargeDataDesc = {0};
+    IOC_initDatDesc(&LargeDataDesc);
+    LargeDataDesc.Payload.pData = largeData.data();
+    LargeDataDesc.Payload.PtrDataSize = largeData.size();
+    
+    // Fill queue with calculated number of packets
+    int fillCount = 0;
+    IOC_Result_T fillResult;
+    printf("   🔄 Filling send queue systematically...\n");
+    
+    // Send data repeatedly based on queue capacity
+    for (size_t i = 0; i < packetsToFill && fillCount < 100; i++) {  // Safety limit to avoid infinite loop
+        fillResult = IOC_sendDAT(DatSenderLinkID, &LargeDataDesc, &BlockingOption);
+        if (fillResult == IOC_RESULT_SUCCESS) {
+            fillCount++;
+            if (fillCount % 10 == 0) {  // Report every 10th packet to reduce noise
+                printf("   📤 Filled queue with %d packets (%zu bytes total)\n", 
+                       fillCount, fillCount * packetSize);
+            }
+        } else {
+            printf("   ⚠️ Queue fill stopped at packet %d, result: %d\n", fillCount, fillResult);
+            break;
+        }
+        
+        // Very brief pause to allow minimal processing but not full drainage
+        std::this_thread::sleep_for(std::chrono::microseconds(10));
+    }
+    
+    printf("   ✓ Filled queue with %d packets (%zu bytes), expected capacity: %lu bytes\n", 
+           fillCount, fillCount * packetSize, MaxDataQueueSize);
+
+    // Test 3: Zero timeout sendDAT when buffer is full/busy
+    printf("🧪 Test 3: Zero timeout sendDAT with full/busy buffer...\n");
+
+    auto fullBufferStart = std::chrono::high_resolution_clock::now();
+    Result = IOC_sendDAT(DatSenderLinkID, &TestDatDesc, &ZeroTimeoutOption);
+    auto fullBufferEnd = std::chrono::high_resolution_clock::now();
+
+    auto fullBufferDuration = std::chrono::duration_cast<std::chrono::microseconds>(fullBufferEnd - fullBufferStart);
+    printf("   ⏱️ Zero timeout sendDAT (full buffer) execution time: %lld microseconds\n", 
+           (long long)fullBufferDuration.count());
+
+    // With full/busy buffer, zero timeout should return timeout
+    ASSERT_EQ(IOC_RESULT_TIMEOUT, Result)
+        << "Zero timeout sendDAT with full/busy buffer should return IOC_RESULT_TIMEOUT, got: " << Result;
+
+    // Should still complete quickly even when timing out
+    ASSERT_LT(fullBufferDuration.count(), 10000)
+        << "Zero timeout sendDAT should complete within 10ms even with full buffer";
+
+    // Test 4: Multiple consecutive zero timeout calls on full buffer
+    printf("🧪 Test 4: Multiple consecutive zero timeout calls on full buffer...\n");
 
     const int numCalls = 5;
     std::vector<long long> executionTimes;
@@ -199,21 +276,44 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
         // Each call should complete quickly
         ASSERT_LT(callDuration.count(), 10000) << "Zero timeout call " << i + 1 << " should complete within 10ms";
 
-        // Result should be consistent with zero timeout behavior
-        ASSERT_TRUE(callResult == IOC_RESULT_SUCCESS || callResult == IOC_RESULT_TIMEOUT)
-            << "Zero timeout call " << i + 1 << " should return appropriate result code";
+        // With full buffer, should consistently return timeout
+        ASSERT_EQ(IOC_RESULT_TIMEOUT, callResult)
+            << "Zero timeout call " << i + 1 << " on full buffer should return IOC_RESULT_TIMEOUT";
     }
+
+    // Allow some time for buffer to drain before continuing
+    printf("   ⏳ Allowing buffer to drain...\n");
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     //===BEHAVIOR: Test IOC_recvDAT with zero timeout===
     printf("📋 Testing IOC_recvDAT with zero timeout...\n");
 
-    // Test 3: Zero timeout recvDAT when no data available
+    // Test 3: Zero timeout recvDAT when no data available (clean state)
     printf("🧪 Test 3: Zero timeout recvDAT with no data available...\n");
-
+    
+    // First, drain any buffered data to ensure clean state
+    IOC_DatDesc_T DrainDesc = {0};
+    IOC_initDatDesc(&DrainDesc);
+    char drainBuffer[1024] = {0};
+    DrainDesc.Payload.pData = drainBuffer;
+    DrainDesc.Payload.PtrDataSize = sizeof(drainBuffer);
+    
+    // Drain all available data with zero timeout until no more data
+    IOC_Result_T drainResult;
+    int drainCount = 0;
+    do {
+        drainResult = IOC_recvDAT(DatSenderLinkID, &DrainDesc, &ZeroTimeoutOption);
+        if (drainResult == IOC_RESULT_SUCCESS) {
+            drainCount++;
+            printf("   🚰 Drained data chunk %d\n", drainCount);
+        }
+    } while (drainResult == IOC_RESULT_SUCCESS && drainCount < 10); // Safety limit
+    
+    printf("   ✓ Drained %d data chunks, final drain result: %d\n", drainCount, drainResult);
+    
+    // Now test zero timeout recvDAT with truly empty buffer
     IOC_DatDesc_T RecvDatDesc = {0};
     IOC_initDatDesc(&RecvDatDesc);
-
-    // Prepare receive buffer
     char recvBuffer[1024] = {0};
     RecvDatDesc.Payload.pData = recvBuffer;
     RecvDatDesc.Payload.PtrDataSize = sizeof(recvBuffer);
@@ -225,25 +325,26 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
     auto recvDuration = std::chrono::duration_cast<std::chrono::microseconds>(recvEndTime - recvStartTime);
     printf("   ⏱️ Zero timeout recvDAT execution time: %lld microseconds\n", (long long)recvDuration.count());
 
-    // Zero timeout recv should return immediately when no data
-    ASSERT_TRUE(Result == IOC_RESULT_NO_DATA || Result == IOC_RESULT_TIMEOUT || Result == IOC_RESULT_SUCCESS)
-        << "Zero timeout recvDAT should return immediately, got: " << Result;
+    // Zero timeout recv should return timeout when no data is available
+    ASSERT_EQ(IOC_RESULT_TIMEOUT, Result)
+        << "Zero timeout recvDAT should return IOC_RESULT_TIMEOUT when no data available, got: " << Result;
 
     ASSERT_LT(recvDuration.count(), 10000)
         << "Zero timeout recvDAT should complete within 10ms, took: " << recvDuration.count() << " microseconds";
 
-    // Test 4: Zero timeout recvDAT when data might be available
-    printf("🧪 Test 4: Zero timeout recvDAT after data transmission...\n");
+    // Test 4: Zero timeout recvDAT when data is immediately available
+    printf("🧪 Test 4: Zero timeout recvDAT with data immediately available...\n");
 
-    // First send some data without zero timeout to ensure it's queued
+    // Send data first to ensure it's available for immediate reception
     IOC_Option_defineASyncMayBlock(NormalOption);
     Result = IOC_sendDAT(DatSenderLinkID, &TestDatDesc, &NormalOption);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Normal sendDAT should succeed";
     printf("   📤 Sent data with normal option: result=%d\n", Result);
 
-    // Allow some time for data to be transmitted and processed
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    // Allow minimal time for data to be queued/transmitted
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
 
-    // Now try zero timeout receive
+    // Now test zero timeout receive with data available
     IOC_DatDesc_T QuickRecvDesc = {0};
     IOC_initDatDesc(&QuickRecvDesc);
     char quickRecvBuffer[1024] = {0};
@@ -259,9 +360,19 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
            (long long)quickRecvDuration.count());
     printf("   📥 Received data result: %d\n", Result);
 
-    // Should still complete quickly regardless of data availability
+    // When data is available, zero timeout should succeed immediately
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result)
+        << "Zero timeout recvDAT should return IOC_RESULT_SUCCESS when data is available, got: " << Result;
+
+    // Should still complete quickly when data is available
     ASSERT_LT(quickRecvDuration.count(), 10000)
         << "Zero timeout recvDAT should complete within 10ms even with data available";
+
+    // Verify received data content
+    if (Result == IOC_RESULT_SUCCESS && QuickRecvDesc.Payload.PtrDataSize > 0) {
+        printf("   📋 Received %lu bytes: '%.15s'\n", QuickRecvDesc.Payload.PtrDataSize, (char*)QuickRecvDesc.Payload.pData);
+        ASSERT_GT(QuickRecvDesc.Payload.PtrDataSize, 0) << "Should have received data with non-zero size";
+    }
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                ✅ VERIFY PHASE                                        │
