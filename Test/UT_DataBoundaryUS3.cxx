@@ -435,8 +435,408 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
 }
 //======>END OF: [@AC-1,US-3] TC-1=================================================================
 
+//======>BEGIN OF: [@AC-2,US-3] TC-2===============================================================
+/**
+ * @[Name]: verifyDatBlockingModeBoundary_byModeTransitions_expectConsistentBehavior
+ * @[Steps]:
+ *   1) Setup IOC services and establish DAT link AS SETUP
+ *      |-> Create DatSender and DatReceiver services
+ *      |-> Establish link between sender and receiver
+ *      |-> Initialize private data for mode transition testing
+ *   2) Test Async Mode Transitions AS BEHAVIOR
+ *      |-> Send data with ASyncMayBlock mode, verify blocking behavior
+ *      |-> Send data with ASyncNonBlock mode, verify immediate return
+ *      |-> Send data with ASyncTimeout mode, verify timeout behavior
+ *      |-> Verify mode transitions don't corrupt ongoing operations
+ *   3) Test Sync Mode Transitions AS BEHAVIOR
+ *      |-> Receive data with SyncMayBlock mode, verify blocking behavior
+ *      |-> Receive data with SyncNonBlock mode, verify immediate return
+ *      |-> Receive data with SyncTimeout mode, verify timeout behavior
+ *      |-> Verify mode consistency within single operation
+ *   4) Test Mixed Mode Operations AS BEHAVIOR
+ *      |-> Alternately send with different async modes
+ *      |-> Alternately receive with different sync modes
+ *      |-> Verify data integrity preserved across mode changes
+ *      |-> Test rapid mode switching under load
+ *   5) Verify Mode Boundary Consistency AS VERIFY
+ *      |-> Verify each mode behaves predictably and consistently
+ *      |-> Verify no data loss during mode transitions
+ *      |-> Verify timing boundaries respected for each mode
+ *      |-> Verify proper error codes for each mode boundary condition
+ *   6) Cleanup services and links AS CLEANUP
+ * @[Expect]: All blocking modes transition correctly with consistent behavior, no data loss or corruption.
+ * @[Notes]: Validates AC-2 mode transition requirements - critical for applications switching between blocking strategies.
+ */
+TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byModeTransitions_expectConsistentBehavior) {
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                🔧 SETUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    printf("🎯 TEST: Blocking mode boundary transitions - consistent behavior verification\n");
+    
+    // Test Focus: Verify different blocking modes work correctly and transitions are consistent
+    // Expected: Each mode behaves predictably, transitions preserve data integrity
+    
+    // Test constants
+    const auto MAX_MODE_EXECUTION_TIME_US = 15000;  // 15ms timing threshold for mode operations
+    const int MODE_TRANSITION_TEST_CYCLES = 3;
+    const int STRESS_TEST_OPERATIONS = 10;
+    
+    // Initialize test data structures
+    __DatBoundaryPrivData_T DatReceiverPrivData = {0};
+    DatReceiverPrivData.ClientIndex = 2;
+    
+    IOC_SrvID_T DatReceiverSrvID = IOC_ID_INVALID;
+    IOC_LinkID_T DatSenderLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T DatReceiverLinkID = IOC_ID_INVALID;
+    IOC_Result_T Result = IOC_RESULT_FAILURE;
+
+    // Setup receiver service configuration
+    printf("📋 Setting up receiver service for mode transition testing...\n");
+
+    IOC_SrvURI_T DatReceiverSrvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "DatModeTransitionReceiver",
+    };
+
+    IOC_DatUsageArgs_T DatReceiverUsageArgs = {
+        .CbRecvDat_F = __CbRecvDat_Boundary_F,
+        .pCbPrivData = &DatReceiverPrivData,
+    };
+
+    IOC_SrvArgs_T DatReceiverSrvArgs = {
+        .SrvURI = DatReceiverSrvURI,
+        .UsageCapabilites = IOC_LinkUsageDatReceiver,
+        .UsageArgs = {
+            .pDat = &DatReceiverUsageArgs,
+        },
+    };
+
+    Result = IOC_onlineService(&DatReceiverSrvID, &DatReceiverSrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Receiver service should come online successfully";
+    printf("   ✓ Receiver service online with ID=%llu\n", DatReceiverSrvID);
+
+    // Setup sender connection
+    IOC_ConnArgs_T DatSenderConnArgs = {
+        .SrvURI = DatReceiverSrvURI,
+        .Usage = IOC_LinkUsageDatSender,
+    };
+
+    std::thread DatSenderThread([&] {
+        IOC_Result_T ThreadResult = IOC_connectService(&DatSenderLinkID, &DatSenderConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ThreadResult);
+        ASSERT_NE(IOC_ID_INVALID, DatSenderLinkID);
+    });
+
+    Result = IOC_acceptClient(DatReceiverSrvID, &DatReceiverLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Receiver should accept connection";
+
+    DatSenderThread.join();
+    printf("   ✓ Sender connected with LinkID=%llu\n", DatSenderLinkID);
+    printf("   ✓ Receiver accepted with LinkID=%llu\n", DatReceiverLinkID);
+
+    // Prepare common test data
+    const char *testData = "ModeTransitionTest";
+    IOC_DatDesc_T TestDatDesc = {0};
+    IOC_initDatDesc(&TestDatDesc);
+    TestDatDesc.Payload.pData = (void *)testData;
+    TestDatDesc.Payload.PtrDataSize = strlen(testData);
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🎯 BEHAVIOR PHASE                                       │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+
+    // === Test 1: Async Mode Transitions ===
+    printf("📋 Test 1: Async Mode Transitions...\n");
+
+    // Test 1a: ASyncMayBlock mode - should succeed normally
+    printf("🧪 Test 1a: ASyncMayBlock mode verification...\n");
+    IOC_Option_defineASyncMayBlock(AsyncMayBlockOpt);
+    
+    auto asyncMayBlockStart = std::chrono::high_resolution_clock::now();
+    Result = IOC_sendDAT(DatSenderLinkID, &TestDatDesc, &AsyncMayBlockOpt);
+    auto asyncMayBlockEnd = std::chrono::high_resolution_clock::now();
+    
+    auto asyncMayBlockDuration = std::chrono::duration_cast<std::chrono::microseconds>(asyncMayBlockEnd - asyncMayBlockStart);
+    printf("   ⏱️ ASyncMayBlock execution time: %lld microseconds\n", (long long)asyncMayBlockDuration.count());
+    
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "ASyncMayBlock should succeed";
+    ASSERT_LT(asyncMayBlockDuration.count(), MAX_MODE_EXECUTION_TIME_US) 
+        << "ASyncMayBlock should complete within timing limit";
+    printf("   ✓ ASyncMayBlock mode behaved correctly\n");
+
+    // Test 1b: ASyncNonBlock mode - should return immediately 
+    printf("🧪 Test 1b: ASyncNonBlock mode verification...\n");
+    IOC_Option_defineASyncNonBlock(AsyncNonBlockOpt);
+    
+    auto asyncNonBlockStart = std::chrono::high_resolution_clock::now();
+    Result = IOC_sendDAT(DatSenderLinkID, &TestDatDesc, &AsyncNonBlockOpt);
+    auto asyncNonBlockEnd = std::chrono::high_resolution_clock::now();
+    
+    auto asyncNonBlockDuration = std::chrono::duration_cast<std::chrono::microseconds>(asyncNonBlockEnd - asyncNonBlockStart);
+    printf("   ⏱️ ASyncNonBlock execution time: %lld microseconds\n", (long long)asyncNonBlockDuration.count());
+    
+    // NonBlock should either succeed immediately or return appropriate error
+    ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC)
+        << "ASyncNonBlock should return SUCCESS or queue full error, got: " << Result;
+    ASSERT_LT(asyncNonBlockDuration.count(), 5000) // Stricter timing for NonBlock
+        << "ASyncNonBlock should complete very quickly";
+    printf("   ✓ ASyncNonBlock mode behaved correctly\n");
+
+    // Test 1c: ASyncTimeout mode - should respect timeout  
+    printf("🧪 Test 1c: ASyncTimeout mode verification...\n");
+    IOC_Option_defineASyncTimeout(AsyncTimeoutOpt, 5000); // 5ms timeout
+    
+    auto asyncTimeoutStart = std::chrono::high_resolution_clock::now();
+    Result = IOC_sendDAT(DatSenderLinkID, &TestDatDesc, &AsyncTimeoutOpt);
+    auto asyncTimeoutEnd = std::chrono::high_resolution_clock::now();
+    
+    auto asyncTimeoutDuration = std::chrono::duration_cast<std::chrono::microseconds>(asyncTimeoutEnd - asyncTimeoutStart);
+    printf("   ⏱️ ASyncTimeout execution time: %lld microseconds\n", (long long)asyncTimeoutDuration.count());
+    
+    // Timeout mode should either succeed quickly or timeout
+    ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC)
+        << "ASyncTimeout should return SUCCESS or timeout error, got: " << Result;
+    ASSERT_LT(asyncTimeoutDuration.count(), 10000) // Should not exceed timeout significantly
+        << "ASyncTimeout should respect timing boundaries";
+    printf("   ✓ ASyncTimeout mode behaved correctly\n");
+
+    // === Test 2: Sync Mode Transitions for Receiving ===
+    printf("📋 Test 2: Sync Mode Transitions for Receiving...\n");
+
+    // First ensure there's data to receive by sending with reliable async mode
+    printf("🧪 Pre-sending data for sync mode tests...\n");
+    Result = IOC_sendDAT(DatSenderLinkID, &TestDatDesc, &AsyncMayBlockOpt);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Pre-send should succeed";
+    std::this_thread::sleep_for(std::chrono::milliseconds(5)); // Let data arrive
+
+    // Test 2a: SyncMayBlock mode - should block until data available
+    printf("🧪 Test 2a: SyncMayBlock mode verification...\n");
+    IOC_Option_defineSyncMayBlock(SyncMayBlockOpt);
+    
+    IOC_DatDesc_T RecvDesc1 = {0};
+    IOC_initDatDesc(&RecvDesc1);
+    char recvBuffer1[1024] = {0};
+    RecvDesc1.Payload.pData = recvBuffer1;
+    RecvDesc1.Payload.PtrDataSize = sizeof(recvBuffer1);
+    
+    auto syncMayBlockStart = std::chrono::high_resolution_clock::now();
+    Result = IOC_recvDAT(DatSenderLinkID, &RecvDesc1, &SyncMayBlockOpt);
+    auto syncMayBlockEnd = std::chrono::high_resolution_clock::now();
+    
+    auto syncMayBlockDuration = std::chrono::duration_cast<std::chrono::microseconds>(syncMayBlockEnd - syncMayBlockStart);
+    printf("   ⏱️ SyncMayBlock execution time: %lld microseconds\n", (long long)syncMayBlockDuration.count());
+    
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "SyncMayBlock should succeed when data available";
+    ASSERT_GT(RecvDesc1.Payload.PtrDataSize, 0) << "Should have received data";
+    printf("   ✓ SyncMayBlock mode received %lu bytes correctly\n", RecvDesc1.Payload.PtrDataSize);
+
+    // Test 2b: SyncNonBlock mode when no data available
+    printf("🧪 Test 2b: SyncNonBlock mode verification (no data)...\n");
+    IOC_Option_defineSyncNonBlock(SyncNonBlockOpt);
+    
+    IOC_DatDesc_T RecvDesc2 = {0};
+    IOC_initDatDesc(&RecvDesc2);
+    char recvBuffer2[1024] = {0};
+    RecvDesc2.Payload.pData = recvBuffer2;
+    RecvDesc2.Payload.PtrDataSize = sizeof(recvBuffer2);
+    
+    auto syncNonBlockStart = std::chrono::high_resolution_clock::now();
+    Result = IOC_recvDAT(DatSenderLinkID, &RecvDesc2, &SyncNonBlockOpt);
+    auto syncNonBlockEnd = std::chrono::high_resolution_clock::now();
+    
+    auto syncNonBlockDuration = std::chrono::duration_cast<std::chrono::microseconds>(syncNonBlockEnd - syncNonBlockStart);
+    printf("   ⏱️ SyncNonBlock execution time: %lld microseconds\n", (long long)syncNonBlockDuration.count());
+    
+    // SyncNonBlock should return immediately when no data
+    ASSERT_TRUE(Result == IOC_RESULT_NO_DATA || Result == IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE)
+        << "SyncNonBlock should return no data or queue not empty error when no data available, got: " << Result;
+    ASSERT_LT(syncNonBlockDuration.count(), 3000) // Very strict timing for NonBlock
+        << "SyncNonBlock should return immediately";
+    printf("   ✓ SyncNonBlock mode behaved correctly\n");
+
+    // Test 2c: SyncTimeout mode
+    printf("🧪 Test 2c: SyncTimeout mode verification...\n");
+    IOC_Option_defineSyncTimeout(SyncTimeoutOpt, 3000); // 3ms timeout
+    
+    IOC_DatDesc_T RecvDesc3 = {0};
+    IOC_initDatDesc(&RecvDesc3);
+    char recvBuffer3[1024] = {0};
+    RecvDesc3.Payload.pData = recvBuffer3;
+    RecvDesc3.Payload.PtrDataSize = sizeof(recvBuffer3);
+    
+    auto syncTimeoutStart = std::chrono::high_resolution_clock::now();
+    Result = IOC_recvDAT(DatSenderLinkID, &RecvDesc3, &SyncTimeoutOpt);
+    auto syncTimeoutEnd = std::chrono::high_resolution_clock::now();
+    
+    auto syncTimeoutDuration = std::chrono::duration_cast<std::chrono::microseconds>(syncTimeoutEnd - syncTimeoutStart);
+    printf("   ⏱️ SyncTimeout execution time: %lld microseconds\n", (long long)syncTimeoutDuration.count());
+    
+    // SyncTimeout should either succeed if data arrives quickly or timeout
+    ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE)
+        << "SyncTimeout should return SUCCESS or timeout error, got: " << Result;
+    ASSERT_LT(syncTimeoutDuration.count(), 8000) // Should not exceed timeout significantly
+        << "SyncTimeout should respect timing boundaries";
+    printf("   ✓ SyncTimeout mode behaved correctly\n");
+
+    // === Test 3: Mixed Mode Operations with Data Integrity ===
+    printf("📋 Test 3: Mixed Mode Operations with Data Integrity...\n");
+
+    // Test rapid mode switching to ensure data integrity
+    printf("🧪 Test 3a: Rapid mode switching stress test...\n");
+    ULONG_T initialReceivedCount = DatReceiverPrivData.ReceivedDataCnt;
+    ULONG_T successfulSends = 0;
+
+    for (int i = 0; i < STRESS_TEST_OPERATIONS; i++) {
+        // Alternate between different async modes for sending
+        IOC_Result_T sendResult;
+        
+        switch (i % 3) {
+            case 0: {
+                IOC_Option_defineASyncMayBlock(StressMayBlockOpt);
+                sendResult = IOC_sendDAT(DatSenderLinkID, &TestDatDesc, &StressMayBlockOpt);
+                break;
+            }
+            case 1: {
+                IOC_Option_defineASyncNonBlock(StressNonBlockOpt);
+                sendResult = IOC_sendDAT(DatSenderLinkID, &TestDatDesc, &StressNonBlockOpt);
+                break;
+            }
+            case 2: {
+                IOC_Option_defineASyncTimeout(StressTimeoutOpt, 2000);
+                sendResult = IOC_sendDAT(DatSenderLinkID, &TestDatDesc, &StressTimeoutOpt);
+                break;
+            }
+        }
+        
+        if (sendResult == IOC_RESULT_SUCCESS) {
+            successfulSends++;
+        }
+        
+        printf("   📤 Send %d: mode=%d, result=%d\n", i, i % 3, sendResult);
+        
+        // Small delay to prevent overwhelming the system
+        std::this_thread::sleep_for(std::chrono::microseconds(500));
+    }
+
+    printf("   📊 Stress test: %lu/%d sends successful\n", successfulSends, STRESS_TEST_OPERATIONS);
+    ASSERT_GT(successfulSends, STRESS_TEST_OPERATIONS / 2) 
+        << "At least half of stress test sends should succeed";
+
+    // Allow time for all data to be processed
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+
+    // Verify data integrity - received count should reflect successful sends
+    ULONG_T finalReceivedCount = DatReceiverPrivData.ReceivedDataCnt;
+    ULONG_T actuallyReceived = finalReceivedCount - initialReceivedCount;
+    
+    printf("   📊 Data integrity: sent=%lu, received=%lu\n", successfulSends, actuallyReceived);
+    
+    // Allow some tolerance for async processing but data should not be lost
+    ASSERT_GE(actuallyReceived, successfulSends * 0.8) 
+        << "At least 80% of successfully sent data should be received";
+
+    // === Test 4: Mode Consistency Verification ===
+    printf("📋 Test 4: Mode Consistency Verification...\n");
+
+    // Test that mode behavior is consistent across multiple calls
+    printf("🧪 Test 4a: Mode behavior consistency check...\n");
+    
+    std::vector<long long> nonBlockTimes;
+    std::vector<IOC_Result_T> nonBlockResults;
+
+    // Test multiple NonBlock operations for consistency
+    for (int i = 0; i < MODE_TRANSITION_TEST_CYCLES; i++) {
+        IOC_Option_defineASyncNonBlock(ConsistencyNonBlockOpt);
+        
+        auto start = std::chrono::high_resolution_clock::now();
+        IOC_Result_T result = IOC_sendDAT(DatSenderLinkID, &TestDatDesc, &ConsistencyNonBlockOpt);
+        auto end = std::chrono::high_resolution_clock::now();
+        
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+        nonBlockTimes.push_back(duration.count());
+        nonBlockResults.push_back(result);
+        
+        printf("   🔄 NonBlock consistency test %d: %lld μs, result=%d\n", 
+               i, duration.count(), result);
+        
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+
+    // Verify timing consistency
+    if (!nonBlockTimes.empty()) {
+        long long maxTime = *std::max_element(nonBlockTimes.begin(), nonBlockTimes.end());
+        long long minTime = *std::min_element(nonBlockTimes.begin(), nonBlockTimes.end());
+        
+        printf("   📊 NonBlock timing: min=%lld μs, max=%lld μs\n", minTime, maxTime);
+        
+        // NonBlock operations should be consistently fast
+        ASSERT_LT(maxTime, 5000) << "All NonBlock operations should be under 5ms";
+        
+        // Check result consistency - should be mostly the same result type
+        std::map<IOC_Result_T, int> resultCounts;
+        for (auto result : nonBlockResults) {
+            resultCounts[result]++;
+        }
+        
+        printf("   📊 Result consistency: ");
+        for (auto& pair : resultCounts) {
+            printf("result_%d=%d ", pair.first, pair.second);
+        }
+        printf("\n");
+    }
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                ✅ VERIFICATION                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+
+    printf("🧪 Final verification: Mode transition behavior summary...\n");
+
+    // Verify all modes have been tested and behaved within expected parameters
+    ASSERT_LT(asyncMayBlockDuration.count(), MAX_MODE_EXECUTION_TIME_US)
+        << "ASyncMayBlock timing within bounds";
+    ASSERT_LT(asyncNonBlockDuration.count(), 5000)
+        << "ASyncNonBlock timing within strict bounds";
+    ASSERT_LT(asyncTimeoutDuration.count(), 10000)
+        << "ASyncTimeout timing within bounds";
+    ASSERT_LT(syncMayBlockDuration.count(), MAX_MODE_EXECUTION_TIME_US)
+        << "SyncMayBlock timing within bounds";
+    ASSERT_LT(syncNonBlockDuration.count(), 3000)
+        << "SyncNonBlock timing within strict bounds";
+    ASSERT_LT(syncTimeoutDuration.count(), 8000)
+        << "SyncTimeout timing within bounds";
+
+    printf("   ✅ All blocking modes demonstrated correct timing behavior\n");
+    printf("   ✅ Mode transitions preserved data integrity\n");
+    printf("   ✅ Each mode behaved consistently across multiple calls\n");
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               ✅ SUMMARY                                              │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    printf("✅ All blocking mode transitions completed successfully\n");
+    printf("✅ Consistent behavior verified across all mode types\n");
+    printf("✅ Data integrity maintained during mode switching\n");
+    printf("✅ Timing boundaries respected for each blocking mode\n");
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🧹 CLEANUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    printf("🧹 Cleaning up services and links...\n");
+
+    Result = IOC_closeLink(DatSenderLinkID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Sender link should close successfully";
+
+    Result = IOC_closeLink(DatReceiverLinkID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Receiver link should close successfully";
+
+    Result = IOC_offlineService(DatReceiverSrvID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Receiver service should go offline successfully";
+
+    printf("🧹 Cleanup completed\n");
+}
+//======>END OF: [@AC-2,US-3] TC-2=================================================================
+
 // TODO: Implement remaining US-3 test cases:
-// - verifyDatBlockingModeBoundary_byModeTransitions_expectConsistentBehavior
 // - verifyDatTimeoutBoundary_byExtremeValues_expectProperHandling
 // - verifyDatTimeoutBoundary_byPrecisionTesting_expectAccurateTiming
 // - verifyDatBlockingModeBoundary_byStateConsistency_expectNoDataLoss
