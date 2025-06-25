@@ -170,9 +170,9 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
     printf("   ⏱️ Zero timeout sendDAT execution time: %lld microseconds\n", (long long)duration.count());
 
-    // With empty buffer, zero timeout should succeed immediately
-    ASSERT_EQ(IOC_RESULT_SUCCESS, Result)
-        << "Zero timeout sendDAT with empty buffer should return IOC_RESULT_SUCCESS, got: " << Result;
+    // With empty buffer, zero timeout should still return TIMEOUT for consistency
+    ASSERT_EQ(IOC_RESULT_TIMEOUT, Result)
+        << "Zero timeout sendDAT should ALWAYS return IOC_RESULT_TIMEOUT for consistent semantics, got: " << Result;
 
     // Verify timing - should complete very quickly (< 10ms for immediate operation)
     ASSERT_LT(duration.count(), 10000) << "Zero timeout operation should complete within 10ms, took: "
@@ -201,7 +201,7 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
     LargeDataDesc.Payload.PtrDataSize = largeData.size();
 
     IOC_Option_defineASyncNonBlock(NonBlockingOption);
-    
+
     // Send several packets to create some buffer usage
     int sentCount = 0;
     for (int i = 0; i < 10; i++) {  // Send up to 10 packets
@@ -209,11 +209,11 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
         if (sendResult == IOC_RESULT_SUCCESS) {
             sentCount++;
         } else {
-            printf("   � Buffer pressure detected after %d packets, result: %d\n", sentCount, sendResult);
+            printf("   Buffer pressure detected after %d packets, result: %d\n", sentCount, sendResult);
             break;
         }
     }
-    
+
     printf("   📤 Sent %d packets (%d KB) for buffer state setup\n", sentCount, sentCount);
 
     // Test 3: Zero timeout sendDAT timing guarantee (core TDD requirement)
@@ -224,23 +224,22 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
     auto fullBufferEnd = std::chrono::high_resolution_clock::now();
 
     auto fullBufferDuration = std::chrono::duration_cast<std::chrono::microseconds>(fullBufferEnd - fullBufferStart);
-    printf("   ⏱️ Zero timeout sendDAT execution time: %lld microseconds\n",
-           (long long)fullBufferDuration.count());
+    printf("   ⏱️ Zero timeout sendDAT execution time: %lld microseconds\n", (long long)fullBufferDuration.count());
     printf("   📋 Zero timeout sendDAT result: %d\n", Result);
 
     // PRIMARY TDD REQUIREMENT: Zero timeout must return immediately - never block
     ASSERT_LT(fullBufferDuration.count(), 10000)
         << "CORE TDD REQUIREMENT: Zero timeout sendDAT must complete within 10ms regardless of buffer state";
 
-    // SECONDARY TDD REQUIREMENT: Result should indicate immediate completion
-    // Either SUCCESS (operation completed) or TIMEOUT (operation would block but returned immediately)
-    ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_TIMEOUT)
-        << "Zero timeout should return immediate result (SUCCESS or TIMEOUT), got: " << Result;
+    // SECONDARY TDD REQUIREMENT: Result should indicate immediate non-blocking return
+    // Zero timeout MUST always return TIMEOUT to indicate "would block but returned immediately"
+    ASSERT_EQ(IOC_RESULT_TIMEOUT, Result)
+        << "Zero timeout should ALWAYS return IOC_RESULT_TIMEOUT for consistent semantics, got: " << Result;
 
-    if (Result == IOC_RESULT_SUCCESS) {
-        printf("   ✓ Zero timeout succeeded immediately - operation completed\n");
-    } else if (Result == IOC_RESULT_TIMEOUT) {
-        printf("   ✓ Zero timeout returned TIMEOUT immediately - operation would block but didn't\n");
+    if (Result == IOC_RESULT_TIMEOUT) {
+        printf("   ✓ Zero timeout returned TIMEOUT correctly - consistent zero timeout semantics\n");
+    } else {
+        printf("   ❌ Unexpected result for zero timeout: %d\n", Result);
     }
 
     // Test 4: Multiple consecutive zero timeout calls - consistency verification
@@ -262,12 +261,12 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
         printf("   📞 Call %d: result=%d, time=%lld μs\n", i + 1, callResult, (long long)callDuration.count());
 
         // PRIMARY TDD REQUIREMENT: Each call must complete quickly
-        ASSERT_LT(callDuration.count(), 10000) 
+        ASSERT_LT(callDuration.count(), 10000)
             << "Zero timeout call " << i + 1 << " must complete within 10ms (TDD requirement)";
 
         // SECONDARY TDD REQUIREMENT: Results should be consistent and immediate
-        ASSERT_TRUE(callResult == IOC_RESULT_SUCCESS || callResult == IOC_RESULT_TIMEOUT)
-            << "Zero timeout call " << i + 1 << " should return immediate result, got: " << callResult;
+        ASSERT_EQ(IOC_RESULT_TIMEOUT, callResult)
+            << "Zero timeout call " << i + 1 << " should ALWAYS return IOC_RESULT_TIMEOUT, got: " << callResult;
     }
 
     // Allow some time for buffer to drain before continuing
@@ -316,8 +315,7 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
     printf("   📋 Zero timeout recvDAT result: %d\n", Result);
 
     // PRIMARY TDD REQUIREMENT: Zero timeout receive must return immediately
-    ASSERT_LT(recvDuration.count(), 10000)
-        << "CORE TDD REQUIREMENT: Zero timeout recvDAT must complete within 10ms";
+    ASSERT_LT(recvDuration.count(), 10000) << "CORE TDD REQUIREMENT: Zero timeout recvDAT must complete within 10ms";
 
     // SECONDARY TDD REQUIREMENT: When no data available, should indicate immediate non-blocking return
     // Accept various possible implementations: TIMEOUT, NO_DATA, or NOT_SUPPORT
@@ -446,9 +444,9 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
             ASSERT_EQ(IOC_RESULT_ZERO_DATA, sizeResult)
                 << "Zero timeout with zero-size data should return IOC_RESULT_ZERO_DATA";
         } else {
-            // For non-zero size, expect typical zero timeout behavior
-            ASSERT_TRUE(sizeResult == IOC_RESULT_SUCCESS || sizeResult == IOC_RESULT_TIMEOUT)
-                << "Zero timeout with non-zero data should return appropriate result code";
+            // For non-zero size, expect consistent zero timeout behavior
+            ASSERT_EQ(IOC_RESULT_TIMEOUT, sizeResult)
+                << "Zero timeout with non-zero data should ALWAYS return IOC_RESULT_TIMEOUT for consistency";
         }
     }
 
