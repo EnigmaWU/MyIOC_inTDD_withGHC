@@ -1,0 +1,2134 @@
+Start testing: Jun 25 13:45 UTC
+----------------------------------------------------------
+1/22 Testing: UT_ConlesEventASync
+1/22 Test: UT_ConlesEventASync
+Command: "/home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test/UT_ConlesEventASync"
+Directory: /home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test
+"UT_ConlesEventASync" start time: Jun 25 13:45 UTC
+Output:
+----------------------------------------------------------
+Running main() from ./googletest/src/gtest_main.cc
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from UT_ConlesEventASync
+[ RUN      ] UT_ConlesEventASync.verifyEachPostEvtCall_LT1ms_bySingleEvtProducerPostSleep9ms99msEvtEvery10ms
+[       OK ] UT_ConlesEventASync.verifyEachPostEvtCall_LT1ms_bySingleEvtProducerPostSleep9ms99msEvtEvery10ms (1792 ms)
+[----------] 1 test from UT_ConlesEventASync (1792 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (1792 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   1.79 sec
+----------------------------------------------------------
+Test Passed.
+"UT_ConlesEventASync" end time: Jun 25 13:45 UTC
+"UT_ConlesEventASync" time elapsed: 00:00:01
+----------------------------------------------------------
+
+2/22 Testing: UT_ConlesEventCapabilty
+2/22 Test: UT_ConlesEventCapabilty
+Command: "/home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test/UT_ConlesEventCapabilty"
+Directory: /home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test
+"UT_ConlesEventCapabilty" start time: Jun 25 13:45 UTC
+Output:
+----------------------------------------------------------
+Running main() from ./googletest/src/gtest_main.cc
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from UT_ConlesEventCapability
+[ RUN      ] UT_ConlesEventCapability.Case01_verifyTooManyEvtConsumer_bySubEvtOneMoreThanMaxEvtConsumer
+[WARN] AutoLinkID(0) new EvtSuber(CbProcEvt_F=0x20240313,PrivData=0x30304212) failed(IOC_RESULT_TOO_MANY)
+[       OK ] UT_ConlesEventCapability.Case01_verifyTooManyEvtConsumer_bySubEvtOneMoreThanMaxEvtConsumer (0 ms)
+[----------] 1 test from UT_ConlesEventCapability (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (0 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"UT_ConlesEventCapabilty" end time: Jun 25 13:45 UTC
+"UT_ConlesEventCapabilty" time elapsed: 00:00:00
+----------------------------------------------------------
+
+3/22 Testing: UT_ConlesEventDemoLiveCam
+3/22 Test: UT_ConlesEventDemoLiveCam
+Command: "/home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test/UT_ConlesEventDemoLiveCam"
+Directory: /home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test
+"UT_ConlesEventDemoLiveCam" start time: Jun 25 13:45 UTC
+Output:
+----------------------------------------------------------
+Running main() from ./googletest/src/gtest_main.cc
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from UT_ConlesEventDemoLiveCam
+[ RUN      ] UT_ConlesEventDemoLiveCam.verifyFunctionality_v0_1_0
+[       OK ] UT_ConlesEventDemoLiveCam.verifyFunctionality_v0_1_0 (11001 ms)
+[----------] 1 test from UT_ConlesEventDemoLiveCam (11001 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (11001 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =  11.00 sec
+----------------------------------------------------------
+Test Passed.
+"UT_ConlesEventDemoLiveCam" end time: Jun 25 13:45 UTC
+"UT_ConlesEventDemoLiveCam" time elapsed: 00:00:11
+----------------------------------------------------------
+
+4/22 Testing: UT_ConlesEventMayBlock
+4/22 Test: UT_ConlesEventMayBlock
+Command: "/home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test/UT_ConlesEventMayBlock"
+Directory: /home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test
+"UT_ConlesEventMayBlock" start time: Jun 25 13:45 UTC
+Output:
+----------------------------------------------------------
+Running main() from ./googletest/src/gtest_main.cc
+[==========] Running 2 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 2 tests from UT_ConlesEventMayBlock
+[ RUN      ] UT_ConlesEventMayBlock.verifyASyncBlock_byPostOneMoreEVT_whenEvtDescQueueFull
+[       OK ] UT_ConlesEventMayBlock.verifyASyncBlock_byPostOneMoreEVT_whenEvtDescQueueFull (1000 ms)
+[ RUN      ] UT_ConlesEventMayBlock.verifySyncBlock_byPostOneMoreEVT_whenEvtDescQueueNotEmpty
+[       OK ] UT_ConlesEventMayBlock.verifySyncBlock_byPostOneMoreEVT_whenEvtDescQueueNotEmpty (1000 ms)
+[----------] 2 tests from UT_ConlesEventMayBlock (2001 ms total)
+
+[----------] Global test environment tear-down
+[==========] 2 tests from 1 test suite ran. (2001 ms total)
+[  PASSED  ] 2 tests.
+<end of output>
+Test time =   2.00 sec
+----------------------------------------------------------
+Test Passed.
+"UT_ConlesEventMayBlock" end time: Jun 25 13:45 UTC
+"UT_ConlesEventMayBlock" time elapsed: 00:00:02
+----------------------------------------------------------
+
+5/22 Testing: UT_ConlesEventMisuse
+5/22 Test: UT_ConlesEventMisuse
+Command: "/home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test/UT_ConlesEventMisuse"
+Directory: /home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test
+"UT_ConlesEventMisuse" start time: Jun 25 13:45 UTC
+Output:
+----------------------------------------------------------
+Running main() from ./googletest/src/gtest_main.cc
+[==========] Running 4 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 4 tests from UT_ConlesEventMisuse
+[ RUN      ] UT_ConlesEventMisuse.Case01_verifyNoEvtConsumer_byNotSubEvtButPostEvtDirectly
+[WARN] [ConlesEvent]: No EvtSuber of AutoLinkID(0)
+[       OK ] UT_ConlesEventMisuse.Case01_verifyNoEvtConsumer_byNotSubEvtButPostEvtDirectly (0 ms)
+[ RUN      ] UT_ConlesEventMisuse.Case02_verifyNoEvtConsumer_byUnsubEvtWithFakeUnsubArgs
+[WARN] AutoLinkID(0) remove EvtSuber(CbProcEvt_F=(nil),PrivData=(nil)) failed(IOC_RESULT_NO_EVENT_CONSUMER)
+[       OK ] UT_ConlesEventMisuse.Case02_verifyNoEvtConsumer_byUnsubEvtWithFakeUnsubArgs (0 ms)
+[ RUN      ] UT_ConlesEventMisuse.Case03_verifyNoEvtConsumer_bySubEvtOnceThenUnsubEvtTwice
+[WARN] AutoLinkID(0) remove EvtSuber(CbProcEvt_F=0x20040301,PrivData=0x20040302) failed(IOC_RESULT_NO_EVENT_CONSUMER)
+[       OK ] UT_ConlesEventMisuse.Case03_verifyNoEvtConsumer_bySubEvtOnceThenUnsubEvtTwice (0 ms)
+[ RUN      ] UT_ConlesEventMisuse.Case04_verifyConflictEvtConsumer_bySubSameFakeEvtSubArgsTwice
+[WARN] AutoLinkID(0) new EvtSuber(CbProcEvt_F=0x20240303,PrivData=0x20240304) failed(IOC_RESULT_CONFLICT_EVENT_CONSUMER)
+[       OK ] UT_ConlesEventMisuse.Case04_verifyConflictEvtConsumer_bySubSameFakeEvtSubArgsTwice (0 ms)
+[----------] 4 tests from UT_ConlesEventMisuse (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 4 tests from 1 test suite ran. (0 ms total)
+[  PASSED  ] 4 tests.
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"UT_ConlesEventMisuse" end time: Jun 25 13:45 UTC
+"UT_ConlesEventMisuse" time elapsed: 00:00:00
+----------------------------------------------------------
+
+6/22 Testing: UT_ConlesEventNonBlock
+6/22 Test: UT_ConlesEventNonBlock
+Command: "/home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test/UT_ConlesEventNonBlock"
+Directory: /home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test
+"UT_ConlesEventNonBlock" start time: Jun 25 13:45 UTC
+Output:
+----------------------------------------------------------
+Running main() from ./googletest/src/gtest_main.cc
+[==========] Running 3 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 3 tests from UT_ConlesEventConcurrency
+[ RUN      ] UT_ConlesEventConcurrency.verifyASyncNonblock_byPostOneMoreEVT_whenEvtDescQueueFull
+[       OK ] UT_ConlesEventConcurrency.verifyASyncNonblock_byPostOneMoreEVT_whenEvtDescQueueFull (1 ms)
+[ RUN      ] UT_ConlesEventConcurrency.verifySyncNonblock_byPostOneMoreEVT_whenEvtDescQueueNotEmpty
+[       OK ] UT_ConlesEventConcurrency.verifySyncNonblock_byPostOneMoreEVT_whenEvtDescQueueNotEmpty (1 ms)
+[ RUN      ] UT_ConlesEventConcurrency.verifyHybridNonblock_byAlternatelyCbProcEvtBlockedOrNot_withHighConcurrency
+[       OK ] UT_ConlesEventConcurrency.verifyHybridNonblock_byAlternatelyCbProcEvtBlockedOrNot_withHighConcurrency (3461 ms)
+[----------] 3 tests from UT_ConlesEventConcurrency (3464 ms total)
+
+[----------] Global test environment tear-down
+[==========] 3 tests from 1 test suite ran. (3464 ms total)
+[  PASSED  ] 3 tests.
+<end of output>
+Test time =   3.47 sec
+----------------------------------------------------------
+Test Passed.
+"UT_ConlesEventNonBlock" end time: Jun 25 13:45 UTC
+"UT_ConlesEventNonBlock" time elapsed: 00:00:03
+----------------------------------------------------------
+
+7/22 Testing: UT_ConlesEventState
+7/22 Test: UT_ConlesEventState
+Command: "/home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test/UT_ConlesEventState"
+Directory: /home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test
+"UT_ConlesEventState" start time: Jun 25 13:45 UTC
+Output:
+----------------------------------------------------------
+Running main() from ./googletest/src/gtest_main.cc
+[==========] Running 5 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 5 tests from UT_ConlesEventState
+[ RUN      ] UT_ConlesEventState.Case01_verifyLinkStateReadyIdle_byDoNothing
+[       OK ] UT_ConlesEventState.Case01_verifyLinkStateReadyIdle_byDoNothing (0 ms)
+[ RUN      ] UT_ConlesEventState.Case02_verifyLinkStateBusySubEvtOrUnsubEvt_bySubUnsubEvtConcurrently
+[       OK ] UT_ConlesEventState.Case02_verifyLinkStateBusySubEvtOrUnsubEvt_bySubUnsubEvtConcurrently (5381 ms)
+[ RUN      ] UT_ConlesEventState.Case03_verifyLinkStateBusyCbProcEvt_bySleepWhenCbProcEvt
+[       OK ] UT_ConlesEventState.Case03_verifyLinkStateBusyCbProcEvt_bySleepWhenCbProcEvt (200 ms)
+[ RUN      ] UT_ConlesEventState.Case04_verifyUnsubEvtMayBlock_bySleepWhenCbProcEvt
+[       OK ] UT_ConlesEventState.Case04_verifyUnsubEvtMayBlock_bySleepWhenCbProcEvt (99 ms)
+[ RUN      ] UT_ConlesEventState.Case05_verifySubEvtMayBlock_bySleepWhenCbProcEvt
+[       OK ] UT_ConlesEventState.Case05_verifySubEvtMayBlock_bySleepWhenCbProcEvt (99 ms)
+[----------] 5 tests from UT_ConlesEventState (5781 ms total)
+
+[----------] Global test environment tear-down
+[==========] 5 tests from 1 test suite ran. (5781 ms total)
+[  PASSED  ] 5 tests.
+<end of output>
+Test time =   5.78 sec
+----------------------------------------------------------
+Test Passed.
+"UT_ConlesEventState" end time: Jun 25 13:45 UTC
+"UT_ConlesEventState" time elapsed: 00:00:05
+----------------------------------------------------------
+
+8/22 Testing: UT_ConlesEventSync
+8/22 Test: UT_ConlesEventSync
+Command: "/home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test/UT_ConlesEventSync"
+Directory: /home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test
+"UT_ConlesEventSync" start time: Jun 25 13:45 UTC
+Output:
+----------------------------------------------------------
+Running main() from ./googletest/src/gtest_main.cc
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from UT_ConlesEventConcurrency
+[ RUN      ] UT_ConlesEventConcurrency.Case02_verifySync_byPostTestSleep99msEvtWithSyncOpt_updateAndCheckSyncFlagValueAfterSleepInCbProcEvt
+[       OK ] UT_ConlesEventConcurrency.Case02_verifySync_byPostTestSleep99msEvtWithSyncOpt_updateAndCheckSyncFlagValueAfterSleepInCbProcEvt (99 ms)
+[----------] 1 test from UT_ConlesEventConcurrency (99 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (99 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.10 sec
+----------------------------------------------------------
+Test Passed.
+"UT_ConlesEventSync" end time: Jun 25 13:45 UTC
+"UT_ConlesEventSync" time elapsed: 00:00:00
+----------------------------------------------------------
+
+9/22 Testing: UT_ConlesEventTimeout
+9/22 Test: UT_ConlesEventTimeout
+Command: "/home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test/UT_ConlesEventTimeout"
+Directory: /home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test
+"UT_ConlesEventTimeout" start time: Jun 25 13:45 UTC
+Output:
+----------------------------------------------------------
+Running main() from ./googletest/src/gtest_main.cc
+[==========] Running 2 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 2 tests from UT_ConlesEventTimeout
+[ RUN      ] UT_ConlesEventTimeout.verifyASyncTimeout_byQueueFromEmptyToFullToEmpty_withDifferentTimeValue_inAtLeastTenTimes
+[       OK ] UT_ConlesEventTimeout.verifyASyncTimeout_byQueueFromEmptyToFullToEmpty_withDifferentTimeValue_inAtLeastTenTimes (11153 ms)
+[ RUN      ] UT_ConlesEventTimeout.verifySyncTimeout_byQueueFromEmptyToFullToEmpty_withDifferentTimeValue_inAtLeastTenTimes
+[       OK ] UT_ConlesEventTimeout.verifySyncTimeout_byQueueFromEmptyToFullToEmpty_withDifferentTimeValue_inAtLeastTenTimes (24480 ms)
+[----------] 2 tests from UT_ConlesEventTimeout (35634 ms total)
+
+[----------] Global test environment tear-down
+[==========] 2 tests from 1 test suite ran. (35634 ms total)
+[  PASSED  ] 2 tests.
+<end of output>
+Test time =  35.64 sec
+----------------------------------------------------------
+Test Passed.
+"UT_ConlesEventTimeout" end time: Jun 25 13:46 UTC
+"UT_ConlesEventTimeout" time elapsed: 00:00:35
+----------------------------------------------------------
+
+10/22 Testing: UT_ConlesEventTypical
+10/22 Test: UT_ConlesEventTypical
+Command: "/home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test/UT_ConlesEventTypical"
+Directory: /home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test
+"UT_ConlesEventTypical" start time: Jun 25 13:46 UTC
+Output:
+----------------------------------------------------------
+Running main() from ./googletest/src/gtest_main.cc
+[==========] Running 7 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 7 tests from UT_ConlesEventTypical
+[ RUN      ] UT_ConlesEventTypical.Case01_verifyPostEvt1v1_byOneObjPostEvtAndAnotherObjCbProcEvt
+[       OK ] UT_ConlesEventTypical.Case01_verifyPostEvt1v1_byOneObjPostEvtAndAnotherObjCbProcEvt (17 ms)
+[ RUN      ] UT_ConlesEventTypical.Case02_verifyPostEvt1vN_byOneObjPostEvt_R1TwoObjCbProcEvt_R2ThreeMoreObjCbProcEvt
+[       OK ] UT_ConlesEventTypical.Case02_verifyPostEvt1vN_byOneObjPostEvt_R1TwoObjCbProcEvt_R2ThreeMoreObjCbProcEvt (51 ms)
+[ RUN      ] UT_ConlesEventTypical.Case03_verifyPostEvt1vN_byOneObjPostEvt_Min2MaxEvtConsumerCbProcEvt
+[       OK ] UT_ConlesEventTypical.Case03_verifyPostEvt1vN_byOneObjPostEvt_Min2MaxEvtConsumerCbProcEvt (547 ms)
+[ RUN      ] UT_ConlesEventTypical.Case04_verifyPostEvtNv1_byNxEvtProducerPostEvtAnd1xEvtConsumerCbProcEvt
+[       OK ] UT_ConlesEventTypical.Case04_verifyPostEvtNv1_byNxEvtProducerPostEvtAnd1xEvtConsumerCbProcEvt (67 ms)
+[ RUN      ] UT_ConlesEventTypical.Case05_verifyPostEvtNvM_byNxEvtProducerPostEvtAndMxEvtConsumerCbProcEvt
+[       OK ] UT_ConlesEventTypical.Case05_verifyPostEvtNvM_byNxEvtProducerPostEvtAndMxEvtConsumerCbProcEvt (128 ms)
+[ RUN      ] UT_ConlesEventTypical.Case06_verifyPostEvtNvM_byNxEvtProducerPostEvtAndMxEvtConsumerCbProcEvtInCrossOddEvenEvtID
+[       OK ] UT_ConlesEventTypical.Case06_verifyPostEvtNvM_byNxEvtProducerPostEvtAndMxEvtConsumerCbProcEvtInCrossOddEvenEvtID (147 ms)
+[ RUN      ] UT_ConlesEventTypical.Case07_verifyPostEvtInCbProcEvt_byObjAPostEvt_andObjBInCbProcEvt_postEvtToObjC
+[       OK ] UT_ConlesEventTypical.Case07_verifyPostEvtInCbProcEvt_byObjAPostEvt_andObjBInCbProcEvt_postEvtToObjC (2182 ms)
+[----------] 7 tests from UT_ConlesEventTypical (3141 ms total)
+
+[----------] Global test environment tear-down
+[==========] 7 tests from 1 test suite ran. (3141 ms total)
+[  PASSED  ] 7 tests.
+<end of output>
+Test time =   3.14 sec
+----------------------------------------------------------
+Test Passed.
+"UT_ConlesEventTypical" end time: Jun 25 13:46 UTC
+"UT_ConlesEventTypical" time elapsed: 00:00:03
+----------------------------------------------------------
+
+11/22 Testing: UT_ConlesEventUseBoundary
+11/22 Test: UT_ConlesEventUseBoundary
+Command: "/home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test/UT_ConlesEventUseBoundary"
+Directory: /home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test
+"UT_ConlesEventUseBoundary" start time: Jun 25 13:46 UTC
+Output:
+----------------------------------------------------------
+Running main() from ./googletest/src/gtest_main.cc
+[==========] Running 2 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 2 tests from ConlesEventUseBoundary
+[ RUN      ] ConlesEventUseBoundary.verifyPostProcEvtSuccess_by1xSubPostUnsubEvt
+[       OK ] ConlesEventUseBoundary.verifyPostProcEvtSuccess_by1xSubPostUnsubEvt (1 ms)
+[ RUN      ] ConlesEventUseBoundary.verifyForceProcEVT_willWaitForLastBlockedCbProcEvtReturning
+[WARN] AutoLinkID(0) still HAS EvtDesc, keep waiting +1s
+[WARN] AutoLinkID(0) still HAS EvtDesc, keep waiting +1s
+[       OK ] ConlesEventUseBoundary.verifyForceProcEVT_willWaitForLastBlockedCbProcEvtReturning (2098 ms)
+[----------] 2 tests from ConlesEventUseBoundary (2099 ms total)
+
+[----------] Global test environment tear-down
+[==========] 2 tests from 1 test suite ran. (2099 ms total)
+[  PASSED  ] 2 tests.
+<end of output>
+Test time =   2.10 sec
+----------------------------------------------------------
+Test Passed.
+"UT_ConlesEventUseBoundary" end time: Jun 25 13:46 UTC
+"UT_ConlesEventUseBoundary" time elapsed: 00:00:02
+----------------------------------------------------------
+
+12/22 Testing: UT_DataBoundaryUS1
+12/22 Test: UT_DataBoundaryUS1
+Command: "/home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test/UT_DataBoundaryUS1"
+Directory: /home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test
+"UT_DataBoundaryUS1" start time: Jun 25 13:46 UTC
+Output:
+----------------------------------------------------------
+Running main() from ./googletest/src/gtest_main.cc
+[==========] Running 2 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 2 tests from UT_DataBoundary
+[ RUN      ] UT_DataBoundary.verifyDatParameterBoundary_byInvalidInputs_expectGracefulErrorHandling
+BEHAVIOR: verifyDatParameterBoundary_byInvalidInputs_expectGracefulErrorHandling
+📋 Testing IOC_sendDAT invalid parameters...
+📋 Testing IOC_recvDAT invalid parameters...
+📋 Testing mixed valid/invalid parameter combinations...
+🔍 Verifying system stability...
+✅ All invalid parameter combinations properly rejected with correct error codes
+✅ System maintained stability throughout boundary testing
+✅ No memory corruption or system instability detected
+✅ Parameter validation order and consistency verified
+[       OK ] UT_DataBoundary.verifyDatParameterBoundary_byInvalidInputs_expectGracefulErrorHandling (0 ms)
+[ RUN      ] UT_DataBoundary.verifyDatParameterBoundary_byEdgeCaseValues_expectValidationSuccess
+BEHAVIOR: verifyDatParameterBoundary_byEdgeCaseValues_expectValidationSuccess
+📋 Testing LinkID boundary values...
+   ✓ LinkID boundary value 0x000000007FFFFFFF handled gracefully (result: -505)
+   ✓ LinkID boundary value 0x00000000FFFFFFFE handled gracefully (result: -505)
+   ✓ LinkID boundary value 0x0000000080000000 handled gracefully (result: -505)
+   ✓ LinkID boundary value 0x0000000000000001 handled gracefully (result: -505)
+   ✓ LinkID boundary value 0x0000000000000002 handled gracefully (result: -505)
+📋 Testing DatDesc field boundary values...
+   ✓ Large data size (65536 bytes) handled correctly
+   ✓ Zero size with valid pointer handled (result: -505)
+   ✓ Uninitialized DatDesc handled gracefully (result: -505)
+📋 Testing IOC_Options boundary values...
+   ✓ Invalid options pointer handled gracefully (result: -505)
+📋 Testing enhanced IOC_Options boundary values...
+📋 Testing enhanced IOC_recvDAT parameter boundary values...
+📋 Testing mixed valid/invalid parameter combinations...
+🔍 Verifying system stability...
+✅ All boundary parameter combinations properly validated
+✅ Valid boundary values handled appropriately
+✅ Invalid boundary values rejected with proper error codes
+✅ System maintained stability throughout boundary testing
+✅ Parameter validation behavior is consistent across all parameter types
+[       OK ] UT_DataBoundary.verifyDatParameterBoundary_byEdgeCaseValues_expectValidationSuccess (0 ms)
+[----------] 2 tests from UT_DataBoundary (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 2 tests from 1 test suite ran. (0 ms total)
+[  PASSED  ] 2 tests.
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"UT_DataBoundaryUS1" end time: Jun 25 13:46 UTC
+"UT_DataBoundaryUS1" time elapsed: 00:00:00
+----------------------------------------------------------
+
+13/22 Testing: UT_DataBoundaryUS2
+13/22 Test: UT_DataBoundaryUS2
+Command: "/home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test/UT_DataBoundaryUS2"
+Directory: /home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test
+"UT_DataBoundaryUS2" start time: Jun 25 13:46 UTC
+Output:
+----------------------------------------------------------
+Running main() from ./googletest/src/gtest_main.cc
+[==========] Running 2 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 2 tests from UT_DataBoundary
+[ RUN      ] UT_DataBoundary.verifyDatDataSizeBoundary_byZeroSizeData_expectConsistentBehavior
+BEHAVIOR: verifyDatDataSizeBoundary_byZeroSizeData_expectConsistentBehavior
+📋 Setting up DatReceiver service...
+   ✓ DatReceiver service onlined with SrvID=0
+[INFO] Service in manual accept mode, connection will wait for manual accept
+   ✓ DatSender connected with LinkID=1026
+   ✓ DatReceiver accepted with LinkID=1025
+📋 Testing zero-size data transmission behaviors...
+🧪 Test 1: Valid pointer with zero PtrDataSize...
+   IOC_sendDAT with valid pointer + zero size returned: -516
+🧪 Test 2: NULL pointer with zero PtrDataSize...
+   IOC_sendDAT with NULL pointer + zero size returned: -516
+🧪 Test 3: Embedded data with zero EmdDataSize...
+   IOC_sendDAT with embedded data + zero size returned: -516
+🧪 Test 4: Consistency check with repeated zero-size calls...
+   ✓ Consistency verified across multiple zero-size calls
+📋 Testing additional boundary scenarios...
+🧪 Test 5: Service as DatSender with zero-size data...
+   ✓ DatSender service onlined with SrvID=1
+[INFO] Service in manual accept mode, connection will wait for manual accept
+   ✓ DatReceiver client connected with LinkID=1028
+   ✓ DatSender service accepted with LinkID=1027
+   Service-to-client zero-size data returned: -516
+🧹 Cleaning up DatSender service before polling test...
+   ✓ DatReceiver client connection closed
+   ✓ DatSender service connection closed
+   ✓ DatSender service offline
+🧪 Test 6: Polling mode receiver (no callback) with zero-size data detection...
+   ✓ DatReceiver polling service onlined with SrvID=1
+[INFO] Service in manual accept mode, connection will wait for manual accept
+   ✓ DatSender connected to polling receiver with LinkID=1028
+   ✓ DatReceiver polling service accepted with LinkID=1027
+   🧪 Test 6a: Verify polling mode works with normal data...
+IOC_sendDAT: Sending 12 bytes on LinkID=1028
+IOC_flushDAT: Flushing data on LinkID=1028
+IOC_recvDAT: Receiving data on LinkID=1027
+IOC_recvDAT: Received 12 bytes from polling buffer on LinkID=1027
+   ✓ Polling mode verified: received 12 bytes of normal data
+   🧪 Test 6b: Zero-size data behavior in polling mode...
+   Zero-size data to polling receiver returned: -516
+IOC_recvDAT: Receiving data on LinkID=1027
+   ✓ Polling correctly returns NO_DATA when no actual data was sent
+🧹 Cleaning up remaining test resources...
+   ✓ DatSender polling connection closed
+   ✓ DatReceiver polling connection closed
+   ✓ DatReceiver polling service offline
+✅ Service as DatSender zero-size data handling verified
+✅ Polling mode zero-size data boundary behavior verified
+✅ Both reversed roles and polling modes handle zero-size data consistently
+📋 Testing receiver behavior with zero-size data...
+IOC_flushDAT: Flushing data on LinkID=1026
+🧪 Zero-size data correctly returned IOC_RESULT_ZERO_DATA (-516)
+   ✓ System properly detects when both PtrDataSize and EmdDataSize are zero
+   ✓ No callback/polling verification needed as data was not transmitted
+🔍 Verifying system stability and consistency...
+IOC_sendDAT: Sending 14 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 14 bytes, total: 14 bytes
+📊 Zero-size data handling summary:
+   • Valid pointer + zero size: ZERO_DATA (-516)
+   • NULL pointer + zero size: ZERO_DATA (-516)
+   • Embedded data + zero size: ZERO_DATA (-516)
+   • System correctly detects when both PtrDataSize and EmdDataSize are zero
+   • Zero-size data behavior is consistent and predictable
+✅ Zero-size data properly returns IOC_RESULT_ZERO_DATA (-516)
+✅ System correctly identifies zero-size data condition
+✅ No memory corruption or system instability with zero-size data
+✅ Consistent IOC_RESULT_ZERO_DATA behavior across multiple zero-size transmission attempts
+🧹 Cleaning up test environment...
+   ✓ DatSender connection closed
+   ✓ DatReceiver connection closed
+   ✓ DatReceiver service offline
+✅ Zero-size data boundary testing completed successfully
+[       OK ] UT_DataBoundary.verifyDatDataSizeBoundary_byZeroSizeData_expectConsistentBehavior (100 ms)
+[ RUN      ] UT_DataBoundary.verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobustHandling
+BEHAVIOR: verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobustHandling
+📋 Setting up DatReceiver service for edge case testing...
+   ✓ DatReceiver service onlined with SrvID=0
+[INFO] Service in manual accept mode, connection will wait for manual accept
+   ✓ DatSender connected with LinkID=1026
+   ✓ DatReceiver accepted with LinkID=1025
+📋 Testing zero-size data with various IOC_Options configurations...
+🧪 Test 1: Zero-size data with blocking timeout options...
+   ✓ Zero-size data with blocking option: result=-516
+   ✓ Zero-size data with non-blocking option: result=-516
+   ✓ Zero-size data with timeout option: result=-516
+   ✓ Zero-size data with zero timeout: result=-516
+📋 Testing zero-size data mixed with normal data transmission...
+🧪 Test 2: Normal → Zero-size → Normal data sequence...
+IOC_sendDAT: Sending 11 bytes on LinkID=1026
+DAT Boundary Callback: Client[10], received 11 bytes, total: 11 bytes
+IOC_sendDAT: Sending 10 bytes on LinkID=1026
+DAT Boundary Callback: Client[10], received 10 bytes, total: 21 bytes
+IOC_flushDAT: Flushing data on LinkID=1026
+   ✓ Normal data transmission unaffected by zero-size attempts
+   ✓ Received 21 bytes in 2 packets (zero-size properly rejected)
+🧪 Test 3: Rapid alternating zero-size and normal data...
+IOC_sendDAT: Sending 7 bytes on LinkID=1026
+DAT Boundary Callback: Client[10], received 7 bytes, total: 7 bytes
+IOC_sendDAT: Sending 7 bytes on LinkID=1026
+DAT Boundary Callback: Client[10], received 7 bytes, total: 14 bytes
+IOC_sendDAT: Sending 7 bytes on LinkID=1026
+DAT Boundary Callback: Client[10], received 7 bytes, total: 21 bytes
+IOC_sendDAT: Sending 7 bytes on LinkID=1026
+DAT Boundary Callback: Client[10], received 7 bytes, total: 28 bytes
+IOC_sendDAT: Sending 7 bytes on LinkID=1026
+DAT Boundary Callback: Client[10], received 7 bytes, total: 35 bytes
+IOC_sendDAT: Sending 7 bytes on LinkID=1026
+DAT Boundary Callback: Client[10], received 7 bytes, total: 42 bytes
+IOC_sendDAT: Sending 7 bytes on LinkID=1026
+DAT Boundary Callback: Client[10], received 7 bytes, total: 49 bytes
+IOC_sendDAT: Sending 7 bytes on LinkID=1026
+DAT Boundary Callback: Client[10], received 7 bytes, total: 56 bytes
+IOC_sendDAT: Sending 7 bytes on LinkID=1026
+DAT Boundary Callback: Client[10], received 7 bytes, total: 63 bytes
+IOC_sendDAT: Sending 7 bytes on LinkID=1026
+DAT Boundary Callback: Client[10], received 7 bytes, total: 70 bytes
+IOC_flushDAT: Flushing data on LinkID=1026
+   ✓ Rapid alternating test: 10 zero-size attempts (all rejected), 10 normal data received
+📋 Testing zero-size data under different system conditions...
+🧪 Test 4: Zero-size data with concurrent normal transmissions...
+IOC_sendDAT: Sending 12 bytes on LinkID=1026
+DAT Boundary Callback: Client[10], received 12 bytes, total: 12 bytes
+IOC_sendDAT: Sending 12 bytes on LinkID=1026
+DAT Boundary Callback: Client[10], received 12 bytes, total: 24 bytes
+IOC_sendDAT: Sending 12 bytes on LinkID=1026
+DAT Boundary Callback: Client[10], received 12 bytes, total: 36 bytes
+IOC_sendDAT: Sending 12 bytes on LinkID=1026
+DAT Boundary Callback: Client[10], received 12 bytes, total: 48 bytes
+IOC_sendDAT: Sending 12 bytes on LinkID=1026
+DAT Boundary Callback: Client[10], received 12 bytes, total: 60 bytes
+IOC_sendDAT: Sending 12 bytes on LinkID=1026
+DAT Boundary Callback: Client[10], received 12 bytes, total: 72 bytes
+IOC_sendDAT: Sending 12 bytes on LinkID=1026
+DAT Boundary Callback: Client[10], received 12 bytes, total: 84 bytes
+IOC_sendDAT: Sending 12 bytes on LinkID=1026
+DAT Boundary Callback: Client[10], received 12 bytes, total: 96 bytes
+IOC_sendDAT: Sending 12 bytes on LinkID=1026
+DAT Boundary Callback: Client[10], received 12 bytes, total: 108 bytes
+IOC_sendDAT: Sending 12 bytes on LinkID=1026
+DAT Boundary Callback: Client[10], received 12 bytes, total: 120 bytes
+IOC_sendDAT: Sending 13 bytes on LinkID=1026
+DAT Boundary Callback: Client[10], received 13 bytes, total: 133 bytes
+IOC_sendDAT: Sending 13 bytes on LinkID=1026
+DAT Boundary Callback: Client[10], received 13 bytes, total: 146 bytes
+IOC_sendDAT: Sending 13 bytes on LinkID=1026
+DAT Boundary Callback: Client[10], received 13 bytes, total: 159 bytes
+IOC_sendDAT: Sending 13 bytes on LinkID=1026
+DAT Boundary Callback: Client[10], received 13 bytes, total: 172 bytes
+IOC_sendDAT: Sending 13 bytes on LinkID=1026
+DAT Boundary Callback: Client[10], received 13 bytes, total: 185 bytes
+IOC_flushDAT: Flushing data on LinkID=1026
+   ✓ Zero-size data handled correctly during concurrent transmissions
+   ✓ Concurrent normal data sent: 15, received: 15
+📋 Testing zero-size data error recovery scenarios...
+🧪 Test 5: Zero-size data consistency after system stress...
+IOC_sendDAT: Sending 32768 bytes on LinkID=1026
+DAT Boundary Callback: Client[10], received 32768 bytes, total: 32953 bytes
+   ✓ Zero-size data behavior consistent after large data transmission
+🧪 Test 6: Multiple consecutive zero-size attempts...
+   ✓ 20 consecutive zero-size attempts all handled consistently
+🔍 Verifying robust zero-size data handling...
+IOC_sendDAT: Sending 20 bytes on LinkID=1026
+DAT Boundary Callback: Client[10], received 20 bytes, total: 32973 bytes
+✅ Zero-size data robustly handled under all tested edge conditions
+✅ Consistent IOC_RESULT_ZERO_DATA returns across all scenarios
+✅ Normal data transmission unaffected by zero-size attempts
+✅ System stability maintained under mixed and stress conditions
+✅ No resource leaks or state corruption detected
+🧹 Cleaning up edge case test resources...
+   ✓ DatSender connection closed
+   ✓ DatReceiver connection closed
+   ✓ DatReceiver service offline
+[       OK ] UT_DataBoundary.verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobustHandling (852 ms)
+[----------] 2 tests from UT_DataBoundary (953 ms total)
+
+[----------] Global test environment tear-down
+[==========] 2 tests from 1 test suite ran. (953 ms total)
+[  PASSED  ] 2 tests.
+<end of output>
+Test time =   0.95 sec
+----------------------------------------------------------
+Test Passed.
+"UT_DataBoundaryUS2" end time: Jun 25 13:46 UTC
+"UT_DataBoundaryUS2" time elapsed: 00:00:00
+----------------------------------------------------------
+
+14/22 Testing: UT_DataBoundaryUS3
+14/22 Test: UT_DataBoundaryUS3
+Command: "/home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test/UT_DataBoundaryUS3"
+Directory: /home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test
+"UT_DataBoundaryUS3" start time: Jun 25 13:46 UTC
+Output:
+----------------------------------------------------------
+Running main() from ./googletest/src/gtest_main.cc
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from UT_DataBoundary
+[ RUN      ] UT_DataBoundary.verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateReturn
+🎯 BEHAVIOR: verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateReturn
+📋 Setting up DatReceiver service for timeout testing...
+   ✓ DatReceiver service onlined with SrvID=0
+[INFO] Service in manual accept mode, connection will wait for manual accept
+   ✓ DatSender connected with LinkID=1026
+   ✓ DatReceiver accepted with LinkID=1025
+📋 Testing IOC_sendDAT with zero timeout...
+🧪 Test 1: Zero timeout sendDAT with empty buffer...
+IOC_sendDAT: Sending 15 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 15 bytes, total: 15 bytes
+   ⏱️ Zero timeout sendDAT execution time: 1 microseconds
+🧪 Test 2: Fill send buffer to create timeout scenario...
+   📋 CONET Data Capability: MaxDataQueueSize=131072 bytes
+   📏 Using packet size: 512 bytes, packets to fill queue: 259
+   🔄 Filling send queue systematically...
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 527 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 1039 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 1551 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 2063 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 2575 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 3087 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 3599 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 4111 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 4623 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 5135 bytes
+   📤 Filled queue with 10 packets (5120 bytes total)
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 5647 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 6159 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 6671 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 7183 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 7695 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 8207 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 8719 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 9231 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 9743 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 10255 bytes
+   📤 Filled queue with 20 packets (10240 bytes total)
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 10767 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 11279 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 11791 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 12303 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 12815 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 13327 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 13839 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 14351 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 14863 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 15375 bytes
+   📤 Filled queue with 30 packets (15360 bytes total)
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 15887 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 16399 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 16911 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 17423 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 17935 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 18447 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 18959 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 19471 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 19983 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 20495 bytes
+   📤 Filled queue with 40 packets (20480 bytes total)
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 21007 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 21519 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 22031 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 22543 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 23055 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 23567 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 24079 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 24591 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 25103 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 25615 bytes
+   📤 Filled queue with 50 packets (25600 bytes total)
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 26127 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 26639 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 27151 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 27663 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 28175 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 28687 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 29199 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 29711 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 30223 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 30735 bytes
+   📤 Filled queue with 60 packets (30720 bytes total)
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 31247 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 31759 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 32271 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 32783 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 33295 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 33807 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 34319 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 34831 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 35343 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 35855 bytes
+   📤 Filled queue with 70 packets (35840 bytes total)
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 36367 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 36879 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 37391 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 37903 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 38415 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 38927 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 39439 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 39951 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 40463 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 40975 bytes
+   📤 Filled queue with 80 packets (40960 bytes total)
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 41487 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 41999 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 42511 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 43023 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 43535 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 44047 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 44559 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 45071 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 45583 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 46095 bytes
+   📤 Filled queue with 90 packets (46080 bytes total)
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 46607 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 47119 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 47631 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 48143 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 48655 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 49167 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 49679 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 50191 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 50703 bytes
+IOC_sendDAT: Sending 512 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 512 bytes, total: 51215 bytes
+   📤 Filled queue with 100 packets (51200 bytes total)
+   ✓ Filled queue with 100 packets (51200 bytes), expected capacity: 131072 bytes
+🧪 Test 3: Zero timeout sendDAT with full/busy buffer...
+IOC_sendDAT: Sending 15 bytes on LinkID=1026
+DAT Boundary Callback: Client[1], received 15 bytes, total: 51230 bytes
+   ⏱️ Zero timeout sendDAT (full buffer) execution time: 0 microseconds
+/home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/Test/UT_DataBoundaryUS3.cxx:251: Failure
+Expected equality of these values:
+  IOC_RESULT_TIMEOUT
+    Which is: -506
+  Result
+    Which is: 0
+Zero timeout sendDAT with full/busy buffer should return IOC_RESULT_TIMEOUT, got: 0
+
+[  FAILED  ] UT_DataBoundary.verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateReturn (6 ms)
+[----------] 1 test from UT_DataBoundary (6 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (6 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] UT_DataBoundary.verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateReturn
+
+ 1 FAILED TEST
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Failed.
+"UT_DataBoundaryUS3" end time: Jun 25 13:46 UTC
+"UT_DataBoundaryUS3" time elapsed: 00:00:00
+----------------------------------------------------------
+
+15/22 Testing: UT_DataBoundaryUS4
+15/22 Test: UT_DataBoundaryUS4
+Command: "/home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test/UT_DataBoundaryUS4"
+Directory: /home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test
+"UT_DataBoundaryUS4" start time: Jun 25 13:46 UTC
+Output:
+----------------------------------------------------------
+Running main() from ./googletest/src/gtest_main.cc
+[==========] Running 0 tests from 0 test suites.
+[==========] 0 tests from 0 test suites ran. (0 ms total)
+[  PASSED  ] 0 tests.
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"UT_DataBoundaryUS4" end time: Jun 25 13:46 UTC
+"UT_DataBoundaryUS4" time elapsed: 00:00:00
+----------------------------------------------------------
+
+16/22 Testing: UT_DataCapability
+16/22 Test: UT_DataCapability
+Command: "/home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test/UT_DataCapability"
+Directory: /home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test
+"UT_DataCapability" start time: Jun 25 13:46 UTC
+Output:
+----------------------------------------------------------
+Running main() from ./googletest/src/gtest_main.cc
+[==========] Running 7 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 7 tests from UT_DataCapability
+[ RUN      ] UT_DataCapability.verifyConetModeDataCapability_byQueryAPI_expectValidLimits
+BEHAVIOR: verifyConetModeDataCapability_byQueryAPI_expectValidLimits
+IOC_ConetModeDataCapability_T values:
+  - MaxSrvNum: 2
+  - MaxCliNum: 3
+  - MaxDataQueueSize: 131072
+[       OK ] UT_DataCapability.verifyConetModeDataCapability_byQueryAPI_expectValidLimits (0 ms)
+[ RUN      ] UT_DataCapability.verifyConetModeDataCapability_byInvalidInputs_expectGracefulHandling
+BEHAVIOR: verifyConetModeDataCapability_byInvalidInputs_expectGracefulHandling
+Test Point 1: NULL pointer handling
+  ℹ️  IOC_getCapability() API Contract: Requires valid IOC_CapabilityDescription_T pointer
+  ℹ️  NULL input would cause segmentation fault - this is by design
+  ✅ API input validation contract documented and understood
+  📋 Testing with uninitialized/invalid structure patterns...
+[ERROR] Not-Support CapID(-1)
+  ✅ Invalid CapID (0xFFFFFFFF) handled gracefully (Result=-501)
+Test Point 2: Invalid CapID handling
+[ERROR] Not-Support CapID(999)
+  ✅ Invalid CapID (999) handled gracefully (Result=-501)
+Test Point 3: Repeated calls consistency test
+  ✅ All three calls returned identical capability values
+  ✅ All capability values are within reasonable ranges
+  ✅ Capability value relationships are logical
+  ✅ No side effects from invalid input attempts
+VERIFICATION SUMMARY:
+  - Capability values: MaxSrvNum=2, MaxCliNum=3, MaxDataQueueSize=131072
+  - API input contract validation: ✅ PASSED
+  - Invalid CapID handling: ✅ PASSED
+  - Consistency across calls: ✅ PASSED
+  - Reasonable value ranges: ✅ PASSED
+  - Logical relationships: ✅ PASSED
+  - No side effects: ✅ PASSED
+  - IOC_getCapability() requires valid pointer (crashes on NULL by design)
+[       OK ] UT_DataCapability.verifyConetModeDataCapability_byInvalidInputs_expectGracefulHandling (0 ms)
+[ RUN      ] UT_DataCapability.verifyDatTransmission_byWithinMaxDataQueueSize_expectReliableBehavior
+BEHAVIOR: verifyDatTransmission_byWithinMaxDataQueueSize_expectReliableBehavior
+System MaxDataQueueSize: 131072
+[INFO] Service in manual accept mode, connection will wait for manual accept
+Sending 204 chunks of 512 bytes each (total: 104448 bytes, 79.7% of MaxDataQueueSize)
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 1, size=512, total=512
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 2, size=512, total=1024
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 3, size=512, total=1536
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 4, size=512, total=2048
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 5, size=512, total=2560
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 6, size=512, total=3072
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 7, size=512, total=3584
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 8, size=512, total=4096
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 9, size=512, total=4608
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 10, size=512, total=5120
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 11, size=512, total=5632
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 12, size=512, total=6144
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 13, size=512, total=6656
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 14, size=512, total=7168
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 15, size=512, total=7680
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 16, size=512, total=8192
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 17, size=512, total=8704
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 18, size=512, total=9216
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 19, size=512, total=9728
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 20, size=512, total=10240
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 21, size=512, total=10752
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 22, size=512, total=11264
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 23, size=512, total=11776
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 24, size=512, total=12288
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 25, size=512, total=12800
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 26, size=512, total=13312
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 27, size=512, total=13824
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 28, size=512, total=14336
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 29, size=512, total=14848
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 30, size=512, total=15360
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 31, size=512, total=15872
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 32, size=512, total=16384
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 33, size=512, total=16896
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 34, size=512, total=17408
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 35, size=512, total=17920
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 36, size=512, total=18432
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 37, size=512, total=18944
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 38, size=512, total=19456
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 39, size=512, total=19968
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 40, size=512, total=20480
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 41, size=512, total=20992
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 42, size=512, total=21504
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 43, size=512, total=22016
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 44, size=512, total=22528
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 45, size=512, total=23040
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 46, size=512, total=23552
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 47, size=512, total=24064
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 48, size=512, total=24576
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 49, size=512, total=25088
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 50, size=512, total=25600
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 51, size=512, total=26112
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 52, size=512, total=26624
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 53, size=512, total=27136
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 54, size=512, total=27648
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 55, size=512, total=28160
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 56, size=512, total=28672
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 57, size=512, total=29184
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 58, size=512, total=29696
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 59, size=512, total=30208
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 60, size=512, total=30720
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 61, size=512, total=31232
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 62, size=512, total=31744
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 63, size=512, total=32256
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 64, size=512, total=32768
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 65, size=512, total=33280
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 66, size=512, total=33792
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 67, size=512, total=34304
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 68, size=512, total=34816
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 69, size=512, total=35328
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 70, size=512, total=35840
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 71, size=512, total=36352
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 72, size=512, total=36864
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 73, size=512, total=37376
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 74, size=512, total=37888
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 75, size=512, total=38400
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 76, size=512, total=38912
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 77, size=512, total=39424
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 78, size=512, total=39936
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 79, size=512, total=40448
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 80, size=512, total=40960
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 81, size=512, total=41472
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 82, size=512, total=41984
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 83, size=512, total=42496
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 84, size=512, total=43008
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 85, size=512, total=43520
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 86, size=512, total=44032
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 87, size=512, total=44544
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 88, size=512, total=45056
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 89, size=512, total=45568
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 90, size=512, total=46080
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 91, size=512, total=46592
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 92, size=512, total=47104
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 93, size=512, total=47616
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 94, size=512, total=48128
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 95, size=512, total=48640
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 96, size=512, total=49152
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 97, size=512, total=49664
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 98, size=512, total=50176
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 99, size=512, total=50688
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 100, size=512, total=51200
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 101, size=512, total=51712
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 102, size=512, total=52224
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 103, size=512, total=52736
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 104, size=512, total=53248
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 105, size=512, total=53760
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 106, size=512, total=54272
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 107, size=512, total=54784
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 108, size=512, total=55296
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 109, size=512, total=55808
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 110, size=512, total=56320
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 111, size=512, total=56832
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 112, size=512, total=57344
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 113, size=512, total=57856
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 114, size=512, total=58368
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 115, size=512, total=58880
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 116, size=512, total=59392
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 117, size=512, total=59904
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 118, size=512, total=60416
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 119, size=512, total=60928
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 120, size=512, total=61440
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 121, size=512, total=61952
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 122, size=512, total=62464
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 123, size=512, total=62976
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 124, size=512, total=63488
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 125, size=512, total=64000
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 126, size=512, total=64512
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 127, size=512, total=65024
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 128, size=512, total=65536
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 129, size=512, total=66048
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 130, size=512, total=66560
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 131, size=512, total=67072
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 132, size=512, total=67584
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 133, size=512, total=68096
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 134, size=512, total=68608
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 135, size=512, total=69120
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 136, size=512, total=69632
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 137, size=512, total=70144
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 138, size=512, total=70656
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 139, size=512, total=71168
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 140, size=512, total=71680
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 141, size=512, total=72192
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 142, size=512, total=72704
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 143, size=512, total=73216
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 144, size=512, total=73728
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 145, size=512, total=74240
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 146, size=512, total=74752
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 147, size=512, total=75264
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 148, size=512, total=75776
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 149, size=512, total=76288
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 150, size=512, total=76800
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 151, size=512, total=77312
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 152, size=512, total=77824
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 153, size=512, total=78336
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 154, size=512, total=78848
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 155, size=512, total=79360
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 156, size=512, total=79872
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 157, size=512, total=80384
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 158, size=512, total=80896
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 159, size=512, total=81408
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 160, size=512, total=81920
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 161, size=512, total=82432
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 162, size=512, total=82944
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 163, size=512, total=83456
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 164, size=512, total=83968
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 165, size=512, total=84480
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 166, size=512, total=84992
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 167, size=512, total=85504
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 168, size=512, total=86016
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 169, size=512, total=86528
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 170, size=512, total=87040
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 171, size=512, total=87552
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 172, size=512, total=88064
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 173, size=512, total=88576
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 174, size=512, total=89088
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 175, size=512, total=89600
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 176, size=512, total=90112
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 177, size=512, total=90624
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 178, size=512, total=91136
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 179, size=512, total=91648
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 180, size=512, total=92160
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 181, size=512, total=92672
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 182, size=512, total=93184
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 183, size=512, total=93696
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 184, size=512, total=94208
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 185, size=512, total=94720
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 186, size=512, total=95232
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 187, size=512, total=95744
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 188, size=512, total=96256
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 189, size=512, total=96768
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 190, size=512, total=97280
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 191, size=512, total=97792
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 192, size=512, total=98304
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 193, size=512, total=98816
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 194, size=512, total=99328
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 195, size=512, total=99840
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 196, size=512, total=100352
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 197, size=512, total=100864
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 198, size=512, total=101376
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 199, size=512, total=101888
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 200, size=512, total=102400
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 201, size=512, total=102912
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 202, size=512, total=103424
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 203, size=512, total=103936
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+DAT Callback: Received chunk 204, size=512, total=104448
+IOC_flushDAT: Flushing data on LinkID=1025
+VERIFICATION SUCCESS: Transmitted 104448 bytes in 204 chunks within MaxDataQueueSize=131072
+[       OK ] UT_DataCapability.verifyDatTransmission_byWithinMaxDataQueueSize_expectReliableBehavior (504 ms)
+[ RUN      ] UT_DataCapability.verifyDatBoundaryBehavior_byConnectionLimits_expectGracefulHandling
+BEHAVIOR: verifyDatBoundaryBehavior_byConnectionLimits_expectGracefulHandling
+System Capability Limits:
+  - MaxSrvNum: 2
+  - MaxCliNum: 3
+  - MaxDataQueueSize: 131072
+
+Phase 1: Testing MaxSrvNum boundary (max services = 2)
+  ✅ Service 0: Created successfully (ID=0)
+  ✅ Service 1: Created successfully (ID=1)
+[WARN] Failed to alloc a service object, Resuld=-503
+  🚫 Service 2: Failed gracefully as expected (exceeded MaxSrvNum)
+
+Phase 2: Testing MaxCliNum boundary (max clients per service = 3)
+[INFO] Service in manual accept mode, connection will wait for manual accept
+  ✅ Client 0: Connected successfully (ClientID=1026, ServerID=1025)
+[INFO] Service in manual accept mode, connection will wait for manual accept
+  ✅ Client 1: Connected successfully (ClientID=1028, ServerID=1027)
+[INFO] Service in manual accept mode, connection will wait for manual accept
+  ✅ Client 2: Connected successfully (ClientID=1030, ServerID=1029)
+[INFO] Service in manual accept mode, connection will wait for manual accept
+  ⚠️  Client 3: Connected beyond MaxCliNum (implementation allows this)
+
+Phase 3: Testing DAT transmission at boundary conditions
+IOC_sendDAT: Sending 19 bytes on LinkID=1025
+    Client[0] received 19 bytes via callback
+IOC_flushDAT: Flushing data on LinkID=1025
+  ✅ DAT transmission successful at boundary conditions
+
+Phase 4: Testing system recovery after boundary conditions
+[INFO] Service in manual accept mode, connection will wait for manual accept
+  ✅ System recovered successfully - new connection established
+
+Verification Summary:
+  ✅ MaxSrvNum boundary handling: PASSED
+  ✅ MaxCliNum boundary handling: PASSED
+  ✅ Graceful error codes: PASSED
+  ✅ System recovery: PASSED
+  ✅ No crashes/leaks: PASSED
+
+Cleaning up resources...
+  ✅ Cleanup completed: 2 services, 3 server links, 3 client links
+[       OK ] UT_DataCapability.verifyDatBoundaryBehavior_byConnectionLimits_expectGracefulHandling (50 ms)
+[ RUN      ] UT_DataCapability.verifyConetModeDataCapability_bySystemStateIndependence_expectConsistentBehavior
+BEHAVIOR: verifyConetModeDataCapability_bySystemStateIndependence_expectConsistentBehavior
+Baseline DATA Capability Values:
+  - MaxSrvNum: 2
+  - MaxCliNum: 3
+  - MaxDataQueueSize: 131072
+
+Test Point 1: System state independence during service operations
+  ✅ Created test service 0 (ID=0)
+  ✅ Created test service 1 (ID=1)
+
+Test Point 2: Cross-capability consistency testing
+EVENT Capability Values for comparison:
+  - MaxSrvNum: 2
+  - MaxCliNum: 3
+
+Test Point 3: Multiple capability queries during system state changes
+  ✅ Destroyed one test service, remaining: 1
+
+Verification Phase:
+  ✅ Capabilities consistent during active service operations
+  ✅ Cross-capability consistency verified (DATA vs EVENT)
+  ✅ Capabilities consistent across 4 different system states
+  ✅ Capabilities represent design limits, not current system usage
+
+Test Point 4: Rapid sequential capability queries
+  ✅ Rapid sequential queries return consistent results
+
+VERIFICATION SUMMARY:
+  - System state independence: ✅ PASSED
+  - Cross-capability consistency: ✅ PASSED
+  - State transition consistency: ✅ PASSED
+  - Design limit semantics: ✅ PASSED
+  - Rapid query reliability: ✅ PASSED
+  - Capability represents DESIGN LIMITS, not current usage
+  - DATA and EVENT capabilities share consistent common fields
+  ✅ Cleanup completed: 1 test services destroyed
+[       OK ] UT_DataCapability.verifyConetModeDataCapability_bySystemStateIndependence_expectConsistentBehavior (0 ms)
+[ RUN      ] UT_DataCapability.verifyDatTransmission_byBlockingNonBlockingModes_expectCorrectBehavior
+BEHAVIOR: verifyDatTransmission_byBlockingNonBlockingModes_expectCorrectBehavior
+System MaxDataQueueSize: 131072
+[INFO] Service in manual accept mode, connection will wait for manual accept
+
+=== Phase 1: Testing Blocking Mode Behavior ===
+Sending 18 large chunks (8192 bytes each) to fill queue (blocking mode)
+IOC_sendDAT: Sending 8192 bytes on LinkID=1025
+    Received chunk 1: 8192 bytes (total: 8192)
+  Chunk 0: Result=0, Duration=100ms
+    ⚠️  Detected increased latency (blocking behavior) starting at chunk 0
+IOC_sendDAT: Sending 8192 bytes on LinkID=1025
+    Received chunk 2: 8192 bytes (total: 16384)
+  Chunk 1: Result=0, Duration=100ms
+    ⚠️  Detected increased latency (blocking behavior) starting at chunk 1
+IOC_sendDAT: Sending 8192 bytes on LinkID=1025
+    Received chunk 3: 8192 bytes (total: 24576)
+  Chunk 2: Result=0, Duration=100ms
+    ⚠️  Detected increased latency (blocking behavior) starting at chunk 2
+IOC_sendDAT: Sending 8192 bytes on LinkID=1025
+    Received chunk 4: 8192 bytes (total: 32768)
+  Chunk 3: Result=0, Duration=100ms
+    ⚠️  Detected increased latency (blocking behavior) starting at chunk 3
+IOC_sendDAT: Sending 8192 bytes on LinkID=1025
+    Received chunk 5: 8192 bytes (total: 40960)
+  Chunk 4: Result=0, Duration=100ms
+    ⚠️  Detected increased latency (blocking behavior) starting at chunk 4
+IOC_sendDAT: Sending 8192 bytes on LinkID=1025
+    Received chunk 6: 8192 bytes (total: 49152)
+  Chunk 5: Result=0, Duration=100ms
+    ⚠️  Detected increased latency (blocking behavior) starting at chunk 5
+IOC_sendDAT: Sending 8192 bytes on LinkID=1025
+    Received chunk 7: 8192 bytes (total: 57344)
+  Chunk 6: Result=0, Duration=100ms
+    ⚠️  Detected increased latency (blocking behavior) starting at chunk 6
+IOC_sendDAT: Sending 8192 bytes on LinkID=1025
+    Received chunk 8: 8192 bytes (total: 65536)
+  Chunk 7: Result=0, Duration=100ms
+    ⚠️  Detected increased latency (blocking behavior) starting at chunk 7
+IOC_sendDAT: Sending 8192 bytes on LinkID=1025
+    Received chunk 9: 8192 bytes (total: 73728)
+  Chunk 8: Result=0, Duration=100ms
+    ⚠️  Detected increased latency (blocking behavior) starting at chunk 8
+IOC_sendDAT: Sending 8192 bytes on LinkID=1025
+    Received chunk 10: 8192 bytes (total: 81920)
+  Chunk 9: Result=0, Duration=100ms
+    ⚠️  Detected increased latency (blocking behavior) starting at chunk 9
+IOC_sendDAT: Sending 8192 bytes on LinkID=1025
+    Received chunk 11: 8192 bytes (total: 90112)
+  Chunk 10: Result=0, Duration=100ms
+    ⚠️  Detected increased latency (blocking behavior) starting at chunk 10
+IOC_sendDAT: Sending 8192 bytes on LinkID=1025
+    Received chunk 12: 8192 bytes (total: 98304)
+  Chunk 11: Result=0, Duration=100ms
+    ⚠️  Detected increased latency (blocking behavior) starting at chunk 11
+IOC_sendDAT: Sending 8192 bytes on LinkID=1025
+    Received chunk 13: 8192 bytes (total: 106496)
+  Chunk 12: Result=0, Duration=100ms
+    ⚠️  Detected increased latency (blocking behavior) starting at chunk 12
+IOC_sendDAT: Sending 8192 bytes on LinkID=1025
+    Received chunk 14: 8192 bytes (total: 114688)
+  Chunk 13: Result=0, Duration=100ms
+    ⚠️  Detected increased latency (blocking behavior) starting at chunk 13
+IOC_sendDAT: Sending 8192 bytes on LinkID=1025
+    Received chunk 15: 8192 bytes (total: 122880)
+  Chunk 14: Result=0, Duration=100ms
+    ⚠️  Detected increased latency (blocking behavior) starting at chunk 14
+IOC_sendDAT: Sending 8192 bytes on LinkID=1025
+    Received chunk 16: 8192 bytes (total: 131072)
+  Chunk 15: Result=0, Duration=100ms
+    ⚠️  Detected increased latency (blocking behavior) starting at chunk 15
+IOC_sendDAT: Sending 8192 bytes on LinkID=1025
+    Received chunk 17: 8192 bytes (total: 139264)
+  Chunk 16: Result=0, Duration=100ms
+    ⚠️  Detected increased latency (blocking behavior) starting at chunk 16
+IOC_sendDAT: Sending 8192 bytes on LinkID=1025
+    Received chunk 18: 8192 bytes (total: 147456)
+  Chunk 17: Result=0, Duration=100ms
+    ⚠️  Detected increased latency (blocking behavior) starting at chunk 17
+
+=== Phase 2: Testing Non-blocking Mode Behavior ===
+Keeping queue full with slow consumer for non-blocking test...
+Testing non-blocking mode with IOC_Option_defineNonBlock
+Using aggressive chunk size: 65536 bytes, sending 12 chunks to force queue overflow
+Pre-filling queue with 2 more blocking chunks...
+IOC_sendDAT: Sending 8192 bytes on LinkID=1025
+    Received chunk 19: 8192 bytes (total: 155648)
+  Pre-fill chunk 0 sent
+IOC_sendDAT: Sending 8192 bytes on LinkID=1025
+    Received chunk 20: 8192 bytes (total: 163840)
+  Pre-fill chunk 1 sent
+Now attempting non-blocking sends on full queue...
+IOC_sendDAT: Sending 65536 bytes on LinkID=1025
+  Non-blocking chunk 0: Result=0, Duration=0ms ✅ (Very fast success - true non-blocking)
+IOC_sendDAT: Sending 65536 bytes on LinkID=1025
+  Non-blocking chunk 1: Result=0, Duration=0ms ✅ (Very fast success - true non-blocking)
+IOC_sendDAT: Sending 65536 bytes on LinkID=1025
+  Non-blocking chunk 2: Result=0, Duration=0ms ✅ (Very fast success - true non-blocking)
+IOC_sendDAT: Sending 65536 bytes on LinkID=1025
+  Non-blocking chunk 3: Result=-511, Duration=0ms ✅ (Expected: non-blocking should fail when queue full)
+IOC_sendDAT: Sending 65536 bytes on LinkID=1025
+  Non-blocking chunk 4: Result=-511, Duration=0ms ✅ (Expected: non-blocking should fail when queue full)
+IOC_sendDAT: Sending 65536 bytes on LinkID=1025
+  Non-blocking chunk 5: Result=-511, Duration=0ms ✅ (Expected: non-blocking should fail when queue full)
+IOC_sendDAT: Sending 65536 bytes on LinkID=1025
+  Non-blocking chunk 6: Result=-511, Duration=0ms ✅ (Expected: non-blocking should fail when queue full)
+IOC_sendDAT: Sending 65536 bytes on LinkID=1025
+  Non-blocking chunk 7: Result=-511, Duration=0ms ✅ (Expected: non-blocking should fail when queue full)
+IOC_sendDAT: Sending 65536 bytes on LinkID=1025
+  Non-blocking chunk 8: Result=-511, Duration=0ms ✅ (Expected: non-blocking should fail when queue full)
+IOC_sendDAT: Sending 65536 bytes on LinkID=1025
+  Non-blocking chunk 9: Result=-511, Duration=0ms ✅ (Expected: non-blocking should fail when queue full)
+IOC_sendDAT: Sending 65536 bytes on LinkID=1025
+  Non-blocking chunk 10: Result=-511, Duration=0ms ✅ (Expected: non-blocking should fail when queue full)
+IOC_sendDAT: Sending 65536 bytes on LinkID=1025
+  Non-blocking chunk 11: Result=-511, Duration=0ms ✅ (Expected: non-blocking should fail when queue full)
+
+=== Verification Phase ===
+  ⚠️  Blocking mode verification: Queue may not have filled up enough to trigger blocking
+  📊 STRICT Non-blocking analysis:
+    - Quick successes (< 10ms): 3 ✅
+    - Slow successes (≥ 10ms): 0 ✅
+    - Buffer full errors: 9 ✅
+    - Other error codes: 0 ✅
+    - Total attempts: 12
+  ✅ Non-blocking mode verification: STRICT COMPLIANCE ACHIEVED
+    All non-blocking calls returned within API contract:
+    - 3 quick successes (IOC_RESULT_SUCCESS < 10ms)
+    - 9 buffer full responses (IOC_RESULT_BUFFER_FULL)
+  ✅ Non-blocking mode verification: PASSED (strict API contract enforcement)
+  ✅ Graceful error handling verified: Found 9 IOC_RESULT_BUFFER_FULL responses
+IOC_flushDAT: Flushing data on LinkID=1025
+  📊 Final received data: 163840 bytes in 20 chunks
+IOC_sendDAT: Sending 22 bytes on LinkID=1025
+    Received chunk 21: 22 bytes (total: 163862)
+IOC_flushDAT: Flushing data on LinkID=1025
+  ✅ System stability verification: PASSED
+
+VERIFICATION SUMMARY:
+  - Blocking mode behavior: ✅ PASSED
+  - Non-blocking mode behavior: ✅ PASSED
+  - Graceful error handling: ✅ PASSED
+  - Data reception: ✅ PASSED
+  - System stability: ✅ PASSED
+  - MaxDataQueueSize constraint behavior verified
+  - Blocking: sender waits when queue full
+  - Non-blocking: sender returns immediately with appropriate result
+  ✅ Cleanup completed
+[       OK ] UT_DataCapability.verifyDatTransmission_byBlockingNonBlockingModes_expectCorrectBehavior (3102 ms)
+[ RUN      ] UT_DataCapability.verifyDatTransmission_byDataIntegrityAndResourceManagement_expectNoLossOrExhaustion
+BEHAVIOR: verifyDatTransmission_byDataIntegrityAndResourceManagement_expectNoLossOrExhaustion
+🧪 Testing: High-Volume Data Transmission with Integrity & Resource Management
+📊 System MaxDataQueueSize: 131072 bytes
+[INFO] Service in manual accept mode, connection will wait for manual accept
+
+🔧 Setting up diverse data patterns for comprehensive testing...
+📋 Configured 5 data patterns and 6 size variations
+🎯 Target transmission volume: 111411 bytes (85% of MaxDataQueueSize)
+IOC_sendDAT: Sending 64 bytes on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+IOC_sendDAT: Sending 1024 bytes on LinkID=1025
+IOC_sendDAT: Sending 4096 bytes on LinkID=1025
+IOC_sendDAT: Sending 8192 bytes on LinkID=1025
+IOC_sendDAT: Sending 16384 bytes on LinkID=1025
+IOC_sendDAT: Sending 64 bytes on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+IOC_sendDAT: Sending 1024 bytes on LinkID=1025
+IOC_sendDAT: Sending 4096 bytes on LinkID=1025
+IOC_sendDAT: Sending 8192 bytes on LinkID=1025
+IOC_sendDAT: Sending 16384 bytes on LinkID=1025
+IOC_sendDAT: Sending 64 bytes on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+IOC_sendDAT: Sending 1024 bytes on LinkID=1025
+IOC_sendDAT: Sending 4096 bytes on LinkID=1025
+IOC_sendDAT: Sending 8192 bytes on LinkID=1025
+IOC_sendDAT: Sending 16384 bytes on LinkID=1025
+IOC_sendDAT: Sending 64 bytes on LinkID=1025
+IOC_sendDAT: Sending 512 bytes on LinkID=1025
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 1024 bytes on LinkID=1025
+IOC_sendDAT: Sending 4096 bytes on LinkID=1025
+IOC_sendDAT: Sending 8192 bytes on LinkID=1025
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_sendDAT: Sending 6707 bytes on LinkID=1025
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_flushDAT: Flushing data on LinkID=1025
+  ✅ Transmission complete: 24 chunks, 111411 bytes total
+
+🎉 HIGH-VOLUME DATA TRANSMISSION TEST - ALL CHECKS PASSED!
+┌─────────────────────────────────────────────────────────────────┐
+│                          TEST RESULTS                          │
+├─────────────────────────────────────────────────────────────────┤
+│ 📊 Volume:       111411 bytes in 24 chunks               │
+│ 🎯 Efficiency:   85.0% of system capacity            │
+│ 🔄 Patterns:     5 varieties tested                    │
+│ 📏 Sizes:        6 variations tested                   │
+│ ⚡ Timing:       Burst/Steady/Slow modes               │
+│ ✅ Data Loss:    0 bytes lost                           │
+│ 🛡️  Corruption:   0 pattern errors                      │
+│ 💾 Resources:    Within MaxDataQueueSize=131072 limit    │
+└─────────────────────────────────────────────────────────────────┘
+[       OK ] UT_DataCapability.verifyDatTransmission_byDataIntegrityAndResourceManagement_expectNoLossOrExhaustion (523 ms)
+[----------] 7 tests from UT_DataCapability (4182 ms total)
+
+[----------] Global test environment tear-down
+[==========] 7 tests from 1 test suite ran. (4182 ms total)
+[  PASSED  ] 7 tests.
+<end of output>
+Test time =   4.18 sec
+----------------------------------------------------------
+Test Passed.
+"UT_DataCapability" end time: Jun 25 13:46 UTC
+"UT_DataCapability" time elapsed: 00:00:04
+----------------------------------------------------------
+
+17/22 Testing: UT_DataTypical
+17/22 Test: UT_DataTypical
+Command: "/home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test/UT_DataTypical"
+Directory: /home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test
+"UT_DataTypical" start time: Jun 25 13:46 UTC
+Output:
+----------------------------------------------------------
+Running main() from ./googletest/src/gtest_main.cc
+[==========] Running 9 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 9 tests from UT_DataTypical
+[ RUN      ] UT_DataTypical.verifyDatSenderConnection_byConnectToOnlineService_expectSuccessAndValidLinkID
+BEHAVIOR: verifyDatSenderConnection_byConnectToOnlineService_expectSuccessAndValidLinkID
+[INFO] Service in manual accept mode, connection will wait for manual accept
+[       OK ] UT_DataTypical.verifyDatSenderConnection_byConnectToOnlineService_expectSuccessAndValidLinkID (0 ms)
+[ RUN      ] UT_DataTypical.verifyDatSenderTransmission_bySendCommonData_expectCallbackReceiveSuccess
+[INFO] Service in manual accept mode, connection will wait for manual accept
+BEHAVIOR: verifyDatSenderTransmission_bySendCommonData_expectCallbackReceiveSuccess
+IOC_sendDAT: Sending 10240 bytes on LinkID=1026
+DAT Callback: Client[0], received 10240 bytes, total: 10240 bytes
+DAT Sender: Sent 10240 bytes of data
+IOC_flushDAT: Flushing data on LinkID=1026
+TDD VERIFY: All simulated verifications passed
+[       OK ] UT_DataTypical.verifyDatSenderTransmission_bySendCommonData_expectCallbackReceiveSuccess (0 ms)
+[ RUN      ] UT_DataTypical.verifyDatSenderTransmission_byBinaryDataRange_expectCallbackIntegritySuccess
+[INFO] Service in manual accept mode, connection will wait for manual accept
+BEHAVIOR: verifyDatSenderTransmission_byBinaryDataRange_expectCallbackIntegritySuccess
+Testing binary data transmission: Size=1024 bytes, Pattern=0xAA
+IOC_sendDAT: Sending 1024 bytes on LinkID=1026
+DAT Callback: Client[1], received 1024 bytes, total: 1024 bytes
+DAT Sender: Sent 1024 bytes of binary data (pattern=0xAA)
+IOC_flushDAT: Flushing data on LinkID=1026
+Testing binary data transmission: Size=51200 bytes, Pattern=0x55
+IOC_sendDAT: Sending 51200 bytes on LinkID=1026
+DAT Callback: Client[1], received 51200 bytes, total: 52224 bytes
+DAT Sender: Sent 51200 bytes of binary data (pattern=0x55)
+IOC_flushDAT: Flushing data on LinkID=1026
+Testing binary data transmission: Size=102400 bytes, Pattern=0xFF
+IOC_sendDAT: Sending 102400 bytes on LinkID=1026
+DAT Callback: Client[1], received 102400 bytes, total: 154624 bytes
+DAT Sender: Sent 102400 bytes of binary data (pattern=0xFF)
+IOC_flushDAT: Flushing data on LinkID=1026
+VERIFY: Binary data range transmission verification
+Verifying chunk 1: Size=1024, ExpectedPattern=0xAA
+Verifying chunk 2: Size=51200, ExpectedPattern=0x55
+Verifying chunk 3: Size=102400, ExpectedPattern=0xFF
+TDD VERIFY: Binary data range (1KB-100KB) transmitted and received successfully with integrity preserved
+Verified: 1KB(0xAA), 50KB(0x55), 100KB(0xFF) - Total: 154624 bytes
+[       OK ] UT_DataTypical.verifyDatSenderTransmission_byBinaryDataRange_expectCallbackIntegritySuccess (251 ms)
+[ RUN      ] UT_DataTypical.verifyDatPollingReceive_byManualRetrieve_expectCompleteDataIntegrity
+[INFO] Service in manual accept mode, connection will wait for manual accept
+BEHAVIOR: verifyDatPollingReceive_byManualRetrieve_expectCompleteDataIntegrity
+IOC_sendDAT: Sending 5120 bytes on LinkID=1026
+DAT Sender: Sent 5120 bytes of binary data
+IOC_flushDAT: Flushing data on LinkID=1026
+IOC_recvDAT: Receiving data on LinkID=1025
+IOC_recvDAT: Received 5120 bytes from polling buffer on LinkID=1025
+DAT Receiver: Received 5120 bytes via polling, data integrity verified
+IOC_recvDAT: Receiving data on LinkID=1025
+TDD VERIFY: All polling functionality verification completed successfully
+[       OK ] UT_DataTypical.verifyDatPollingReceive_byManualRetrieve_expectCompleteDataIntegrity (0 ms)
+[ RUN      ] UT_DataTypical.verifyDatMultipleDataTypes_byTransmitDifferentTypes_expectAllTypesSuccess
+[INFO] Service in manual accept mode, connection will wait for manual accept
+BEHAVIOR: verifyDatMultipleDataTypes_byTransmitDifferentTypes_expectAllTypesSuccess
+IOC_sendDAT: Sending 43 bytes on LinkID=1026
+DAT Callback: Client[0], received 43 bytes, total: 43 bytes
+IOC_flushDAT: Flushing data on LinkID=1026
+IOC_sendDAT: Sending 40 bytes on LinkID=1026
+DAT Callback: Client[0], received 40 bytes, total: 83 bytes
+IOC_flushDAT: Flushing data on LinkID=1026
+IOC_sendDAT: Sending 1024 bytes on LinkID=1026
+DAT Callback: Client[0], received 1024 bytes, total: 1107 bytes
+IOC_flushDAT: Flushing data on LinkID=1026
+TDD VERIFY: All data types transmitted and received successfully with integrity preserved
+[       OK ] UT_DataTypical.verifyDatMultipleDataTypes_byTransmitDifferentTypes_expectAllTypesSuccess (0 ms)
+[ RUN      ] UT_DataTypical.verifyDatCompleteWorkflow_byExecuteTypicalSequence_expectFullWorkflowSuccess
+SETUP: verifyDatCompleteWorkflow - Demonstrating complete typical DAT usage pattern
+BEHAVIOR: Complete typical DAT workflow execution
+Workflow Step-1: DatReceiver service online - SUCCESS
+[INFO] Service in manual accept mode, connection will wait for manual accept
+Workflow Step-2: Connection establishment - SUCCESS
+IOC_sendDAT: Sending 53 bytes on LinkID=1026
+DAT Callback: Client[0], received 53 bytes, total: 53 bytes
+IOC_flushDAT: Flushing data on LinkID=1026
+Workflow Step-3.1: Data chunk 1 transmission - SUCCESS
+IOC_sendDAT: Sending 51 bytes on LinkID=1026
+DAT Callback: Client[0], received 51 bytes, total: 104 bytes
+IOC_flushDAT: Flushing data on LinkID=1026
+Workflow Step-3.2: Data chunk 2 transmission - SUCCESS
+IOC_sendDAT: Sending 51 bytes on LinkID=1026
+DAT Callback: Client[0], received 51 bytes, total: 155 bytes
+IOC_flushDAT: Flushing data on LinkID=1026
+Workflow Step-3.3: Data chunk 3 transmission - SUCCESS
+Workflow Step-4: Data reception and processing - SUCCESS
+Workflow Step-5: Graceful disconnection - SUCCESS
+TDD VERIFY: Complete typical DAT workflow executed successfully - demonstrates standard usage pattern
+CLEANUP: All resources properly cleaned up in workflow - typical pattern demonstrated
+[       OK ] UT_DataTypical.verifyDatCompleteWorkflow_byExecuteTypicalSequence_expectFullWorkflowSuccess (0 ms)
+[ RUN      ] UT_DataTypical.verifyDatSenderService_byOnlineAndAcceptReceiver_expectSuccessAndValidLinkID
+BEHAVIOR: verifyDatSenderService_byOnlineAndAcceptReceiver_expectSuccessAndValidLinkID
+[INFO] Service in manual accept mode, connection will wait for manual accept
+TDD VERIFY: DatSender service successfully accepted DatReceiver connection - reversed role pattern
+[       OK ] UT_DataTypical.verifyDatSenderService_byOnlineAndAcceptReceiver_expectSuccessAndValidLinkID (0 ms)
+[ RUN      ] UT_DataTypical.verifyDatSenderService_bySendToConnectedReceiver_expectCallbackSuccess
+BEHAVIOR: verifyDatSenderService_bySendToConnectedReceiver_expectCallbackSuccess
+[INFO] Service in manual accept mode, connection will wait for manual accept
+IOC_sendDAT: Sending 57 bytes on LinkID=1025
+DAT Callback: Client[0], received 57 bytes, total: 57 bytes
+DAT Sender: Sent 57 bytes of data
+IOC_flushDAT: Flushing data on LinkID=1025
+IDEAL CASE: Callback triggered successfully in US-2 scenario
+TDD VERIFY: Data transmitted and received via callback with integrity preserved
+[       OK ] UT_DataTypical.verifyDatSenderService_bySendToConnectedReceiver_expectCallbackSuccess (100 ms)
+[ RUN      ] UT_DataTypical.verifyDatSenderService_bySendToPollingReceiver_expectPollingSuccess
+BEHAVIOR: verifyDatSenderService_bySendToPollingReceiver_expectPollingSuccess
+[INFO] Service in manual accept mode, connection will wait for manual accept
+IOC_sendDAT: Sending 6144 bytes on LinkID=1025
+DAT Sender: Sent 6144 bytes of binary data
+IOC_flushDAT: Flushing data on LinkID=1025
+IOC_recvDAT: Receiving data on LinkID=1026
+IOC_recvDAT: Received 6144 bytes from polling buffer on LinkID=1026
+DAT Receiver: Received 6144 bytes via polling, data integrity verified
+IOC_recvDAT: Receiving data on LinkID=1026
+TDD VERIFY: All polling functionality verification completed successfully
+[       OK ] UT_DataTypical.verifyDatSenderService_bySendToPollingReceiver_expectPollingSuccess (0 ms)
+[----------] 9 tests from UT_DataTypical (352 ms total)
+
+[----------] Global test environment tear-down
+[==========] 9 tests from 1 test suite ran. (352 ms total)
+[  PASSED  ] 9 tests.
+<end of output>
+Test time =   0.35 sec
+----------------------------------------------------------
+Test Passed.
+"UT_DataTypical" end time: Jun 25 13:46 UTC
+"UT_DataTypical" time elapsed: 00:00:00
+----------------------------------------------------------
+
+18/22 Testing: UT_FreelyDrafts
+18/22 Test: UT_FreelyDrafts
+Command: "/home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test/UT_FreelyDrafts"
+Directory: /home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test
+"UT_FreelyDrafts" start time: Jun 25 13:46 UTC
+Output:
+----------------------------------------------------------
+Running main() from ./googletest/src/gtest_main.cc
+[==========] Running 11 tests from 4 test suites.
+[----------] Global test environment set-up.
+[----------] 3 tests from UT_NameOfCategory
+[ RUN      ] UT_NameOfCategory.verifyBehaviorX_byDoA_expectSomething
+🎯 BEHAVIOR: verifyBehaviorX_byDoA_expectSomething
+[       OK ] UT_NameOfCategory.verifyBehaviorX_byDoA_expectSomething (0 ms)
+[ RUN      ] UT_NameOfCategory.verifyBehaviorY_byDoB_expectSomething
+🎯 BEHAVIOR: verifyBehaviorY_byDoB_expectSomething
+[       OK ] UT_NameOfCategory.verifyBehaviorY_byDoB_expectSomething (0 ms)
+[ RUN      ] UT_NameOfCategory.verifyBehaviorZ_byDoC_expectSomething
+🎯 BEHAVIOR: verifyBehaviorZ_byDoC_expectSomething
+[       OK ] UT_NameOfCategory.verifyBehaviorZ_byDoC_expectSomething (0 ms)
+[----------] 3 tests from UT_NameOfCategory (0 ms total)
+
+[----------] 3 tests from UT_NameofCategoryFixture
+🔧 UT_NameofCategoryFixture->SETUP: SetUpTestSuite
+[ RUN      ] UT_NameofCategoryFixture.verifyBehaviorX_byDoA_expectSomething
+🔧 UT_NameofCategoryFixture->SETUP: SetUp
+🎯 NameofCategoryFixture->BEHAVIOR: verifyBehaviorX_byDoA_expectSomething
+🧹 UT_NameofCategoryFixture->CLEANUP: TearDown
+[       OK ] UT_NameofCategoryFixture.verifyBehaviorX_byDoA_expectSomething (0 ms)
+[ RUN      ] UT_NameofCategoryFixture.verifyBehaviorY_byDoB_expectSomething
+🔧 UT_NameofCategoryFixture->SETUP: SetUp
+🎯 NameofCategoryFixture->BEHAVIOR: verifyBehaviorY_byDoB_expectSomething
+🧹 UT_NameofCategoryFixture->CLEANUP: TearDown
+[       OK ] UT_NameofCategoryFixture.verifyBehaviorY_byDoB_expectSomething (0 ms)
+[ RUN      ] UT_NameofCategoryFixture.verifyBehaviorZ_byDoC_expectSomething
+🔧 UT_NameofCategoryFixture->SETUP: SetUp
+🎯 NameofCategoryFixture->BEHAVIOR: verifyBehaviorZ_byDoC_expectSomething
+🧹 UT_NameofCategoryFixture->CLEANUP: TearDown
+[       OK ] UT_NameofCategoryFixture.verifyBehaviorZ_byDoC_expectSomething (0 ms)
+🧹 UT_NameofCategoryFixture->CLEANUP: TearDownTestSuite
+[----------] 3 tests from UT_NameofCategoryFixture (0 ms total)
+
+[----------] 2 tests from UT_FreelyDrafts_Example
+[ RUN      ] UT_FreelyDrafts_Example.quickDraft_serviceRegistration
+💭 DRAFT: Testing service registration concept
+[       OK ] UT_FreelyDrafts_Example.quickDraft_serviceRegistration (0 ms)
+[ RUN      ] UT_FreelyDrafts_Example.refined_serviceRegistration_expectSuccess
+🎯 BEHAVIOR: Register a service and verify it's accessible
+[       OK ] UT_FreelyDrafts_Example.refined_serviceRegistration_expectSuccess (0 ms)
+[----------] 2 tests from UT_FreelyDrafts_Example (0 ms total)
+
+[----------] 3 tests from UT_VisualPatterns
+[ RUN      ] UT_VisualPatterns.demonstrateProgressTracking
+
+╔══════════════════════════════════════════════════════════════════════════════════════════╗
+║                           🎯 PROGRESS TRACKING EXAMPLE                                   ║
+╚══════════════════════════════════════════════════════════════════════════════════════════╝
+├─ 📋 Step 1/4: Initializing test environment...                               [⏳]
+├─ 📋 Step 1/4: Initializing test environment...                               [✅]
+├─ 🔧 Step 2/4: Setting up test data...                                        [⏳]
+├─ 🔧 Step 2/4: Setting up test data...                                        [✅]
+├─ 🎯 Step 3/4: Executing main test logic...                                   [⏳]
+├─ 🎯 Step 3/4: Executing main test logic...                                   [✅]
+└─ ✅ Step 4/4: Verifying results...                                           [✅]
+
+🎉 Test completed successfully!
+
+[       OK ] UT_VisualPatterns.demonstrateProgressTracking (0 ms)
+[ RUN      ] UT_VisualPatterns.demonstrateDataSummary
+
+╔══════════════════════════════════════════════════════════════════════════════════════════╗
+║                            📊 DATA SUMMARY EXAMPLE                                       ║
+╚══════════════════════════════════════════════════════════════════════════════════════════╝
+┌─────────────────────────┬─────────────┬─────────────┬─────────────┬─────────────┐
+│      📈 Metric          │   Expected  │   Actual    │   Status    │   Variance  │
+├─────────────────────────┼─────────────┼─────────────┼─────────────┼─────────────┤
+│ 🔢 Items Processed      │    1000     │    1000     │     ✅      │     0%     │
+│ ⏱️  Processing Time     │   <100ms    │    85ms     │     ✅      │    -15%    │
+│ 💾 Memory Usage         │   <50MB     │    42MB     │     ✅      │    -16%    │
+│ 🚀 Throughput          │  >10k/sec   │   12k/sec   │     ✅      │    +20%    │
+└─────────────────────────┴─────────────┴─────────────┴─────────────┴─────────────┘
+
+📋 Summary: All metrics within expected ranges
+
+[       OK ] UT_VisualPatterns.demonstrateDataSummary (0 ms)
+[ RUN      ] UT_VisualPatterns.demonstrateResultMatrix
+
+╔══════════════════════════════════════════════════════════════════════════════════════════╗
+║                           🎯 TEST RESULT MATRIX                                          ║
+╚══════════════════════════════════════════════════════════════════════════════════════════╝
+          ┌─────────┬─────────┬─────────┬─────────┬─────────┐
+          │ Size 1K │ Size 4K │ Size 8K │ Size16K │ Size32K │
+┌─────────┼─────────┼─────────┼─────────┼─────────┼─────────┤
+│Pattern A│   ✅    │   ✅    │   ✅    │   ✅    │   ✅    │
+│Pattern B│   ✅    │   ✅    │   ✅    │   ✅    │   ⚠️    │
+│Pattern C│   ✅    │   ✅    │   ✅    │   ❌    │   ❌    │
+│Pattern D│   ✅    │   ✅    │   ⚠️    │   ❌    │   ❌    │
+└─────────┴─────────┴─────────┴─────────┴─────────┴─────────┘
+
+📊 Legend: ✅ Pass | ⚠️ Warning | ❌ Fail
+🎯 Result: 16/20 combinations passed (80% success rate)
+
+[       OK ] UT_VisualPatterns.demonstrateResultMatrix (0 ms)
+[----------] 3 tests from UT_VisualPatterns (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 11 tests from 4 test suites ran. (0 ms total)
+[  PASSED  ] 11 tests.
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"UT_FreelyDrafts" end time: Jun 25 13:46 UTC
+"UT_FreelyDrafts" time elapsed: 00:00:00
+----------------------------------------------------------
+
+19/22 Testing: UT_ServiceBroadcastEvent
+19/22 Test: UT_ServiceBroadcastEvent
+Command: "/home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test/UT_ServiceBroadcastEvent"
+Directory: /home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test
+"UT_ServiceBroadcastEvent" start time: Jun 25 13:46 UTC
+Output:
+----------------------------------------------------------
+Running main() from ./googletest/src/gtest_main.cc
+[==========] Running 3 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 3 tests from UT_ServiceBroadcastEvent
+[ RUN      ] UT_ServiceBroadcastEvent.verifyPostEvtToSrvID_willGetNoEvtConsumer_whenNoEvtConsumerConnected
+[       OK ] UT_ServiceBroadcastEvent.verifyPostEvtToSrvID_willGetNoEvtConsumer_whenNoEvtConsumerConnected (0 ms)
+[ RUN      ] UT_ServiceBroadcastEvent.verifyPostEvtToSrvID_willLetAllConnectedEvtConsumersProcessEvt
+[INFO] Accepted a new client, LinkID=1026
+[INFO] Accepted a new client, LinkID=1030
+[INFO] Accepted a new client, LinkID=1031
+[       OK ] UT_ServiceBroadcastEvent.verifyPostEvtToSrvID_willLetAllConnectedEvtConsumersProcessEvt (1001 ms)
+[ RUN      ] UT_ServiceBroadcastEvent.verifyPostEvtToSrvID_willGetNotSupportBroadcastEvent_whenServiceNotBroadcastFlag
+[WARN] Failed to get the service object by SrvURI(fifo://localprocess:0/EvtPostFromSrvIDWithoutBroadcastFlag)
+[       OK ] UT_ServiceBroadcastEvent.verifyPostEvtToSrvID_willGetNotSupportBroadcastEvent_whenServiceNotBroadcastFlag (0 ms)
+[----------] 3 tests from UT_ServiceBroadcastEvent (1001 ms total)
+
+[----------] Global test environment tear-down
+[==========] 3 tests from 1 test suite ran. (1001 ms total)
+[  PASSED  ] 3 tests.
+<end of output>
+Test time =   1.00 sec
+----------------------------------------------------------
+Test Passed.
+"UT_ServiceBroadcastEvent" end time: Jun 25 13:46 UTC
+"UT_ServiceBroadcastEvent" time elapsed: 00:00:01
+----------------------------------------------------------
+
+20/22 Testing: UT_ServiceCapabilty
+20/22 Test: UT_ServiceCapabilty
+Command: "/home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test/UT_ServiceCapabilty"
+Directory: /home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test
+"UT_ServiceCapabilty" start time: Jun 25 13:46 UTC
+Output:
+----------------------------------------------------------
+Running main() from ./googletest/src/gtest_main.cc
+[==========] Running 2 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 2 tests from UT_ServiceCapability
+[ RUN      ] UT_ServiceCapability.verifyOnlineMoreThanCapabilityServices_shouldGetTooManyServices_andRepeatable
+MaxSrvNum: 2
+[WARN] Failed to alloc a service object, Resuld=-503
+Skipping invalid service at index 0
+Offlining service at index 1 with ID 1
+Offlining service at index 2 with ID 0
+[       OK ] UT_ServiceCapability.verifyOnlineMoreThanCapabilityServices_shouldGetTooManyServices_andRepeatable (0 ms)
+[ RUN      ] UT_ServiceCapability.verifyConnectMoreThanCapabilityClients_shouldGetTooManyClients_andRepeatableOnDifferentServices
+MaxClientNum: 3
+[INFO] Accepted a new client, LinkID=1026
+Connected client 0 successfully
+[INFO] Accepted a new client, LinkID=1027
+Connected client 1 successfully
+[INFO] Accepted a new client, LinkID=1029
+Reconnect successful
+[       OK ] UT_ServiceCapability.verifyConnectMoreThanCapabilityClients_shouldGetTooManyClients_andRepeatableOnDifferentServices (0 ms)
+[----------] 2 tests from UT_ServiceCapability (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 2 tests from 1 test suite ran. (0 ms total)
+[  PASSED  ] 2 tests.
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"UT_ServiceCapabilty" end time: Jun 25 13:46 UTC
+"UT_ServiceCapabilty" time elapsed: 00:00:00
+----------------------------------------------------------
+
+21/22 Testing: UT_ServiceTypical
+21/22 Test: UT_ServiceTypical
+Command: "/home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test/UT_ServiceTypical"
+Directory: /home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test
+"UT_ServiceTypical" start time: Jun 25 13:46 UTC
+Output:
+----------------------------------------------------------
+Running main() from ./googletest/src/gtest_main.cc
+[==========] Running 5 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 5 tests from UT_ServiceTypical
+[ RUN      ] UT_ServiceTypical.verifySingleServiceSingleClient_byPostEvtAtSrvSide
+[INFO] Service in manual accept mode, connection will wait for manual accept
+[ERROR] Link(1025u): failed to postEVT, Result=-502
+[       OK ] UT_ServiceTypical.verifySingleServiceSingleClient_byPostEvtAtSrvSide (1 ms)
+[ RUN      ] UT_ServiceTypical.verifySingleServiceMultiClients_byPostEvtAtSrvSide_bySubDiffEvtAtCliSide
+[INFO] Service in manual accept mode, connection will wait for manual accept
+[INFO] Service in manual accept mode, connection will wait for manual accept
+[ERROR] Link(1025u): failed to postEVT, Result=-502
+[ERROR] Link(1027u): failed to postEVT, Result=-502
+[       OK ] UT_ServiceTypical.verifySingleServiceMultiClients_byPostEvtAtSrvSide_bySubDiffEvtAtCliSide (2 ms)
+[ RUN      ] UT_ServiceTypical.verifyMultiServiceMultiClient_byPostEvtAtSrvSide_bySubDiffEvtAtCliSide
+[INFO] Service in manual accept mode, connection will wait for manual accept
+[INFO] Service in manual accept mode, connection will wait for manual accept
+[INFO] Service in manual accept mode, connection will wait for manual accept
+[INFO] Service in manual accept mode, connection will wait for manual accept
+[ERROR] Link(1025u): failed to postEVT, Result=-502
+[ERROR] Link(1027u): failed to postEVT, Result=-502
+[ERROR] Link(1029u): failed to postEVT, Result=-502
+[ERROR] Link(1031u): failed to postEVT, Result=-502
+[ERROR] Link(1025u): failed to postEVT, Result=-502
+[ERROR] Link(1027u): failed to postEVT, Result=-502
+[ERROR] Link(1029u): failed to postEVT, Result=-502
+[ERROR] Link(1031u): failed to postEVT, Result=-502
+[ERROR] Link(1025u): failed to postEVT, Result=-502
+[ERROR] Link(1027u): failed to postEVT, Result=-502
+[ERROR] Link(1029u): failed to postEVT, Result=-502
+[ERROR] Link(1031u): failed to postEVT, Result=-502
+[ERROR] Link(1025u): failed to postEVT, Result=-502
+[ERROR] Link(1027u): failed to postEVT, Result=-502
+[ERROR] Link(1029u): failed to postEVT, Result=-502
+[ERROR] Link(1031u): failed to postEVT, Result=-502
+[ERROR] Link(1025u): failed to postEVT, Result=-502
+[ERROR] Link(1027u): failed to postEVT, Result=-502
+[ERROR] Link(1029u): failed to postEVT, Result=-502
+[ERROR] Link(1031u): failed to postEVT, Result=-502
+[ERROR] Link(1025u): failed to postEVT, Result=-502
+[ERROR] Link(1027u): failed to postEVT, Result=-502
+[ERROR] Link(1029u): failed to postEVT, Result=-502
+[ERROR] Link(1031u): failed to postEVT, Result=-502
+[ERROR] Link(1025u): failed to postEVT, Result=-502
+[ERROR] Link(1027u): failed to postEVT, Result=-502
+[ERROR] Link(1029u): failed to postEVT, Result=-502
+[ERROR] Link(1031u): failed to postEVT, Result=-502
+[ERROR] Link(1025u): failed to postEVT, Result=-502
+[ERROR] Link(1027u): failed to postEVT, Result=-502
+[ERROR] Link(1029u): failed to postEVT, Result=-502
+[ERROR] Link(1031u): failed to postEVT, Result=-502
+[ERROR] Link(1025u): failed to postEVT, Result=-502
+[ERROR] Link(1027u): failed to postEVT, Result=-502
+[ERROR] Link(1029u): failed to postEVT, Result=-502
+[ERROR] Link(1031u): failed to postEVT, Result=-502
+[ERROR] Link(1025u): failed to postEVT, Result=-502
+[ERROR] Link(1027u): failed to postEVT, Result=-502
+[ERROR] Link(1029u): failed to postEVT, Result=-502
+[ERROR] Link(1031u): failed to postEVT, Result=-502
+[       OK ] UT_ServiceTypical.verifyMultiServiceMultiClient_byPostEvtAtSrvSide_bySubDiffEvtAtCliSide (4 ms)
+[ RUN      ] UT_ServiceTypical.verifyMultiServiceMultiClient_byPostEvtAtCliSide_bySubDiffEvtAtSrvSide
+[INFO] Service in manual accept mode, connection will wait for manual accept
+[INFO] Service in manual accept mode, connection will wait for manual accept
+[INFO] Service in manual accept mode, connection will wait for manual accept
+[INFO] Service in manual accept mode, connection will wait for manual accept
+[ERROR] Link(1030u): failed to postEVT, Result=-502
+[ERROR] Link(1032u): failed to postEVT, Result=-502
+[ERROR] Link(1030u): failed to postEVT, Result=-502
+[ERROR] Link(1032u): failed to postEVT, Result=-502
+[ERROR] Link(1030u): failed to postEVT, Result=-502
+[ERROR] Link(1032u): failed to postEVT, Result=-502
+[ERROR] Link(1030u): failed to postEVT, Result=-502
+[ERROR] Link(1032u): failed to postEVT, Result=-502
+[ERROR] Link(1030u): failed to postEVT, Result=-502
+[ERROR] Link(1032u): failed to postEVT, Result=-502
+[ERROR] Link(1030u): failed to postEVT, Result=-502
+[ERROR] Link(1032u): failed to postEVT, Result=-502
+[ERROR] Link(1030u): failed to postEVT, Result=-502
+[ERROR] Link(1032u): failed to postEVT, Result=-502
+[ERROR] Link(1030u): failed to postEVT, Result=-502
+[ERROR] Link(1032u): failed to postEVT, Result=-502
+[ERROR] Link(1030u): failed to postEVT, Result=-502
+[ERROR] Link(1032u): failed to postEVT, Result=-502
+[       OK ] UT_ServiceTypical.verifyMultiServiceMultiClient_byPostEvtAtCliSide_bySubDiffEvtAtSrvSide (3 ms)
+[ RUN      ] UT_ServiceTypical.verifyConsumerResubscribeEvent
+[INFO] Service in manual accept mode, connection will wait for manual accept
+[ERROR] Link(1025u): failed to postEVT, Result=-502
+[       OK ] UT_ServiceTypical.verifyConsumerResubscribeEvent (2 ms)
+[----------] 5 tests from UT_ServiceTypical (13 ms total)
+
+[----------] Global test environment tear-down
+[==========] 5 tests from 1 test suite ran. (13 ms total)
+[  PASSED  ] 5 tests.
+<end of output>
+Test time =   0.02 sec
+----------------------------------------------------------
+Test Passed.
+"UT_ServiceTypical" end time: Jun 25 13:46 UTC
+"UT_ServiceTypical" time elapsed: 00:00:00
+----------------------------------------------------------
+
+22/22 Testing: UT_UseCase_Category-A_Case-05
+22/22 Test: UT_UseCase_Category-A_Case-05
+Command: "/home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test/UT_UseCase_Category-A_Case-05"
+Directory: /home/runner/work/MyIOC_inTDD_withGHC/MyIOC_inTDD_withGHC/build/Test
+"UT_UseCase_Category-A_Case-05" start time: Jun 25 13:46 UTC
+Output:
+----------------------------------------------------------
+Running main() from ./googletest/src/gtest_main.cc
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from ConlesEventConcurrency
+[ RUN      ] ConlesEventConcurrency.verifyPostEvtSuccess_byPostEvtInCbProcEvt
+[       OK ] ConlesEventConcurrency.verifyPostEvtSuccess_byPostEvtInCbProcEvt (1066 ms)
+[----------] 1 test from ConlesEventConcurrency (1066 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (1066 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   1.07 sec
+----------------------------------------------------------
+Test Passed.
+"UT_UseCase_Category-A_Case-05" end time: Jun 25 13:46 UTC
+"UT_UseCase_Category-A_Case-05" time elapsed: 00:00:01
+----------------------------------------------------------
+
+End testing: Jun 25 13:46 UTC
