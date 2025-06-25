@@ -403,8 +403,14 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
         printf("   📊 Timing statistics: avg=%lld μs, min=%lld μs, max=%lld μs\n", avgTime, minTime, maxTime);
 
         // Verify reasonable timing consistency (max should not be dramatically larger than average)
-        ASSERT_LT(maxTime, avgTime * 10)
-            << "Maximum execution time should not be more than 10x average for consistent zero timeout behavior";
+        // Handle edge case where all measurements are 0 (very fast execution)
+        if (avgTime > 0) {
+            ASSERT_LT(maxTime, avgTime * 10)
+                << "Maximum execution time should not be more than 10x average for consistent zero timeout behavior";
+        } else {
+            // All measurements are 0 - this indicates very fast, consistent execution
+            ASSERT_EQ(maxTime, 0) << "When average is 0, maximum should also be 0 for consistency";
+        }
     }
 
     // Test 8: Verify zero timeout behavior with different data sizes
