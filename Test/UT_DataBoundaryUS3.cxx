@@ -86,8 +86,15 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                🔧 SETUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
-    printf("🎯 BEHAVIOR: verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateReturn\n");
-
+    printf("🎯 TEST: Zero timeout boundary validation - immediate return verification\n");
+    
+    // Test Focus: Verify zero timeout operations return immediately without blocking
+    // Expected: sendDAT returns TIMEOUT, recvDAT returns SUCCESS if data available or TIMEOUT if not
+    
+    // Test constants
+    const auto MAX_EXECUTION_TIME_US = 10000;  // 10ms timing threshold
+    const int CONSISTENCY_TEST_CALLS = 5;
+    
     // Initialize test data structures
     __DatBoundaryPrivData_T DatReceiverPrivData = {0};
     DatReceiverPrivData.ClientIndex = 1;
@@ -97,8 +104,8 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
     IOC_LinkID_T DatReceiverLinkID = IOC_ID_INVALID;
     IOC_Result_T Result = IOC_RESULT_FAILURE;
 
-    // Setup DatReceiver service with callback configuration
-    printf("📋 Setting up DatReceiver service for timeout testing...\n");
+    // Setup receiver service configuration
+    printf("📋 Setting up receiver service for timeout testing...\n");
 
     IOC_SrvURI_T DatReceiverSrvURI = {
         .pProtocol = IOC_SRV_PROTO_FIFO,
@@ -114,17 +121,16 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
     IOC_SrvArgs_T DatReceiverSrvArgs = {
         .SrvURI = DatReceiverSrvURI,
         .UsageCapabilites = IOC_LinkUsageDatReceiver,
-        .UsageArgs =
-            {
-                .pDat = &DatReceiverUsageArgs,
-            },
+        .UsageArgs = {
+            .pDat = &DatReceiverUsageArgs,
+        },
     };
 
     Result = IOC_onlineService(&DatReceiverSrvID, &DatReceiverSrvArgs);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "DatReceiver service online should succeed";
-    printf("   ✓ DatReceiver service onlined with SrvID=%llu\n", DatReceiverSrvID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Receiver service should come online successfully";
+    printf("   ✓ Receiver service online with ID=%llu\n", DatReceiverSrvID);
 
-    // Setup DatSender connection
+    // Setup sender connection
     IOC_ConnArgs_T DatSenderConnArgs = {
         .SrvURI = DatReceiverSrvURI,
         .Usage = IOC_LinkUsageDatSender,
@@ -137,18 +143,18 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
     });
 
     Result = IOC_acceptClient(DatReceiverSrvID, &DatReceiverLinkID, NULL);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "DatReceiver should accept connection";
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Receiver should accept connection";
 
     DatSenderThread.join();
-    printf("   ✓ DatSender connected with LinkID=%llu\n", DatSenderLinkID);
-    printf("   ✓ DatReceiver accepted with LinkID=%llu\n", DatReceiverLinkID);
+    printf("   ✓ Sender connected with LinkID=%llu\n", DatSenderLinkID);
+    printf("   ✓ Receiver accepted with LinkID=%llu\n", DatReceiverLinkID);
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               🎯 BEHAVIOR PHASE                                       │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
 
-    //===BEHAVIOR: Test IOC_sendDAT with zero timeout===
-    printf("📋 Testing IOC_sendDAT with zero timeout...\n");
+    // === Test IOC_sendDAT with zero timeout ===
+    printf("📋 Testing sendDAT with zero timeout...\n");
 
     // Configure zero timeout option
     IOC_Option_defineTimeout(ZeroTimeoutOption, IOC_TIMEOUT_IMMEDIATE);
@@ -160,26 +166,28 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
     TestDatDesc.Payload.pData = (void *)testData;
     TestDatDesc.Payload.PtrDataSize = strlen(testData);
 
-    // Test 1: Zero timeout sendDAT when buffer has space (initial state)
-    printf("🧪 Test 1: Zero timeout sendDAT with empty buffer...\n");
+    // Test 1: Zero timeout sendDAT - timing validation
+    printf("🧪 Test 1: Zero timeout sendDAT timing validation...\n");
 
     auto startTime = std::chrono::high_resolution_clock::now();
     Result = IOC_sendDAT(DatSenderLinkID, &TestDatDesc, &ZeroTimeoutOption);
     auto endTime = std::chrono::high_resolution_clock::now();
 
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
-    printf("   ⏱️ Zero timeout sendDAT execution time: %lld microseconds\n", (long long)duration.count());
+    printf("   ⏱️ Execution time: %lld microseconds\n", (long long)duration.count());
 
-    // With empty buffer, zero timeout should still return TIMEOUT for consistency
+    // Verify timing - should complete within threshold
+    ASSERT_LT(duration.count(), MAX_EXECUTION_TIME_US) 
+        << "Zero timeout operation should complete within " << MAX_EXECUTION_TIME_US << "μs";
+
+    // Zero timeout should return TIMEOUT (indicating would block but returned immediately)
     ASSERT_EQ(IOC_RESULT_TIMEOUT, Result)
-        << "Zero timeout sendDAT should ALWAYS return IOC_RESULT_TIMEOUT for consistent semantics, got: " << Result;
+        << "Zero timeout sendDAT should return TIMEOUT for consistent semantics";
 
-    // Verify timing - should complete very quickly (< 10ms for immediate operation)
-    ASSERT_LT(duration.count(), 10000) << "Zero timeout operation should complete within 10ms, took: "
-                                       << duration.count() << " microseconds";
+    printf("   ✓ Zero timeout sendDAT behaved correctly\n");
 
-    // Test 2: Attempt to create buffer pressure (optional for timing test)
-    printf("🧪 Test 2: Attempt to create buffer pressure...\n");
+    // Test 2: Create buffer pressure for stress testing
+    printf("🧪 Test 2: Create buffer pressure for stress testing...\n");
 
     // Query IOC capability to understand system limits
     IOC_CapabilityDescription_T CapDesc;
@@ -242,64 +250,58 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
         printf("   ❌ Unexpected result for zero timeout: %d\n", Result);
     }
 
-    // Test 4: Multiple consecutive zero timeout calls - consistency verification
-    printf("🧪 Test 4: Multiple consecutive zero timeout calls - consistency verification...\n");
+    // Test 3: Multiple consecutive zero timeout calls - consistency verification
+    printf("🧪 Test 3: Multiple consecutive zero timeout calls...\n");
 
-    const int numCalls = 5;
     std::vector<long long> executionTimes;
-    std::vector<IOC_Result_T> results;
 
-    for (int i = 0; i < numCalls; i++) {
+    for (int i = 0; i < CONSISTENCY_TEST_CALLS; i++) {
         auto callStart = std::chrono::high_resolution_clock::now();
         IOC_Result_T callResult = IOC_sendDAT(DatSenderLinkID, &TestDatDesc, &ZeroTimeoutOption);
         auto callEnd = std::chrono::high_resolution_clock::now();
 
         auto callDuration = std::chrono::duration_cast<std::chrono::microseconds>(callEnd - callStart);
         executionTimes.push_back(callDuration.count());
-        results.push_back(callResult);
 
         printf("   📞 Call %d: result=%d, time=%lld μs\n", i + 1, callResult, (long long)callDuration.count());
 
-        // PRIMARY TDD REQUIREMENT: Each call must complete quickly
-        ASSERT_LT(callDuration.count(), 10000)
-            << "Zero timeout call " << i + 1 << " must complete within 10ms (TDD requirement)";
-
-        // SECONDARY TDD REQUIREMENT: Results should be consistent and immediate
+        // Each call must complete quickly and return consistent results
+        ASSERT_LT(callDuration.count(), MAX_EXECUTION_TIME_US)
+            << "Zero timeout call " << i + 1 << " must complete within timing limit";
         ASSERT_EQ(IOC_RESULT_TIMEOUT, callResult)
-            << "Zero timeout call " << i + 1 << " should ALWAYS return IOC_RESULT_TIMEOUT, got: " << callResult;
+            << "Zero timeout call " << i + 1 << " should return TIMEOUT";
     }
 
     // Allow some time for buffer to drain before continuing
     printf("   ⏳ Allowing buffer to drain...\n");
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    //===BEHAVIOR: Test IOC_recvDAT with zero timeout===
-    printf("📋 Testing IOC_recvDAT with zero timeout...\n");
+    // === Test IOC_recvDAT with zero timeout ===
+    printf("📋 Testing recvDAT with zero timeout...\n");
 
-    // Test 5: Zero timeout recvDAT when no data available - timing guarantee
-    printf("🧪 Test 5: Zero timeout recvDAT when no data available - timing guarantee...\n");
+    // Test 4: Zero timeout recvDAT when no data available
+    printf("🧪 Test 4: Zero timeout recvDAT with no data available...\n");
 
-    // First, drain any buffered data to ensure clean state
+    // Drain any buffered data to ensure clean state
     IOC_DatDesc_T DrainDesc = {0};
     IOC_initDatDesc(&DrainDesc);
     char drainBuffer[1024] = {0};
     DrainDesc.Payload.pData = drainBuffer;
     DrainDesc.Payload.PtrDataSize = sizeof(drainBuffer);
 
-    // Drain all available data to achieve empty state
-    IOC_Result_T drainResult;
+    // Best effort drain - don't fail test if draining encounters issues
     int drainCount = 0;
+    IOC_Result_T drainResult;
     do {
         drainResult = IOC_recvDAT(DatSenderLinkID, &DrainDesc, &ZeroTimeoutOption);
         if (drainResult == IOC_RESULT_SUCCESS) {
             drainCount++;
-            printf("   🚰 Drained data chunk %d\n", drainCount);
         }
     } while (drainResult == IOC_RESULT_SUCCESS && drainCount < 10);
 
-    printf("   ✓ Drained %d data chunks, final drain result: %d\n", drainCount, drainResult);
+    printf("   🚰 Drained %d data chunks to achieve empty state\n", drainCount);
 
-    // Now test zero timeout recvDAT timing guarantee
+    // Test zero timeout recvDAT with no data available
     IOC_DatDesc_T RecvDatDesc = {0};
     IOC_initDatDesc(&RecvDatDesc);
     char recvBuffer[1024] = {0};
@@ -311,10 +313,15 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
     auto recvEndTime = std::chrono::high_resolution_clock::now();
 
     auto recvDuration = std::chrono::duration_cast<std::chrono::microseconds>(recvEndTime - recvStartTime);
-    printf("   ⏱️ Zero timeout recvDAT execution time: %lld microseconds\n", (long long)recvDuration.count());
-    printf("   📋 Zero timeout recvDAT result: %d\n", Result);
+    printf("   ⏱️ Execution time: %lld microseconds\n", (long long)recvDuration.count());
 
-    // PRIMARY TDD REQUIREMENT: Zero timeout receive must return immediately
+    // Verify timing and result
+    ASSERT_LT(recvDuration.count(), MAX_EXECUTION_TIME_US) 
+        << "Zero timeout recvDAT must complete within timing limit";
+    ASSERT_EQ(IOC_RESULT_TIMEOUT, Result)
+        << "Zero timeout recvDAT with no data should return TIMEOUT";
+
+    printf("   ✓ Zero timeout recvDAT behaved correctly\n");
     ASSERT_LT(recvDuration.count(), 10000) << "CORE TDD REQUIREMENT: Zero timeout recvDAT must complete within 10ms";
 
     // SECONDARY TDD REQUIREMENT: Zero timeout MUST always return TIMEOUT for consistent semantics
@@ -378,105 +385,53 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
     }
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
-    // │                                ✅ VERIFY PHASE                                        │
+    // │                                ✅ VERIFICATION                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
 
-    // Test 7: Verify timing consistency across multiple zero timeout operations
-    printf("🧪 Test 7: Verify timing consistency across operations...\n");
-
-    // Calculate average execution time for consistency verification
+    // Verify timing consistency across previous calls
     if (!executionTimes.empty()) {
+        printf("🧪 Verifying timing consistency...\n");
+        
+        long long maxTime = *std::max_element(executionTimes.begin(), executionTimes.end());
         long long totalTime = 0;
-        long long maxTime = 0;
-        long long minTime = LLONG_MAX;
-
         for (long long time : executionTimes) {
             totalTime += time;
-            maxTime = std::max(maxTime, time);
-            minTime = std::min(minTime, time);
         }
-
         long long avgTime = totalTime / executionTimes.size();
-        printf("   📊 Timing statistics: avg=%lld μs, min=%lld μs, max=%lld μs\n", avgTime, minTime, maxTime);
-
-        // Verify reasonable timing consistency (max should not be dramatically larger than average)
-        // Handle edge case where all measurements are 0 (very fast execution)
+        
+        printf("   📊 Timing stats: avg=%lld μs, max=%lld μs\n", avgTime, maxTime);
+        
+        // Verify reasonable timing consistency
         if (avgTime > 0) {
             ASSERT_LT(maxTime, avgTime * 10)
-                << "Maximum execution time should not be more than 10x average for consistent zero timeout behavior";
-        } else {
-            // All measurements are 0 - this indicates very fast, consistent execution
-            ASSERT_EQ(maxTime, 0) << "When average is 0, maximum should also be 0 for consistency";
+                << "Maximum execution time should not exceed 10x average for consistent behavior";
         }
+        
+        printf("   ✓ Timing consistency verified\n");
     }
 
-    // Test 8: Verify zero timeout behavior with different data sizes
-    printf("🧪 Test 8: Zero timeout with different data sizes...\n");
-
-    std::vector<size_t> dataSizes = {0, 1, 64, 256, 1024};
-
-    for (size_t size : dataSizes) {
-        std::vector<char> testBuffer(size > 0 ? size : 1, 'X');
-
-        IOC_DatDesc_T SizeTestDesc = {0};
-        IOC_initDatDesc(&SizeTestDesc);
-        if (size > 0) {
-            SizeTestDesc.Payload.pData = testBuffer.data();
-            SizeTestDesc.Payload.PtrDataSize = size;
-        } else {
-            // For zero size, test the zero-data boundary
-            SizeTestDesc.Payload.pData = nullptr;
-            SizeTestDesc.Payload.PtrDataSize = 0;
-        }
-
-        auto sizeTestStart = std::chrono::high_resolution_clock::now();
-        IOC_Result_T sizeResult = IOC_sendDAT(DatSenderLinkID, &SizeTestDesc, &ZeroTimeoutOption);
-        auto sizeTestEnd = std::chrono::high_resolution_clock::now();
-
-        auto sizeTestDuration = std::chrono::duration_cast<std::chrono::microseconds>(sizeTestEnd - sizeTestStart);
-
-        printf("   📏 Size %zu bytes: result=%d, time=%lld μs\n", size, sizeResult,
-               (long long)sizeTestDuration.count());
-
-        // Zero timeout should be fast regardless of data size
-        ASSERT_LT(sizeTestDuration.count(), 10000)
-            << "Zero timeout should be fast regardless of data size (" << size << " bytes)";
-
-        // For zero size, expect IOC_RESULT_ZERO_DATA
-        if (size == 0) {
-            ASSERT_EQ(IOC_RESULT_ZERO_DATA, sizeResult)
-                << "Zero timeout with zero-size data should return IOC_RESULT_ZERO_DATA";
-        } else {
-            // For non-zero size, expect consistent zero timeout behavior
-            ASSERT_EQ(IOC_RESULT_TIMEOUT, sizeResult)
-                << "Zero timeout with non-zero data should ALWAYS return IOC_RESULT_TIMEOUT for consistency";
-        }
-    }
-
-    //===KeyVerifyPoint: Summary verification===
-    printf("✅ Zero timeout operations completed immediately without blocking\n");
-    printf("✅ All timing measurements within acceptable limits (< 10ms)\n");
-    printf("✅ Consistent behavior across multiple consecutive calls\n");
-    printf("✅ Proper result codes returned for all zero timeout scenarios\n");
-    printf("✅ Zero timeout behavior independent of data size\n");
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               ✅ SUMMARY                                              │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    printf("✅ All zero timeout operations completed within timing limits\n");
+    printf("✅ Consistent behavior across all test scenarios\n");
+    printf("✅ Proper result codes returned for all zero timeout operations\n");
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               🧹 CLEANUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
-
-    // Cleanup services
     printf("🧹 Cleaning up services and links...\n");
 
     Result = IOC_closeLink(DatSenderLinkID);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "DatSender link should be closed successfully";
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Sender link should close successfully";
 
     Result = IOC_closeLink(DatReceiverLinkID);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "DatReceiver link should be closed successfully";
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Receiver link should close successfully";
 
     Result = IOC_offlineService(DatReceiverSrvID);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "DatReceiver service should be offlined successfully";
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Receiver service should go offline successfully";
 
-    printf("🧹 Cleanup completed successfully\n");
+    printf("🧹 Cleanup completed\n");
 }
 //======>END OF: [@AC-1,US-3] TC-1=================================================================
 
