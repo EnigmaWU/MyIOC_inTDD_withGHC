@@ -317,17 +317,15 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
     // PRIMARY TDD REQUIREMENT: Zero timeout receive must return immediately
     ASSERT_LT(recvDuration.count(), 10000) << "CORE TDD REQUIREMENT: Zero timeout recvDAT must complete within 10ms";
 
-    // SECONDARY TDD REQUIREMENT: When no data available, should indicate immediate non-blocking return
-    // Accept various possible implementations: TIMEOUT, NO_DATA, or NOT_SUPPORT
-    ASSERT_TRUE(Result == IOC_RESULT_TIMEOUT || Result == IOC_RESULT_NO_DATA || Result == IOC_RESULT_NOT_SUPPORT)
-        << "Zero timeout recvDAT with no data should return immediate status, got: " << Result;
+    // SECONDARY TDD REQUIREMENT: Zero timeout MUST always return TIMEOUT for consistent semantics
+    // This matches sendDAT behavior - "would block but returned immediately due to zero timeout"
+    ASSERT_EQ(IOC_RESULT_TIMEOUT, Result)
+        << "Zero timeout recvDAT should ALWAYS return IOC_RESULT_TIMEOUT for consistent semantics, got: " << Result;
 
     if (Result == IOC_RESULT_TIMEOUT) {
-        printf("   ✓ Zero timeout returned TIMEOUT - would block but didn't\n");
-    } else if (Result == IOC_RESULT_NO_DATA) {
-        printf("   ✓ Zero timeout returned NO_DATA - immediate non-blocking semantics\n");
-    } else if (Result == IOC_RESULT_NOT_SUPPORT) {
-        printf("   ✓ Zero timeout returned NOT_SUPPORT - implementation limitation acknowledged\n");
+        printf("   ✓ Zero timeout returned TIMEOUT correctly - consistent zero timeout semantics\n");
+    } else {
+        printf("   ❌ Unexpected result for zero timeout: %d\n", Result);
     }
 
     // Test 6: Zero timeout recvDAT when data is immediately available
@@ -362,10 +360,10 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
     ASSERT_LT(quickRecvDuration.count(), 10000)
         << "Zero timeout recvDAT must complete within 10ms even with data available";
 
-    // When data is available, zero timeout should succeed immediately OR indicate limitation
-    // TDD: Accept current implementation while defining intended behavior
-    ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_NOT_SUPPORT)
-        << "Zero timeout recvDAT should return SUCCESS (ideal) or NOT_SUPPORT (current), got: " << Result;
+    // SECONDARY TDD REQUIREMENT: When data is available, zero timeout MUST succeed immediately
+    // Since data was just sent and is available, zero timeout should return SUCCESS immediately
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result)
+        << "Zero timeout recvDAT with available data MUST return IOC_RESULT_SUCCESS, got: " << Result;
 
     if (Result == IOC_RESULT_SUCCESS) {
         printf("   ✓ Zero timeout succeeded immediately - ideal TDD behavior achieved\n");
@@ -375,9 +373,8 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
                    (char *)QuickRecvDesc.Payload.pData);
             ASSERT_GT(QuickRecvDesc.Payload.PtrDataSize, 0) << "Should have received data with non-zero size";
         }
-    } else if (Result == IOC_RESULT_NOT_SUPPORT) {
-        printf("   ⚠️ Zero timeout returned NOT_SUPPORT - indicates current implementation limitation\n");
-        printf("   📝 TDD NOTE: This suggests zero timeout receive may need implementation work\n");
+    } else {
+        printf("   ❌ Unexpected result for zero timeout with available data: %d\n", Result);
     }
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
@@ -468,6 +465,14 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
     // └──────────────────────────────────────────────────────────────────────────────────────┘
 
     // Cleanup services
+    printf("🧹 Cleaning up services and links...\n");
+
+    Result = IOC_closeLink(DatSenderLinkID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "DatSender link should be closed successfully";
+
+    Result = IOC_closeLink(DatReceiverLinkID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "DatReceiver link should be closed successfully";
+
     Result = IOC_offlineService(DatReceiverSrvID);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "DatReceiver service should be offlined successfully";
 
