@@ -21,19 +21,40 @@ jobs:
         brew update
         brew install cmake googletest llvm
 
-    - name: Setup environment
+    - name: Setup environment and detect architecture
       run: |
-        echo "/opt/homebrew/opt/llvm/bin" >> $GITHUB_PATH
-        echo "CC=/opt/homebrew/opt/llvm/bin/clang" >> $GITHUB_ENV
-        echo "CXX=/opt/homebrew/opt/llvm/bin/clang++" >> $GITHUB_ENV
+        # Detect architecture and set appropriate LLVM paths
+        if [[ $(uname -m) == "arm64" ]]; then
+          # Apple Silicon Mac
+          LLVM_PATH="/opt/homebrew/opt/llvm/bin"
+          echo "Architecture: Apple Silicon (arm64)"
+        else
+          # Intel Mac
+          LLVM_PATH="/usr/local/opt/llvm/bin"
+          echo "Architecture: Intel (x86_64)"
+        fi
+        
+        # Verify LLVM installation and fallback if needed
+        if [[ -d "$LLVM_PATH" ]]; then
+          echo "Using LLVM from: $LLVM_PATH"
+          echo "$LLVM_PATH" >> $GITHUB_PATH
+          echo "CC=$LLVM_PATH/clang" >> $GITHUB_ENV
+          echo "CXX=$LLVM_PATH/clang++" >> $GITHUB_ENV
+          echo "LLVM_PATH=$LLVM_PATH" >> $GITHUB_ENV
+        else
+          echo "LLVM not found at $LLVM_PATH, falling back to system clang"
+          echo "CC=clang" >> $GITHUB_ENV
+          echo "CXX=clang++" >> $GITHUB_ENV
+          echo "LLVM_PATH=" >> $GITHUB_ENV
+        fi
 
     - name: Build&Test RelWithDebInfo
       run: |
         mkdir -p Dir4RelWithDebInfo
         cd Dir4RelWithDebInfo
         cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-              -DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm/bin/clang \
-              -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm/bin/clang++ \
+              -DCMAKE_C_COMPILER=$CC \
+              -DCMAKE_CXX_COMPILER=$CXX \
               ..
         cmake --build . --parallel
         ctest --output-on-failure
@@ -43,8 +64,8 @@ jobs:
         mkdir -p Dir4DiagASAN
         cd Dir4DiagASAN
         cmake -DCMAKE_BUILD_TYPE=DiagASAN \
-              -DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm/bin/clang \
-              -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm/bin/clang++ \
+              -DCMAKE_C_COMPILER=$CC \
+              -DCMAKE_CXX_COMPILER=$CXX \
               ..
         cmake --build . --parallel
         ctest --output-on-failure
@@ -54,8 +75,8 @@ jobs:
         mkdir -p Dir4DiagTSAN
         cd Dir4DiagTSAN
         cmake -DCMAKE_BUILD_TYPE=DiagTSAN \
-              -DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm/bin/clang \
-              -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm/bin/clang++ \
+              -DCMAKE_C_COMPILER=$CC \
+              -DCMAKE_CXX_COMPILER=$CXX \
               ..
         cmake --build . --parallel
         ctest --output-on-failure

@@ -1,1 +1,0 @@
-/usr/bin/c++ -O2 -g -DNDEBUG -Wl,--dependency-file=CMakeFiles/UT_UseCase_Category-A_Case-05.dir/link.d "CMakeFiles/UT_UseCase_Category-A_Case-05.dir/UT_UseCase_Category-A_Case-05.cxx.o" -o UT_UseCase_Category-A_Case-05  ../libMyIOC.a /usr/lib/x86_64-linux-gnu/libgtest.a /usr/lib/x86_64-linux-gnu/libgtest_main.a /usr/lib/x86_64-linux-gnu/libgtest.a

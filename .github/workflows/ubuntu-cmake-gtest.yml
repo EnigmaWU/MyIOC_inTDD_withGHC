@@ -1,17 +1,17 @@
-# OS: Ubuntu-latest
+# OS: Ubuntu-24.04
 # Toolchain: gcc/g++
 # BuildTool: cmake
 #   WithCfgType: RelWithDebInfo, DiagASAN, DiagTSAN, DiagUBSAN
 # TestTool: ctest
 # DepLibs: gtest
 
-name: Ubuntu-CMake-GTest
+name: LinuxUbuntu2404-CMake-GTest
 
 on: [push, pull_request]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
     - uses: actions/checkout@v4
@@ -97,7 +97,7 @@ jobs:
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: test-results-ubuntu
+        name: test-results-ubuntu-2404
         path: |
           Dir4*/Testing/
           Dir4*/Test/

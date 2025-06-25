@@ -58,3 +58,7 @@ compile_commands.json
 cmake_*
 TMP
 .DS_Store
+
+# Build directories
+build/
+Dir4*/
