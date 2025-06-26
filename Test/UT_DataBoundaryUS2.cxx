@@ -604,6 +604,8 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobust
     const char *validPtr = "dummy";
     ZeroSizeDesc.Payload.pData = (void *)validPtr;
     ZeroSizeDesc.Payload.PtrDataSize = 0;  // Zero size
+    ZeroSizeDesc.Payload.PtrDataLen = 0;   // Zero length
+    ZeroSizeDesc.Payload.EmdDataLen = 0;   // No embedded data
 
     // Test 1a: Zero-size with blocking option
     IOC_Option_defineSyncMayBlock(BlockingOptions);
@@ -646,7 +648,8 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobust
     IOC_initDatDesc(&NormalDesc1);
     const char *normalData1 = "before_zero";
     NormalDesc1.Payload.pData = (void *)normalData1;
-    NormalDesc1.Payload.PtrDataSize = strlen(normalData1);
+    NormalDesc1.Payload.PtrDataSize = strlen(normalData1) + 1;  // Include null terminator
+    NormalDesc1.Payload.PtrDataLen = strlen(normalData1);       // Actual data length
 
     Result = IOC_sendDAT(DatSenderLinkID, &NormalDesc1, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Normal data before zero-size should succeed";
@@ -660,7 +663,8 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobust
     IOC_initDatDesc(&NormalDesc2);
     const char *normalData2 = "after_zero";
     NormalDesc2.Payload.pData = (void *)normalData2;
-    NormalDesc2.Payload.PtrDataSize = strlen(normalData2);
+    NormalDesc2.Payload.PtrDataSize = strlen(normalData2) + 1;  // Include null terminator
+    NormalDesc2.Payload.PtrDataLen = strlen(normalData2);       // Actual data length
 
     Result = IOC_sendDAT(DatSenderLinkID, &NormalDesc2, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Normal data after zero-size should succeed";
@@ -705,9 +709,11 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobust
         char rapidData[20];
         snprintf(rapidData, sizeof(rapidData), "rapid_%d", i);
         RapidNormalDesc.Payload.pData = rapidData;
-        RapidNormalDesc.Payload.PtrDataSize = strlen(rapidData);
+        RapidNormalDesc.Payload.PtrDataSize = sizeof(rapidData);
+        RapidNormalDesc.Payload.PtrDataLen = strlen(rapidData);
 
         Result = IOC_sendDAT(DatSenderLinkID, &RapidNormalDesc, NULL);
+        // ASSUME LESS THAN MaxDataQueueSize in IOC_CapabilityDescription_pT
         ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Normal data should succeed consistently in iteration " << i;
         SuccessfulNormalSends++;
     }
