@@ -933,3 +933,201 @@ TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byModeTransitions_expectCons
 // - verifyDatBlockingModeBoundary_byStateConsistency_expectNoDataLoss
 
 //======>END OF US-3 TEST IMPLEMENTATIONS==========================================================
+
+// ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+// ║                              PRECISION TIMEOUT TEST CASE DESIGN                                                ║
+// ║                   verifyDatTimeoutBoundary_byPrecisionTesting_expectAccurateTiming                             ║
+// ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+//
+// 🎯 PURPOSE:
+//    Verify that IOC DAT timeout operations exhibit precise and accurate timing behavior across various
+//    timeout values, ensuring the timeout mechanism is reliable for time-critical applications.
+//
+// 📋 TEST OBJECTIVE:
+//    Validate that timeout operations complete within acceptable variance from the requested timeout duration,
+//    ensuring system reliability and predictable behavior under different timing conditions.
+//
+// 🔧 TEST SETUP:
+//    1. Create two DAT services: one sender (with no data to send) and one receiver
+//    2. Establish receiver link in SYNC_TIMEOUT mode
+//    3. Establish sender link (but don't send data to ensure timeout occurs)
+//    4. Prepare high-resolution timing measurement infrastructure
+//    5. Define acceptable timing variance thresholds based on system characteristics
+//
+// 🧪 TEST EXECUTION STRATEGY:
+//
+//    PHASE 1: Basic Precision Testing (Core Timeout Values)
+//    -------------------------------------------------------
+//    Test timeout values: 1ms, 2ms, 5ms, 10ms, 20ms, 50ms, 100ms, 200ms, 500ms, 1000ms
+//
+//    For each timeout value:
+//    a) Record start time using std::chrono::high_resolution_clock
+//    b) Call IOC_recvDAT with timeout option (expecting timeout since no data available)
+//    c) Record end time immediately after call returns
+//    d) Calculate actual elapsed time = end_time - start_time
+//    e) Verify result code is IOC_RESULT_TIMEOUT
+//    f) Assert timing accuracy within acceptable variance
+//
+//    PHASE 2: Edge Case Precision Testing
+//    ------------------------------------
+//    Test edge timeout values: 0ms (immediate), 1μs, 999μs, 1001μs, 9999μs
+//
+//    Special considerations:
+//    - 0ms should return immediately with IOC_RESULT_TIMEOUT
+//    - Sub-millisecond values should be handled appropriately
+//    - Values just under/over millisecond boundaries
+//
+//    PHASE 3: Repeated Precision Testing (Statistical Validation)
+//    -----------------------------------------------------------
+//    For critical timeout values (1ms, 10ms, 100ms, 1000ms):
+//    - Execute 10 iterations of each timeout
+//    - Calculate statistical metrics: mean, std deviation, min, max
+//    - Verify consistent timing behavior across iterations
+//    - Ensure no outliers exceed maximum acceptable variance
+//
+//    PHASE 4: System Load Impact Testing
+//    -----------------------------------
+//    Simulate system load while testing timeout precision:
+//    - Create background computational load (CPU-intensive loop)
+//    - Test timeout precision under load for key values (10ms, 100ms)
+//    - Verify timeout accuracy doesn't degrade significantly under load
+//    - Test should demonstrate system resilience
+//
+// 📏 TIMING ACCURACY THRESHOLDS:
+//
+//    Acceptable Variance Definitions:
+//    - For timeouts ≤ 5ms:     ±2ms or ±50% (whichever is larger)
+//    - For timeouts 6-50ms:    ±3ms or ±20% (whichever is larger)
+//    - For timeouts 51-500ms:  ±10ms or ±5% (whichever is larger)
+//    - For timeouts > 500ms:   ±20ms or ±3% (whichever is larger)
+//
+//    Rationale:
+//    - Shorter timeouts have higher relative variance due to system overhead
+//    - Longer timeouts should achieve better absolute precision
+//    - Percentage-based thresholds account for natural timing variance
+//    - Absolute minimums prevent unrealistic precision expectations
+//
+// ✅ SUCCESS CRITERIA:
+//
+//    1. RESULT CODE VALIDATION:
+//       - All timeout operations must return IOC_RESULT_TIMEOUT
+//       - No unexpected error codes (e.g., IOC_RESULT_BUG, IOC_RESULT_INVALID)
+//
+//    2. TIMING PRECISION VALIDATION:
+//       - Actual elapsed time must fall within acceptable variance thresholds
+//       - No timeout should complete significantly faster than requested
+//       - No timeout should exceed maximum allowed overshoot
+//
+//    3. CONSISTENCY VALIDATION:
+//       - Repeated tests should show consistent timing behavior
+//       - Standard deviation should remain within reasonable bounds
+//       - No single iteration should be an extreme outlier
+//
+//    4. SYSTEM RESILIENCE VALIDATION:
+//       - Timing accuracy should remain acceptable under moderate system load
+//       - Performance degradation should be predictable and bounded
+//
+// 🔍 SPECIFIC ASSERTIONS:
+//
+//    For each timeout test:
+//    ```cpp
+//    // Basic result validation
+//    ASSERT_EQ(IOC_RESULT_TIMEOUT, Result)
+//        << "Timeout operation should return IOC_RESULT_TIMEOUT";
+//
+//    // Timing lower bound (prevent premature completion)
+//    ASSERT_GE(actualElapsedMs, requestedTimeoutMs * 0.8)
+//        << "Timeout should not complete significantly early";
+//
+//    // Timing upper bound (prevent excessive overshoot)
+//    ASSERT_LE(actualElapsedMs, requestedTimeoutMs + maxAcceptableVarianceMs)
+//        << "Timeout should not exceed maximum acceptable overshoot";
+//
+//    // Precision validation
+//    double timingError = abs(actualElapsedMs - requestedTimeoutMs);
+//    double errorPercentage = (timingError / requestedTimeoutMs) * 100.0;
+//    ASSERT_LE(errorPercentage, maxAcceptableErrorPercentage)
+//        << "Timing error percentage should be within acceptable bounds";
+//    ```
+//
+//    For statistical validation:
+//    ```cpp
+//    // Statistical consistency
+//    ASSERT_LE(standardDeviation, maxAcceptableStdDev)
+//        << "Timing consistency should be within acceptable bounds";
+//
+//    ASSERT_LE(maxOutlierDeviation, maxAcceptableOutlierDeviation)
+//        << "No single iteration should be an extreme outlier";
+//    ```
+//
+// 🛠️ IMPLEMENTATION DETAILS:
+//
+//    Helper Functions Needed:
+//    - calculateTimingVariance(requestedMs) -> returns acceptable variance in ms
+//    - measureTimeoutPrecision(timeoutMs, iterations) -> returns timing statistics
+//    - createSystemLoad() -> creates background computational load
+//    - validateTimingStatistics(stats) -> validates statistical requirements
+//
+//    Data Structures:
+//    ```cpp
+//    struct TimingStats {
+//        double meanMs;
+//        double stdDeviationMs;
+//        double minMs;
+//        double maxMs;
+//        std::vector<double> measurements;
+//    };
+//    ```
+//
+//    Test Configuration:
+//    - Use high-resolution timing: std::chrono::high_resolution_clock
+//    - Pre-warm system by running a few dummy timeout operations
+//    - Account for system timer resolution limitations
+//    - Log detailed timing information for debugging
+//
+// 🚨 POTENTIAL CHALLENGES & MITIGATIONS:
+//
+//    1. SYSTEM TIMER RESOLUTION:
+//       Challenge: System may not support sub-millisecond precision
+//       Mitigation: Test timer resolution first, adjust expectations accordingly
+//
+//    2. SYSTEM LOAD INTERFERENCE:
+//       Challenge: Background processes may affect timing accuracy
+//       Mitigation: Run tests multiple times, use statistical validation
+//
+//    3. COMPILER/OS OPTIMIZATION:
+//       Challenge: Compiler might optimize away timing-critical code
+//       Mitigation: Use volatile variables, barrier instructions
+//
+//    4. THREADING/SCHEDULING:
+//       Challenge: Thread scheduling may introduce timing variance
+//       Mitigation: Account for scheduling overhead in variance calculations
+//
+// 📊 EXPECTED OUTPUT FORMAT:
+//    ```
+//    🧪 Testing timeout precision for 1ms...
+//    ⏱️ Requested: 1000μs, Actual: 1150μs, Error: +15.0%, Status: ✓ PASS
+//
+//    🧪 Testing timeout precision for 10ms...
+//    ⏱️ Requested: 10000μs, Actual: 10250μs, Error: +2.5%, Status: ✓ PASS
+//
+//    📊 Statistical validation for 100ms (10 iterations):
+//    📈 Mean: 100.3ms, StdDev: 0.8ms, Min: 99.1ms, Max: 101.7ms
+//    ✅ All timing requirements met
+//    ```
+//
+// 🏁 CLEANUP REQUIREMENTS:
+//    - Close all test links and services
+//    - Stop any background load generation
+//    - Reset system state for subsequent tests
+//    - Report comprehensive timing analysis summary
+//
+// 📝 NOTES:
+//    - This test may need adjustment based on target platform characteristics
+//    - Consider making timing thresholds configurable for different environments
+//    - May need platform-specific implementations for optimal precision
+//    - Test results should be logged for performance regression analysis
+//
+// ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+// ║                                    END OF PRECISION TIMEOUT TEST DESIGN                                       ║
+// ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
