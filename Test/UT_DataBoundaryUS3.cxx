@@ -539,7 +539,8 @@ TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byModeTransitions_expectCons
     IOC_DatDesc_T TestDatDesc = {0};
     IOC_initDatDesc(&TestDatDesc);
     TestDatDesc.Payload.pData = (void *)testData;
-    TestDatDesc.Payload.PtrDataSize = strlen(testData);
+    TestDatDesc.Payload.PtrDataSize = strlen(testData) + 1;  // Include null terminator
+    TestDatDesc.Payload.PtrDataLen = strlen(testData);
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               🎯 BEHAVIOR PHASE                                       │
@@ -577,12 +578,11 @@ TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byModeTransitions_expectCons
         std::chrono::duration_cast<std::chrono::microseconds>(asyncNonBlockEnd - asyncNonBlockStart);
     printf("   ⏱️ ASyncNonBlock execution time: %lld microseconds\n", (long long)asyncNonBlockDuration.count());
 
-    // NOTE: DAT operations use different error codes than EVT operations:
-    // - EVT: IOC_RESULT_TOO_MANY_QUEUING_EVTDESC for queue full
-    // - DAT: IOC_RESULT_BUFFER_FULL for buffer full, IOC_RESULT_TIMEOUT for immediate timeout
+    // - DAT: IOC_RESULT_BUFFER_FULL for buffer full
     // NonBlock should either succeed immediately or return appropriate DAT error
-    ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_BUFFER_FULL || Result == IOC_RESULT_TIMEOUT)
-        << "ASyncNonBlock should return SUCCESS, BUFFER_FULL, or TIMEOUT, got: " << Result;
+    // Here assume we don't know if buffer is full or not, so we check both success and buffer full
+    ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_BUFFER_FULL)
+        << "ASyncNonBlock should return SUCCESS or BUFFER_FULL, got: " << Result;
     ASSERT_LT(asyncNonBlockDuration.count(), 5000)  // Stricter timing for NonBlock
         << "ASyncNonBlock should complete very quickly";
     printf("   ✓ ASyncNonBlock mode behaved correctly\n");
@@ -599,9 +599,9 @@ TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byModeTransitions_expectCons
         std::chrono::duration_cast<std::chrono::microseconds>(asyncTimeoutEnd - asyncTimeoutStart);
     printf("   ⏱️ ASyncTimeout execution time: %lld microseconds\n", (long long)asyncTimeoutDuration.count());
 
-    // Timeout mode should either succeed quickly or timeout/buffer full
-    ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_BUFFER_FULL || Result == IOC_RESULT_TIMEOUT)
-        << "ASyncTimeout should return SUCCESS, BUFFER_FULL, or TIMEOUT, got: " << Result;
+    // Timeout mode should either succeed quickly or buffer full
+    ASSERT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_BUFFER_FULL)
+        << "ASyncTimeout should return SUCCESS or BUFFER_FULL, got: " << Result;
     ASSERT_LT(asyncTimeoutDuration.count(), 10000)  // Should not exceed timeout significantly
         << "ASyncTimeout should respect timing boundaries";
     printf("   ✓ ASyncTimeout mode behaved correctly\n");
@@ -667,6 +667,7 @@ TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byModeTransitions_expectCons
     char recvBuffer1[1024] = {0};
     RecvDesc1.Payload.pData = recvBuffer1;
     RecvDesc1.Payload.PtrDataSize = sizeof(recvBuffer1);
+    RecvDesc1.Payload.PtrDataLen = 0;
 
     auto syncMayBlockStart = std::chrono::high_resolution_clock::now();
     Result = IOC_recvDAT(DatPollingReceiverLinkID, &RecvDesc1, &SyncMayBlockOpt);
@@ -689,6 +690,7 @@ TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byModeTransitions_expectCons
     char recvBuffer2[1024] = {0};
     RecvDesc2.Payload.pData = recvBuffer2;
     RecvDesc2.Payload.PtrDataSize = sizeof(recvBuffer2);
+    RecvDesc2.Payload.PtrDataLen = 0;
 
     auto syncNonBlockStart = std::chrono::high_resolution_clock::now();
     Result = IOC_recvDAT(DatPollingReceiverLinkID, &RecvDesc2, &SyncNonBlockOpt);
@@ -699,8 +701,8 @@ TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byModeTransitions_expectCons
     printf("   ⏱️ SyncNonBlock execution time: %lld microseconds\n", (long long)syncNonBlockDuration.count());
 
     // SyncNonBlock should return immediately when no data
-    ASSERT_TRUE(Result == IOC_RESULT_NO_DATA || Result == IOC_RESULT_TIMEOUT)
-        << "SyncNonBlock should return NO_DATA or TIMEOUT when no data available, got: " << Result;
+    ASSERT_TRUE(Result == IOC_RESULT_NO_DATA)
+        << "SyncNonBlock should return NO_DATA when no data available, got: " << Result;
     ASSERT_LT(syncNonBlockDuration.count(), 3000)  // Very strict timing for NonBlock
         << "SyncNonBlock should return immediately";
     printf("   ✓ SyncNonBlock mode behaved correctly\n");
@@ -714,6 +716,7 @@ TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byModeTransitions_expectCons
     char recvBuffer3[1024] = {0};
     RecvDesc3.Payload.pData = recvBuffer3;
     RecvDesc3.Payload.PtrDataSize = sizeof(recvBuffer3);
+    RecvDesc3.Payload.PtrDataLen = 0;
 
     // Test timeout behavior when no data is available
     printf("   📋 Testing timeout when no data available...\n");
@@ -726,8 +729,8 @@ TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byModeTransitions_expectCons
     printf("   📋 SyncTimeout result: %d\n", Result);
 
     // SyncTimeout should timeout when no data is available
-    ASSERT_TRUE(Result == IOC_RESULT_NO_DATA || Result == IOC_RESULT_TIMEOUT)
-        << "SyncTimeout should return NO_DATA or TIMEOUT when no data available, got: " << Result;
+    ASSERT_TRUE(Result == IOC_RESULT_TIMEOUT)
+        << "SyncTimeout should return TIMEOUT when no data available, got: " << Result;
     ASSERT_LT(syncTimeoutDuration.count(), 8000)  // Should not exceed timeout significantly
         << "SyncTimeout should respect timing boundaries";
     printf("   ✓ SyncTimeout mode behaved correctly\n");
