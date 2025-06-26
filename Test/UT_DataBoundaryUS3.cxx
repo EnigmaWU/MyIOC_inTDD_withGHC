@@ -927,9 +927,555 @@ TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byModeTransitions_expectCons
 }
 //======>END OF: [@AC-2,US-3] TC-2=================================================================
 
+//======>BEGIN OF: [@AC-1,US-3] TC-4===============================================================
+/**
+ * @[Name]: verifyDatTimeoutBoundary_byPrecisionTesting_expectAccurateTiming
+ * @[Steps]:
+ *   1) Setup IOC services for bidirectional testing AS SETUP
+ *      |-> Create sender and receiver services for both directions
+ *      |-> Establish links for send-side and receive-side timeout testing
+ *      |-> Prepare buffer management mechanisms
+ *   2) Test IOC_recvDAT timeout precision AS BEHAVIOR
+ *      |-> Test various timeout values with empty queue conditions
+ *      |-> Measure timing accuracy and consistency
+ *      |-> Validate result codes and timing boundaries
+ *   3) Test IOC_sendDAT timeout precision AS BEHAVIOR
+ *      |-> Create buffer saturation for timeout conditions
+ *      |-> Test various timeout values with full buffer
+ *      |-> Measure timing accuracy and consistency
+ *   4) Statistical validation and comparison AS VERIFY
+ *      |-> Compare send vs receive timeout precision
+ *      |-> Validate timing consistency across iterations
+ *      |-> Test concurrent timeout operations
+ *   5) Cleanup services and links AS CLEANUP
+ * @[Expect]: Both sendDAT and recvDAT timeouts exhibit precise timing within acceptable variance.
+ * @[Notes]: Validates AC-1 timeout precision requirements for both directions - critical for time-critical applications.
+ */
+TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byPrecisionTesting_expectAccurateTiming) {
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                🔧 SETUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    printf("🎯 TEST: Bidirectional timeout precision validation - sendDAT + recvDAT accuracy\n");
+
+    // Test Focus: Verify both sendDAT and recvDAT timeout operations have precise timing
+    // Expected: Both operations timeout within acceptable variance of requested timeout
+
+    // Test constants and timeout values to test
+    const std::vector<int> TIMEOUT_VALUES_MS = {1, 2, 5, 10, 20, 50, 100};  // Core timeout values
+    const int STATISTICAL_ITERATIONS = 5;  // Iterations for statistical validation
+    const int MAX_BUFFER_FILL_ATTEMPTS = 20;  // Max attempts to fill buffer
+
+    // Timing helper function
+    auto calculateAcceptableVariance = [](int timeoutMs) -> std::pair<double, double> {
+        double absoluteVarianceMs, percentageVariance;
+        if (timeoutMs <= 5) {
+            absoluteVarianceMs = 2.0;
+            percentageVariance = 50.0;
+        } else if (timeoutMs <= 50) {
+            absoluteVarianceMs = 3.0;
+            percentageVariance = 20.0;
+        } else if (timeoutMs <= 500) {
+            absoluteVarianceMs = 10.0;
+            percentageVariance = 5.0;
+        } else {
+            absoluteVarianceMs = 20.0;
+            percentageVariance = 3.0;
+        }
+        return {absoluteVarianceMs, percentageVariance};
+    };
+
+    // Initialize test data structures
+    __DatBoundaryPrivData_T DatReceiverPrivData = {0};
+    DatReceiverPrivData.ClientIndex = 4;  // Unique index for precision test
+
+    IOC_SrvID_T DatReceiverSrvID = IOC_ID_INVALID;
+    IOC_LinkID_T DatSenderLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T DatReceiverLinkID = IOC_ID_INVALID;
+    IOC_Result_T Result = IOC_RESULT_FAILURE;
+
+    // Setup receiver service for bidirectional testing
+    printf("📋 Setting up receiver service for precision testing...\n");
+
+    IOC_SrvURI_T DatReceiverSrvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "DatPrecisionReceiver",
+    };
+
+    IOC_DatUsageArgs_T DatReceiverUsageArgs = {
+        .CbRecvDat_F = __CbRecvDat_Boundary_F,
+        .pCbPrivData = &DatReceiverPrivData,
+    };
+
+    IOC_SrvArgs_T DatReceiverSrvArgs = {
+        .SrvURI = DatReceiverSrvURI,
+        .UsageCapabilites = IOC_LinkUsageDatReceiver,
+        .UsageArgs = {.pDat = &DatReceiverUsageArgs},
+    };
+
+    Result = IOC_onlineService(&DatReceiverSrvID, &DatReceiverSrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Receiver service should come online successfully";
+    printf("   ✓ Receiver service online with ID=%llu\n", DatReceiverSrvID);
+
+    // Setup sender connection
+    IOC_ConnArgs_T DatSenderConnArgs = {
+        .SrvURI = DatReceiverSrvURI,
+        .Usage = IOC_LinkUsageDatSender,
+    };
+
+    std::thread DatSenderThread([&] {
+        IOC_Result_T ThreadResult = IOC_connectService(&DatSenderLinkID, &DatSenderConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ThreadResult);
+        ASSERT_NE(IOC_ID_INVALID, DatSenderLinkID);
+    });
+
+    Result = IOC_acceptClient(DatReceiverSrvID, &DatReceiverLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Receiver should accept connection";
+
+    DatSenderThread.join();
+    printf("   ✓ Sender connected with LinkID=%llu\n", DatSenderLinkID);
+    printf("   ✓ Receiver accepted with LinkID=%llu\n", DatReceiverLinkID);
+
+    // Setup polling receiver for pure sync operations
+    IOC_SrvID_T DatPollingReceiverSrvID = IOC_ID_INVALID;
+    IOC_LinkID_T DatPollingReceiverLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T DatPollingSenderLinkID = IOC_ID_INVALID;
+
+    IOC_SrvURI_T DatPollingReceiverSrvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "DatPrecisionPollingReceiver",
+    };
+
+    IOC_SrvArgs_T DatPollingReceiverSrvArgs = {
+        .SrvURI = DatPollingReceiverSrvURI,
+        .UsageCapabilites = IOC_LinkUsageDatReceiver,
+        // No callback - pure polling mode for precise receive timeout testing
+    };
+
+    Result = IOC_onlineService(&DatPollingReceiverSrvID, &DatPollingReceiverSrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Polling receiver should come online successfully";
+    printf("   ✓ Polling receiver service online with ID=%llu\n", DatPollingReceiverSrvID);
+
+    std::thread DatPollingSenderThread([&] {
+        IOC_ConnArgs_T DatPollingSenderConnArgs = {
+            .SrvURI = DatPollingReceiverSrvURI,
+            .Usage = IOC_LinkUsageDatSender,
+        };
+        IOC_Result_T ThreadResult = IOC_connectService(&DatPollingSenderLinkID, &DatPollingSenderConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ThreadResult);
+        ASSERT_NE(IOC_ID_INVALID, DatPollingSenderLinkID);
+    });
+
+    Result = IOC_acceptClient(DatPollingReceiverSrvID, &DatPollingReceiverLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Polling receiver should accept connection";
+
+    DatPollingSenderThread.join();
+    printf("   ✓ Polling sender connected with LinkID=%llu\n", DatPollingSenderLinkID);
+    printf("   ✓ Polling receiver accepted with LinkID=%llu\n", DatPollingReceiverLinkID);
+
+    // Query system capabilities for buffer management
+    IOC_CapabilityDescription_T CapDesc;
+    memset(&CapDesc, 0, sizeof(CapDesc));
+    CapDesc.CapID = IOC_CAPID_CONET_MODE_DATA;
+
+    Result = IOC_getCapability(&CapDesc);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Should be able to query system capabilities";
+
+    ULONG_T MaxDataQueueSize = CapDesc.ConetModeData.MaxDataQueueSize;
+    printf("   📋 System MaxDataQueueSize: %lu bytes\n", MaxDataQueueSize);
+
+    // Prepare test data
+    const char *testData = "PrecisionTimeoutTest";
+    IOC_DatDesc_T TestDatDesc = {0};
+    IOC_initDatDesc(&TestDatDesc);
+    TestDatDesc.Payload.pData = (void *)testData;
+    TestDatDesc.Payload.PtrDataSize = strlen(testData) + 1;
+    TestDatDesc.Payload.PtrDataLen = strlen(testData);
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🎯 BEHAVIOR PHASE                                       │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+
+    // === PHASE 1: IOC_recvDAT Precision Testing (Empty Queue Timeouts) ===
+    printf("📋 PHASE 1: IOC_recvDAT timeout precision testing...\n");
+
+    std::vector<std::pair<int, std::vector<double>>> recvTimingResults;
+
+    for (int timeoutMs : TIMEOUT_VALUES_MS) {
+        printf("🧪 Testing recvDAT timeout precision for %dms...\n", timeoutMs);
+
+        std::vector<double> timingMeasurements;
+
+        for (int iteration = 0; iteration < STATISTICAL_ITERATIONS; iteration++) {
+            // Ensure queue is empty for clean timeout testing
+            IOC_DatDesc_T DrainDesc = {0};
+            IOC_initDatDesc(&DrainDesc);
+            char drainBuffer[1024] = {0};
+            DrainDesc.Payload.pData = drainBuffer;
+            DrainDesc.Payload.PtrDataSize = sizeof(drainBuffer);
+
+            IOC_Option_defineSyncNonBlock(DrainOption);
+            IOC_Result_T drainResult;
+            do {
+                drainResult = IOC_recvDAT(DatPollingReceiverLinkID, &DrainDesc, &DrainOption);
+            } while (drainResult == IOC_RESULT_SUCCESS);
+
+            // Test precise timeout
+            IOC_Option_defineSyncTimeout(TimeoutOption, timeoutMs * 1000);  // Convert to microseconds
+
+            IOC_DatDesc_T RecvDesc = {0};
+            IOC_initDatDesc(&RecvDesc);
+            char recvBuffer[1024] = {0};
+            RecvDesc.Payload.pData = recvBuffer;
+            RecvDesc.Payload.PtrDataSize = sizeof(recvBuffer);
+
+            auto startTime = std::chrono::high_resolution_clock::now();
+            IOC_Result_T recvResult = IOC_recvDAT(DatPollingReceiverLinkID, &RecvDesc, &TimeoutOption);
+            auto endTime = std::chrono::high_resolution_clock::now();
+
+            auto durationUs = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
+            double actualTimeoutMs = durationUs.count() / 1000.0;
+
+            printf("   📊 Iteration %d: requested=%dms, actual=%.2fms, result=%d\n", 
+                   iteration + 1, timeoutMs, actualTimeoutMs, recvResult);
+
+            // Validate result code
+            ASSERT_EQ(IOC_RESULT_TIMEOUT, recvResult) 
+                << "recvDAT timeout should return IOC_RESULT_TIMEOUT";
+
+            // Store timing measurement
+            timingMeasurements.push_back(actualTimeoutMs);
+
+            // Small delay between iterations to prevent system overload
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        }
+
+        // Calculate statistics for this timeout value
+        double meanMs = 0.0;
+        for (double measurement : timingMeasurements) {
+            meanMs += measurement;
+        }
+        meanMs /= timingMeasurements.size();
+
+        double stdDev = 0.0;
+        for (double measurement : timingMeasurements) {
+            stdDev += (measurement - meanMs) * (measurement - meanMs);
+        }
+        stdDev = sqrt(stdDev / timingMeasurements.size());
+
+        double minMs = *std::min_element(timingMeasurements.begin(), timingMeasurements.end());
+        double maxMs = *std::max_element(timingMeasurements.begin(), timingMeasurements.end());
+
+        printf("   📈 recvDAT %dms statistics: mean=%.2fms, std=%.2fms, min=%.2fms, max=%.2fms\n",
+               timeoutMs, meanMs, stdDev, minMs, maxMs);
+
+        // Validate timing precision
+        auto [absVariance, pctVariance] = calculateAcceptableVariance(timeoutMs);
+        double maxAcceptableVariance = std::max(absVariance, timeoutMs * pctVariance / 100.0);
+
+        double timingError = abs(meanMs - timeoutMs);
+        double errorPercentage = (timingError / timeoutMs) * 100.0;
+
+        printf("   🎯 recvDAT %dms precision: error=%.2fms (%.1f%%), max_allowed=%.2fms\n",
+               timeoutMs, timingError, errorPercentage, maxAcceptableVariance);
+
+        // Core timing assertions
+        ASSERT_GE(meanMs, timeoutMs * 0.8) 
+            << "recvDAT timeout should not complete significantly early";
+        ASSERT_LE(timingError, maxAcceptableVariance)
+            << "recvDAT timing error should be within acceptable bounds";
+
+        recvTimingResults.push_back({timeoutMs, timingMeasurements});
+        printf("   ✅ recvDAT %dms timeout precision validation passed\n", timeoutMs);
+    }
+
+    // === PHASE 2: IOC_sendDAT Precision Testing (Buffer Full Timeouts) ===
+    printf("📋 PHASE 2: IOC_sendDAT timeout precision testing...\n");
+
+    std::vector<std::pair<int, std::vector<double>>> sendTimingResults;
+
+    for (int timeoutMs : TIMEOUT_VALUES_MS) {
+        printf("🧪 Testing sendDAT timeout precision for %dms...\n", timeoutMs);
+
+        std::vector<double> timingMeasurements;
+
+        for (int iteration = 0; iteration < STATISTICAL_ITERATIONS; iteration++) {
+            // Create buffer saturation for sendDAT timeout conditions
+            printf("   🔄 Creating buffer saturation (iteration %d)...\n", iteration + 1);
+
+            // Fill buffer using NonBlock sends until we get buffer pressure
+            std::vector<char> bufferFillData(512, 'F');  // 512 byte chunks
+            IOC_DatDesc_T FillDesc = {0};
+            IOC_initDatDesc(&FillDesc);
+            FillDesc.Payload.pData = bufferFillData.data();
+            FillDesc.Payload.PtrDataSize = bufferFillData.size();
+
+            IOC_Option_defineASyncNonBlock(FillOption);
+
+            int fillCount = 0;
+            IOC_Result_T fillResult = IOC_RESULT_SUCCESS;
+            while (fillResult == IOC_RESULT_SUCCESS && fillCount < MAX_BUFFER_FILL_ATTEMPTS) {
+                fillResult = IOC_sendDAT(DatSenderLinkID, &FillDesc, &FillOption);
+                if (fillResult == IOC_RESULT_SUCCESS) {
+                    fillCount++;
+                }
+            }
+
+            printf("   📤 Buffer saturation: sent %d packets, last result=%d\n", fillCount, fillResult);
+
+            // Verify buffer pressure exists
+            if (fillResult != IOC_RESULT_BUFFER_FULL) {
+                printf("   ⚠️ Warning: Expected buffer full condition, got result=%d\n", fillResult);
+            }
+
+            // Test precise timeout with saturated buffer
+            IOC_Option_defineASyncTimeout(SendTimeoutOption, timeoutMs * 1000);  // Convert to microseconds
+
+            auto startTime = std::chrono::high_resolution_clock::now();
+            IOC_Result_T sendResult = IOC_sendDAT(DatSenderLinkID, &TestDatDesc, &SendTimeoutOption);
+            auto endTime = std::chrono::high_resolution_clock::now();
+
+            auto durationUs = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
+            double actualTimeoutMs = durationUs.count() / 1000.0;
+
+            printf("   📊 Iteration %d: requested=%dms, actual=%.2fms, result=%d\n", 
+                   iteration + 1, timeoutMs, actualTimeoutMs, sendResult);
+
+            // Validate result code (sendDAT can return TIMEOUT or BUFFER_FULL)
+            ASSERT_TRUE(sendResult == IOC_RESULT_TIMEOUT || sendResult == IOC_RESULT_BUFFER_FULL)
+                << "sendDAT timeout should return IOC_RESULT_TIMEOUT or IOC_RESULT_BUFFER_FULL";
+
+            // Store timing measurement
+            timingMeasurements.push_back(actualTimeoutMs);
+
+            // Drain buffer between iterations to reset state
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Allow buffer to drain naturally
+        }
+
+        // Calculate statistics for this timeout value
+        double meanMs = 0.0;
+        for (double measurement : timingMeasurements) {
+            meanMs += measurement;
+        }
+        meanMs /= timingMeasurements.size();
+
+        double stdDev = 0.0;
+        for (double measurement : timingMeasurements) {
+            stdDev += (measurement - meanMs) * (measurement - meanMs);
+        }
+        stdDev = sqrt(stdDev / timingMeasurements.size());
+
+        double minMs = *std::min_element(timingMeasurements.begin(), timingMeasurements.end());
+        double maxMs = *std::max_element(timingMeasurements.begin(), timingMeasurements.end());
+
+        printf("   📈 sendDAT %dms statistics: mean=%.2fms, std=%.2fms, min=%.2fms, max=%.2fms\n",
+               timeoutMs, meanMs, stdDev, minMs, maxMs);
+
+        // Validate timing precision
+        auto [absVariance, pctVariance] = calculateAcceptableVariance(timeoutMs);
+        double maxAcceptableVariance = std::max(absVariance, timeoutMs * pctVariance / 100.0);
+
+        double timingError = abs(meanMs - timeoutMs);
+        double errorPercentage = (timingError / timeoutMs) * 100.0;
+
+        printf("   🎯 sendDAT %dms precision: error=%.2fms (%.1f%%), max_allowed=%.2fms\n",
+               timeoutMs, timingError, errorPercentage, maxAcceptableVariance);
+
+        // Core timing assertions
+        ASSERT_GE(meanMs, timeoutMs * 0.8) 
+            << "sendDAT timeout should not complete significantly early";
+        ASSERT_LE(timingError, maxAcceptableVariance)
+            << "sendDAT timing error should be within acceptable bounds";
+
+        sendTimingResults.push_back({timeoutMs, timingMeasurements});
+        printf("   ✅ sendDAT %dms timeout precision validation passed\n", timeoutMs);
+    }
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                ✅ VERIFICATION                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+
+    // === PHASE 3: Statistical Validation and Bidirectional Comparison ===
+    printf("📋 PHASE 3: Bidirectional precision comparison and validation...\n");
+
+    // Calculate overall precision metrics
+    double totalRecvPrecisionError = 0.0;
+    double totalSendPrecisionError = 0.0;
+    int validComparisons = 0;
+
+    for (size_t i = 0; i < recvTimingResults.size() && i < sendTimingResults.size(); i++) {
+        int timeoutMs = recvTimingResults[i].first;
+        auto &recvMeasurements = recvTimingResults[i].second;
+        auto &sendMeasurements = sendTimingResults[i].second;
+
+        // Calculate means
+        double recvMean = 0.0;
+        for (double m : recvMeasurements) recvMean += m;
+        recvMean /= recvMeasurements.size();
+
+        double sendMean = 0.0;
+        for (double m : sendMeasurements) sendMean += m;
+        sendMean /= sendMeasurements.size();
+
+        // Calculate precision errors
+        double recvError = abs(recvMean - timeoutMs) / timeoutMs * 100.0;
+        double sendError = abs(sendMean - timeoutMs) / timeoutMs * 100.0;
+
+        totalRecvPrecisionError += recvError;
+        totalSendPrecisionError += sendError;
+        validComparisons++;
+
+        printf("   🔄 %dms comparison: recvDAT=%.1f%% error, sendDAT=%.1f%% error\n",
+               timeoutMs, recvError, sendError);
+
+        // Cross-operation consistency check
+        double precisionDifference = abs(recvError - sendError);
+        ASSERT_LE(precisionDifference, 30.0)  // Allow up to 30% difference in precision
+            << "sendDAT and recvDAT should have reasonably comparable precision";
+    }
+
+    // Overall precision summary
+    double avgRecvPrecision = totalRecvPrecisionError / validComparisons;
+    double avgSendPrecision = totalSendPrecisionError / validComparisons;
+
+    printf("📊 Overall precision summary:\n");
+    printf("   📈 Average recvDAT precision error: %.1f%%\n", avgRecvPrecision);
+    printf("   📈 Average sendDAT precision error: %.1f%%\n", avgSendPrecision);
+    printf("   📈 Bidirectional precision difference: %.1f%%\n", abs(avgRecvPrecision - avgSendPrecision));
+
+    // Final assertions for overall system performance
+    ASSERT_LE(avgRecvPrecision, 25.0) << "Average recvDAT precision should be reasonable";
+    ASSERT_LE(avgSendPrecision, 25.0) << "Average sendDAT precision should be reasonable";
+
+    // === PHASE 4: Concurrent Timeout Testing ===
+    printf("📋 PHASE 4: Concurrent timeout operation testing...\n");
+
+    // Test concurrent sendDAT and recvDAT timeouts
+    const int CONCURRENT_RECV_TIMEOUT_MS = 10;
+    const int CONCURRENT_SEND_TIMEOUT_MS = 15;
+
+    printf("🧪 Testing concurrent timeouts: recvDAT=%dms, sendDAT=%dms...\n",
+           CONCURRENT_RECV_TIMEOUT_MS, CONCURRENT_SEND_TIMEOUT_MS);
+
+    // Prepare for concurrent test - ensure clean state
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));  // Let system settle
+
+    // Fill buffer for sendDAT timeout
+    std::vector<char> concurrentFillData(512, 'C');
+    IOC_DatDesc_T ConcurrentFillDesc = {0};
+    IOC_initDatDesc(&ConcurrentFillDesc);
+    ConcurrentFillDesc.Payload.pData = concurrentFillData.data();
+    ConcurrentFillDesc.Payload.PtrDataSize = concurrentFillData.size();
+
+    IOC_Option_defineASyncNonBlock(ConcurrentFillOption);
+    IOC_Result_T fillResult = IOC_RESULT_SUCCESS;
+    int concurrentFillCount = 0;
+    while (fillResult == IOC_RESULT_SUCCESS && concurrentFillCount < MAX_BUFFER_FILL_ATTEMPTS) {
+        fillResult = IOC_sendDAT(DatSenderLinkID, &ConcurrentFillDesc, &ConcurrentFillOption);
+        if (fillResult == IOC_RESULT_SUCCESS) {
+            concurrentFillCount++;
+        }
+    }
+
+    printf("   📤 Concurrent test buffer setup: filled %d packets\n", concurrentFillCount);
+
+    // Launch concurrent timeout operations
+    IOC_Option_defineSyncTimeout(ConcurrentRecvTimeoutOption, CONCURRENT_RECV_TIMEOUT_MS * 1000);
+    IOC_Option_defineASyncTimeout(ConcurrentSendTimeoutOption, CONCURRENT_SEND_TIMEOUT_MS * 1000);
+
+    IOC_Result_T concurrentRecvResult, concurrentSendResult;
+    double concurrentRecvTime, concurrentSendTime;
+
+    auto concurrentStartTime = std::chrono::high_resolution_clock::now();
+
+    // Launch receive timeout in separate thread
+    std::thread recvTimeoutThread([&] {
+        IOC_DatDesc_T ConcurrentRecvDesc = {0};
+        IOC_initDatDesc(&ConcurrentRecvDesc);
+        char concurrentRecvBuffer[1024] = {0};
+        ConcurrentRecvDesc.Payload.pData = concurrentRecvBuffer;
+        ConcurrentRecvDesc.Payload.PtrDataSize = sizeof(concurrentRecvBuffer);
+
+        auto recvStart = std::chrono::high_resolution_clock::now();
+        concurrentRecvResult = IOC_recvDAT(DatPollingReceiverLinkID, &ConcurrentRecvDesc, &ConcurrentRecvTimeoutOption);
+        auto recvEnd = std::chrono::high_resolution_clock::now();
+
+        auto recvDuration = std::chrono::duration_cast<std::chrono::microseconds>(recvEnd - recvStart);
+        concurrentRecvTime = recvDuration.count() / 1000.0;
+    });
+
+    // Launch send timeout in main thread
+    auto sendStart = std::chrono::high_resolution_clock::now();
+    concurrentSendResult = IOC_sendDAT(DatSenderLinkID, &TestDatDesc, &ConcurrentSendTimeoutOption);
+    auto sendEnd = std::chrono::high_resolution_clock::now();
+
+    auto sendDuration = std::chrono::duration_cast<std::chrono::microseconds>(sendEnd - sendStart);
+    concurrentSendTime = sendDuration.count() / 1000.0;
+
+    recvTimeoutThread.join();
+
+    auto concurrentEndTime = std::chrono::high_resolution_clock::now();
+    auto totalConcurrentDuration = std::chrono::duration_cast<std::chrono::microseconds>(concurrentEndTime - concurrentStartTime);
+
+    printf("   📊 Concurrent results: recvDAT=%.2fms (result=%d), sendDAT=%.2fms (result=%d)\n",
+           concurrentRecvTime, concurrentRecvResult, concurrentSendTime, concurrentSendResult);
+    printf("   ⏱️ Total concurrent operation time: %.2fms\n", totalConcurrentDuration.count() / 1000.0);
+
+    // Validate concurrent timeout results
+    ASSERT_EQ(IOC_RESULT_TIMEOUT, concurrentRecvResult) 
+        << "Concurrent recvDAT should timeout independently";
+    ASSERT_TRUE(concurrentSendResult == IOC_RESULT_TIMEOUT || concurrentSendResult == IOC_RESULT_BUFFER_FULL)
+        << "Concurrent sendDAT should timeout independently";
+
+    // Validate timing independence (operations shouldn't significantly interfere)
+    double recvTimingError = abs(concurrentRecvTime - CONCURRENT_RECV_TIMEOUT_MS);
+    double sendTimingError = abs(concurrentSendTime - CONCURRENT_SEND_TIMEOUT_MS);
+
+    ASSERT_LE(recvTimingError, CONCURRENT_RECV_TIMEOUT_MS * 0.5)  // 50% tolerance for concurrent ops
+        << "Concurrent recvDAT timing should not be significantly affected";
+    ASSERT_LE(sendTimingError, CONCURRENT_SEND_TIMEOUT_MS * 0.5)  // 50% tolerance for concurrent ops
+        << "Concurrent sendDAT timing should not be significantly affected";
+
+    printf("   ✅ Concurrent timeout operations completed successfully\n");
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               ✅ SUMMARY                                              │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    printf("✅ All bidirectional timeout precision tests completed successfully\n");
+    printf("✅ Both sendDAT and recvDAT demonstrated acceptable timing precision\n");
+    printf("✅ Statistical validation confirmed consistent timeout behavior\n");
+    printf("✅ Concurrent timeout operations functioned independently\n");
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🧹 CLEANUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    printf("🧹 Cleaning up precision test services and links...\n");
+
+    Result = IOC_closeLink(DatSenderLinkID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Sender link should close successfully";
+
+    Result = IOC_closeLink(DatReceiverLinkID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Receiver link should close successfully";
+
+    Result = IOC_closeLink(DatPollingSenderLinkID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Polling sender link should close successfully";
+
+    Result = IOC_closeLink(DatPollingReceiverLinkID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Polling receiver link should close successfully";
+
+    Result = IOC_offlineService(DatReceiverSrvID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Receiver service should go offline successfully";
+
+    Result = IOC_offlineService(DatPollingReceiverSrvID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Polling receiver service should go offline successfully";
+
+    printf("🧹 Precision test cleanup completed\n");
+}
+//======>END OF: [@AC-1,US-3] TC-4=================================================================
+
 // TODO: Implement remaining US-3 test cases:
 // - verifyDatTimeoutBoundary_byExtremeValues_expectProperHandling
-// - verifyDatTimeoutBoundary_byPrecisionTesting_expectAccurateTiming
 // - verifyDatBlockingModeBoundary_byStateConsistency_expectNoDataLoss
 
 //======>END OF US-3 TEST IMPLEMENTATIONS==========================================================
