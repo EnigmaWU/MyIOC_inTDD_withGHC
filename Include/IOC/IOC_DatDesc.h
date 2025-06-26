@@ -69,9 +69,9 @@ static inline IOC_Result_T IOC_getDatPayload(const IOC_DatDesc_pT pDatDesc, void
         return IOC_RESULT_INVALID_PARAM;
     }
 
-    if (pDatDesc->Payload.EmdDataSize > 0) {
+    if (pDatDesc->Payload.EmdDataLen > 0) {
         *ppData = (void *)pDatDesc->Payload.EmdData;
-        *pDataSize = pDatDesc->Payload.EmdDataSize;
+        *pDataSize = pDatDesc->Payload.EmdDataLen;
     } else if (pDatDesc->Payload.pData && pDatDesc->Payload.PtrDataSize > 0) {
         *ppData = pDatDesc->Payload.pData;
         *pDataSize = pDatDesc->Payload.PtrDataSize;

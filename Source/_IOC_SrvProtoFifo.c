@@ -37,6 +37,8 @@
  *
  */
 
+#include <errno.h>  // For ETIMEDOUT
+
 #include "_IOC.h"
 
 typedef struct _IOC_ProtoFifoLinkObjectStru _IOC_ProtoFifoLinkObject_T;
@@ -148,6 +150,9 @@ static IOC_Result_T __IOC_storeDataInPollingBuffer(_IOC_ProtoFifoLinkObject_pT p
                                                    size_t DataSize);
 static IOC_Result_T __IOC_readDataFromPollingBuffer(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj, void *pBuffer,
                                                     size_t BufferSize, size_t *pBytesRead, bool IsBlocking);
+static IOC_Result_T __IOC_readDataFromPollingBufferWithTimeout(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj, void *pBuffer,
+                                                               size_t BufferSize, size_t *pBytesRead,
+                                                               long long TimeoutUS);
 
 static _IOC_ProtoFifoServiceObject_pT __IOC_getSrvProtoObjBySrvURI(const IOC_SrvURI_pT pSrvURI) {
     for (int i = 0; i < _MAX_PROTO_FIFO_SERVICES; i++) {
@@ -839,13 +844,16 @@ static IOC_Result_T __IOC_recvData_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_
         return IOC_RESULT_TIMEOUT;  // Consistent zero timeout semantics
     }
 
-    // 🎛️ DETERMINE BLOCKING MODE for non-zero timeout operations
-    bool IsBlocking = true;  // Default to blocking
+    // 🎛️ EXTRACT TIMEOUT VALUE from options for blocking operations with timeout
+    long long TimeoutUS = -1;  // Default to infinite timeout (blocking)
+    if (pOption && (pOption->IDs & IOC_OPTID_TIMEOUT)) {
+        TimeoutUS = pOption->Payload.TimeoutUS;
+    }
 
-    // 📦 READ DATA FROM POLLING BUFFER (only for non-zero timeout)
+    // 📦 READ DATA FROM POLLING BUFFER with timeout support
     size_t BytesRead = 0;
-    IOC_Result_T ReadResult = __IOC_readDataFromPollingBuffer(pFifoLinkObj, pDatDesc->Payload.pData,
-                                                              pDatDesc->Payload.PtrDataSize, &BytesRead, IsBlocking);
+    IOC_Result_T ReadResult = __IOC_readDataFromPollingBufferWithTimeout(
+        pFifoLinkObj, pDatDesc->Payload.pData, pDatDesc->Payload.PtrDataSize, &BytesRead, TimeoutUS);
 
     pthread_mutex_unlock(&pFifoLinkObj->Mutex);
 
@@ -1024,6 +1032,96 @@ static IOC_Result_T __IOC_readDataFromPollingBuffer(_IOC_ProtoFifoLinkObject_pT 
     }
 
     // Read data from circular buffer
+    size_t AvailableData = pFifoLinkObj->DatReceiver.PollingBuffer.AvailableData;
+    size_t DataToRead = (BufferSize < AvailableData) ? BufferSize : AvailableData;
+
+    char *pSrcBuffer = pFifoLinkObj->DatReceiver.PollingBuffer.pDataBuffer;
+    size_t DataStart = pFifoLinkObj->DatReceiver.PollingBuffer.DataStart;
+    size_t TotalBufferSize = pFifoLinkObj->DatReceiver.PollingBuffer.BufferSize;
+
+    char *pDestBuffer = (char *)pBuffer;
+    size_t BytesToEnd = TotalBufferSize - DataStart;
+
+    if (DataToRead <= BytesToEnd) {
+        // Data doesn't wrap around
+        memcpy(pDestBuffer, pSrcBuffer + DataStart, DataToRead);
+        pFifoLinkObj->DatReceiver.PollingBuffer.DataStart = (DataStart + DataToRead) % TotalBufferSize;
+    } else {
+        // Data wraps around
+        memcpy(pDestBuffer, pSrcBuffer + DataStart, BytesToEnd);
+        memcpy(pDestBuffer + BytesToEnd, pSrcBuffer, DataToRead - BytesToEnd);
+        pFifoLinkObj->DatReceiver.PollingBuffer.DataStart = DataToRead - BytesToEnd;
+    }
+
+    pFifoLinkObj->DatReceiver.PollingBuffer.AvailableData -= DataToRead;
+    *pBytesRead = DataToRead;
+
+    return IOC_RESULT_SUCCESS;
+}
+
+/**
+ * @brief Read data from polling buffer with timeout support
+ * @param pFifoLinkObj Pointer to the ProtoFifo link object
+ * @param pBuffer Destination buffer to store read data
+ * @param BufferSize Size of destination buffer
+ * @param pBytesRead Pointer to store actual bytes read
+ * @param TimeoutUS Timeout in microseconds (-1 for infinite, 0 for immediate)
+ * @return IOC_RESULT_SUCCESS on success, IOC_RESULT_TIMEOUT on timeout, IOC_RESULT_NO_DATA if no data available
+ */
+static IOC_Result_T __IOC_readDataFromPollingBufferWithTimeout(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj, void *pBuffer,
+                                                               size_t BufferSize, size_t *pBytesRead,
+                                                               long long TimeoutUS) {
+    if (!pFifoLinkObj || !pBuffer || !pBytesRead || BufferSize == 0) {
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
+    *pBytesRead = 0;
+
+    // Handle zero timeout (immediate/non-blocking) case
+    if (TimeoutUS == 0 || TimeoutUS == IOC_TIMEOUT_IMMEDIATE) {
+        if (pFifoLinkObj->DatReceiver.PollingBuffer.AvailableData == 0) {
+            return IOC_RESULT_TIMEOUT;
+        }
+        // Fall through to read available data
+    }
+    // Handle infinite timeout (blocking) case
+    else if (TimeoutUS < 0) {
+        while (pFifoLinkObj->DatReceiver.PollingBuffer.AvailableData == 0) {
+            pthread_cond_wait(&pFifoLinkObj->DatReceiver.PollingBuffer.DataAvailableCond, &pFifoLinkObj->Mutex);
+        }
+        // Fall through to read available data
+    }
+    // Handle finite timeout case
+    else {
+        if (pFifoLinkObj->DatReceiver.PollingBuffer.AvailableData == 0) {
+            // Calculate absolute timeout
+            struct timespec absTimeout;
+            clock_gettime(CLOCK_REALTIME, &absTimeout);
+
+            // Add timeout to current time
+            long long nsTimeout = TimeoutUS * 1000;  // Convert microseconds to nanoseconds
+            absTimeout.tv_sec += nsTimeout / 1000000000LL;
+            absTimeout.tv_nsec += nsTimeout % 1000000000LL;
+
+            // Handle nanosecond overflow
+            if (absTimeout.tv_nsec >= 1000000000L) {
+                absTimeout.tv_sec += 1;
+                absTimeout.tv_nsec -= 1000000000L;
+            }
+
+            // Wait with timeout
+            int waitResult = pthread_cond_timedwait(&pFifoLinkObj->DatReceiver.PollingBuffer.DataAvailableCond,
+                                                    &pFifoLinkObj->Mutex, &absTimeout);
+
+            // Check if still no data available after timeout
+            if (waitResult == ETIMEDOUT || pFifoLinkObj->DatReceiver.PollingBuffer.AvailableData == 0) {
+                return IOC_RESULT_TIMEOUT;
+            }
+        }
+        // Fall through to read available data if data became available
+    }
+
+    // Read data from circular buffer (same logic as original function)
     size_t AvailableData = pFifoLinkObj->DatReceiver.PollingBuffer.AvailableData;
     size_t DataToRead = (BufferSize < AvailableData) ? BufferSize : AvailableData;
 

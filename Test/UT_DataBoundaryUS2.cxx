@@ -193,7 +193,7 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeData_expectConsistentB
 
     ZeroSizeDesc3.Payload.pData = NULL;             // No pointer data
     ZeroSizeDesc3.Payload.PtrDataSize = 0;          // No pointer size
-    ZeroSizeDesc3.Payload.EmdDataSize = 0;          // Zero embedded size
+    ZeroSizeDesc3.Payload.EmdDataLen = 0;           // Zero embedded size
     ZeroSizeDesc3.Payload.EmdData[0] = 0x12345678;  // Some data in embedded array (but size=0)
 
     Result = IOC_sendDAT(DatSenderLinkID, &ZeroSizeDesc3, NULL);
