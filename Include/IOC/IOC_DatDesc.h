@@ -15,10 +15,17 @@ extern "C" {
  *     pData is used for larger data chunks that exceed the size of EmbData[].
  */
 typedef struct {
-    void *pData;          // Pointer to data chunk
-    ULONG_T PtrDataSize;  // Size of data in pData (bytes)
+    void *pData;  // Pointer to data chunk
+    // asDatSender: prepares this before sending and recycle after send returns.
+    // asDatReceiver: prepares this before receiving and recycle after receive returns.
 
-    ULONG_T EmdDataSize;  // Actual size of data in EmbData (bytes)
+    ULONG_T PtrDataSize;  // asDatSender: size of pData (bytes)
+                          // asDatReceiver: size of pData (bytes) may be received
+
+    ULONG_T PtrDataLen;  // asDatSender: length of data in pData (bytes) to send
+                         // asDatReceiver: length of data received in pData (bytes)
+
+    ULONG_T EmdDataLen;   // Actual length of data in EmbData (bytes)
     ULONG_T EmdData[16];  // Embedded data array for small chunks (64 bytes on 64-bit systems)
 } IOC_DatPayload_T, *IOC_DatPayload_pT;
 
