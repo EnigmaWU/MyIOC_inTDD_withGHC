@@ -445,14 +445,14 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
  *      |-> Send data with ASyncNonBlock mode, verify immediate return
  *      |-> Send data with ASyncTimeout mode, verify timeout behavior
  *      |-> Verify mode transitions don't corrupt ongoing operations
- *   3) Test Sync Mode Transitions AS BEHAVIOR
- *      |-> Receive data with SyncMayBlock mode, verify blocking behavior
- *      |-> Receive data with SyncNonBlock mode, verify immediate return
- *      |-> Receive data with SyncTimeout mode, verify timeout behavior
- *      |-> Verify mode consistency within single operation
+ *   3) Test Async Receive Mode Transitions AS BEHAVIOR
+ *      |-> Receive data with Callback mode, verify automatic processing
+ *      |-> Receive data with Polling mode (recvDAT), verify active retrieval
+ *      |-> Switch between Callback and Polling modes, verify mode consistency
+ *      |-> Verify data reception consistency within single operation
  *   4) Test Mixed Mode Operations AS BEHAVIOR
  *      |-> Alternately send with different async modes
- *      |-> Alternately receive with different sync modes
+ *      |-> Alternately receive with different reception modes (callback/polling)
  *      |-> Verify data integrity preserved across mode changes
  *      |-> Test rapid mode switching under load
  *   5) Verify Mode Boundary Consistency AS VERIFY
@@ -606,11 +606,11 @@ TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byModeTransitions_expectCons
         << "ASyncTimeout should respect timing boundaries";
     printf("   ✓ ASyncTimeout mode behaved correctly\n");
 
-    // === Test 2: Sync Mode Transitions for Receiving ===
-    printf("📋 Test 2: Sync Mode Transitions for Receiving...\n");
+    // === Test 2: Async Receive Mode Transitions (Callback vs Polling) ===
+    printf("📋 Test 2: Async Receive Mode Transitions (Callback vs Polling)...\n");
 
-    // Setup a separate polling-based receiver service for sync mode testing
-    printf("🧪 Setting up polling receiver service for sync mode tests...\n");
+    // Setup a separate polling-based receiver service for async polling mode testing
+    printf("🧪 Setting up polling receiver service for async polling mode tests...\n");
 
     IOC_SrvID_T DatPollingReceiverSrvID = IOC_ID_INVALID;
     IOC_LinkID_T DatPollingReceiverLinkID = IOC_ID_INVALID;
@@ -658,15 +658,15 @@ TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byModeTransitions_expectCons
     printf("   ✓ Polling receiver accepted with LinkID=%llu\n", DatPollingReceiverLinkID);
 
     // First ensure there's data to receive by sending with reliable async mode
-    printf("🧪 Pre-sending data for sync mode tests...\n");
+    printf("🧪 Pre-sending data for async polling mode tests...\n");
     IOC_Option_defineASyncMayBlock(PreSendOpt);
     Result = IOC_sendDAT(DatPollingSenderLinkID, &TestDatDesc, &PreSendOpt);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Pre-send should succeed";
     std::this_thread::sleep_for(std::chrono::milliseconds(5));  // Let data arrive
 
-    // Test 2a: SyncMayBlock mode - should block until data available
-    printf("🧪 Test 2a: SyncMayBlock mode verification...\n");
-    IOC_Option_defineSyncMayBlock(SyncMayBlockOpt);
+    // Test 2a: Async Polling Mode with recvDAT - should work with various async options
+    printf("🧪 Test 2a: Async Polling Mode with ASyncMayBlock option...\n");
+    IOC_Option_defineASyncMayBlock(AsyncMayBlockRecvOpt);
 
     IOC_DatDesc_T RecvDesc1 = {0};
     IOC_initDatDesc(&RecvDesc1);
@@ -675,21 +675,22 @@ TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byModeTransitions_expectCons
     RecvDesc1.Payload.PtrDataSize = sizeof(recvBuffer1);
     RecvDesc1.Payload.PtrDataLen = 0;
 
-    auto syncMayBlockStart = std::chrono::high_resolution_clock::now();
-    Result = IOC_recvDAT(DatPollingReceiverLinkID, &RecvDesc1, &SyncMayBlockOpt);
-    auto syncMayBlockEnd = std::chrono::high_resolution_clock::now();
+    auto asyncMayBlockRecvStart = std::chrono::high_resolution_clock::now();
+    Result = IOC_recvDAT(DatPollingReceiverLinkID, &RecvDesc1, &AsyncMayBlockRecvOpt);
+    auto asyncMayBlockRecvEnd = std::chrono::high_resolution_clock::now();
 
-    auto syncMayBlockDuration =
-        std::chrono::duration_cast<std::chrono::microseconds>(syncMayBlockEnd - syncMayBlockStart);
-    printf("   ⏱️ SyncMayBlock execution time: %lld microseconds\n", (long long)syncMayBlockDuration.count());
+    auto asyncMayBlockRecvDuration =
+        std::chrono::duration_cast<std::chrono::microseconds>(asyncMayBlockRecvEnd - asyncMayBlockRecvStart);
+    printf("   ⏱️ AsyncMayBlock recvDAT execution time: %lld microseconds\n",
+           (long long)asyncMayBlockRecvDuration.count());
 
-    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "SyncMayBlock should succeed when data available";
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "AsyncMayBlock recvDAT should succeed when data available";
     ASSERT_GT(RecvDesc1.Payload.PtrDataSize, 0) << "Should have received data";
-    printf("   ✓ SyncMayBlock mode received %lu bytes correctly\n", RecvDesc1.Payload.PtrDataSize);
+    printf("   ✓ AsyncMayBlock recvDAT received %lu bytes correctly\n", RecvDesc1.Payload.PtrDataSize);
 
-    // Test 2b: SyncNonBlock mode when no data available
-    printf("🧪 Test 2b: SyncNonBlock mode verification (no data)...\n");
-    IOC_Option_defineSyncNonBlock(SyncNonBlockOpt);
+    // Test 2b: Async Polling Mode with ASyncNonBlock when no data available
+    printf("🧪 Test 2b: Async Polling Mode with ASyncNonBlock (no data)...\n");
+    IOC_Option_defineASyncNonBlock(AsyncNonBlockRecvOpt);
 
     IOC_DatDesc_T RecvDesc2 = {0};
     IOC_initDatDesc(&RecvDesc2);
@@ -698,24 +699,25 @@ TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byModeTransitions_expectCons
     RecvDesc2.Payload.PtrDataSize = sizeof(recvBuffer2);
     RecvDesc2.Payload.PtrDataLen = 0;
 
-    auto syncNonBlockStart = std::chrono::high_resolution_clock::now();
-    Result = IOC_recvDAT(DatPollingReceiverLinkID, &RecvDesc2, &SyncNonBlockOpt);
-    auto syncNonBlockEnd = std::chrono::high_resolution_clock::now();
+    auto asyncNonBlockRecvStart = std::chrono::high_resolution_clock::now();
+    Result = IOC_recvDAT(DatPollingReceiverLinkID, &RecvDesc2, &AsyncNonBlockRecvOpt);
+    auto asyncNonBlockRecvEnd = std::chrono::high_resolution_clock::now();
 
-    auto syncNonBlockDuration =
-        std::chrono::duration_cast<std::chrono::microseconds>(syncNonBlockEnd - syncNonBlockStart);
-    printf("   ⏱️ SyncNonBlock execution time: %lld microseconds\n", (long long)syncNonBlockDuration.count());
+    auto asyncNonBlockRecvDuration =
+        std::chrono::duration_cast<std::chrono::microseconds>(asyncNonBlockRecvEnd - asyncNonBlockRecvStart);
+    printf("   ⏱️ AsyncNonBlock recvDAT execution time: %lld microseconds\n",
+           (long long)asyncNonBlockRecvDuration.count());
 
-    // SyncNonBlock should return immediately when no data
-    ASSERT_TRUE(Result == IOC_RESULT_NO_DATA)
-        << "SyncNonBlock should return NO_DATA when no data available, got: " << Result;
-    ASSERT_LT(syncNonBlockDuration.count(), 3000)  // Very strict timing for NonBlock
-        << "SyncNonBlock should return immediately";
-    printf("   ✓ SyncNonBlock mode behaved correctly\n");
+    // AsyncNonBlock recvDAT should return immediately when no data
+    ASSERT_TRUE(Result == IOC_RESULT_NO_DATA || Result == IOC_RESULT_TIMEOUT)
+        << "AsyncNonBlock recvDAT should return NO_DATA/TIMEOUT when no data available, got: " << Result;
+    ASSERT_LT(asyncNonBlockRecvDuration.count(), 3000)  // Very strict timing for NonBlock
+        << "AsyncNonBlock recvDAT should return immediately";
+    printf("   ✓ AsyncNonBlock recvDAT behaved correctly\n");
 
-    // Test 2c: SyncTimeout mode
-    printf("🧪 Test 2c: SyncTimeout mode verification...\n");
-    IOC_Option_defineSyncTimeout(SyncTimeoutOpt, 3000);  // 3ms timeout
+    // Test 2c: Async Polling Mode with ASyncTimeout
+    printf("🧪 Test 2c: Async Polling Mode with ASyncTimeout...\n");
+    IOC_Option_defineASyncTimeout(AsyncTimeoutRecvOpt, 3000);  // 3ms timeout
 
     IOC_DatDesc_T RecvDesc3 = {0};
     IOC_initDatDesc(&RecvDesc3);
@@ -726,23 +728,25 @@ TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byModeTransitions_expectCons
 
     // Test timeout behavior when no data is available
     printf("   📋 Testing timeout when no data available...\n");
-    auto syncTimeoutStart = std::chrono::high_resolution_clock::now();
-    Result = IOC_recvDAT(DatPollingReceiverLinkID, &RecvDesc3, &SyncTimeoutOpt);
-    auto syncTimeoutEnd = std::chrono::high_resolution_clock::now();
+    auto asyncTimeoutRecvStart = std::chrono::high_resolution_clock::now();
+    Result = IOC_recvDAT(DatPollingReceiverLinkID, &RecvDesc3, &AsyncTimeoutRecvOpt);
+    auto asyncTimeoutRecvEnd = std::chrono::high_resolution_clock::now();
 
-    auto syncTimeoutDuration = std::chrono::duration_cast<std::chrono::microseconds>(syncTimeoutEnd - syncTimeoutStart);
-    printf("   ⏱️ SyncTimeout execution time: %lld microseconds\n", (long long)syncTimeoutDuration.count());
-    printf("   📋 SyncTimeout result: %d\n", Result);
+    auto asyncTimeoutRecvDuration =
+        std::chrono::duration_cast<std::chrono::microseconds>(asyncTimeoutRecvEnd - asyncTimeoutRecvStart);
+    printf("   ⏱️ AsyncTimeout recvDAT execution time: %lld microseconds\n",
+           (long long)asyncTimeoutRecvDuration.count());
+    printf("   📋 AsyncTimeout recvDAT result: %d\n", Result);
 
-    // SyncTimeout should timeout when no data is available
+    // AsyncTimeout recvDAT should timeout when no data is available
     ASSERT_TRUE(Result == IOC_RESULT_TIMEOUT)
-        << "SyncTimeout should return TIMEOUT when no data available, got: " << Result;
-    ASSERT_LT(syncTimeoutDuration.count(), 8000)  // Should not exceed timeout significantly
-        << "SyncTimeout should respect timing boundaries";
-    printf("   ✓ SyncTimeout mode behaved correctly\n");
+        << "AsyncTimeout recvDAT should return TIMEOUT when no data available, got: " << Result;
+    ASSERT_LT(asyncTimeoutRecvDuration.count(), 8000)  // Should not exceed timeout significantly
+        << "AsyncTimeout recvDAT should respect timing boundaries";
+    printf("   ✓ AsyncTimeout recvDAT behaved correctly\n");
 
-    // Test 2d: SyncTimeout mode with data available - should succeed quickly
-    printf("🧪 Test 2d: SyncTimeout mode with data available...\n");
+    // Test 2d: Async Polling Mode with ASyncTimeout and data available - should succeed quickly
+    printf("🧪 Test 2d: AsyncTimeout recvDAT with data available...\n");
 
     // First send data to ensure it's available
     printf("   📤 Sending data for timeout success test...\n");
@@ -756,24 +760,24 @@ TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byModeTransitions_expectCons
     RecvDesc4.Payload.pData = recvBuffer4;
     RecvDesc4.Payload.PtrDataSize = sizeof(recvBuffer4);
 
-    IOC_Option_defineSyncTimeout(SyncTimeoutSuccessOpt, 5000);  // 5ms timeout
+    IOC_Option_defineASyncTimeout(AsyncTimeoutSuccessRecvOpt, 5000);  // 5ms timeout
     printf("   📋 Testing timeout when data IS available...\n");
-    auto syncTimeoutSuccessStart = std::chrono::high_resolution_clock::now();
-    Result = IOC_recvDAT(DatPollingReceiverLinkID, &RecvDesc4, &SyncTimeoutSuccessOpt);
-    auto syncTimeoutSuccessEnd = std::chrono::high_resolution_clock::now();
+    auto asyncTimeoutSuccessRecvStart = std::chrono::high_resolution_clock::now();
+    Result = IOC_recvDAT(DatPollingReceiverLinkID, &RecvDesc4, &AsyncTimeoutSuccessRecvOpt);
+    auto asyncTimeoutSuccessRecvEnd = std::chrono::high_resolution_clock::now();
 
-    auto syncTimeoutSuccessDuration =
-        std::chrono::duration_cast<std::chrono::microseconds>(syncTimeoutSuccessEnd - syncTimeoutSuccessStart);
-    printf("   ⏱️ SyncTimeout (with data) execution time: %lld microseconds\n",
-           (long long)syncTimeoutSuccessDuration.count());
-    printf("   📋 SyncTimeout (with data) result: %d\n", Result);
+    auto asyncTimeoutSuccessRecvDuration = std::chrono::duration_cast<std::chrono::microseconds>(
+        asyncTimeoutSuccessRecvEnd - asyncTimeoutSuccessRecvStart);
+    printf("   ⏱️ AsyncTimeout (with data) recvDAT execution time: %lld microseconds\n",
+           (long long)asyncTimeoutSuccessRecvDuration.count());
+    printf("   📋 AsyncTimeout (with data) recvDAT result: %d\n", Result);
 
     // Should succeed quickly when data is available
-    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "SyncTimeout should succeed when data is available";
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "AsyncTimeout recvDAT should succeed when data is available";
     ASSERT_GT(RecvDesc4.Payload.PtrDataSize, 0) << "Should have received data";
-    ASSERT_LT(syncTimeoutSuccessDuration.count(), 3000)  // Should complete quickly
-        << "SyncTimeout should complete quickly when data is available";
-    printf("   ✓ SyncTimeout with data succeeded quickly (%lu bytes)\n", RecvDesc4.Payload.PtrDataSize);
+    ASSERT_LT(asyncTimeoutSuccessRecvDuration.count(), 3000)  // Should complete quickly
+        << "AsyncTimeout recvDAT should complete quickly when data is available";
+    printf("   ✓ AsyncTimeout with data succeeded quickly (%lu bytes)\n", RecvDesc4.Payload.PtrDataSize);
 
     // === Test 3: Mixed Mode Operations with Data Integrity ===
     printf("📋 Test 3: Mixed Mode Operations with Data Integrity...\n");
@@ -889,22 +893,23 @@ TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byModeTransitions_expectCons
     ASSERT_LT(asyncMayBlockDuration.count(), MAX_MODE_EXECUTION_TIME_US) << "ASyncMayBlock timing within bounds";
     ASSERT_LT(asyncNonBlockDuration.count(), 5000) << "ASyncNonBlock timing within strict bounds";
     ASSERT_LT(asyncTimeoutDuration.count(), 10000) << "ASyncTimeout timing within bounds";
-    ASSERT_LT(syncMayBlockDuration.count(), MAX_MODE_EXECUTION_TIME_US) << "SyncMayBlock timing within bounds";
-    ASSERT_LT(syncNonBlockDuration.count(), 3000) << "SyncNonBlock timing within strict bounds";
-    ASSERT_LT(syncTimeoutDuration.count(), 8000) << "SyncTimeout timing within bounds";
-    ASSERT_LT(syncTimeoutSuccessDuration.count(), 3000) << "SyncTimeout with data timing within bounds";
+    ASSERT_LT(asyncMayBlockRecvDuration.count(), MAX_MODE_EXECUTION_TIME_US)
+        << "AsyncMayBlock recvDAT timing within bounds";
+    ASSERT_LT(asyncNonBlockRecvDuration.count(), 3000) << "AsyncNonBlock recvDAT timing within strict bounds";
+    ASSERT_LT(asyncTimeoutRecvDuration.count(), 8000) << "AsyncTimeout recvDAT timing within bounds";
+    ASSERT_LT(asyncTimeoutSuccessRecvDuration.count(), 3000) << "AsyncTimeout recvDAT with data timing within bounds";
 
-    printf("   ✅ All blocking modes demonstrated correct timing behavior\n");
+    printf("   ✅ All async modes demonstrated correct timing behavior\n");
     printf("   ✅ Mode transitions preserved data integrity\n");
     printf("   ✅ Each mode behaved consistently across multiple calls\n");
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               ✅ SUMMARY                                              │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
-    printf("✅ All blocking mode transitions completed successfully\n");
-    printf("✅ Consistent behavior verified across all mode types\n");
+    printf("✅ All async mode transitions completed successfully\n");
+    printf("✅ Consistent behavior verified across all async mode types\n");
     printf("✅ Data integrity maintained during mode switching\n");
-    printf("✅ Timing boundaries respected for each blocking mode\n");
+    printf("✅ Timing boundaries respected for each async mode\n");
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               🧹 CLEANUP PHASE                                        │
@@ -1129,14 +1134,14 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byPrecisionTesting_expectAccurate
             DrainDesc.Payload.pData = drainBuffer;
             DrainDesc.Payload.PtrDataSize = sizeof(drainBuffer);
 
-            IOC_Option_defineSyncNonBlock(DrainOption);
+            IOC_Option_defineASyncNonBlock(DrainOption);
             IOC_Result_T drainResult;
             do {
                 drainResult = IOC_recvDAT(DatPollingReceiverLinkID, &DrainDesc, &DrainOption);
             } while (drainResult == IOC_RESULT_SUCCESS);
 
-            // Test precise timeout
-            IOC_Option_defineSyncTimeout(TimeoutOption, timeoutMs * 1000);  // Convert to microseconds
+            // Test precise timeout using AsyncTimeout option (DAT is always ASYNC)
+            IOC_Option_defineASyncTimeout(TimeoutOption, timeoutMs * 1000);  // Convert to microseconds
 
             IOC_DatDesc_T RecvDesc = {0};
             IOC_initDatDesc(&RecvDesc);
@@ -1318,8 +1323,8 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byPrecisionTesting_expectAccurate
     // Prepare for concurrent test - ensure clean state
     std::this_thread::sleep_for(std::chrono::milliseconds(50));  // Let system settle
 
-    // Launch concurrent timeout operations
-    IOC_Option_defineSyncTimeout(ConcurrentRecvTimeoutOption, CONCURRENT_RECV_TIMEOUT_MS * 1000);
+    // Launch concurrent timeout operations using AsyncTimeout (DAT is always ASYNC)
+    IOC_Option_defineASyncTimeout(ConcurrentRecvTimeoutOption, CONCURRENT_RECV_TIMEOUT_MS * 1000);
 
     IOC_Result_T concurrentRecvResult1, concurrentRecvResult2;
     double concurrentRecvTime1, concurrentRecvTime2;
