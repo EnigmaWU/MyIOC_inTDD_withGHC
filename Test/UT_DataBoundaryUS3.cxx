@@ -26,7 +26,7 @@
  *      @[Coverage]: Blocking ↔ non-blocking transitions, mode consistency, data preservation
  *
  *-------------------------------------------------------------------------------------------------
- * [@AC-3,US-3] Extreme timeout boundaries - Edge cases
+ * TODO: [@AC-3,US-3] Extreme timeout boundaries - Edge cases
  *  TC-3:
  *      @[Name]: verifyDatTimeoutBoundary_byExtremeValues_expectProperHandling
  *      @[Purpose]: Verify extreme timeout value handling
@@ -34,7 +34,7 @@
  *      @[Coverage]: Microsecond timeouts, maximum timeout values, timeout accuracy
  *
  *-------------------------------------------------------------------------------------------------
- * TODO: [@AC-1,US-3] Timeout boundary validation - Timeout precision
+ * [@AC-1,US-3] Timeout boundary validation - Timeout precision
  *  TC-4:
  *      @[Name]: verifyDatTimeoutBoundary_byPrecisionTesting_expectAccurateTiming
  *      @[Purpose]: Verify timeout precision and accuracy
