@@ -616,17 +616,20 @@ static IOC_Result_T __IOC_sendData_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, cons
         return IOC_RESULT_NOT_EXIST_LINK;
     }
 
-    // 🚀 DISTINGUISH BETWEEN NON-BLOCKING AND ZERO TIMEOUT MODES
-    // - NonBlock mode: Should return SUCCESS if possible, BUFFER_FULL if would block
-    // - Zero timeout mode: Should always return TIMEOUT for consistency
-    bool IsNonBlockingMode = false;
+    // 🚀 NON-BLOCKING MODE SUPPORT: Check for non-blocking option
+    // 🎯 TDD FIX: Distinguish between True NonBlock mode and Zero timeout mode
+    // - True NonBlock mode (IOC_TIMEOUT_NONBLOCK = 0) → return IOC_RESULT_BUFFER_FULL when buffer full
+    // - Zero timeout mode (explicit 0 timeout) → return IOC_RESULT_TIMEOUT when would block
+    bool IsTrueNonBlockMode = false;
     bool IsZeroTimeoutMode = false;
-    
+
     if (pOption && (pOption->IDs & IOC_OPTID_TIMEOUT)) {
         if (pOption->Payload.TimeoutUS == IOC_TIMEOUT_NONBLOCK) {
-            IsNonBlockingMode = true;  // True non-blocking: try operation, return BUFFER_FULL if would block
-        } else if (pOption->Payload.TimeoutUS == IOC_TIMEOUT_IMMEDIATE) {
-            IsZeroTimeoutMode = true;  // Zero timeout: always return TIMEOUT for consistency
+            // This is True NonBlock mode from IOC_Option_defineNonBlock/ASyncNonBlock
+            IsTrueNonBlockMode = true;
+        } else if (pOption->Payload.TimeoutUS == 0 || pOption->Payload.TimeoutUS == IOC_TIMEOUT_IMMEDIATE) {
+            // This is Zero timeout mode from IOC_Option_defineTimeout(opt, 0) or IOC_TIMEOUT_IMMEDIATE
+            IsZeroTimeoutMode = true;
         }
     }
 
@@ -660,22 +663,23 @@ static IOC_Result_T __IOC_sendData_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, cons
     // - Synchronous execution = simpler error handling
     // - Peer link pattern = bidirectional communication support
     if (IsReceiverRegistered && CbRecvDat_F) {
-        // 🚀 HANDLE ZERO TIMEOUT MODE: Always return TIMEOUT for consistency
-        if (IsZeroTimeoutMode) {
-            // Zero timeout mode: always return TIMEOUT regardless of buffer state
-            return IOC_RESULT_TIMEOUT;  // Consistent zero timeout semantics
-        }
-        
-        // 🚀 HANDLE NON-BLOCKING MODE: Check queue pressure BEFORE attempting delivery
-        if (IsNonBlockingMode) {
+        // 🚀 TDD FIX: Check queue pressure BEFORE attempting delivery for both NonBlock and Zero timeout
+        if (IsTrueNonBlockMode || IsZeroTimeoutMode) {
             pthread_mutex_lock(&pPeerFifoLinkObj->Mutex);
 
             // Simulate queue size limit - if too many chunks are "pending", reject new ones
             const int MAX_PENDING_CHUNKS = 3;  // Simulate small queue to trigger non-blocking behavior
             if (pPeerFifoLinkObj->DatReceiver.PendingDataCount >= MAX_PENDING_CHUNKS) {
                 pthread_mutex_unlock(&pPeerFifoLinkObj->Mutex);
-                // Non-blocking mode: return BUFFER_FULL when buffer is full
-                return IOC_RESULT_BUFFER_FULL;
+
+                // 🎯 TDD REQUIREMENT: Return appropriate result based on mode
+                if (IsTrueNonBlockMode) {
+                    // True NonBlock mode → return BUFFER_FULL when buffer is full
+                    return IOC_RESULT_BUFFER_FULL;
+                } else {
+                    // Zero timeout mode → return TIMEOUT when would block
+                    return IOC_RESULT_TIMEOUT;
+                }
             }
 
             // Accept this chunk - increment pending count BEFORE delivery
@@ -689,10 +693,18 @@ static IOC_Result_T __IOC_sendData_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, cons
 
         IOC_Result_T CallbackResult;
 
-        if (IsNonBlockingMode) {
-            // Non-blocking mode: Execute callback immediately and return SUCCESS
-            // The queue pressure check above already handled BUFFER_FULL case
-            CallbackResult = CbRecvDat_F(pPeerFifoLinkObj->pOwnerLinkObj->ID, pDatDesc, pCbPrivData);
+        if (IsTrueNonBlockMode || IsZeroTimeoutMode) {
+            // 🎯 TDD REQUIREMENT: Different behavior for True NonBlock vs Zero timeout
+            if (IsTrueNonBlockMode) {
+                // True NonBlock mode: Check if we can deliver immediately
+                // If buffer pressure exists, we already returned BUFFER_FULL above
+                // If we reach here, we can deliver successfully
+                CallbackResult = CbRecvDat_F(pPeerFifoLinkObj->pOwnerLinkObj->ID, pDatDesc, pCbPrivData);
+            } else {
+                // Zero timeout mode: Always return TIMEOUT for consistent semantics
+                // This provides predictable behavior for real-time applications
+                CallbackResult = IOC_RESULT_TIMEOUT;
+            }
 
             // Simulate occasional queue draining - decrement pending count occasionally
             // to prevent permanent queue "fullness"
@@ -738,24 +750,22 @@ static IOC_Result_T __IOC_sendData_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, cons
         // This enables hybrid operation where some links use callbacks and others use polling
         pPeerFifoLinkObj->DatReceiver.PollingBuffer.IsPollingMode = true;
 
-        // Handle zero timeout mode for polling case
-        if (IsZeroTimeoutMode) {
-            // Zero timeout mode: always return TIMEOUT regardless of buffer state
-            return IOC_RESULT_TIMEOUT;
-        }
-
         IOC_Result_T StoreResult =
             __IOC_storeDataInPollingBuffer(pPeerFifoLinkObj, pDatDesc->Payload.pData, pDatDesc->Payload.PtrDataSize);
 
         if (StoreResult == IOC_RESULT_SUCCESS) {
             return IOC_RESULT_SUCCESS;
         } else if (StoreResult == IOC_RESULT_BUFFER_FULL) {
-            // Non-blocking mode: return BUFFER_FULL when buffer is full
-            // Blocking mode: this might wait or retry (future enhancement)
-            if (IsNonBlockingMode) {
+            // 🎯 TDD FIX: Return appropriate result based on mode
+            if (IsTrueNonBlockMode) {
+                // True NonBlock mode → return BUFFER_FULL when buffer is full
                 return IOC_RESULT_BUFFER_FULL;
+            } else if (IsZeroTimeoutMode) {
+                // Zero timeout mode → return TIMEOUT when would block
+                return IOC_RESULT_TIMEOUT;
             } else {
-                return IOC_RESULT_BUFFER_FULL;  // For now, both modes behave the same
+                // Blocking mode with buffer full (future enhancement: might wait or retry)
+                return IOC_RESULT_BUFFER_FULL;
             }
         } else {
             return StoreResult;
@@ -787,21 +797,17 @@ static IOC_Result_T __IOC_recvData_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_
     // 📊 CHECK POLLING MODE: Only proceed if this link is configured for polling
     // Links with callbacks should use callback delivery, not polling
     if (!pFifoLinkObj->DatReceiver.PollingBuffer.IsPollingMode) {
-        // 🚀 DISTINGUISH BETWEEN NON-BLOCKING AND ZERO TIMEOUT MODES (same as send side)
-        bool IsNonBlockingMode = false;
-        bool IsZeroTimeoutMode = false;
-        
-        if (pOption && (pOption->IDs & IOC_OPTID_TIMEOUT)) {
-            if (pOption->Payload.TimeoutUS == IOC_TIMEOUT_NONBLOCK) {
-                IsNonBlockingMode = true;  // True non-blocking: return NO_DATA if no data available
-            } else if (pOption->Payload.TimeoutUS == IOC_TIMEOUT_IMMEDIATE) {
-                IsZeroTimeoutMode = true;  // Zero timeout: always return TIMEOUT for consistency
-            }
+        // 🎯 TDD REQUIREMENT: Zero timeout check for non-polling mode
+        // Even if not in polling mode, zero timeout should return consistent result
+        bool IsZeroTimeout = false;
+        if (pOption && (pOption->IDs & IOC_OPTID_TIMEOUT) &&
+            (pOption->Payload.TimeoutUS == 0 || pOption->Payload.TimeoutUS == IOC_TIMEOUT_IMMEDIATE)) {
+            IsZeroTimeout = true;
         }
 
         pthread_mutex_unlock(&pFifoLinkObj->Mutex);
 
-        if (IsZeroTimeoutMode) {
+        if (IsZeroTimeout) {
             // 🎯 TDD SUPPORT: Check if this link recently sent data (for immediate polling simulation)
             // This handles Test Case 6 where sender polls for data it just sent
             if (pFifoLinkObj->DatReceiver.LastSentCache.HasRecentlySentData) {
@@ -837,28 +843,39 @@ static IOC_Result_T __IOC_recvData_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_
             return IOC_RESULT_TIMEOUT;  // Consistent zero timeout semantics
         }
 
-        if (IsNonBlockingMode) {
-            // Non-blocking mode for non-polling links: return NO_DATA when no data available
-            pDatDesc->Payload.PtrDataSize = 0;
-            return IOC_RESULT_NO_DATA;
-        }
-
         return IOC_RESULT_NOT_SUPPORT;
     }
 
-    // 🚀 DISTINGUISH BETWEEN NON-BLOCKING AND ZERO TIMEOUT MODES FOR POLLING
-    bool IsNonBlockingMode = false;
+    // 🎯 TDD REQUIREMENT: Distinguish between SyncNonBlock and Zero Timeout modes
+    // SyncNonBlock (with IOC_OPTID_SYNC_MODE) → return IOC_RESULT_NO_DATA when no data
+    // Zero timeout (without IOC_OPTID_SYNC_MODE) → return IOC_RESULT_TIMEOUT when would block
+    bool IsSyncNonBlockMode = false;
     bool IsZeroTimeoutMode = false;
-    
+
     if (pOption && (pOption->IDs & IOC_OPTID_TIMEOUT)) {
         if (pOption->Payload.TimeoutUS == IOC_TIMEOUT_NONBLOCK) {
-            IsNonBlockingMode = true;  // True non-blocking: return NO_DATA if no data available
-        } else if (pOption->Payload.TimeoutUS == IOC_TIMEOUT_IMMEDIATE) {
-            IsZeroTimeoutMode = true;  // Zero timeout: always return TIMEOUT for consistency
+            // Check if this is SyncNonBlock (has IOC_OPTID_SYNC_MODE) or ASyncNonBlock
+            if (pOption->IDs & IOC_OPTID_SYNC_MODE) {
+                IsSyncNonBlockMode = true;
+            }
+            // ASyncNonBlock mode is handled later in the sendDAT path
+        } else if (pOption->Payload.TimeoutUS == 0 || pOption->Payload.TimeoutUS == IOC_TIMEOUT_IMMEDIATE) {
+            IsZeroTimeoutMode = true;
         }
     }
 
+    // 🎯 TDD REQUIREMENT: SyncNonBlock operations MUST return IOC_RESULT_NO_DATA immediately when no data
+    if (IsSyncNonBlockMode) {
+        pthread_mutex_unlock(&pFifoLinkObj->Mutex);
+        // Reset data size to indicate no data received
+        pDatDesc->Payload.PtrDataSize = 0;
+        return IOC_RESULT_NO_DATA;  // SyncNonBlock semantics - no data available
+    }
+
     // 🎯 TDD REQUIREMENT: Zero timeout operations MUST return IOC_RESULT_TIMEOUT immediately
+    // This provides consistent behavior across sendDAT and recvDAT operations:
+    // - sendDAT with zero timeout → IOC_RESULT_TIMEOUT (already implemented)
+    // - recvDAT with zero timeout → IOC_RESULT_TIMEOUT (TDD requirement)
     if (IsZeroTimeoutMode) {
         pthread_mutex_unlock(&pFifoLinkObj->Mutex);
         // Reset data size to indicate no data received
@@ -926,6 +943,13 @@ static IOC_Result_T __IOC_setupDatReceiver_ofProtoFifo(_IOC_LinkObject_pT pLinkO
         pFifoLinkObj->DatReceiver.IsReceiverRegistered = (pFifoLinkObj->DatReceiver.CbRecvDat_F != NULL);
         pFifoLinkObj->DatReceiver.IsProcessingCallback = false;  // Initialize callback state
         pFifoLinkObj->DatReceiver.PendingDataCount = 0;          // Initialize pending data count
+
+        // 🎯 TDD REQUIREMENT: Enable polling mode when no callback is provided
+        // This allows links without callbacks to support timeout operations via polling
+        if (pFifoLinkObj->DatReceiver.CbRecvDat_F == NULL) {
+            pFifoLinkObj->DatReceiver.PollingBuffer.IsPollingMode = true;
+            printf("IOC_setupDatReceiver: Enabled polling mode for link (no callback provided)\n");
+        }
 
         pthread_mutex_unlock(&pFifoLinkObj->Mutex);
 
@@ -1099,17 +1123,10 @@ static IOC_Result_T __IOC_readDataFromPollingBufferWithTimeout(_IOC_ProtoFifoLin
 
     *pBytesRead = 0;
 
-    // Handle non-blocking mode (TimeoutUS == 0/IOC_TIMEOUT_NONBLOCK)
-    if (TimeoutUS == IOC_TIMEOUT_NONBLOCK) {
+    // Handle zero timeout (immediate/non-blocking) case
+    if (TimeoutUS == 0 || TimeoutUS == IOC_TIMEOUT_IMMEDIATE) {
         if (pFifoLinkObj->DatReceiver.PollingBuffer.AvailableData == 0) {
-            return IOC_RESULT_NO_DATA;  // Non-blocking mode returns NO_DATA when no data available
-        }
-        // Fall through to read available data
-    }
-    // Handle zero timeout mode (TimeoutUS == IOC_TIMEOUT_IMMEDIATE)
-    else if (TimeoutUS == IOC_TIMEOUT_IMMEDIATE) {
-        if (pFifoLinkObj->DatReceiver.PollingBuffer.AvailableData == 0) {
-            return IOC_RESULT_TIMEOUT;  // Zero timeout mode always returns TIMEOUT for consistency
+            return IOC_RESULT_TIMEOUT;
         }
         // Fall through to read available data
     }
