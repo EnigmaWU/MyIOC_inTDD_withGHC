@@ -59,6 +59,7 @@ static inline IOC_BoolResult_T IOC_Option_isNonBlockMode(IOC_Options_pT pOption)
     return IsNonBlockMode;
 }
 
+// NONBLOCK: ArgTimeoutUS MUST == 0, means NonBlock mode
 #define IOC_Option_defineNonBlock(OptVarName) \
     IOC_Options_T OptVarName = {};            \
     OptVarName.IDs = IOC_OPTID_TIMEOUT;       \
@@ -66,6 +67,7 @@ static inline IOC_BoolResult_T IOC_Option_isNonBlockMode(IOC_Options_pT pOption)
 
 #define IOC_Option_defineASyncNonBlock IOC_Option_defineNonBlock
 
+// TIMEOUT: ArgTimeoutUS MUST > 0, ==0 means NonBlock mode
 #define IOC_Option_defineTimeout(OptVarName, ArgTimeoutUS) \
     IOC_Options_T OptVarName = {};                         \
     OptVarName.IDs = IOC_OPTID_TIMEOUT;                    \
@@ -76,6 +78,7 @@ static inline IOC_BoolResult_T IOC_Option_isNonBlockMode(IOC_Options_pT pOption)
 #define IOC_Option_defineASyncMayBlock(OptVarName) IOC_Options_T OptVarName = {};
 #define IOC_Option_defineASyncMode IOC_Option_defineASyncMayBlock
 
+// NONBLOCK: ArgTimeoutUS MUST == 0, means NonBlock mode
 #define IOC_Option_defineSyncNonBlock(OptVarName)                                \
     IOC_Options_T OptVarName = {};                                               \
     OptVarName.IDs = (IOC_OptionsID_T)(IOC_OPTID_SYNC_MODE | IOC_OPTID_TIMEOUT); \
