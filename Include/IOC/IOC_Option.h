@@ -15,9 +15,13 @@ typedef enum {
 } IOC_OptionsID_T;
 
 #define IOC_TIMEOUT_INFINITE ULONG_MAX
-#define IOC_TIMEOUT_NONBLOCK 0       // NonBlock means no timeout, which is equivalent to 0us
-#define IOC_TIMEOUT_IMMEDIATE 1000   // 1ms = 1000us means immediate timeout
-#define IOC_TIMEOUT_MAX 86400000000  // 24*60*60*1000ms*1000us
+#define IOC_TIMEOUT_NONBLOCK 0      // NonBlock means no timeout, which is equivalent to 0us
+#define IOC_TIMEOUT_IMMEDIATE 1000  // 1ms = 1000us means immediate timeout
+#ifdef CONFIG_BUILD_WITH_UNIT_TESTING
+#define IOC_TIMEOUT_MAX 9000000  // 9-Seconds = 9*1000*1000us
+#else
+#define IOC_TIMEOUT_MAX 86400000000  // 24-Hours 24*60*60*1000ms*1000us
+#endif                               // CONFIG_BUILD_WITH_UNIT_TESTING
 
 typedef struct {
     IOC_OptionsID_T IDs;
