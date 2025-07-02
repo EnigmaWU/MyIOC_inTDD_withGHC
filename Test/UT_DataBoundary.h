@@ -92,6 +92,12 @@
  *      AND verify that error codes match their documented meanings,
  *      AND confirm that all boundary error paths are properly tested.
  *
+ *  US-5: AS a stream processing developer,
+ *    I WANT to verify DAT stream granularity behavior across different send/receive patterns,
+ *   SO THAT I can ensure data integrity when sending and receiving at different granularities
+ *      AND understand how IOC handles byte-by-byte vs block-by-block streaming scenarios,
+ *      AND verify stream reconstruction works correctly across granularity boundaries.
+ *
  *************************************************************************************************/
 //======>END OF USER STORY=========================================================================
 
@@ -169,6 +175,37 @@
  *          AND respect timeout constraints accurately,
  *          AND not overflow or underflow time calculations.
  *
+ *-------------------------------------------------------------------------------------------------
+ * [@US-4] Error code coverage validation
+ *  AC-1: GIVEN all boundary error scenarios (invalid params, oversized data, timeouts, mode conflicts),
+ *         WHEN performing comprehensive boundary testing across all DAT operations,
+ *         THEN every boundary condition should return specific, documented error codes
+ *          AND error codes should be consistent across similar boundary scenarios,
+ *          AND no boundary condition should result in undefined behavior or missing error reporting,
+ *          AND error code coverage should include all documented IOC_RESULT_* values for DAT operations.
+ *
+ *-------------------------------------------------------------------------------------------------
+ * [@US-5] Stream granularity boundary validation
+ *  AC-1: GIVEN DAT stream with byte-by-byte sending and block-by-block receiving,
+ *         WHEN sender calls IOC_sendDAT with 1-byte chunks repeatedly,
+ *         THEN receiver should reconstruct data correctly via IOC_recvDAT or callback
+ *          AND data integrity should be maintained across granularity boundaries,
+ *          AND stream ordering should be preserved regardless of receive granularity,
+ *          AND no data should be lost or duplicated during granularity conversion.
+ *
+ *  AC-2: GIVEN DAT stream with block-by-block sending and byte-by-byte receiving,
+ *         WHEN sender calls IOC_sendDAT with large chunks (1KB+),
+ *         THEN receiver should be able to receive data in smaller fragments
+ *          AND partial reception should work correctly with IOC_recvDAT,
+ *          AND callback reception should handle large chunks appropriately,
+ *          AND stream boundaries should not cause data corruption or loss.
+ *
+ *  AC-3: GIVEN DAT stream with variable granularity patterns,
+ *         WHEN alternating between different send/receive chunk sizes during transmission,
+ *         THEN stream consistency should be maintained throughout granularity changes
+ *          AND data reconstruction should work correctly for mixed-size patterns,
+ *          AND system should handle rapid granularity switching without buffer issues,
+ *          AND end-to-end data integrity should be verifiable across all granularity combinations.
  *************************************************************************************************/
 //=======>END OF ACCEPTANCE CRITERIA================================================================
 
@@ -199,6 +236,10 @@
  * 📂 UT_DataBoundaryUS4.cxx - [@US-4] Error code coverage validation (TODO)
  *    └── TODO: Comprehensive error code boundary testing
  *
+ * 📂 UT_DataBoundaryUS5.cxx - [@US-5] Stream granularity boundary validation (TODO)
+ *    └── TODO: [@AC-1,US-5] Byte-by-byte send, block-by-block receive granularity testing
+ *    └── TODO: [@AC-2,US-5] Block-by-block send, byte-by-byte receive granularity testing
+ *    └── TODO: [@AC-3,US-5] Variable granularity pattern testing and stream consistency
  *************************************************************************************************/
 //======>END OF TEST CASES ORGANIZATION============================================================
 
