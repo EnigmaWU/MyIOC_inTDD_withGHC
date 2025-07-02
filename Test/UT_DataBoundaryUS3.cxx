@@ -17,36 +17,47 @@
  *      @[Brief]: Configure zero timeout, verify immediate return without blocking
  *      @[Coverage]: Zero timeout configuration, immediate return behavior, no blocking verification
  *
+ *  TODO: TC-2: ...
+ *
  *-------------------------------------------------------------------------------------------------
  * [@AC-2,US-3] Blocking mode boundaries - Mode transitions
- *  TC-2:
+ *  TC-1:
  *      @[Name]: verifyDatBlockingModeBoundary_byModeTransitions_expectConsistentBehavior
  *      @[Purpose]: Verify blocking/non-blocking mode transitions
  *      @[Brief]: Switch between blocking modes, verify each mode behaves correctly
  *      @[Coverage]: Blocking ↔ non-blocking transitions, mode consistency, data preservation
  *
+ *  TODO: TC-2: ...
+ *
  *-------------------------------------------------------------------------------------------------
  * [@AC-3,US-3] Extreme timeout boundaries - Edge cases
- *  TC-3:
+ *  TC-1:
  *      @[Name]: verifyDatTimeoutBoundary_byExtremeValues_expectProperHandling
  *      @[Purpose]: Verify extreme timeout value handling
  *      @[Brief]: Test very small and very large timeout values, verify proper handling
  *      @[Coverage]: Microsecond timeouts, maximum timeout values, timeout accuracy
  *
+ *  TODO: TC-2: ...
+ *
  *-------------------------------------------------------------------------------------------------
  * [@AC-1,US-3] Timeout boundary validation - Timeout precision
- *  TC-4:
+ *  TC-1:
  *      @[Name]: verifyDatTimeoutBoundary_byPrecisionTesting_expectAccurateTiming
  *      @[Purpose]: Verify timeout precision and accuracy
  *      @[Brief]: Test timeout accuracy within acceptable ranges
  *      @[Coverage]: Timeout precision, timing accuracy, timeout variance measurement
  *
- * TODO: [@AC-2,US-3] Blocking mode boundaries - State consistency
- *  TC-5:
+ *  TODO: TC-2: ...
+ *
+ *-------------------------------------------------------------------------------------------------
+ * [@AC-2,US-3] Blocking mode boundaries - State consistency
+ *  TC-1:
  *      @[Name]: verifyDatBlockingModeBoundary_byStateConsistency_expectNoDataLoss
  *      @[Purpose]: Verify state consistency during mode transitions
  *      @[Brief]: Ensure no data loss during blocking mode changes
  *      @[Coverage]: State preservation, data queue integrity, mode transition safety
+ *
+ *  TODO: TC-2: ...
  *
  *************************************************************************************************/
 //======>END OF US-3 TEST CASES====================================================================
@@ -1771,9 +1782,10 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byPrecisionTesting_expectAccurate
         double recvError;
         if (timeoutMs == 1) {
             // For IOC_TIMEOUT_IMMEDIATE, measure how close to 0ms it is (immediate return)
-            recvError = recvMean; // Error is how far from 0ms it is
-            printf("   🔄 %dms recvDAT analysis (IOC_TIMEOUT_IMMEDIATE): mean=%.2fms, deviation_from_immediate=%.2fms\n", 
-                   timeoutMs, recvMean, recvError);
+            recvError = recvMean;  // Error is how far from 0ms it is
+            printf(
+                "   🔄 %dms recvDAT analysis (IOC_TIMEOUT_IMMEDIATE): mean=%.2fms, deviation_from_immediate=%.2fms\n",
+                timeoutMs, recvMean, recvError);
             // Don't include IOC_TIMEOUT_IMMEDIATE in overall precision calculation as it has different semantics
         } else {
             // Regular precision calculation for actual timeouts
@@ -1789,7 +1801,7 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byPrecisionTesting_expectAccurate
         double avgRecvPrecision = totalRecvPrecisionError / validRecvComparisons;
         printf("📊 Overall precision summary:\n");
         printf("   📈 Average recvDAT precision error: %.1f%% (excluding IOC_TIMEOUT_IMMEDIATE)\n", avgRecvPrecision);
-        
+
         // Final assertions for overall system performance
         ASSERT_LE(avgRecvPrecision, 25.0) << "Average recvDAT precision should be reasonable";
     } else {
