@@ -10,24 +10,36 @@
 /**************************************************************************************************
  * @brief 【US-3 Test Cases】- Timeout and Blocking Mode Boundaries
  *
- * [@AC-1,US-3] Timeout boundary validation - Zero timeout
+ * [@AC-1,US-3] Timeout boundary validation
  *  TC-1:
  *      @[Name]: verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateReturn
  *      @[Purpose]: Verify zero timeout behavior
  *      @[Brief]: Configure zero timeout, verify immediate return without blocking
  *      @[Coverage]: Zero timeout configuration, immediate return behavior, no blocking verification
  *
- *  TODO: TC-2: ...
+ *  TC-2:
+ *      @[Name]: verifyDatTimeoutBoundary_byPrecisionTesting_expectAccurateTiming
+ *      @[Purpose]: Verify timeout precision and accuracy
+ *      @[Brief]: Test timeout accuracy within acceptable ranges
+ *      @[Coverage]: Timeout precision, timing accuracy, timeout variance measurement
+ *
+ *  TODO: TC-3: ...
  *
  *-------------------------------------------------------------------------------------------------
- * [@AC-2,US-3] Blocking mode boundaries - Mode transitions
+ * [@AC-2,US-3] Blocking mode boundaries
  *  TC-1:
  *      @[Name]: verifyDatBlockingModeBoundary_byModeTransitions_expectConsistentBehavior
  *      @[Purpose]: Verify blocking/non-blocking mode transitions
  *      @[Brief]: Switch between blocking modes, verify each mode behaves correctly
  *      @[Coverage]: Blocking ↔ non-blocking transitions, mode consistency, data preservation
  *
- *  TODO: TC-2: ...
+ *  TC-2:
+ *      @[Name]: verifyDatBlockingModeBoundary_byStateConsistency_expectNoDataLoss
+ *      @[Purpose]: Verify state consistency during mode transitions
+ *      @[Brief]: Ensure no data loss during blocking mode changes
+ *      @[Coverage]: State preservation, data queue integrity, mode transition safety
+ *
+ *  TODO: TC-3: ...
  *
  *-------------------------------------------------------------------------------------------------
  * [@AC-3,US-3] Extreme timeout boundaries - Edge cases
@@ -40,24 +52,7 @@
  *  TODO: TC-2: ...
  *
  *-------------------------------------------------------------------------------------------------
- * [@AC-1,US-3] Timeout boundary validation - Timeout precision
- *  TC-1:
- *      @[Name]: verifyDatTimeoutBoundary_byPrecisionTesting_expectAccurateTiming
- *      @[Purpose]: Verify timeout precision and accuracy
- *      @[Brief]: Test timeout accuracy within acceptable ranges
- *      @[Coverage]: Timeout precision, timing accuracy, timeout variance measurement
- *
- *  TODO: TC-2: ...
- *
- *-------------------------------------------------------------------------------------------------
- * [@AC-2,US-3] Blocking mode boundaries - State consistency
- *  TC-1:
- *      @[Name]: verifyDatBlockingModeBoundary_byStateConsistency_expectNoDataLoss
- *      @[Purpose]: Verify state consistency during mode transitions
- *      @[Brief]: Ensure no data loss during blocking mode changes
- *      @[Coverage]: State preservation, data queue integrity, mode transition safety
- *
- *  TODO: TC-2: ...
+ * TODO: [@AC-4,US-3]
  *
  *************************************************************************************************/
 //======>END OF US-3 TEST CASES====================================================================
@@ -461,7 +456,7 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
 }
 //======>END OF: [@AC-1,US-3] TC-1=================================================================
 
-//======>BEGIN OF: [@AC-2,US-3] TC-2===============================================================
+//======>BEGIN OF: [@AC-2,US-3] TC-1===============================================================
 /**
  * @[Name]: verifyDatBlockingModeBoundary_byModeTransitions_expectConsistentBehavior
  * @[Steps]:
@@ -965,9 +960,9 @@ TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byModeTransitions_expectCons
 
     printf("🧹 Cleanup completed\n");
 }
-//======>END OF: [@AC-2,US-3] TC-2=================================================================
+//======>END OF: [@AC-2,US-3] TC-1=================================================================
 
-//======>BEGIN OF: [@AC-3,US-3] TC-3===============================================================
+//======>BEGIN OF: [@AC-3,US-3] TC-1===============================================================
 /**
  * @[Name]: verifyDatTimeoutBoundary_byExtremeValues_expectProperHandling
  * @[Steps]:
@@ -1415,9 +1410,9 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byExtremeValues_expectProperHandl
 
     printf("🧹 Cleanup completed\n");
 }
-//======>END OF: [@AC-3,US-3] TC-3=================================================================
+//======>END OF: [@AC-3,US-3] TC-1=================================================================
 
-//======>BEGIN OF: [@AC-1,US-3] TC-4===============================================================
+//======>BEGIN OF: [@AC-1,US-3] TC-2===============================================================
 /**
  * @[Name]: verifyDatTimeoutBoundary_byPrecisionTesting_expectAccurateTiming
  * @[Steps]:
@@ -1923,9 +1918,9 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byPrecisionTesting_expectAccurate
 
     printf("🧹 Precision test cleanup completed\n");
 }
-//======>END OF: [@AC-1,US-3] TC-4=================================================================
+//======>END OF: [@AC-1,US-3] TC-2=================================================================
 
-//======>BEGIN OF: [@AC-2,US-3] TC-5===============================================================
+//======>BEGIN OF: [@AC-2,US-3] TC-2===============================================================
 /**
  * @[Name]: verifyDatBlockingModeBoundary_byStateConsistency_expectNoDataLoss
  * @[Steps]:
@@ -2355,7 +2350,7 @@ TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byStateConsistency_expectNoD
 
     printf("🧹 State consistency test cleanup completed\n");
 }
-//======>END OF: [@AC-2,US-3] TC-5=================================================================
+//======>END OF: [@AC-2,US-3] TC-2=================================================================
 
 //======>END OF US-3 TEST IMPLEMENTATIONS==========================================================
 
