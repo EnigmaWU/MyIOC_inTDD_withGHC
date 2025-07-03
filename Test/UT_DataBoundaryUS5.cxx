@@ -72,6 +72,7 @@ TEST(UT_DataBoundary, verifyDatStreamGranularity_byByteToBlockPattern_expectData
 
     __DatBoundaryPrivData_T DatReceiverPrivData = {0};
     DatReceiverPrivData.ClientIndex = 1;
+    DatReceiverPrivData.ReceivedContentWritePos = 0;
 
     printf("📋 Setting up DAT stream granularity testing environment...\n");
 
@@ -362,6 +363,7 @@ TEST(UT_DataBoundary, verifyDatStreamGranularity_byVariablePatterns_expectConsis
 
     __DatBoundaryPrivData_T DatReceiverPrivData = {0};
     DatReceiverPrivData.ClientIndex = 3;
+    DatReceiverPrivData.ReceivedContentWritePos = 0;
 
     printf("📋 Setting up DAT variable granularity pattern testing...\n");
 

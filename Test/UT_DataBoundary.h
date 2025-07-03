@@ -254,7 +254,8 @@ typedef struct {
     int ClientIndex;
     ULONG_T TotalReceivedSize;
     ULONG_T ReceivedDataCnt;
-    char ReceivedContent[1024];  // Buffer for small data verification
+    char ReceivedContent[2048];       // Buffer for data verification (increased for granularity tests)
+    ULONG_T ReceivedContentWritePos;  // Current write position in ReceivedContent buffer
 
     // Boundary-specific tracking
     bool ZeroSizeDataReceived;
@@ -293,9 +294,9 @@ static IOC_Result_T __CbRecvDat_Boundary_F(IOC_LinkID_T LinkID, IOC_DatDesc_pT p
     }
 
     // Copy small data for verification (if space available)
-    if (DataSize > 0 && pPrivData->TotalReceivedSize <= sizeof(pPrivData->ReceivedContent)) {
-        memcpy(pPrivData->ReceivedContent + pPrivData->TotalReceivedSize - DataSize, pData,
-               std::min(DataSize, sizeof(pPrivData->ReceivedContent) - (pPrivData->TotalReceivedSize - DataSize)));
+    if (DataSize > 0 && (pPrivData->ReceivedContentWritePos + DataSize) <= sizeof(pPrivData->ReceivedContent)) {
+        memcpy(pPrivData->ReceivedContent + pPrivData->ReceivedContentWritePos, pData, DataSize);
+        pPrivData->ReceivedContentWritePos += DataSize;
     }
 
     printf("DAT Boundary Callback: Client[%d], received %lu bytes, total: %lu bytes\n", pPrivData->ClientIndex,
