@@ -74,10 +74,23 @@ IOC_Result_T IOC_flushDAT(IOC_LinkID_T LinkID, IOC_Options_pT pOption) {
 
     printf("IOC_flushDAT: Flushing data on LinkID=%llu\n", LinkID);
 
-    // 🚀 WHY SIMPLIFIED FLUSH: For ProtoFifo protocol, data transmission is immediate
-    // and synchronous - when IOC_sendDAT() calls OpSendData_F(), the data is instantly
-    // delivered to the receiver's callback. No buffering occurs, so flush is a no-op.
-    //
+    // Get link object to determine protocol and flush appropriately
+    _IOC_LinkObject_pT pLinkObj = _IOC_getLinkObjByLinkID(LinkID);
+    if (!pLinkObj) {
+        return IOC_RESULT_NOT_EXIST_LINK;
+    }
+
+    // 🚀 MICRO-BATCHING SUPPORT: For ProtoFifo protocol, flush any accumulated batch data
+    // The time-window batching feature requires explicit flushing to deliver queued data
+    // when the application signals completion of a burst or end of data stream.
+    _IOC_SrvProtoMethods_pT pMethods = pLinkObj->pMethods;
+    if (pMethods && pMethods->pProtocol && strcmp(pMethods->pProtocol, IOC_SRV_PROTO_FIFO) == 0) {
+        // ProtoFifo protocol: flush any accumulated batch data
+        // This ensures that data queued during batching windows is delivered to receivers
+        extern IOC_Result_T __IOC_flushData_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, const IOC_Options_pT pOption);
+        return __IOC_flushData_ofProtoFifo(pLinkObj, pOption);
+    }
+
     // 📋 PROTOCOL DIFFERENCES: Other protocols might implement different strategies:
     // - TCP: Could buffer data and flush() would force socket send
     // - UDP: Might batch packets and flush() would send the batch
@@ -85,7 +98,6 @@ IOC_Result_T IOC_flushDAT(IOC_LinkID_T LinkID, IOC_Options_pT pOption) {
     //
     // 💡 DESIGN PRINCIPLE: Keep flush() simple for immediate protocols, let buffering
     // protocols override with their own flush implementation via OpFlushData_F (future).
-    // Other protocols might buffer data and need actual flushing
     return IOC_RESULT_SUCCESS;
 }
 
