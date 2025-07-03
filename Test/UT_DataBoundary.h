@@ -279,6 +279,11 @@ typedef struct {
     bool FirstCallbackRecorded;
     ULONG_T LargestSingleCallback;       // Track largest single callback size
     std::vector<ULONG_T> CallbackSizes;  // Track all callback sizes for analysis
+
+    // Control flags for slow receiver simulation
+    bool SlowReceiverMode;     // Enable slow receiver simulation
+    int SlowReceiverPauseMs;   // Pause duration in milliseconds for first callback
+    bool FirstCallbackPaused;  // Track if first callback has been paused
 } __DatBoundaryPrivData_T;
 
 // Callback function for DAT boundary testing
@@ -326,6 +331,64 @@ static IOC_Result_T __CbRecvDat_Boundary_F(IOC_LinkID_T LinkID, IOC_DatDesc_pT p
 
     printf("DAT Boundary Callback: Client[%d], received %lu bytes, total: %lu bytes\n", pPrivData->ClientIndex,
            DataSize, pPrivData->TotalReceivedSize);
+    return IOC_RESULT_SUCCESS;
+}
+
+// Special callback function for slow receiver batching testing
+static IOC_Result_T __CbRecvDat_SlowReceiver_F(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, void *pCbPriv) {
+    __DatBoundaryPrivData_T *pPrivData = (__DatBoundaryPrivData_T *)pCbPriv;
+
+    // Extract data from DatDesc
+    void *pData;
+    ULONG_T DataSize;
+    IOC_Result_T result = IOC_getDatPayload(pDatDesc, &pData, &DataSize);
+    if (result != IOC_RESULT_SUCCESS) {
+        pPrivData->ErrorOccurred = true;
+        pPrivData->LastErrorCode = result;
+        return result;
+    }
+
+    // Record timing for batching analysis
+    auto currentTime = std::chrono::high_resolution_clock::now();
+    if (!pPrivData->FirstCallbackRecorded) {
+        pPrivData->FirstCallbackTime = currentTime;
+        pPrivData->FirstCallbackRecorded = true;
+
+        // Simulate slow receiver: pause on first callback
+        if (pPrivData->SlowReceiverMode && !pPrivData->FirstCallbackPaused) {
+            printf("   🐌 First callback pausing for %d ms (simulating slow receiver)...\n",
+                   pPrivData->SlowReceiverPauseMs);
+            std::this_thread::sleep_for(std::chrono::milliseconds(pPrivData->SlowReceiverPauseMs));
+            pPrivData->FirstCallbackPaused = true;
+            printf("   ⏰ First callback resumed - subsequent sends should be batched\n");
+        }
+    }
+    pPrivData->LastCallbackTime = currentTime;
+
+    pPrivData->ReceivedDataCnt++;
+    pPrivData->CallbackExecuted = true;
+    pPrivData->TotalReceivedSize += DataSize;
+
+    // Track callback sizes for batching analysis
+    pPrivData->CallbackSizes.push_back(DataSize);
+    if (DataSize > pPrivData->LargestSingleCallback) {
+        pPrivData->LargestSingleCallback = DataSize;
+    }
+
+    // Track boundary conditions
+    if (DataSize == 0) {
+        pPrivData->ZeroSizeDataReceived = true;
+    }
+
+    // Copy data to verification buffer if space available
+    if (pPrivData->ReceivedContentWritePos + DataSize <= sizeof(pPrivData->ReceivedContent)) {
+        memcpy(pPrivData->ReceivedContent + pPrivData->ReceivedContentWritePos, pData, DataSize);
+        pPrivData->ReceivedContentWritePos += DataSize;
+    }
+
+    printf("DAT Slow Receiver Callback: Client[%d], received %lu bytes, total: %lu bytes\n", pPrivData->ClientIndex,
+           DataSize, pPrivData->TotalReceivedSize);
+
     return IOC_RESULT_SUCCESS;
 }
 
