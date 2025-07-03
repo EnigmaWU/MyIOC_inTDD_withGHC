@@ -19,7 +19,11 @@
  *      @[Brief]: Send data 1 byte at a time, receive in larger blocks, verify data reconstruction
  *      @[Coverage]: 1-byte sends, multi-byte receives, stream ordering, data integrity
  *
- *  TODO: TC-2: ...
+ *  TC-2:
+ *      @[Name]: verifyDatStreamGranularity_byBurstThenPausePattern_expectBatchingBehavior
+ *      @[Purpose]: TDD test for batching behavior - send 1024 bytes byte-by-byte, expect batched delivery
+ *      @[Brief]: Send 1024 bytes continuously byte-by-byte, then pause 10ms, expect fewer larger callbacks
+ *      @[Coverage]: TDD expectation, burst sending, timing-based batching, internal buffering requirement
  *
  *-------------------------------------------------------------------------------------------------
  * [@AC-2,US-5] Stream granularity validation - Block send, byte-by-byte receive
@@ -184,6 +188,206 @@ TEST(UT_DataBoundary, verifyDatStreamGranularity_byByteToBlockPattern_expectData
     }
 }
 //======>END OF: [@AC-1,US-5] TC-1=================================================================
+
+//======>BEGIN OF: [@AC-1,US-5] TC-2===============================================================
+/**
+ * @[Name]: verifyDatStreamGranularity_byBurstThenPausePattern_expectBatchingBehavior
+ * @[Steps]:
+ *   1) Setup DatSender and DatReceiver connections with callback AS SETUP.
+ *   2) Send 1024 bytes continuously byte-by-byte (no delays between sends) AS BEHAVIOR.
+ *   3) Pause for 10ms to allow batching AS BEHAVIOR.
+ *   4) Verify that receiver gets large batched callbacks after pause AS VERIFY.
+ *   5) Cleanup connections AS CLEANUP.
+ * @[Expect]: 1024 bytes sent rapidly should be batched and delivered in fewer, larger callbacks.
+ * @[Notes]: Tests TDD expectation - rapid sends should be internally buffered and delivered as batches.
+ */
+TEST(UT_DataBoundary, verifyDatStreamGranularity_byBurstThenPausePattern_expectBatchingBehavior) {
+    printf("\n📋 [@AC-1,US-5] TC-2: DAT Stream Granularity - Burst-Then-Pause Pattern\n");
+
+    //===SETUP===
+    IOC_Result_T Result = IOC_RESULT_FAILURE;
+    IOC_SrvID_T DatReceiverSrvID = IOC_ID_INVALID;
+    IOC_LinkID_T DatSenderLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T DatReceiverLinkID = IOC_ID_INVALID;
+
+    __DatBoundaryPrivData_T DatReceiverPrivData = {0};
+    DatReceiverPrivData.ClientIndex = 2;
+    DatReceiverPrivData.ReceivedContentWritePos = 0;
+    DatReceiverPrivData.FirstCallbackRecorded = false;
+    DatReceiverPrivData.LargestSingleCallback = 0;
+
+    printf("📋 Setting up DAT burst-then-pause batching behavior testing...\n");
+
+    // Setup DatReceiver service
+    IOC_SrvURI_T DatReceiverSrvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "DatBurstBatchingReceiver",
+    };
+
+    IOC_DatUsageArgs_T DatReceiverUsageArgs = {
+        .CbRecvDat_F = __CbRecvDat_Boundary_F,
+        .pCbPrivData = &DatReceiverPrivData,
+    };
+
+    IOC_SrvArgs_T DatReceiverSrvArgs = {
+        .SrvURI = DatReceiverSrvURI,
+        .UsageCapabilites = IOC_LinkUsageDatReceiver,
+        .UsageArgs = {.pDat = &DatReceiverUsageArgs},
+    };
+
+    Result = IOC_onlineService(&DatReceiverSrvID, &DatReceiverSrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "DatReceiver service should come online successfully";
+
+    // Setup DatSender connection
+    IOC_ConnArgs_T DatSenderConnArgs = {
+        .SrvURI = DatReceiverSrvURI,
+        .Usage = IOC_LinkUsageDatSender,
+    };
+
+    std::thread DatSenderThread([&] {
+        IOC_Result_T ThreadResult = IOC_connectService(&DatSenderLinkID, &DatSenderConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ThreadResult);
+        ASSERT_NE(IOC_ID_INVALID, DatSenderLinkID);
+    });
+
+    Result = IOC_acceptClient(DatReceiverSrvID, &DatReceiverLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "DatReceiver should accept connection";
+
+    DatSenderThread.join();
+    printf("   ✓ Burst-then-pause batching test connections established\n");
+
+    //===BEHAVIOR===
+    printf("📋 Testing burst-then-pause batching behavior...\n");
+
+    // Test data: 1024 bytes with recognizable pattern
+    const int BurstSize = 1024;
+    char BurstData[BurstSize];
+    for (int i = 0; i < BurstSize; i++) {
+        BurstData[i] = (char)('0' + (i % 10));  // 0-9 repeating pattern
+    }
+
+    printf("🧪 Sending %d bytes in rapid burst (no delays)...\n", BurstSize);
+
+    // Record start time for burst sending
+    auto burstStartTime = std::chrono::high_resolution_clock::now();
+
+    // Send data byte-by-byte continuously (burst pattern)
+    for (int i = 0; i < BurstSize; i++) {
+        IOC_DatDesc_T ByteDesc = {0};
+        IOC_initDatDesc(&ByteDesc);
+        ByteDesc.Payload.pData = &BurstData[i];
+        ByteDesc.Payload.PtrDataSize = 1;  // Single byte
+        ByteDesc.Payload.PtrDataLen = 1;
+
+        Result = IOC_sendDAT(DatSenderLinkID, &ByteDesc, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Burst byte " << i << " should send successfully";
+
+        // NO DELAY - this is the key difference from TC-1
+        // We want to send all bytes as rapidly as possible
+    }
+
+    auto burstEndTime = std::chrono::high_resolution_clock::now();
+    auto burstDuration = std::chrono::duration_cast<std::chrono::microseconds>(burstEndTime - burstStartTime);
+
+    printf("   Burst sending completed in %lld microseconds\n", burstDuration.count());
+
+    // Force transmission but don't wait yet
+    IOC_flushDAT(DatSenderLinkID, NULL);
+
+    printf("🧪 Pausing for 10ms to observe batching behavior...\n");
+
+    // Critical pause: 10ms to allow internal batching/buffering to occur
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+    // Allow additional time for callback processing
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    //===VERIFY===
+    printf("📋 Verifying burst-then-pause batching behavior...\n");
+
+    // KeyVerifyPoint-1: All data should be received
+    ASSERT_TRUE(DatReceiverPrivData.CallbackExecuted) << "Callback should execute when burst data is transmitted";
+
+    // KeyVerifyPoint-2: Total received size should match sent size
+    ASSERT_EQ(BurstSize, DatReceiverPrivData.TotalReceivedSize)
+        << "Total received size should equal burst size. Expected: " << BurstSize
+        << ", Actual: " << DatReceiverPrivData.TotalReceivedSize;
+
+    // KeyVerifyPoint-3: Data integrity should be preserved
+    ASSERT_EQ(0, memcmp(BurstData, DatReceiverPrivData.ReceivedContent, BurstSize))
+        << "Reconstructed burst data should match original sequence";
+
+    // KeyVerifyPoint-4: Analyze batching behavior
+    printf("   📊 Batching Analysis:\n");
+    printf("      - Total callbacks: %lu\n", DatReceiverPrivData.ReceivedDataCnt);
+    printf("      - Largest single callback: %lu bytes\n", DatReceiverPrivData.LargestSingleCallback);
+    printf("      - Average callback size: %.2f bytes\n",
+           (double)DatReceiverPrivData.TotalReceivedSize / DatReceiverPrivData.ReceivedDataCnt);
+
+    // Print individual callback sizes for analysis
+    printf("      - Callback sizes: ");
+    for (size_t i = 0; i < DatReceiverPrivData.CallbackSizes.size() && i < 10; i++) {
+        printf("%lu ", DatReceiverPrivData.CallbackSizes[i]);
+        if (i == 9 && DatReceiverPrivData.CallbackSizes.size() > 10) {
+            printf("...(+%lu more) ", DatReceiverPrivData.CallbackSizes.size() - 10);
+        }
+    }
+    printf("\n");
+
+    // KeyVerifyPoint-5: TDD Expectation - Batching should occur
+    // Your original question: "May I receive 1024 bytes once each 10ms?"
+    // TDD Expectation: YES - rapid consecutive sends should be batched
+
+    printf("   🎯 TESTING TDD EXPECTATION: 'May I receive 1024 bytes once each 10ms?'\n");
+    printf("      - Expected: YES - IOC should batch rapid consecutive sends\n");
+    printf("      - Test Data: %lu callbacks for %d bytes\n", DatReceiverPrivData.ReceivedDataCnt, BurstSize);
+
+    // TDD Assertion: We EXPECT batching behavior (fewer callbacks than bytes)
+    EXPECT_LT(DatReceiverPrivData.ReceivedDataCnt, BurstSize)
+        << "TDD EXPECTATION: Should receive fewer callbacks than bytes sent (batching behavior). "
+        << "Expected: < " << BurstSize << " callbacks, Actual: " << DatReceiverPrivData.ReceivedDataCnt;
+
+    // TDD Assertion: We EXPECT significant callback sizes
+    EXPECT_GT(DatReceiverPrivData.LargestSingleCallback, 100)
+        << "TDD EXPECTATION: Should receive large batched callbacks. "
+        << "Expected: > 100 bytes per callback, Actual max: " << DatReceiverPrivData.LargestSingleCallback;
+
+    // Provide feedback on TDD expectation vs reality
+    bool batchingDetected = (DatReceiverPrivData.ReceivedDataCnt < BurstSize);
+    bool largeBatchesDetected = (DatReceiverPrivData.LargestSingleCallback > 100);
+
+    if (batchingDetected && largeBatchesDetected) {
+        printf("      - ✅ TDD EXPECTATION MET: Batching behavior confirmed\n");
+    } else {
+        printf("      - ❌ TDD EXPECTATION FAILED: No batching detected\n");
+        printf("      - 💡 Framework Reality: IOC delivers each send individually\n");
+        printf("      - 🔧 Design Decision Needed: Accept no-batching or implement batching\n");
+    }
+
+    // KeyVerifyPoint-6: Timing analysis
+    if (DatReceiverPrivData.FirstCallbackRecorded && DatReceiverPrivData.ReceivedDataCnt > 1) {
+        auto totalCallbackDuration = std::chrono::duration_cast<std::chrono::milliseconds>(
+            DatReceiverPrivData.LastCallbackTime - DatReceiverPrivData.FirstCallbackTime);
+        printf("   ⏱️  Callback timing: First to last span = %lld ms\n", totalCallbackDuration.count());
+    }
+
+    printf("   ✅ Burst-then-pause batching test completed successfully!\n");
+    printf("   📊 Result: Sent %d bytes (burst), Received %lu bytes in %lu callbacks\n", BurstSize,
+           DatReceiverPrivData.TotalReceivedSize, DatReceiverPrivData.ReceivedDataCnt);
+
+    //===CLEANUP===
+    if (DatReceiverLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(DatReceiverLinkID);
+    }
+    if (DatSenderLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(DatSenderLinkID);
+    }
+    if (DatReceiverSrvID != IOC_ID_INVALID) {
+        IOC_offlineService(DatReceiverSrvID);
+    }
+}
+//======>END OF: [@AC-1,US-5] TC-2=================================================================
 
 //======>BEGIN OF: [@AC-2,US-5] TC-1===============================================================
 /**

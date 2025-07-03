@@ -236,15 +236,19 @@
  * 📂 UT_DataBoundaryUS4.cxx - [@US-4] Error code coverage validation (TODO)
  *    └── TODO: Comprehensive error code boundary testing
  *
- * 📂 UT_DataBoundaryUS5.cxx - [@US-5] Stream granularity boundary validation (TODO)
- *    └── TODO: [@AC-1,US-5] Byte-by-byte send, block-by-block receive granularity testing
- *    └── TODO: [@AC-2,US-5] Block-by-block send, byte-by-byte receive granularity testing
- *    └── TODO: [@AC-3,US-5] Variable granularity pattern testing and stream consistency
+ * 📂 UT_DataBoundaryUS5.cxx - [@US-5] Stream granularity boundary validation
+ *    └── [@AC-1,US-5] TC-1: verifyDatStreamGranularity_byByteToBlockPattern_expectDataIntegrity
+ *    └── [@AC-1,US-5] TC-2: verifyDatStreamGranularity_byBurstThenPausePattern_expectBatchingBehavior
+ *    └── [@AC-2,US-5] TC-1: verifyDatStreamGranularity_byBlockToBytePattern_expectFragmentationSupport
+ *    └── [@AC-3,US-5] TC-1: verifyDatStreamGranularity_byVariablePatterns_expectConsistentBehavior
  *************************************************************************************************/
 //======>END OF TEST CASES ORGANIZATION============================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF SHARED TEST ENVIRONMENT SETUP===================================================
+
+#include <chrono>
+#include <vector>
 
 #include "_UT_IOC_Common.h"
 
@@ -268,6 +272,13 @@ typedef struct {
     bool TimeoutOccurred;
     bool BlockingModeChanged;
     ULONG_T CallbackExecutionTime;  // For timeout testing
+
+    // Timing tracking for batching behavior analysis
+    std::chrono::high_resolution_clock::time_point FirstCallbackTime;
+    std::chrono::high_resolution_clock::time_point LastCallbackTime;
+    bool FirstCallbackRecorded;
+    ULONG_T LargestSingleCallback;       // Track largest single callback size
+    std::vector<ULONG_T> CallbackSizes;  // Track all callback sizes for analysis
 } __DatBoundaryPrivData_T;
 
 // Callback function for DAT boundary testing
@@ -287,6 +298,20 @@ static IOC_Result_T __CbRecvDat_Boundary_F(IOC_LinkID_T LinkID, IOC_DatDesc_pT p
     pPrivData->ReceivedDataCnt++;
     pPrivData->CallbackExecuted = true;
     pPrivData->TotalReceivedSize += DataSize;
+
+    // Record timing for batching analysis
+    auto currentTime = std::chrono::high_resolution_clock::now();
+    if (!pPrivData->FirstCallbackRecorded) {
+        pPrivData->FirstCallbackTime = currentTime;
+        pPrivData->FirstCallbackRecorded = true;
+    }
+    pPrivData->LastCallbackTime = currentTime;
+
+    // Track callback sizes for batching analysis
+    pPrivData->CallbackSizes.push_back(DataSize);
+    if (DataSize > pPrivData->LargestSingleCallback) {
+        pPrivData->LargestSingleCallback = DataSize;
+    }
 
     // Track boundary conditions
     if (DataSize == 0) {
