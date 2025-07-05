@@ -830,7 +830,103 @@ static IOC_Result_T __IOC_sendData_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, cons
             }
 
         } else {
-            // Blocking mode: execute callback synchronously and measure timing for batching
+            // Blocking mode: Implement time-window batching for slow send/slow receive scenarios
+
+            pthread_mutex_lock(&pPeerFifoLinkObj->DatReceiver.CallbackBatch.BatchMutex);
+
+            // First, check if any existing batch window has expired and should be flushed
+            struct timespec batchCheckTime;
+            clock_gettime(CLOCK_MONOTONIC, &batchCheckTime);
+
+            if (pPeerFifoLinkObj->DatReceiver.CallbackBatch.IsBatchWindowOpen) {
+                long windowElapsed = __IOC_getElapsedTimeMs(
+                    &pPeerFifoLinkObj->DatReceiver.CallbackBatch.BatchWindowStart, &batchCheckTime);
+                if (windowElapsed >= pPeerFifoLinkObj->DatReceiver.CallbackBatch.BatchWindowDurationMs) {
+                    // Batch window expired - close it and prepare to flush if there's data
+                    pPeerFifoLinkObj->DatReceiver.CallbackBatch.IsBatchWindowOpen = false;
+                    _IOC_LogDebug("⏰ Batch window expired (%ld ms), closing window\n", windowElapsed);
+
+                    if (pPeerFifoLinkObj->DatReceiver.CallbackBatch.AccumulatedDataSize > 0) {
+                        pthread_mutex_unlock(&pPeerFifoLinkObj->DatReceiver.CallbackBatch.BatchMutex);
+                        _IOC_LogDebug("📦 Flushing expired batch: %zu bytes\n",
+                                      pPeerFifoLinkObj->DatReceiver.CallbackBatch.AccumulatedDataSize);
+                        __IOC_flushCallbackBatch(pPeerFifoLinkObj);
+                        pthread_mutex_lock(&pPeerFifoLinkObj->DatReceiver.CallbackBatch.BatchMutex);
+                    }
+                }
+            }
+
+            // 🚀 TIME-WINDOW BATCHING: Check multiple conditions for intelligent batching
+            bool IsCallbackCurrentlyRunning = pPeerFifoLinkObj->DatReceiver.CallbackBatch.IsInCallback;
+            bool IsBatchWindowOpen = pPeerFifoLinkObj->DatReceiver.CallbackBatch.IsBatchWindowOpen;
+            bool HasPendingBatchData = pPeerFifoLinkObj->DatReceiver.CallbackBatch.AccumulatedDataSize > 0;
+
+            // Calculate time since last callback for proactive batching
+            long timeSinceLastCallback =
+                __IOC_getElapsedTimeMs(&pPeerFifoLinkObj->DatReceiver.CallbackBatch.LastCallbackEnd, &batchCheckTime);
+
+            // Enhanced batching logic: proactive burst detection + time windows
+            bool shouldBatch = false;
+
+            // 1. Always batch if callback is currently running
+            if (IsCallbackCurrentlyRunning) {
+                shouldBatch = true;
+            }
+            // 2. Always batch if window is explicitly open
+            else if (IsBatchWindowOpen) {
+                shouldBatch = true;
+            }
+            // 3. Proactive burst detection: if there's pending batch data, continue accumulating
+            else if (HasPendingBatchData &&
+                     timeSinceLastCallback < pPeerFifoLinkObj->DatReceiver.CallbackBatch.BatchWindowDurationMs) {
+                shouldBatch = true;
+            }
+            // 4. Aggressive batching: if last callback was recent (within 2x callback threshold), batch aggressively
+            else if (timeSinceLastCallback < 2 * pPeerFifoLinkObj->DatReceiver.CallbackBatch.SlowCallbackThresholdMs) {
+                shouldBatch = true;
+                // Open a proactive window
+                pPeerFifoLinkObj->DatReceiver.CallbackBatch.IsBatchWindowOpen = true;
+                pPeerFifoLinkObj->DatReceiver.CallbackBatch.BatchWindowStart = batchCheckTime;
+                _IOC_LogDebug("🚀 Proactive burst detection - opening aggressive batching window\n");
+            }
+
+            if (shouldBatch) {
+                _IOC_LogDebug("🔄 Batching %zu bytes (callback:%s, window:%s, recent:%s, pending:%zu)\n",
+                              pDatDesc->Payload.PtrDataSize, IsCallbackCurrentlyRunning ? "Y" : "N",
+                              IsBatchWindowOpen ? "Y" : "N",
+                              timeSinceLastCallback < pPeerFifoLinkObj->DatReceiver.CallbackBatch.BatchWindowDurationMs
+                                  ? "Y"
+                                  : "N",
+                              HasPendingBatchData);
+
+                IOC_Result_T QueueResult =
+                    __IOC_addDataToBatch(pPeerFifoLinkObj, pDatDesc->Payload.pData, pDatDesc->Payload.PtrDataSize);
+
+                // If this is the first batch item and no callback is running, start a batching timer
+                if (!IsCallbackCurrentlyRunning && !IsBatchWindowOpen && QueueResult == IOC_RESULT_SUCCESS) {
+                    pPeerFifoLinkObj->DatReceiver.CallbackBatch.IsBatchWindowOpen = true;
+                    pPeerFifoLinkObj->DatReceiver.CallbackBatch.BatchWindowStart = batchCheckTime;
+                    _IOC_LogDebug("🚀 Opening proactive batching window for %ld ms\n",
+                                  pPeerFifoLinkObj->DatReceiver.CallbackBatch.BatchWindowDurationMs);
+                }
+
+                pthread_mutex_unlock(&pPeerFifoLinkObj->DatReceiver.CallbackBatch.BatchMutex);
+
+                if (QueueResult == IOC_RESULT_SUCCESS) {
+                    return IOC_RESULT_SUCCESS;  // Data queued for batching
+                } else if (QueueResult == IOC_RESULT_BUFFER_FULL) {
+                    // Batch buffer full, deliver what we have and continue with immediate delivery
+                    _IOC_LogDebug("📦 Batch buffer full, flushing and delivering immediately\n");
+                    __IOC_flushCallbackBatch(pPeerFifoLinkObj);
+                    // Fall through to immediate delivery
+                } else {
+                    return QueueResult;  // Other error
+                }
+            } else {
+                // Mark callback as starting
+                pPeerFifoLinkObj->DatReceiver.CallbackBatch.IsInCallback = true;
+                pthread_mutex_unlock(&pPeerFifoLinkObj->DatReceiver.CallbackBatch.BatchMutex);
+            }
 
             // Record callback start time
             struct timespec callbackStart, callbackEnd;
@@ -850,18 +946,27 @@ static IOC_Result_T __IOC_sendData_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, cons
 
             _IOC_LogDebug("✅ Receiver callback completed in %ld ms\n", callbackDurationMs);
 
-            // Update timing info and decide whether to open a batching window
+            // Update timing info and mark callback as finished
             pthread_mutex_lock(&pPeerFifoLinkObj->DatReceiver.CallbackBatch.BatchMutex);
             pPeerFifoLinkObj->DatReceiver.CallbackBatch.LastCallbackEnd = callbackEnd;
+            pPeerFifoLinkObj->DatReceiver.CallbackBatch.IsInCallback = false;  // Mark callback as finished
 
-            // Open batching window if callback was slow
-            if (__IOC_shouldOpenBatchWindow(pPeerFifoLinkObj, callbackDurationMs)) {
-                pPeerFifoLinkObj->DatReceiver.CallbackBatch.IsBatchWindowOpen = true;
-                pPeerFifoLinkObj->DatReceiver.CallbackBatch.BatchWindowStart = callbackEnd;
-                _IOC_LogDebug("🚀 Slow callback detected (%ld ms), opening %ld ms batching window\n",
-                              callbackDurationMs, pPeerFifoLinkObj->DatReceiver.CallbackBatch.BatchWindowDurationMs);
-            }
+            // Always open a batching window after any callback to catch subsequent sends
+            pPeerFifoLinkObj->DatReceiver.CallbackBatch.IsBatchWindowOpen = true;
+            pPeerFifoLinkObj->DatReceiver.CallbackBatch.BatchWindowStart = callbackEnd;
+            _IOC_LogDebug("🚀 Opening post-callback batching window for %ld ms\n",
+                          pPeerFifoLinkObj->DatReceiver.CallbackBatch.BatchWindowDurationMs);
+
+            // Check if there's batched data to flush after callback completion
+            size_t batchedDataSize = pPeerFifoLinkObj->DatReceiver.CallbackBatch.AccumulatedDataSize;
             pthread_mutex_unlock(&pPeerFifoLinkObj->DatReceiver.CallbackBatch.BatchMutex);
+
+            // If there's batched data accumulated during this callback, flush it now
+            if (batchedDataSize > 0) {
+                _IOC_LogDebug("🔄 Flushing %zu bytes of accumulated batch data after callback completion\n",
+                              batchedDataSize);
+                __IOC_flushCallbackBatch(pPeerFifoLinkObj);
+            }
 
             // 🎯 TDD HYBRID MODE: Also store data in polling buffer for zero timeout polling support
             // This enables Test Case 6 where data is sent with callback AND should be available for zero timeout
@@ -1354,12 +1459,12 @@ static IOC_Result_T __IOC_initCallbackBatch_ofProtoFifo(_IOC_ProtoFifoLinkObject
 
     pFifoLinkObj->DatReceiver.CallbackBatch.BatchBufferSize = _PROTO_FIFO_SEND_QUEUE_SIZE;
     pFifoLinkObj->DatReceiver.CallbackBatch.AccumulatedDataSize = 0;
-    pFifoLinkObj->DatReceiver.CallbackBatch.IsInCallback = false;
+    pFifoLinkObj->DatReceiver.CallbackBatch.IsInCallback = false;  // Initialize callback busy flag
 
     // Initialize time-window batching parameters
     pFifoLinkObj->DatReceiver.CallbackBatch.IsBatchWindowOpen = false;
-    pFifoLinkObj->DatReceiver.CallbackBatch.SlowCallbackThresholdMs = 5;  // 5ms threshold
-    pFifoLinkObj->DatReceiver.CallbackBatch.BatchWindowDurationMs = 15;   // 15ms window
+    pFifoLinkObj->DatReceiver.CallbackBatch.SlowCallbackThresholdMs = 8;  // 8ms threshold (lower than 10ms callbacks)
+    pFifoLinkObj->DatReceiver.CallbackBatch.BatchWindowDurationMs = 25;   // 25ms window (longer to catch more sends)
     memset(&pFifoLinkObj->DatReceiver.CallbackBatch.LastCallbackStart, 0, sizeof(struct timespec));
     memset(&pFifoLinkObj->DatReceiver.CallbackBatch.LastCallbackEnd, 0, sizeof(struct timespec));
     memset(&pFifoLinkObj->DatReceiver.CallbackBatch.BatchWindowStart, 0, sizeof(struct timespec));

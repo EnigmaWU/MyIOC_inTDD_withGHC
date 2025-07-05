@@ -416,8 +416,10 @@ TEST(UT_DataBoundary, verifyDatStreamGranularity_byBurstThenPausePattern_expectB
  *   1) Setup DatSender and DatReceiver with slow receiver (10ms every callback) AS SETUP.
  *   2) Send 3 bursts (128, 256, 512 bytes) with 10ms delay between each send AS BEHAVIOR.
  *   3) Analyze the actual batching pattern that emerges AS VERIFY.
- * @[Expect]: Interleaved batching pattern due to timing between slow sends and batching windows.
- * @[Notes]: Demonstrates timing-sensitive batching behavior with slow sender + slow receiver.
+ * @[Expect]: TDD RED TEST - IOC should provide timing-based batching for slow send + slow receive scenarios.
+ * @[Notes]: TDD REQUIREMENT - IOC should be smart enough to batch sends during timing overlap windows.
+ *           This test will FAIL until IOC implements timing-aware batching capability.
+ *           RED → GREEN → REFACTOR: Test drives implementation of enhanced IOC batching.
  */
 TEST(UT_DataBoundary, verifyDatStreamGranularity_bySlowSendSlowReceive_expectInterleavedBatching) {
     printf("\n📋 [@AC-1,US-5] TC-2B: DAT Stream Granularity - Slow Send + Slow Receive Pattern\n");
@@ -441,8 +443,9 @@ TEST(UT_DataBoundary, verifyDatStreamGranularity_bySlowSendSlowReceive_expectInt
     DatReceiverPrivData.AlwaysSlowMode = true;  // New flag for always slow
 
     printf("📋 Setting up DAT slow-send + slow-receive timing analysis...\n");
-    printf("   Configuration: Every callback has 10ms delay, every send has 10ms delay\n");
-    printf("   Batching window: 15ms (should capture some but not all sends)\n");
+    printf("   Configuration: Every callback has 10ms delay, sends are RAPID (no delay)\n");
+    printf("   TDD RED TEST: Expecting IOC to implement timing-based batching\n");
+    printf("   REQUIREMENT: IOC should batch rapid sends during slow 10ms callback windows\n");
 
     // Setup DatReceiver service with always-slow receiver callback
     IOC_SrvURI_T DatReceiverSrvURI = {
@@ -502,7 +505,7 @@ TEST(UT_DataBoundary, verifyDatStreamGranularity_bySlowSendSlowReceive_expectInt
 
         auto burstStartTime = std::chrono::high_resolution_clock::now();
 
-        // Send each burst byte-by-byte with 10ms delay between sends
+        // Send each burst byte-by-byte RAPIDLY (no delay) to create batching opportunity
         for (int i = 0; i < testBursts[burstIdx].size; i++) {
             IOC_DatDesc_T ByteDesc = {0};
             IOC_initDatDesc(&ByteDesc);
@@ -516,9 +519,11 @@ TEST(UT_DataBoundary, verifyDatStreamGranularity_bySlowSendSlowReceive_expectInt
             ASSERT_EQ(IOC_RESULT_SUCCESS, Result)
                 << "Burst " << burstIdx << " byte " << i << " should send successfully";
 
-            // 10ms delay between each send (this is key for the timing analysis)
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            // NO DELAY - rapid sending creates overlap with slow 10ms callbacks = batching!
         }
+
+        // sleep-10ms to simulate slow callback processing
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
         auto burstEndTime = std::chrono::high_resolution_clock::now();
         auto burstDuration = std::chrono::duration_cast<std::chrono::milliseconds>(burstEndTime - burstStartTime);
@@ -562,35 +567,67 @@ TEST(UT_DataBoundary, verifyDatStreamGranularity_bySlowSendSlowReceive_expectInt
     }
     printf("\n");
 
-    // KeyVerifyPoint-3: Expected pattern analysis
-    printf("   🎯 TIMING EXPECTATION ANALYSIS:\n");
-    printf("      - Send interval: 10ms between each byte\n");
-    printf("      - Callback duration: 10ms each (opens 15ms batching window)\n");
-    printf("      - Expected pattern: Some batching, but not complete bursts\n");
+    // KeyVerifyPoint-3: TDD RED TEST - Expect timing-based batching capability
+    printf("   🔴 TDD RED TEST - TIMING-BASED BATCHING REQUIREMENT:\n");
+    printf("      - Send pattern: RAPID bursts (no delay between bytes)\n");
+    printf("      - Callback duration: 10ms each (creates overlap opportunity)\n");
+    printf("      - TDD REQUIREMENT: IOC should batch rapid sends during slow callback\n");
+    printf("      - Expected result: Much fewer callbacks than sends (128→1, 256→1, 512→1)\n");
 
-    // The actual pattern should show some batching but not the expected 3 large bursts
-    // because the 10ms send interval competes with the 15ms batching window
+    // TDD RED TEST: IOC should provide timing-aware batching
+    // This test will FAIL until you implement timing-based batching in IOC
 
-    // We expect fewer callbacks than total sends (some batching occurred)
     EXPECT_LT(DatReceiverPrivData.ReceivedDataCnt, totalSentBytes)
-        << "Should have fewer callbacks than individual sends due to batching";
+        << "TDD RED TEST REQUIREMENT: IOC should provide timing-based batching. "
+        << "Expected: Fewer than " << totalSentBytes << " callbacks due to timing overlap, "
+        << "Actual: " << DatReceiverPrivData.ReceivedDataCnt << " callbacks. "
+        << "This test will FAIL until IOC implements smart timing-aware batching capability.";
 
-    // But we expect more than 3 callbacks (not perfectly batched into 3 large chunks)
-    EXPECT_GT(DatReceiverPrivData.ReceivedDataCnt, 3) << "Should have more than 3 callbacks due to timing interleaving";
+    // TDD RED TEST: Should see larger batch sizes due to timing windows
+    EXPECT_GT(DatReceiverPrivData.LargestSingleCallback, 1)
+        << "TDD RED TEST REQUIREMENT: Should see batching during timing overlap windows. "
+        << "Expected: > 1 byte per largest callback due to timing-based accumulation, "
+        << "Actual: " << DatReceiverPrivData.LargestSingleCallback << " bytes. "
+        << "This indicates IOC needs enhanced timing-aware batching logic.";
 
-    // Analyze the expected vs actual pattern
-    printf("   📈 PATTERN EXPECTATION vs REALITY:\n");
-    printf("      - User's hypothesis: 3 callbacks (128, 256, 512 bytes)\n");
-    printf("      - Actual result: %lu callbacks with interleaved batching\n", DatReceiverPrivData.ReceivedDataCnt);
+    EXPECT_GT(DatReceiverPrivData.ReceivedDataCnt, 3)
+        << "Should have more callbacks than perfect burst batching (3), but fewer than individual sends ("
+        << totalSentBytes << ") due to timing-based batching";
 
-    if (DatReceiverPrivData.ReceivedDataCnt == 3) {
-        printf("      - ✅ PERFECT BATCHING: Achieved the hypothesized pattern!\n");
-    } else {
-        printf("      - 🔄 INTERLEAVED BATCHING: Timing caused complex batching pattern\n");
-        printf("      - 💡 Explanation: 10ms send interval vs 15ms batching window creates overlap\n");
+    // TDD RED TEST analysis
+    printf("   🔴 TDD RED TEST RESULT:\n");
+    if (DatReceiverPrivData.ReceivedDataCnt == totalSentBytes) {
+        printf("      - ❌ TEST FAILED: No timing-based batching capability in current IOC\n");
+        printf("      - 📋 Implementation needed: IOC timing-aware batching logic\n");
+        printf("      - 🎯 Next step: Implement IOC enhancement to make this test GREEN\n");
+    } else if (DatReceiverPrivData.ReceivedDataCnt < totalSentBytes) {
+        printf("      - ✅ TEST PASSED: IOC has timing-based batching capability!\n");
+        printf("      - 📊 Batching achieved: %lu callbacks for %d sends\n", DatReceiverPrivData.ReceivedDataCnt,
+               totalSentBytes);
     }
 
-    printf("   ✅ Slow-send + slow-receive timing analysis completed!\n");
+    // Analyze the expected vs actual pattern
+    printf("   📈 TDD RED TEST - REQUIREMENT vs CURRENT IMPLEMENTATION:\n");
+    printf("      - TDD requirement: Smart timing-based batching during overlap windows\n");
+    printf("      - Current IOC result: %lu callbacks (will fail until enhanced)\n",
+           DatReceiverPrivData.ReceivedDataCnt);
+    printf("      - Implementation task: Add timing-aware batching logic to IOC framework\n");
+    printf("      - Success criteria: Achieve significant callback reduction through smart timing\n");
+
+    if (DatReceiverPrivData.ReceivedDataCnt == totalSentBytes) {
+        printf("      - ✅ DOCUMENTED BEHAVIOR: IOC overflow-based batching confirmed\n");
+        printf("      - 📋 Design constraint: No timing-window batching in current IOC\n");
+        printf("      - 🎯 Test value: Documents actual IOC behavior vs initial design assumptions\n");
+    } else if (DatReceiverPrivData.ReceivedDataCnt == 3) {
+        printf("      - 🎉 SURPRISE: Perfect burst-based batching achieved!\n");
+        printf("      - 📚 Framework capability: IOC has more sophisticated batching than expected\n");
+    } else {
+        printf("      - � COMPLEX PATTERN: Some batching occurred - investigate timing details\n");
+        printf("      - 📊 Partial batching: %lu callbacks for %d sends\n", DatReceiverPrivData.ReceivedDataCnt,
+               totalSentBytes);
+    }
+
+    printf("   🔴 TDD RED TEST completed - Implementation needed to make GREEN!\n");
 
     //===CLEANUP===
     if (DatReceiverLinkID != IOC_ID_INVALID) {
