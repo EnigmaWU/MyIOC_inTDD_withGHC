@@ -52,6 +52,7 @@ Mkfile.old
 dkms.conf
 
 CMakeBuilt*
+CMakeBuild*
 compile_commands.json
 .cache/*
 .idea*
