@@ -57,28 +57,52 @@ static inline void IOC_initDatDesc(IOC_DatDesc_pT pDatDesc) {
 }
 
 /**
- * @brief Get data payload pointer and size
+ * @brief Get data payload pointer and length to **READ** data
+ *
+ * @param pDatDesc: pointer to data description
+ * @param ppData: output pointer to data
+ * @param pDataLen: output length of data
+ * @return IOC_RESULT_SUCCESS on success, error code on failure
+ */
+static inline IOC_Result_T IOC_getDatPayload(const IOC_DatDesc_pT pDatDesc, void **ppData, ULONG_T *pDataLen) {
+    if (!pDatDesc || !ppData || !pDataLen) {
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
+    if (pDatDesc->Payload.EmdDataLen > 0) {
+        *ppData = (void *)pDatDesc->Payload.EmdData;
+        *pDataLen = pDatDesc->Payload.EmdDataLen;
+    } else if (pDatDesc->Payload.pData && pDatDesc->Payload.PtrDataLen > 0) {
+        *ppData = pDatDesc->Payload.pData;
+        *pDataLen = pDatDesc->Payload.PtrDataLen;
+    } else {
+        *ppData = NULL;
+        *pDataLen = 0;
+        return IOC_RESULT_NO_DATA;
+    }
+
+    return IOC_RESULT_SUCCESS;
+}
+
+/**
+ * @brief Get data payload pointer and size to **FILL** data
  *
  * @param pDatDesc: pointer to data description
  * @param ppData: output pointer to data
  * @param pDataSize: output size of data
  * @return IOC_RESULT_SUCCESS on success, error code on failure
  */
-static inline IOC_Result_T IOC_getDatPayload(const IOC_DatDesc_pT pDatDesc, void **ppData, ULONG_T *pDataSize) {
+static inline IOC_Result_T IOC_getDatPayloadSize(const IOC_DatDesc_pT pDatDesc, void **ppData, ULONG_T *pDataSize) {
     if (!pDatDesc || !ppData || !pDataSize) {
         return IOC_RESULT_INVALID_PARAM;
     }
 
-    if (pDatDesc->Payload.EmdDataLen > 0) {
-        *ppData = (void *)pDatDesc->Payload.EmdData;
-        *pDataSize = pDatDesc->Payload.EmdDataLen;
-    } else if (pDatDesc->Payload.pData && pDatDesc->Payload.PtrDataSize > 0) {
+    if (pDatDesc->Payload.pData && pDatDesc->Payload.PtrDataSize > 0) {
         *ppData = pDatDesc->Payload.pData;
         *pDataSize = pDatDesc->Payload.PtrDataSize;
     } else {
-        *ppData = NULL;
-        *pDataSize = 0;
-        return IOC_RESULT_NO_DATA;
+        *ppData = pDatDesc->Payload.EmdData;
+        *pDataSize = sizeof(pDatDesc->Payload.EmdData);
     }
 
     return IOC_RESULT_SUCCESS;
