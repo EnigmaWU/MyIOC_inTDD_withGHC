@@ -284,6 +284,7 @@ typedef struct {
     bool SlowReceiverMode;     // Enable slow receiver simulation
     int SlowReceiverPauseMs;   // Pause duration in milliseconds for first callback
     bool FirstCallbackPaused;  // Track if first callback has been paused
+    bool AlwaysSlowMode;       // Always apply slow delay (for slow send/slow receive tests)
 } __DatBoundaryPrivData_T;
 
 // Callback function for DAT boundary testing
@@ -363,6 +364,13 @@ static IOC_Result_T __CbRecvDat_SlowReceiver_F(IOC_LinkID_T LinkID, IOC_DatDesc_
             printf("   ⏰ First callback resumed - subsequent sends should be batched\n");
         }
     }
+
+    // If AlwaysSlowMode is enabled, apply slow delay to every callback
+    if (pPrivData->AlwaysSlowMode) {
+        printf("   🐌 AlwaysSlowMode: pausing for 10ms on every callback...\n");
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
     pPrivData->LastCallbackTime = currentTime;
 
     pPrivData->ReceivedDataCnt++;

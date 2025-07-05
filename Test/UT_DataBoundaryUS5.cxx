@@ -409,6 +409,202 @@ TEST(UT_DataBoundary, verifyDatStreamGranularity_byBurstThenPausePattern_expectB
 }
 //======>END OF: [@AC-1,US-5] TC-2=================================================================
 
+//======>BEGIN OF: [@AC-1,US-5] TC-2B==============================================================
+/**
+ * @[Name]: verifyDatStreamGranularity_bySlowSendSlowReceive_expectInterleavedBatching
+ * @[Steps]:
+ *   1) Setup DatSender and DatReceiver with slow receiver (10ms every callback) AS SETUP.
+ *   2) Send 3 bursts (128, 256, 512 bytes) with 10ms delay between each send AS BEHAVIOR.
+ *   3) Analyze the actual batching pattern that emerges AS VERIFY.
+ * @[Expect]: Interleaved batching pattern due to timing between slow sends and batching windows.
+ * @[Notes]: Demonstrates timing-sensitive batching behavior with slow sender + slow receiver.
+ */
+TEST(UT_DataBoundary, verifyDatStreamGranularity_bySlowSendSlowReceive_expectInterleavedBatching) {
+    printf("\n📋 [@AC-1,US-5] TC-2B: DAT Stream Granularity - Slow Send + Slow Receive Pattern\n");
+
+    //===SETUP===
+    IOC_Result_T Result = IOC_RESULT_FAILURE;
+    IOC_SrvID_T DatReceiverSrvID = IOC_ID_INVALID;
+    IOC_LinkID_T DatSenderLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T DatReceiverLinkID = IOC_ID_INVALID;
+
+    __DatBoundaryPrivData_T DatReceiverPrivData = {0};
+    DatReceiverPrivData.ClientIndex = 4;  // New client ID
+    DatReceiverPrivData.ReceivedContentWritePos = 0;
+    DatReceiverPrivData.FirstCallbackRecorded = false;
+    DatReceiverPrivData.LargestSingleCallback = 0;
+
+    // Configure slow receiver mode - EVERY callback is slow (not just first)
+    DatReceiverPrivData.SlowReceiverMode = true;
+    DatReceiverPrivData.SlowReceiverPauseMs = 10;  // 10ms pause on EVERY callback
+    DatReceiverPrivData.FirstCallbackPaused = false;
+    DatReceiverPrivData.AlwaysSlowMode = true;  // New flag for always slow
+
+    printf("📋 Setting up DAT slow-send + slow-receive timing analysis...\n");
+    printf("   Configuration: Every callback has 10ms delay, every send has 10ms delay\n");
+    printf("   Batching window: 15ms (should capture some but not all sends)\n");
+
+    // Setup DatReceiver service with always-slow receiver callback
+    IOC_SrvURI_T DatReceiverSrvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "DatSlowSendSlowReceive",
+    };
+
+    IOC_DatUsageArgs_T DatReceiverUsageArgs = {
+        .CbRecvDat_F = __CbRecvDat_SlowReceiver_F,  // Use slow receiver callback
+        .pCbPrivData = &DatReceiverPrivData,
+    };
+
+    IOC_SrvArgs_T DatReceiverSrvArgs = {
+        .SrvURI = DatReceiverSrvURI,
+        .UsageCapabilites = IOC_LinkUsageDatReceiver,
+        .UsageArgs = {.pDat = &DatReceiverUsageArgs},
+    };
+
+    Result = IOC_onlineService(&DatReceiverSrvID, &DatReceiverSrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "DatReceiver service should come online successfully";
+
+    // Setup DatSender connection
+    IOC_ConnArgs_T DatSenderConnArgs = {
+        .SrvURI = DatReceiverSrvURI,
+        .Usage = IOC_LinkUsageDatSender,
+    };
+
+    std::thread DatSenderThread([&] {
+        IOC_Result_T ThreadResult = IOC_connectService(&DatSenderLinkID, &DatSenderConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ThreadResult);
+        ASSERT_NE(IOC_ID_INVALID, DatSenderLinkID);
+    });
+
+    Result = IOC_acceptClient(DatReceiverSrvID, &DatReceiverLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "DatReceiver should accept connection";
+
+    DatSenderThread.join();
+    printf("   ✓ Slow-send + slow-receive test connections established\n");
+
+    //===BEHAVIOR===
+    printf("📋 Testing interleaved batching with slow sends and slow receives...\n");
+
+    // Test pattern: 3 bursts of different sizes with 10ms delay between each send
+    struct {
+        int size;
+        char fillChar;
+        const char* description;
+    } testBursts[] = {{128, 'A', "128-byte burst (A pattern)"},
+                      {256, 'B', "256-byte burst (B pattern)"},
+                      {512, 'C', "512-byte burst (C pattern)"}};
+
+    auto testStartTime = std::chrono::high_resolution_clock::now();
+
+    for (int burstIdx = 0; burstIdx < 3; burstIdx++) {
+        printf("🧪 Sending burst %d: %s...\n", burstIdx + 1, testBursts[burstIdx].description);
+
+        auto burstStartTime = std::chrono::high_resolution_clock::now();
+
+        // Send each burst byte-by-byte with 10ms delay between sends
+        for (int i = 0; i < testBursts[burstIdx].size; i++) {
+            IOC_DatDesc_T ByteDesc = {0};
+            IOC_initDatDesc(&ByteDesc);
+
+            char dataByte = testBursts[burstIdx].fillChar;
+            ByteDesc.Payload.pData = &dataByte;
+            ByteDesc.Payload.PtrDataSize = 1;
+            ByteDesc.Payload.PtrDataLen = 1;
+
+            Result = IOC_sendDAT(DatSenderLinkID, &ByteDesc, NULL);
+            ASSERT_EQ(IOC_RESULT_SUCCESS, Result)
+                << "Burst " << burstIdx << " byte " << i << " should send successfully";
+
+            // 10ms delay between each send (this is key for the timing analysis)
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+
+        auto burstEndTime = std::chrono::high_resolution_clock::now();
+        auto burstDuration = std::chrono::duration_cast<std::chrono::milliseconds>(burstEndTime - burstStartTime);
+        printf("   Burst %d completed in %lld ms\n", burstIdx + 1, burstDuration.count());
+    }
+
+    // Force final flush and allow processing to complete
+    IOC_flushDAT(DatSenderLinkID, NULL);
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));  // Extra time for slow callbacks
+
+    auto testEndTime = std::chrono::high_resolution_clock::now();
+    auto totalDuration = std::chrono::duration_cast<std::chrono::milliseconds>(testEndTime - testStartTime);
+
+    //===VERIFY===
+    printf("📋 Analyzing interleaved batching pattern...\n");
+
+    int totalSentBytes = 128 + 256 + 512;  // 896 bytes total
+
+    // KeyVerifyPoint-1: All data should be received
+    ASSERT_TRUE(DatReceiverPrivData.CallbackExecuted) << "Callbacks should execute";
+    ASSERT_EQ(totalSentBytes, DatReceiverPrivData.TotalReceivedSize)
+        << "Total received size should equal total sent. Expected: " << totalSentBytes
+        << ", Actual: " << DatReceiverPrivData.TotalReceivedSize;
+
+    // KeyVerifyPoint-2: Timing analysis - understand the batching pattern
+    printf("   📊 Timing Analysis Results:\n");
+    printf("      - Total test duration: %lld ms\n", totalDuration.count());
+    printf("      - Total callbacks: %lu\n", DatReceiverPrivData.ReceivedDataCnt);
+    printf("      - Total bytes sent: %d (in %d individual sends)\n", totalSentBytes, totalSentBytes);
+    printf("      - Average callback size: %.2f bytes\n",
+           (double)DatReceiverPrivData.TotalReceivedSize / DatReceiverPrivData.ReceivedDataCnt);
+    printf("      - Largest single callback: %lu bytes\n", DatReceiverPrivData.LargestSingleCallback);
+
+    // Print detailed callback pattern
+    printf("      - Callback size pattern: ");
+    for (size_t i = 0; i < DatReceiverPrivData.CallbackSizes.size() && i < 20; i++) {
+        printf("%lu ", DatReceiverPrivData.CallbackSizes[i]);
+        if (i == 19 && DatReceiverPrivData.CallbackSizes.size() > 20) {
+            printf("...(+%lu more) ", DatReceiverPrivData.CallbackSizes.size() - 20);
+        }
+    }
+    printf("\n");
+
+    // KeyVerifyPoint-3: Expected pattern analysis
+    printf("   🎯 TIMING EXPECTATION ANALYSIS:\n");
+    printf("      - Send interval: 10ms between each byte\n");
+    printf("      - Callback duration: 10ms each (opens 15ms batching window)\n");
+    printf("      - Expected pattern: Some batching, but not complete bursts\n");
+
+    // The actual pattern should show some batching but not the expected 3 large bursts
+    // because the 10ms send interval competes with the 15ms batching window
+
+    // We expect fewer callbacks than total sends (some batching occurred)
+    EXPECT_LT(DatReceiverPrivData.ReceivedDataCnt, totalSentBytes)
+        << "Should have fewer callbacks than individual sends due to batching";
+
+    // But we expect more than 3 callbacks (not perfectly batched into 3 large chunks)
+    EXPECT_GT(DatReceiverPrivData.ReceivedDataCnt, 3) << "Should have more than 3 callbacks due to timing interleaving";
+
+    // Analyze the expected vs actual pattern
+    printf("   📈 PATTERN EXPECTATION vs REALITY:\n");
+    printf("      - User's hypothesis: 3 callbacks (128, 256, 512 bytes)\n");
+    printf("      - Actual result: %lu callbacks with interleaved batching\n", DatReceiverPrivData.ReceivedDataCnt);
+
+    if (DatReceiverPrivData.ReceivedDataCnt == 3) {
+        printf("      - ✅ PERFECT BATCHING: Achieved the hypothesized pattern!\n");
+    } else {
+        printf("      - 🔄 INTERLEAVED BATCHING: Timing caused complex batching pattern\n");
+        printf("      - 💡 Explanation: 10ms send interval vs 15ms batching window creates overlap\n");
+    }
+
+    printf("   ✅ Slow-send + slow-receive timing analysis completed!\n");
+
+    //===CLEANUP===
+    if (DatReceiverLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(DatReceiverLinkID);
+    }
+    if (DatSenderLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(DatSenderLinkID);
+    }
+    if (DatReceiverSrvID != IOC_ID_INVALID) {
+        IOC_offlineService(DatReceiverSrvID);
+    }
+}
+//======>END OF: [@AC-1,US-5] TC-2B=================================================================
+
 //======>BEGIN OF: [@AC-2,US-5] TC-1===============================================================
 /**
  * @[Name]: verifyDatStreamGranularity_byBlockToBytePattern_expectFragmentationSupport
