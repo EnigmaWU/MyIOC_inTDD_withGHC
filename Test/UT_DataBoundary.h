@@ -293,8 +293,8 @@ static IOC_Result_T __CbRecvDat_Boundary_F(IOC_LinkID_T LinkID, IOC_DatDesc_pT p
 
     // Extract data from DatDesc
     void *pData;
-    ULONG_T DataSize;
-    IOC_Result_T result = IOC_getDatPayload(pDatDesc, &pData, &DataSize);
+    ULONG_T DataLen;
+    IOC_Result_T result = IOC_getDatPayload(pDatDesc, &pData, &DataLen);
     if (result != IOC_RESULT_SUCCESS) {
         pPrivData->ErrorOccurred = true;
         pPrivData->LastErrorCode = result;
@@ -303,7 +303,7 @@ static IOC_Result_T __CbRecvDat_Boundary_F(IOC_LinkID_T LinkID, IOC_DatDesc_pT p
 
     pPrivData->ReceivedDataCnt++;
     pPrivData->CallbackExecuted = true;
-    pPrivData->TotalReceivedSize += DataSize;
+    pPrivData->TotalReceivedSize += DataLen;
 
     // Record timing for batching analysis
     auto currentTime = std::chrono::high_resolution_clock::now();
@@ -314,24 +314,24 @@ static IOC_Result_T __CbRecvDat_Boundary_F(IOC_LinkID_T LinkID, IOC_DatDesc_pT p
     pPrivData->LastCallbackTime = currentTime;
 
     // Track callback sizes for batching analysis
-    pPrivData->CallbackSizes.push_back(DataSize);
-    if (DataSize > pPrivData->LargestSingleCallback) {
-        pPrivData->LargestSingleCallback = DataSize;
+    pPrivData->CallbackSizes.push_back(DataLen);
+    if (DataLen > pPrivData->LargestSingleCallback) {
+        pPrivData->LargestSingleCallback = DataLen;
     }
 
     // Track boundary conditions
-    if (DataSize == 0) {
+    if (DataLen == 0) {
         pPrivData->ZeroSizeDataReceived = true;
     }
 
     // Copy small data for verification (if space available)
-    if (DataSize > 0 && (pPrivData->ReceivedContentWritePos + DataSize) <= sizeof(pPrivData->ReceivedContent)) {
-        memcpy(pPrivData->ReceivedContent + pPrivData->ReceivedContentWritePos, pData, DataSize);
-        pPrivData->ReceivedContentWritePos += DataSize;
+    if (DataLen > 0 && (pPrivData->ReceivedContentWritePos + DataLen) <= sizeof(pPrivData->ReceivedContent)) {
+        memcpy(pPrivData->ReceivedContent + pPrivData->ReceivedContentWritePos, pData, DataLen);
+        pPrivData->ReceivedContentWritePos += DataLen;
     }
 
-    printf("DAT Boundary Callback: Client[%d], received %lu bytes, total: %lu bytes\n", pPrivData->ClientIndex,
-           DataSize, pPrivData->TotalReceivedSize);
+    printf("DAT Boundary Callback: Client[%d], received %lu bytes, total: %lu bytes\n", pPrivData->ClientIndex, DataLen,
+           pPrivData->TotalReceivedSize);
     return IOC_RESULT_SUCCESS;
 }
 
@@ -341,8 +341,8 @@ static IOC_Result_T __CbRecvDat_SlowReceiver_F(IOC_LinkID_T LinkID, IOC_DatDesc_
 
     // Extract data from DatDesc
     void *pData;
-    ULONG_T DataSize;
-    IOC_Result_T result = IOC_getDatPayload(pDatDesc, &pData, &DataSize);
+    ULONG_T DataLen;
+    IOC_Result_T result = IOC_getDatPayload(pDatDesc, &pData, &DataLen);
     if (result != IOC_RESULT_SUCCESS) {
         pPrivData->ErrorOccurred = true;
         pPrivData->LastErrorCode = result;
@@ -375,27 +375,27 @@ static IOC_Result_T __CbRecvDat_SlowReceiver_F(IOC_LinkID_T LinkID, IOC_DatDesc_
 
     pPrivData->ReceivedDataCnt++;
     pPrivData->CallbackExecuted = true;
-    pPrivData->TotalReceivedSize += DataSize;
+    pPrivData->TotalReceivedSize += DataLen;
 
     // Track callback sizes for batching analysis
-    pPrivData->CallbackSizes.push_back(DataSize);
-    if (DataSize > pPrivData->LargestSingleCallback) {
-        pPrivData->LargestSingleCallback = DataSize;
+    pPrivData->CallbackSizes.push_back(DataLen);
+    if (DataLen > pPrivData->LargestSingleCallback) {
+        pPrivData->LargestSingleCallback = DataLen;
     }
 
     // Track boundary conditions
-    if (DataSize == 0) {
+    if (DataLen == 0) {
         pPrivData->ZeroSizeDataReceived = true;
     }
 
     // Copy data to verification buffer if space available
-    if (pPrivData->ReceivedContentWritePos + DataSize <= sizeof(pPrivData->ReceivedContent)) {
-        memcpy(pPrivData->ReceivedContent + pPrivData->ReceivedContentWritePos, pData, DataSize);
-        pPrivData->ReceivedContentWritePos += DataSize;
+    if (pPrivData->ReceivedContentWritePos + DataLen <= sizeof(pPrivData->ReceivedContent)) {
+        memcpy(pPrivData->ReceivedContent + pPrivData->ReceivedContentWritePos, pData, DataLen);
+        pPrivData->ReceivedContentWritePos += DataLen;
     }
 
     printf("DAT Slow Receiver Callback: Client[%d], received %lu bytes, total: %lu bytes\n", pPrivData->ClientIndex,
-           DataSize, pPrivData->TotalReceivedSize);
+           DataLen, pPrivData->TotalReceivedSize);
 
     return IOC_RESULT_SUCCESS;
 }
