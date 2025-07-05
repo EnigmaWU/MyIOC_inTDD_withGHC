@@ -36,7 +36,7 @@ IOC_Result_T IOC_sendDAT(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, IOC_Optio
         return IOC_RESULT_NOT_EXIST_LINK;
     }
 
-    printf("IOC_sendDAT: Sending %lu bytes on LinkID=%llu\n", pDatDesc->Payload.PtrDataSize, LinkID);
+    _IOC_LogDebug("IOC_sendDAT: Sending %lu bytes on LinkID=%llu\n", pDatDesc->Payload.PtrDataSize, LinkID);
 
     // 🔄 WHY ARCHITECTURE CHANGE: The original implementation used global variables
     // (_gTDD_PendingData) to store data, completely bypassing the protocol layer.
@@ -124,7 +124,7 @@ IOC_Result_T IOC_recvDAT(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, IOC_Optio
         return IOC_RESULT_NOT_EXIST_LINK;
     }
 
-    printf("IOC_recvDAT: Receiving data on LinkID=%llu\n", LinkID);
+    _IOC_LogDebug("IOC_recvDAT: Receiving data on LinkID=%llu", LinkID);
 
     // 🔄 ARCHITECTURE IMPROVEMENT: Delegate to protocol-specific implementation
     // Each protocol (FIFO, TCP, UDP) can implement its own optimal reception strategy:

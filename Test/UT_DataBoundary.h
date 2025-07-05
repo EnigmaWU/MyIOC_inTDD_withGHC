@@ -330,8 +330,9 @@ static IOC_Result_T __CbRecvDat_Boundary_F(IOC_LinkID_T LinkID, IOC_DatDesc_pT p
         pPrivData->ReceivedContentWritePos += DataLen;
     }
 
-    printf("DAT Boundary Callback: Client[%d], received %lu bytes, total: %lu bytes\n", pPrivData->ClientIndex, DataLen,
-           pPrivData->TotalReceivedSize);
+    // printf("DAT Boundary Callback: Client[%d], received %lu bytes, total: %lu bytes\n", pPrivData->ClientIndex,
+    // DataLen,
+    //        pPrivData->TotalReceivedSize);
     return IOC_RESULT_SUCCESS;
 }
 
@@ -357,17 +358,17 @@ static IOC_Result_T __CbRecvDat_SlowReceiver_F(IOC_LinkID_T LinkID, IOC_DatDesc_
 
         // Simulate slow receiver: pause on first callback
         if (pPrivData->SlowReceiverMode && !pPrivData->FirstCallbackPaused) {
-            printf("   🐌 First callback pausing for %d ms (simulating slow receiver)...\n",
-                   pPrivData->SlowReceiverPauseMs);
+            // printf("   🐌 First callback pausing for %d ms (simulating slow receiver)...\n",
+            //        pPrivData->SlowReceiverPauseMs);
             std::this_thread::sleep_for(std::chrono::milliseconds(pPrivData->SlowReceiverPauseMs));
             pPrivData->FirstCallbackPaused = true;
-            printf("   ⏰ First callback resumed - subsequent sends should be batched\n");
+            // printf("   ⏰ First callback resumed - subsequent sends should be batched\n");
         }
     }
 
     // If AlwaysSlowMode is enabled, apply slow delay to every callback
     if (pPrivData->AlwaysSlowMode) {
-        printf("   🐌 AlwaysSlowMode: pausing for 10ms on every callback...\n");
+        // printf("   🐌 AlwaysSlowMode: pausing for 10ms on every callback...\n");
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
@@ -394,8 +395,8 @@ static IOC_Result_T __CbRecvDat_SlowReceiver_F(IOC_LinkID_T LinkID, IOC_DatDesc_
         pPrivData->ReceivedContentWritePos += DataLen;
     }
 
-    printf("DAT Slow Receiver Callback: Client[%d], received %lu bytes, total: %lu bytes\n", pPrivData->ClientIndex,
-           DataLen, pPrivData->TotalReceivedSize);
+    // printf("DAT Slow Receiver Callback: Client[%d], received %lu bytes, total: %lu bytes\n", pPrivData->ClientIndex,
+    //        DataLen, pPrivData->TotalReceivedSize);
 
     return IOC_RESULT_SUCCESS;
 }
