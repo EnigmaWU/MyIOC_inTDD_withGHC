@@ -289,9 +289,10 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byDataSizeBoundaries_expectCons
     ZeroSizeDesc.Payload.EmdDataLen = 0;   // Zero embedded size
 
     result = IOC_sendDAT(InvalidLinkID, &ZeroSizeDesc, &ValidOptions);
-    EXPECT_EQ(result, IOC_RESULT_NOT_EXIST_LINK) << "IOC_sendDAT with zero-size data should return "
-                                                    "IOC_RESULT_NOT_EXIST_LINK (LinkID validation precedes data size)";
-    //@VerifyPoint-1: Zero-size data with invalid LinkID precedence
+    EXPECT_EQ(result, IOC_RESULT_NOT_EXIST_LINK)
+        << "IOC_sendDAT with zero-size data should return "
+           "IOC_RESULT_NOT_EXIST_LINK (LinkID validation precedes data size validation)";
+    //@VerifyPoint-1: Zero-size data validation takes precedence over LinkID
 
     // Test 1b: NULL pointer with zero size
     IOC_DatDesc_T NullZeroDesc = {0};
