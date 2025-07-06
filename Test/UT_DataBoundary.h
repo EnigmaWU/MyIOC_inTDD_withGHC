@@ -177,12 +177,40 @@
  *
  *-------------------------------------------------------------------------------------------------
  * [@US-4] Error code coverage validation
- *  AC-1: GIVEN all boundary error scenarios (invalid params, oversized data, timeouts, mode conflicts),
- *         WHEN performing comprehensive boundary testing across all DAT operations,
- *         THEN every boundary condition should return specific, documented error codes
- *          AND error codes should be consistent across similar boundary scenarios,
- *          AND no boundary condition should result in undefined behavior or missing error reporting,
- *          AND error code coverage should include all documented IOC_RESULT_* values for DAT operations.
+ *  AC-1: GIVEN invalid parameter boundary conditions (NULL pointers, invalid LinkID, malformed options),
+ *         WHEN calling IOC_sendDAT or IOC_recvDAT with boundary parameter combinations,
+ *         THEN system should return specific documented error codes (IOC_RESULT_INVALID_PARAM,
+ *IOC_RESULT_NOT_EXIST_LINK) AND error codes should be consistent between sendDAT and recvDAT for identical invalid
+ *parameters, AND parameter validation should follow documented precedence order, AND no boundary parameter condition
+ *should result in undefined behavior or system crash.
+ *
+ *  AC-2: GIVEN data size boundary error conditions (zero size, oversized data, extreme size values),
+ *         WHEN performing DAT operations with boundary data sizes,
+ *         THEN system should return appropriate size-related error codes (IOC_RESULT_DATA_TOO_LARGE, etc.)
+ *          AND error codes should be consistent across similar data size boundary scenarios,
+ *          AND data size validation should occur after parameter validation,
+ *          AND memory protection should be maintained for all data size boundary conditions.
+ *
+ *  AC-3: GIVEN timeout and blocking mode boundary error conditions (zero timeout, mode conflicts, extreme timeouts),
+ *         WHEN configuring boundary timeout and blocking mode combinations,
+ *         THEN system should return specific timeout/mode error codes (IOC_RESULT_TIMEOUT, IOC_RESULT_INVALID_PARAM)
+ *          AND timeout error behavior should be consistent across sendDAT and recvDAT,
+ *          AND mode validation should occur during parameter validation phase,
+ *          AND extreme timeout values should be handled gracefully without overflow/underflow.
+ *
+ *  AC-4: GIVEN multiple simultaneous boundary error conditions,
+ *         WHEN calling DAT functions with multiple invalid parameters or boundary violations,
+ *         THEN system should return error codes following documented validation precedence
+ *          AND error precedence should be consistent across all boundary scenarios,
+ *          AND first detected boundary error should be reported (parameter > LinkID > data size > timeout),
+ *          AND multiple boundary errors should not cause system instability or undefined behavior.
+ *
+ *  AC-5: GIVEN comprehensive boundary error scenarios across all DAT operations,
+ *         WHEN testing complete error path coverage for boundary conditions,
+ *         THEN all documented IOC_RESULT_* error codes should be reachable through boundary testing
+ *          AND error code meanings should match documented behavior exactly,
+ *          AND no boundary condition should result in undocumented or undefined error codes,
+ *          AND error handling should provide complete path coverage for all boundary scenarios.
  *
  *-------------------------------------------------------------------------------------------------
  * [@US-5] Stream granularity boundary validation
@@ -228,19 +256,26 @@
  *    └── TODO: [@AC-2,US-2] Maximum data size boundary validation
  *    └── TODO: [@AC-3,US-2] Oversized data boundary validation
  *
- * 📂 UT_DataBoundaryUS3.cxx - [@US-3] Timeout and blocking mode boundaries (TODO)
- *    └── TODO: [@AC-1,US-3] Zero timeout boundary validation
- *    └── TODO: [@AC-2,US-3] Blocking mode boundaries
- *    └── TODO: [@AC-3,US-3] Extreme timeout boundaries
+ * 📂 UT_DataBoundaryUS3.cxx - [@US-3] Timeout and blocking mode boundaries
+ *    └── [@AC-1,US-3] TC-1: verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateReturn
+ *    └── [@AC-2,US-3] TC-1: verifyDatBlockingModeBoundary_byModeTransitions_expectConsistentBehavior
+ *    └── [@AC-3,US-3] TC-1: verifyDatTimeoutBoundary_byExtremeValues_expectProperHandling
+ *    └── [@AC-1,US-3] TC-2: verifyDatTimeoutBoundary_byPrecisionTesting_expectAccurateTiming
+ *    └── [@AC-2,US-3] TC-2: verifyDatBlockingModeBoundary_byStateConsistency_expectNoDataLoss
  *
- * 📂 UT_DataBoundaryUS4.cxx - [@US-4] Error code coverage validation (TODO)
- *    └── TODO: Comprehensive error code boundary testing
+ * 📂 UT_DataBoundaryUS4.cxx - [@US-4] Error code coverage validation
+ *    └── [@AC-1,US-4] TC-1: verifyDatErrorCodeCoverage_byParameterBoundaries_expectSpecificErrorCodes
+ *    └── [@AC-2,US-4] TC-2: verifyDatErrorCodeCoverage_byDataSizeBoundaries_expectConsistentErrorReporting
+ *    └── [@AC-3,US-4] TC-3: verifyDatErrorCodeCoverage_byTimeoutModeBoundaries_expectTimeoutErrorCodes
+ *    └── [@AC-4,US-4] TC-4: verifyDatErrorCodePrecedence_byMultipleErrorConditions_expectPriorityOrder
+ *    └── [@AC-5,US-4] TC-5: verifyDatErrorCodeCompleteness_byComprehensiveValidation_expectFullCoverage
  *
  * 📂 UT_DataBoundaryUS5.cxx - [@US-5] Stream granularity boundary validation
  *    └── [@AC-1,US-5] TC-1: verifyDatStreamGranularity_byByteToBlockPattern_expectDataIntegrity
  *    └── [@AC-1,US-5] TC-2: verifyDatStreamGranularity_byBurstThenPausePattern_expectBatchingBehavior
  *    └── [@AC-2,US-5] TC-1: verifyDatStreamGranularity_byBlockToBytePattern_expectFragmentationSupport
  *    └── [@AC-3,US-5] TC-1: verifyDatStreamGranularity_byVariablePatterns_expectConsistentBehavior
+ *    └── [@AC-1,US-5] TC-3: verifyDatStreamGranularity_bySlowSendSlowReceive_expectInterleavedBatching
  *************************************************************************************************/
 //======>END OF TEST CASES ORGANIZATION============================================================
 
