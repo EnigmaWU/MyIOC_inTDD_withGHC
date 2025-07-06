@@ -17,30 +17,34 @@
  *      @[Brief]: Test all error code paths, verify error codes match documented meanings
  *      @[Coverage]: All IOC_Result_T error codes, error consistency, boundary error paths
  *
+ *  TODO: TC-2:...
  *-------------------------------------------------------------------------------------------------
  * TODO: [@US-4] Error code consistency across different scenarios
- *  TC-2:
+ *  TC-1:
  *      @[Name]: verifyDatErrorCodeConsistency_byScenarioComparison_expectUniformBehavior
  *      @[Purpose]: Verify error codes are consistent across different boundary scenarios
  *      @[Brief]: Compare error codes from similar boundary conditions
  *      @[Coverage]: Error code consistency, scenario comparison, uniform error behavior
  *
+ *  TODO: TC-2:...
  *-------------------------------------------------------------------------------------------------
  * TODO: [@US-4] Error code documentation validation
- *  TC-3:
+ *  TC-1:
  *      @[Name]: verifyDatErrorCodeDocumentation_byMeaningValidation_expectAccurateDescriptions
  *      @[Purpose]: Verify error codes match their documented meanings
  *      @[Brief]: Validate error code descriptions against actual behavior
  *      @[Coverage]: Error code documentation accuracy, meaning validation, behavior alignment
  *
+ *  TODO: TC-2:...
  *-------------------------------------------------------------------------------------------------
  * TODO: [@US-4] Boundary error path coverage
- *  TC-4:
+ *  TC-1:
  *      @[Name]: verifyDatBoundaryErrorPaths_byExhaustiveTesting_expectCompletePathCoverage
  *      @[Purpose]: Ensure all boundary error paths are properly tested
  *      @[Brief]: Validate complete coverage of error paths in boundary conditions
  *      @[Coverage]: Error path coverage, boundary error scenarios, path completeness
  *
+ *  TODO: TC-2:...
  *************************************************************************************************/
 //======>END OF US-4 TEST CASES====================================================================
 
