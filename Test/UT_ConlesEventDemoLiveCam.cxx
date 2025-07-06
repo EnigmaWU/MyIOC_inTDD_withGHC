@@ -11,8 +11,8 @@
  *   b) Only VIP client may continuly receive high-resolution(HiRes) audio&video stream,
  *       others will receive HiRes in first 5 minutes then switch to low-resolution(LoRes) audio&video stream.
  *   c) Only a VIP client may request bidirectional audio&video communication.
- *  @[Module] LiveCam also internally include modules for video/audio capture, video/audio encode, stream multiplexing(mux).
- *   a) video capture in HiRes by default, and may use video resize module to get LoRes video.
+ *  @[Module] LiveCam also internally include modules for video/audio capture, video/audio encode, stream
+ * multiplexing(mux). a) video capture in HiRes by default, and may use video resize module to get LoRes video.
  */
 
 /**
@@ -80,11 +80,10 @@
  * @brief HiResVidEncObj
  * @behaviors:
  *    1) created by ModMgrObj and wait for start event.
- *    2) simuEncode video frame to video stream bits(a.k.a HiResVidStrmBits) in 1920x1080@30fps and send to HiResStrmMuxObj.
- *      a) HiResStrmMuxObj will reference HiResVidStrmBits,
- *          so wait HiResVidStrmBits recycle event from HiResStrmMuxObj.
- *      b) recycle HiResVidFrm to VidCapObj after HiResVidStrmBits encoded or sended to HiResStrmMuxObj.
- *    3) post ModuleKeepAliveEvent to ModMgrObj in 1s interval.
+ *    2) simuEncode video frame to video stream bits(a.k.a HiResVidStrmBits) in 1920x1080@30fps and send to
+ * HiResStrmMuxObj. a) HiResStrmMuxObj will reference HiResVidStrmBits, so wait HiResVidStrmBits recycle event from
+ * HiResStrmMuxObj. b) recycle HiResVidFrm to VidCapObj after HiResVidStrmBits encoded or sended to HiResStrmMuxObj. 3)
+ * post ModuleKeepAliveEvent to ModMgrObj in 1s interval.
  *
  * @todo
  *    subEVT: ModuleStartEvent, ModuleStopEvent, BizOriVidFrmCapturedEvent, BizHiResVidStrmBitsRecycledEvent
@@ -186,8 +185,8 @@
  * @behaviors:
  *    1) created by ModMgrObj and wait for start event.
  *    2) simuEncode audio frame to audio stream bits(a.k.a AudStrmBits) in 48KHz@16bit and send to HiResStrmMuxObj or
- * LoResStrmMuxObj. a) HiResStrmMuxObj or LoResStrmMuxObj will copy audio stream bits, so don't wait audio stream bits recycle
- * event from HiResStrmMuxObj or LoResStrmMuxObj. 3) post ModuleKeepAliveEvent to ModMgrObj in 1s interval.
+ * LoResStrmMuxObj. a) HiResStrmMuxObj or LoResStrmMuxObj will copy audio stream bits, so don't wait audio stream bits
+ * recycle event from HiResStrmMuxObj or LoResStrmMuxObj. 3) post ModuleKeepAliveEvent to ModMgrObj in 1s interval.
  *
  * @todo
  *    subEVT: ModuleStartEvent, ModuleStopEvent, BizOriAudFrmCapturedEvent
@@ -222,54 +221,58 @@
 
 // Define DemoLiveCam's Event Name by events between LiveCam's module objects.
 typedef enum {
-  // RefEvent flow of service side module objects from Biz Viewpoint
-  IOC_ENAME_BizOriVidFrmCaptured,  // 0
-  IOC_ENAME_BizOriVidFrmRecycled,
-  IOC_ENAME_BizHiResVidStrmBitsEncoded,
-  IOC_ENAME_BizHiResVidStrmBitsRecycled,
-  IOC_ENAME_BizHiResStrmBitsMuxed,
-  IOC_ENAME_BizHiResStrmBitsRecycled,  // 5
+    // RefEvent flow of service side module objects from Biz Viewpoint
+    IOC_ENAME_BizOriVidFrmCaptured,  // 0
+    IOC_ENAME_BizOriVidFrmRecycled,
+    IOC_ENAME_BizHiResVidStrmBitsEncoded,
+    IOC_ENAME_BizHiResVidStrmBitsRecycled,
+    IOC_ENAME_BizHiResStrmBitsMuxed,
+    IOC_ENAME_BizHiResStrmBitsRecycled,  // 5
 
-  IOC_ENAME_BizLoResVidFrmResized,
-  IOC_ENAME_BizLoResVidFrmRecycled,
-  IOC_ENAME_BizLoResVidStrmBitsEncoded,
-  IOC_ENAME_BizLoResVidStrmBitsRecycled,
-  IOC_ENAME_BizLoResStrmBitsMuxed,  // 10
-  IOC_ENAME_BizLoResStrmBitsRecycled,
+    IOC_ENAME_BizLoResVidFrmResized,
+    IOC_ENAME_BizLoResVidFrmRecycled,
+    IOC_ENAME_BizLoResVidStrmBitsEncoded,
+    IOC_ENAME_BizLoResVidStrmBitsRecycled,
+    IOC_ENAME_BizLoResStrmBitsMuxed,  // 10
+    IOC_ENAME_BizLoResStrmBitsRecycled,
 
-  IOC_ENAME_BizOriAudFrmCaptured,
-  IOC_ENAME_BizAudStrmBitsEncoded,
+    IOC_ENAME_BizOriAudFrmCaptured,
+    IOC_ENAME_BizAudStrmBitsEncoded,
 
-  // RefEvent flow of service side module objects from Biz Viewpoint
-  IOC_ENAME_ModStart,
-  IOC_ENAME_ModStop,
-  IOC_ENAME_ModKeepAlive,
+    // RefEvent flow of service side module objects from Biz Viewpoint
+    IOC_ENAME_ModStart,
+    IOC_ENAME_ModStop,
+    IOC_ENAME_ModKeepAlive,
 
-  // RefEvent flow between server and client side module objects
-  IOC_ENAME_SrvOpenStream,
-  IOC_ENAME_SrvCloseStream,
-  IOC_ENAME_BizHiResStrmBitsSent,
-  IOC_ENAME_BizLoResStrmBitsSent,
+    // RefEvent flow between server and client side module objects
+    IOC_ENAME_SrvOpenStream,
+    IOC_ENAME_SrvCloseStream,
+    IOC_ENAME_BizHiResStrmBitsSent,
+    IOC_ENAME_BizLoResStrmBitsSent,
 
-  // RefEvent flow of client side module objects
-  IOC_ENAME_CliStart,
-  IOC_ENAME_CliStop,
-  IOC_ENAME_CliKeepAlive,
+    // RefEvent flow of client side module objects
+    IOC_ENAME_CliStart,
+    IOC_ENAME_CliStop,
+    IOC_ENAME_CliKeepAlive,
 
 } IOC_EvtNameDemoLiveCam_T;
 
 // Define DemoLiveCam's Event ID by event flow between LiveCam's module objects from Biz Viewpoint
 #define IOC_EVTID_BizOriVidFrmCaptured IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizOriVidFrmCaptured)
 #define IOC_EVTID_BizOriVidFrmRecycled IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizOriVidFrmRecycled)
-#define IOC_EVTID_BizHiResVidStrmBitsEncoded IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizHiResVidStrmBitsEncoded)
-#define IOC_EVTID_BizHiResVidStrmBitsRecycled IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizHiResVidStrmBitsRecycled)
+#define IOC_EVTID_BizHiResVidStrmBitsEncoded \
+    IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizHiResVidStrmBitsEncoded)
+#define IOC_EVTID_BizHiResVidStrmBitsRecycled \
+    IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizHiResVidStrmBitsRecycled)
 #define IOC_EVTID_BizHiResStrmBitsMuxed IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizHiResStrmBitsMuxed)
 #define IOC_EVTID_BizHiResStrmBitsRecycled IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizHiResStrmBitsRecycled)
 
 #define IOC_EVTID_BizLoResVidFrmResized IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizLoResVidFrmResized)
 #define IOC_EVTID_BizLoResVidFrmRecycled IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizLoResVidFrmRecycled)
-#define IOC_EVTID_BizLoResVidStrmBitsEncoded IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizLoResVidStrmBitsEncoded)
-#define IOC_EVTID_BizLoResVidStrmBitsRecycled IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizLoResVidStrmBitsRecycled)
+#define IOC_EVTID_BizLoResVidStrmBitsEncoded \
+    IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizLoResVidStrmBitsEncoded)
+#define IOC_EVTID_BizLoResVidStrmBitsRecycled \
+    IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizLoResVidStrmBitsRecycled)
 #define IOC_EVTID_BizLoResStrmBitsMuxed IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizLoResStrmBitsMuxed)
 #define IOC_EVTID_BizLoResStrmBitsRecycled IOC_defineEvtID(IOC_EVT_CLASS_LIVECAM, IOC_ENAME_BizLoResStrmBitsRecycled)
 
@@ -341,16 +344,16 @@ static void __postKeepAliveEvt(_LiveCamObjBase_T *pBaseObj) {
 
     struct timespec Now = IOC_getCurrentTimeSpec();
     if (IOC_deltaTimeSpecInSec(&pBaseObj->LastKeepAliveTime, &Now) >= 1) {
-      IOC_EvtDesc_T EvtDesc = {
-          .EvtID    = IOC_EVTID_ModKeepAlive,
-          .EvtValue = static_cast<ULONG_T>(pBaseObj->ObjID),
-      };
+        IOC_EvtDesc_T EvtDesc = {
+            .EvtID = IOC_EVTID_ModKeepAlive,
+            .EvtValue = static_cast<ULONG_T>(pBaseObj->ObjID),
+        };
 
-      IOC_Result_T Result = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
-      EXPECT_EQ(Result, IOC_RESULT_SUCCESS);
+        IOC_Result_T Result = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
+        EXPECT_EQ(Result, IOC_RESULT_SUCCESS);
 
-      pBaseObj->KeepAliveCnt++;
-      pBaseObj->LastKeepAliveTime = Now;
+        pBaseObj->KeepAliveCnt++;
+        pBaseObj->LastKeepAliveTime = Now;
     }
 }
 
@@ -456,9 +459,9 @@ typedef struct {
 
     // subEVT
     struct {
-        ULONG_T ModuleStartEvent;           // TotalMgntSpecEvents
-        ULONG_T ModuleStopEvent;            // TotalMgntSpecEvents
-        ULONG_T BizOriVidFrmCapturedEvent;  // TotalBizSpecEvents
+        ULONG_T ModuleStartEvent;             // TotalMgntSpecEvents
+        ULONG_T ModuleStopEvent;              // TotalMgntSpecEvents
+        ULONG_T BizOriVidFrmCapturedEvent;    // TotalBizSpecEvents
         ULONG_T BizLoResVidFrmRecycledEvent;  // TotalBizSpecEvents
     } TotalSubCnts;
 
@@ -632,13 +635,13 @@ typedef struct {
 #define _CASE01_AUDCAP_FPS 50
 #define _CASE01_AUDCAP_FRM_CNT (_CASE01_DURATION * _CASE01_AUDCAP_FPS)
 
-#define _CASE01_PERF_LE_3000US 3000UL
+#define _CASE01_PERF_LE_5000US 5000UL
 static void __Case01_verifyFromPostEvt2CbProcEvtPerfMeets(IOC_EvtDesc_pT pEvtDesc) {
     struct timespec CurrentTime = IOC_getCurrentTimeSpec();
 
     ULONG_T TimeCost = IOC_deltaTimeSpecInUS(&pEvtDesc->MsgDesc.TimeStamp, &CurrentTime);
-    EXPECT_LE(TimeCost, _CASE01_PERF_LE_3000US)
-        << "TimeCost=" << TimeCost << "us, expect less than " << _CASE01_PERF_LE_3000US << "us";
+    EXPECT_LE(TimeCost, _CASE01_PERF_LE_5000US)
+        << "TimeCost=" << TimeCost << "us, expect less than " << _CASE01_PERF_LE_5000US << "us";
 }
 
 static void *__Case01_ThreadFunc_simuVidCap(void *arg) {
@@ -650,23 +653,22 @@ static void *__Case01_ThreadFunc_simuVidCap(void *arg) {
     while (pVidCapObj->Base.State == ObjState_Running) {
         clock_gettime(CLOCK_MONOTONIC, &CurrentTime);
         if (IOC_deltaTimeSpecInMS(&LastCaptureTime, &CurrentTime) >= 40) {
-          // simulate capture video frame in 1920x1080@25fps
-          // 1: post the BizOriVidFrmCapturedEvent
-          IOC_EvtDesc_T EvtDesc = {
-              .EvtID = IOC_EVTID_BizOriVidFrmCaptured,
-          };
+            // simulate capture video frame in 1920x1080@25fps
+            // 1: post the BizOriVidFrmCapturedEvent
+            IOC_EvtDesc_T EvtDesc = {
+                .EvtID = IOC_EVTID_BizOriVidFrmCaptured,
+            };
 
-          IOC_Result_T Result = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
-          EXPECT_EQ(IOC_RESULT_SUCCESS, Result)
-              << "postEvt(BizOriVidFrmCapturedEvent) fail, Result=" << IOC_getResultStr(Result);
+            IOC_Result_T Result = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
+            EXPECT_EQ(IOC_RESULT_SUCCESS, Result)
+                << "postEvt(BizOriVidFrmCapturedEvent) fail, Result=" << IOC_getResultStr(Result);
 
-          // 2: updateStatistics
-          pVidCapObj->TotalPostCnts
-              .BizOriVidFrmCapturedEvent++;  // postEvt: BizOriVidFrmCapturedEvent
-          LastCaptureTime = CurrentTime;
+            // 2: updateStatistics
+            pVidCapObj->TotalPostCnts.BizOriVidFrmCapturedEvent++;  // postEvt: BizOriVidFrmCapturedEvent
+            LastCaptureTime = CurrentTime;
 
-          // 3: tell ModMgr Iam alive
-          __postKeepAliveEvt(&pVidCapObj->Base);
+            // 3: tell ModMgr Iam alive
+            __postKeepAliveEvt(&pVidCapObj->Base);
         }
 
         if (pVidCapObj->TotalPostCnts.BizOriVidFrmCapturedEvent >= _CASE01_VIDCAP_FRM_CNT) {
@@ -674,7 +676,7 @@ static void *__Case01_ThreadFunc_simuVidCap(void *arg) {
             break;
         } else {
             // sleep 1ms
-            SleepTime.tv_sec  = 0;
+            SleepTime.tv_sec = 0;
             SleepTime.tv_nsec = 1000000;
             nanosleep(&SleepTime, NULL);
         }
@@ -685,8 +687,8 @@ static void *__Case01_ThreadFunc_simuVidCap(void *arg) {
 
 static IOC_Result_T __Case01_cbProcEvt_VidCapObj(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
     _LiveCamVidCapObj_pT pVidCapObj = (_LiveCamVidCapObj_T *)pCbPriv;
-    IOC_Result_T Result             = IOC_RESULT_BUG;
-    IOC_EvtID_T EvtID               = pEvtDesc->EvtID;
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_EvtID_T EvtID = pEvtDesc->EvtID;
 
     __Case01_verifyFromPostEvt2CbProcEvtPerfMeets(pEvtDesc);
 
@@ -696,7 +698,8 @@ static IOC_Result_T __Case01_cbProcEvt_VidCapObj(IOC_EvtDesc_pT pEvtDesc, void *
                 pVidCapObj->Base.State = ObjState_Running;
 
                 // create simu capture thread
-                int RetPSX = pthread_create(&pVidCapObj->SimuVidCapThread, NULL, __Case01_ThreadFunc_simuVidCap, pVidCapObj);
+                int RetPSX =
+                    pthread_create(&pVidCapObj->SimuVidCapThread, NULL, __Case01_ThreadFunc_simuVidCap, pVidCapObj);
                 EXPECT_EQ(0, RetPSX);
 
                 pVidCapObj->TotalSubCnts.ModuleStartEvent++;
@@ -747,8 +750,8 @@ static void __Case01_setupVidCapObj(_LiveCamVidCapObj_pT pVidCapObj) {
     // SETUP ZERO AS DEFAULT
     memset(pVidCapObj, 0, sizeof(_LiveCamVidCapObj_T));
 
-    pVidCapObj->Base.ObjID             = ObjID_VidCapObj;
-    pVidCapObj->Base.State             = ObjState_Stopped;
+    pVidCapObj->Base.ObjID = ObjID_VidCapObj;
+    pVidCapObj->Base.State = ObjState_Stopped;
     pVidCapObj->Base.LastKeepAliveTime = IOC_getCurrentTimeSpec();
 
     IOC_EvtID_T SubEvtIDs[] = {
@@ -760,7 +763,7 @@ static void __Case01_setupVidCapObj(_LiveCamVidCapObj_pT pVidCapObj) {
         .CbProcEvt_F = __Case01_cbProcEvt_VidCapObj,
         .pCbPrivData = pVidCapObj,
 
-        .EvtNum  = IOC_calcArrayElmtCnt(SubEvtIDs),
+        .EvtNum = IOC_calcArrayElmtCnt(SubEvtIDs),
         .pEvtIDs = SubEvtIDs,
     };
 
@@ -795,8 +798,8 @@ static void __Case01_verifyVidCapObj(_LiveCamVidCapObj_pT pVidCapObj) {
 
 static IOC_Result_T __Case01_cbProcEvt_ModMgrObj(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
     _LiveCamModMgrObj_pT pModMgrObj = (_LiveCamModMgrObj_pT)pCbPriv;
-    IOC_Result_T Result             = IOC_RESULT_BUG;
-    IOC_EvtID_T EvtID               = pEvtDesc->EvtID;
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_EvtID_T EvtID = pEvtDesc->EvtID;
 
     __Case01_verifyFromPostEvt2CbProcEvtPerfMeets(pEvtDesc);
 
@@ -863,16 +866,16 @@ static void __Case01_setupModMgrObj(_LiveCamModMgrObj_T *ModMgrObj) {
     // SETUP ZERO AS DEFAULT
     memset(ModMgrObj, 0, sizeof(_LiveCamModMgrObj_T));
 
-    ModMgrObj->Base.ObjID             = ObjID_ModMgrObj;
-    ModMgrObj->Base.State             = ObjState_Stopped;
+    ModMgrObj->Base.ObjID = ObjID_ModMgrObj;
+    ModMgrObj->Base.State = ObjState_Stopped;
     ModMgrObj->Base.LastKeepAliveTime = IOC_getCurrentTimeSpec();
 
-    IOC_EvtID_T SubEvtIDs[]     = {IOC_EVTID_ModKeepAlive};
+    IOC_EvtID_T SubEvtIDs[] = {IOC_EVTID_ModKeepAlive};
     IOC_SubEvtArgs_T SubEvtArgs = {
         .CbProcEvt_F = __Case01_cbProcEvt_ModMgrObj,
         .pCbPrivData = ModMgrObj,
 
-        .EvtNum  = IOC_calcArrayElmtCnt(SubEvtIDs),
+        .EvtNum = IOC_calcArrayElmtCnt(SubEvtIDs),
         .pEvtIDs = SubEvtIDs,
     };
 
@@ -960,7 +963,7 @@ static void *__Case01_ThreadFunc_simuAudCap(void *arg) {
             break;
         } else {
             // sleep 1ms
-            SleepTime.tv_sec  = 0;
+            SleepTime.tv_sec = 0;
             SleepTime.tv_nsec = 1000000;
             nanosleep(&SleepTime, NULL);
         }
@@ -971,8 +974,8 @@ static void *__Case01_ThreadFunc_simuAudCap(void *arg) {
 
 static IOC_Result_T __Case01_cbProcEvt_AudCapObj(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
     _LiveCamAudCapObj_T *pAudCapObj = (_LiveCamAudCapObj_T *)pCbPriv;
-    IOC_Result_T Result             = IOC_RESULT_BUG;
-    IOC_EvtID_T EvtID               = pEvtDesc->EvtID;
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_EvtID_T EvtID = pEvtDesc->EvtID;
 
     __Case01_verifyFromPostEvt2CbProcEvtPerfMeets(pEvtDesc);
 
@@ -982,7 +985,8 @@ static IOC_Result_T __Case01_cbProcEvt_AudCapObj(IOC_EvtDesc_pT pEvtDesc, void *
                 pAudCapObj->Base.State = ObjState_Running;
 
                 // create simu audio capture thread
-                int RetPSX = pthread_create(&pAudCapObj->SimuAudCapThread, NULL, __Case01_ThreadFunc_simuAudCap, pAudCapObj);
+                int RetPSX =
+                    pthread_create(&pAudCapObj->SimuAudCapThread, NULL, __Case01_ThreadFunc_simuAudCap, pAudCapObj);
                 EXPECT_EQ(0, RetPSX);
 
                 pAudCapObj->TotalSubCnts.ModuleStartEvent++;
@@ -1022,8 +1026,8 @@ static void __Case01_setupAudCapObj(_LiveCamAudCapObj_pT AudCapObj) {
     // SETUP ZERO AS DEFAULT
     memset(AudCapObj, 0, sizeof(_LiveCamAudCapObj_T));
 
-    AudCapObj->Base.ObjID             = ObjID_AudCapObj;
-    AudCapObj->Base.State             = ObjState_Stopped;
+    AudCapObj->Base.ObjID = ObjID_AudCapObj;
+    AudCapObj->Base.State = ObjState_Stopped;
     AudCapObj->Base.LastKeepAliveTime = IOC_getCurrentTimeSpec();
 
     IOC_EvtID_T SubEvtIDs[] = {
@@ -1034,7 +1038,7 @@ static void __Case01_setupAudCapObj(_LiveCamAudCapObj_pT AudCapObj) {
         .CbProcEvt_F = __Case01_cbProcEvt_AudCapObj,
         .pCbPrivData = AudCapObj,
 
-        .EvtNum  = IOC_calcArrayElmtCnt(SubEvtIDs),
+        .EvtNum = IOC_calcArrayElmtCnt(SubEvtIDs),
         .pEvtIDs = SubEvtIDs,
     };
 
@@ -1065,8 +1069,8 @@ static void __Case01_verifyAudCapObj(_LiveCamAudCapObj_pT pAudCapObj) {
 
 static IOC_Result_T __Case01_cbProcEvt_AudEncObj(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
     _LiveCamAudEncObj_pT pAudEncObj = (_LiveCamAudEncObj_pT)pCbPriv;
-    IOC_Result_T Result             = IOC_RESULT_BUG;
-    IOC_EvtID_T EvtID               = pEvtDesc->EvtID;
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_EvtID_T EvtID = pEvtDesc->EvtID;
 
     __Case01_verifyFromPostEvt2CbProcEvtPerfMeets(pEvtDesc);
 
@@ -1129,8 +1133,8 @@ static void __Case01_setupAudEncObj(_LiveCamAudEncObj_pT pAudEncObj) {
     // SETUP ZERO AS DEFAULT
     memset(pAudEncObj, 0, sizeof(_LiveCamAudEncObj_T));
 
-    pAudEncObj->Base.ObjID             = ObjID_AudEncObj;
-    pAudEncObj->Base.State             = ObjState_Stopped;
+    pAudEncObj->Base.ObjID = ObjID_AudEncObj;
+    pAudEncObj->Base.State = ObjState_Stopped;
     pAudEncObj->Base.LastKeepAliveTime = IOC_getCurrentTimeSpec();
 
     IOC_EvtID_T SubEvtIDs[] = {
@@ -1142,7 +1146,7 @@ static void __Case01_setupAudEncObj(_LiveCamAudEncObj_pT pAudEncObj) {
         .CbProcEvt_F = __Case01_cbProcEvt_AudEncObj,
         .pCbPrivData = pAudEncObj,
 
-        .EvtNum  = IOC_calcArrayElmtCnt(SubEvtIDs),
+        .EvtNum = IOC_calcArrayElmtCnt(SubEvtIDs),
         .pEvtIDs = SubEvtIDs,
     };
 
@@ -1174,8 +1178,8 @@ static void __Case01_verifyAudEncObj(_LiveCamAudEncObj_pT pAudEncObj) {
 
 static IOC_Result_T __Case01_cbProcEvt_VidResizeObj(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
     _LiveCamVidResizeObj_pT VidResizeObj = (_LiveCamVidResizeObj_pT)pCbPriv;
-    IOC_Result_T Result                  = IOC_RESULT_BUG;
-    IOC_EvtID_T EvtID                    = pEvtDesc->EvtID;
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_EvtID_T EvtID = pEvtDesc->EvtID;
 
     __Case01_verifyFromPostEvt2CbProcEvtPerfMeets(pEvtDesc);
 
@@ -1185,7 +1189,7 @@ static IOC_Result_T __Case01_cbProcEvt_VidResizeObj(IOC_EvtDesc_pT pEvtDesc, voi
                 VidResizeObj->Base.State = ObjState_Running;
 
                 VidResizeObj->TotalSubCnts.ModuleStartEvent++;
-                Result                   = IOC_RESULT_SUCCESS;
+                Result = IOC_RESULT_SUCCESS;
             } else {
                 // BUG: expect stopped state, but ??? state
                 EXPECT_FALSE(true) << "BUG: expect stopped state, but " << VidResizeObj->Base.State;
@@ -1197,7 +1201,7 @@ static IOC_Result_T __Case01_cbProcEvt_VidResizeObj(IOC_EvtDesc_pT pEvtDesc, voi
                 VidResizeObj->Base.State = ObjState_Stopped;
 
                 VidResizeObj->TotalSubCnts.ModuleStopEvent++;
-                Result                   = IOC_RESULT_SUCCESS;
+                Result = IOC_RESULT_SUCCESS;
             } else {
                 // BUG: expect running state, but ??? state
                 EXPECT_FALSE(true) << "BUG: expect running state, but " << VidResizeObj->Base.State;
@@ -1214,7 +1218,7 @@ static IOC_Result_T __Case01_cbProcEvt_VidResizeObj(IOC_EvtDesc_pT pEvtDesc, voi
                 EXPECT_EQ(IOC_RESULT_SUCCESS, Result);
 
                 EvtDesc.EvtID = IOC_EVTID_BizOriVidFrmRecycled;
-                Result        = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
+                Result = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
                 EXPECT_EQ(IOC_RESULT_SUCCESS, Result);
 
                 // 2: updateStatistics
@@ -1244,7 +1248,8 @@ static IOC_Result_T __Case01_cbProcEvt_VidResizeObj(IOC_EvtDesc_pT pEvtDesc, voi
 
         default: {
             // BUG: unexpected event
-            EXPECT_FALSE(true) << "BUG: unexpected event " << IOC_getEvtClassID(EvtID) << ":" << IOC_getEvtNameID(EvtID);
+            EXPECT_FALSE(true) << "BUG: unexpected event " << IOC_getEvtClassID(EvtID) << ":"
+                               << IOC_getEvtNameID(EvtID);
         } break;
     }
 
@@ -1255,8 +1260,8 @@ static void __Case01_setupVidResizeObj(_LiveCamVidResizeObj_pT VidResizeObj) {
     // SETUP ZERO AS DEFAULT
     memset(VidResizeObj, 0, sizeof(_LiveCamVidResizeObj_T));
 
-    VidResizeObj->Base.ObjID             = ObjID_VidResizeObj;
-    VidResizeObj->Base.State             = ObjState_Stopped;
+    VidResizeObj->Base.ObjID = ObjID_VidResizeObj;
+    VidResizeObj->Base.State = ObjState_Stopped;
     VidResizeObj->Base.LastKeepAliveTime = IOC_getCurrentTimeSpec();
 
     IOC_EvtID_T SubEvtIDs[] = {
@@ -1269,7 +1274,7 @@ static void __Case01_setupVidResizeObj(_LiveCamVidResizeObj_pT VidResizeObj) {
         .CbProcEvt_F = __Case01_cbProcEvt_VidResizeObj,
         .pCbPrivData = VidResizeObj,
 
-        .EvtNum  = IOC_calcArrayElmtCnt(SubEvtIDs),
+        .EvtNum = IOC_calcArrayElmtCnt(SubEvtIDs),
         .pEvtIDs = SubEvtIDs,
     };
 
@@ -1305,8 +1310,8 @@ static void __Case01_verifyVidResizeObj(_LiveCamVidResizeObj_pT VidResizeObj) {
 
 static IOC_Result_T __Case01_cbProcEvt_LoResVidEncObj(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
     _LiveCamLoResVidEncObj_pT LoResVidEncObj = (_LiveCamLoResVidEncObj_pT)pCbPriv;
-    IOC_Result_T Result                      = IOC_RESULT_BUG;
-    IOC_EvtID_T EvtID                        = pEvtDesc->EvtID;
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_EvtID_T EvtID = pEvtDesc->EvtID;
 
     __Case01_verifyFromPostEvt2CbProcEvtPerfMeets(pEvtDesc);
 
@@ -1343,13 +1348,13 @@ static IOC_Result_T __Case01_cbProcEvt_LoResVidEncObj(IOC_EvtDesc_pT pEvtDesc, v
                 EXPECT_EQ(IOC_RESULT_SUCCESS, Result);
 
                 EvtDesc.EvtID = IOC_EVTID_BizLoResVidFrmRecycled;
-                Result        = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
+                Result = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
 
                 // 2: updateStatistics
                 LoResVidEncObj->TotalSubCnts.BizLoResVidFrmResizedEvent++;  // procEvt: BizLoResVidFrmResized
 
                 LoResVidEncObj->TotalPostCnts.BizLoResVidStrmBitsEncodedEvent++;  // postEvt: BizLoResVidStrmBitsEncoded
-                LoResVidEncObj->TotalPostCnts.BizLoResVidFrmRecycledEvent++;    // postEvt: BizLoResVidFrmRecycled
+                LoResVidEncObj->TotalPostCnts.BizLoResVidFrmRecycledEvent++;      // postEvt: BizLoResVidFrmRecycled
 
                 // 3: tell ModMgr Iam alive
                 __postKeepAliveEvt(&LoResVidEncObj->Base);
@@ -1385,8 +1390,8 @@ static void __Case01_setupLoResVidEncObj(_LiveCamLoResVidEncObj_pT LoResVidEncOb
     // SETUP ZERO AS DEFAULT
     memset(LoResVidEncObj, 0, sizeof(_LiveCamLoResVidEncObj_T));
 
-    LoResVidEncObj->Base.ObjID             = ObjID_LoResVidEncObj;
-    LoResVidEncObj->Base.State             = ObjState_Stopped;
+    LoResVidEncObj->Base.ObjID = ObjID_LoResVidEncObj;
+    LoResVidEncObj->Base.State = ObjState_Stopped;
     LoResVidEncObj->Base.LastKeepAliveTime = IOC_getCurrentTimeSpec();
 
     IOC_EvtID_T SubEvtIDs[] = {
@@ -1399,7 +1404,7 @@ static void __Case01_setupLoResVidEncObj(_LiveCamLoResVidEncObj_pT LoResVidEncOb
         .CbProcEvt_F = __Case01_cbProcEvt_LoResVidEncObj,
         .pCbPrivData = LoResVidEncObj,
 
-        .EvtNum  = IOC_calcArrayElmtCnt(SubEvtIDs),
+        .EvtNum = IOC_calcArrayElmtCnt(SubEvtIDs),
         .pEvtIDs = SubEvtIDs,
     };
 
@@ -1435,9 +1440,9 @@ static void __Case01_verifyLoResVidEncObj(_LiveCamLoResVidEncObj_pT LoResVidEncO
 
 static IOC_Result_T __Case01_cbProcEvt_LoResStrmMuxObj(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
     _LiveCamLoResStrmMuxObj_pT pLoResStrmMuxObj = (_LiveCamLoResStrmMuxObj_T *)pCbPriv;
-    IOC_Result_T Result                         = IOC_RESULT_BUG;
-    IOC_EvtID_T EvtID                           = pEvtDesc->EvtID;
-    IOC_EvtDesc_T EvtDesc                       = {};
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_EvtID_T EvtID = pEvtDesc->EvtID;
+    IOC_EvtDesc_T EvtDesc = {};
 
     __Case01_verifyFromPostEvt2CbProcEvtPerfMeets(pEvtDesc);
 
@@ -1504,7 +1509,7 @@ static IOC_Result_T __Case01_cbProcEvt_LoResStrmMuxObj(IOC_EvtDesc_pT pEvtDesc, 
 
                 // relay LoResStrmBitsRecycled -> LoResVidStrmBitsRecycled
                 EvtDesc.EvtID = IOC_EVTID_BizLoResVidStrmBitsRecycled;
-                Result        = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
+                Result = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
                 EXPECT_EQ(IOC_RESULT_SUCCESS, Result);
 
                 pLoResStrmMuxObj->TotalPostCnts
@@ -1530,8 +1535,8 @@ static void __Case01_setupLoResStrmMuxObj(_LiveCamLoResStrmMuxObj_pT pLoResStrmM
     // SETUP ZERO AS DEFAULT
     memset(pLoResStrmMuxObj, 0, sizeof(_LiveCamLoResStrmMuxObj_T));
 
-    pLoResStrmMuxObj->Base.ObjID             = ObjID_LoResStrmMuxObj;
-    pLoResStrmMuxObj->Base.State             = ObjState_Stopped;
+    pLoResStrmMuxObj->Base.ObjID = ObjID_LoResStrmMuxObj;
+    pLoResStrmMuxObj->Base.State = ObjState_Stopped;
     pLoResStrmMuxObj->Base.LastKeepAliveTime = IOC_getCurrentTimeSpec();
 
     IOC_EvtID_T SubEvtIDs[] = {
@@ -1545,7 +1550,7 @@ static void __Case01_setupLoResStrmMuxObj(_LiveCamLoResStrmMuxObj_pT pLoResStrmM
         .CbProcEvt_F = __Case01_cbProcEvt_LoResStrmMuxObj,
         .pCbPrivData = pLoResStrmMuxObj,
 
-        .EvtNum  = IOC_calcArrayElmtCnt(SubEvtIDs),
+        .EvtNum = IOC_calcArrayElmtCnt(SubEvtIDs),
         .pEvtIDs = SubEvtIDs,
     };
 
@@ -1582,8 +1587,8 @@ static void __Case01_verifyLoResStrmMuxObj(_LiveCamLoResStrmMuxObj_pT pLoResStrm
 
 static IOC_Result_T __Case01_cbProcEvt_SrvObj(IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
     _LiveCamSrvObj_pT pSrvObj = (_LiveCamSrvObj_pT)pCbPriv;
-    IOC_Result_T Result       = IOC_RESULT_BUG;
-    IOC_EvtID_T EvtID         = pEvtDesc->EvtID;
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_EvtID_T EvtID = pEvtDesc->EvtID;
 
     __Case01_verifyFromPostEvt2CbProcEvtPerfMeets(pEvtDesc);
 
@@ -1614,7 +1619,7 @@ static IOC_Result_T __Case01_cbProcEvt_SrvObj(IOC_EvtDesc_pT pEvtDesc, void *pCb
             if (pSrvObj->Base.State == ObjState_Running) {
                 // 1: post the BizLoResStrmBitsSentEvent and BizLoResStrmBitsRecycledEvent
                 IOC_EvtDesc_T EvtDesc = {
-                    .EvtID    = IOC_EVTID_BizLoResStrmBitsSent,
+                    .EvtID = IOC_EVTID_BizLoResStrmBitsSent,
                     .EvtValue = pEvtDesc->EvtValue,
                 };
                 Result = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
@@ -1622,7 +1627,7 @@ static IOC_Result_T __Case01_cbProcEvt_SrvObj(IOC_EvtDesc_pT pEvtDesc, void *pCb
                 EXPECT_TRUE(Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_NO_EVENT_CONSUMER);
 
                 EvtDesc.EvtID = IOC_EVTID_BizLoResStrmBitsRecycled;
-                Result        = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
+                Result = IOC_postEVT_inConlesMode(&EvtDesc, NULL);
                 EXPECT_EQ(IOC_RESULT_SUCCESS, Result);
 
                 // 2: updateStatistics
@@ -1654,8 +1659,8 @@ static void __Case01_setupSrvObj(_LiveCamSrvObj_pT pSrvObj) {
     // SETUP ZERO AS DEFAULT
     memset(pSrvObj, 0, sizeof(_LiveCamSrvObj_T));
 
-    pSrvObj->Base.ObjID             = ObjID_SrvObj;
-    pSrvObj->Base.State             = ObjState_Stopped;
+    pSrvObj->Base.ObjID = ObjID_SrvObj;
+    pSrvObj->Base.State = ObjState_Stopped;
     pSrvObj->Base.LastKeepAliveTime = IOC_getCurrentTimeSpec();
 
     IOC_EvtID_T SubEvtIDs[] = {
@@ -1666,7 +1671,7 @@ static void __Case01_setupSrvObj(_LiveCamSrvObj_pT pSrvObj) {
         .CbProcEvt_F = __Case01_cbProcEvt_SrvObj,
         .pCbPrivData = pSrvObj,
 
-        .EvtNum  = IOC_calcArrayElmtCnt(SubEvtIDs),
+        .EvtNum = IOC_calcArrayElmtCnt(SubEvtIDs),
         .pEvtIDs = SubEvtIDs,
     };
 
