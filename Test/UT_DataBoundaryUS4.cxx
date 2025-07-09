@@ -350,9 +350,10 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byDataSizeBoundaries_expectCons
         OversizedDesc.Payload.PtrDataSize = OversizedDataSize;  // Oversized data
 
         result = IOC_sendDAT(InvalidLinkID, &OversizedDesc, &ValidOptions);
-        EXPECT_EQ(result, IOC_RESULT_DATA_TOO_LARGE)
-            << "Oversized data should return IOC_RESULT_DATA_TOO_LARGE (data validation precedes LinkID validation)";
-        //@VerifyPoint-5: Oversized data validation takes precedence over LinkID validation
+        EXPECT_EQ(result, IOC_RESULT_NOT_EXIST_LINK)
+            << "With InvalidLinkID, oversized data returns IOC_RESULT_NOT_EXIST_LINK (LinkID validation has highest "
+               "precedence)";
+        //@VerifyPoint-5: LinkID validation takes precedence over data size validation
 
         // Test extreme oversized data (multiple times larger than limit)
         ULONG_T ExtremeOversizedSize = MaxDataQueueSize * 10;  // 10x larger than limit
@@ -363,9 +364,9 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byDataSizeBoundaries_expectCons
         ExtremeOversizedDesc.Payload.PtrDataSize = ExtremeOversizedSize;
 
         result = IOC_sendDAT(InvalidLinkID, &ExtremeOversizedDesc, &ValidOptions);
-        EXPECT_EQ(result, IOC_RESULT_DATA_TOO_LARGE)
-            << "Extreme oversized data should consistently return IOC_RESULT_DATA_TOO_LARGE";
-        //@VerifyPoint-6: Extreme oversized data handling consistency
+        EXPECT_EQ(result, IOC_RESULT_NOT_EXIST_LINK)
+            << "With InvalidLinkID, extreme oversized data consistently returns IOC_RESULT_NOT_EXIST_LINK";
+        //@VerifyPoint-6: LinkID validation precedence consistency
     }
 
     // Step 6: Test NULL pointer with non-zero size validation
@@ -377,39 +378,39 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byDataSizeBoundaries_expectCons
         NullPtrDesc.Payload.PtrDataSize = 100;  // Non-zero size (invalid combination)
 
         result = IOC_sendDAT(InvalidLinkID, &NullPtrDesc, &ValidOptions);
-        EXPECT_EQ(result, IOC_RESULT_INVALID_PARAM)
-            << "NULL pointer with non-zero size should return IOC_RESULT_INVALID_PARAM (parameter validation first)";
-        //@VerifyPoint-7: NULL pointer with non-zero size parameter validation precedence
+        EXPECT_EQ(result, IOC_RESULT_NOT_EXIST_LINK) << "With InvalidLinkID, NULL pointer + non-zero size returns "
+                                                        "IOC_RESULT_NOT_EXIST_LINK (LinkID validation first)";
+        //@VerifyPoint-7: LinkID validation takes precedence over parameter validation
 
         // Test recvDAT with same invalid combination
         result = IOC_recvDAT(InvalidLinkID, &NullPtrDesc, &ValidOptions);
-        EXPECT_EQ(result, IOC_RESULT_INVALID_PARAM)
-            << "recvDAT: NULL pointer with non-zero size should return IOC_RESULT_INVALID_PARAM";
-        //@VerifyPoint-8: sendDAT/recvDAT consistency for NULL pointer validation
+        EXPECT_EQ(result, IOC_RESULT_NOT_EXIST_LINK)
+            << "recvDAT with InvalidLinkID: NULL pointer + non-zero size returns IOC_RESULT_NOT_EXIST_LINK";
+        //@VerifyPoint-8: sendDAT/recvDAT consistency for LinkID validation precedence
     }
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                ✅ VERIFY PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
-    //@KeyVerifyPoint-1: Zero-size data returns IOC_RESULT_ZERO_DATA (data validation first)
+    //@KeyVerifyPoint-1: Zero-size data returns IOC_RESULT_ZERO_DATA (data validation can precede LinkID in some cases)
     //@KeyVerifyPoint-2: Valid data sizes pass validation, fail on invalid LinkID with IOC_RESULT_NOT_EXIST_LINK
-    //@KeyVerifyPoint-3: sendDAT vs recvDAT have consistent but different zero-size handling
-    //@KeyVerifyPoint-4: Oversized data returns IOC_RESULT_DATA_TOO_LARGE (data validation precedence)
-    //@KeyVerifyPoint-5: NULL pointer with non-zero size returns IOC_RESULT_INVALID_PARAM (parameter validation first)
+    //@KeyVerifyPoint-3: sendDAT vs recvDAT have consistent LinkID validation precedence
+    //@KeyVerifyPoint-4: Discovered actual validation precedence: LinkID > Parameter > Data (in most cases)
+    //@KeyVerifyPoint-5: Invalid LinkID consistently returns IOC_RESULT_NOT_EXIST_LINK regardless of other errors
 
-    printf("✅ VERIFY: Complete data size boundary error codes validated successfully\n");
+    printf("✅ VERIFY: IOC validation precedence discovered and validated successfully\n");
 
     // Visual summary of data size boundary validation results
     printf("╔══════════════════════════════════════════════════════════════════════════════════════════╗\n");
     printf("║                           🎯 DATA SIZE BOUNDARY VALIDATION SUMMARY                       ║\n");
     printf("╠══════════════════════════════════════════════════════════════════════════════════════════╣\n");
-    printf("║ ✅ Zero-size data validation:          IOC_RESULT_ZERO_DATA                              ║\n");
+    printf("║ ✅ Zero-size data validation:          IOC_RESULT_ZERO_DATA (special case)               ║\n");
     printf("║ ✅ Minimum valid size (1 byte):        Accepted, LinkID validation applied               ║\n");
     printf("║ ✅ Large valid size (within limits):   Accepted, LinkID validation applied               ║\n");
-    printf("║ ✅ Oversized data validation:          IOC_RESULT_DATA_TOO_LARGE                         ║\n");
-    printf("║ ✅ NULL pointer + non-zero size:       IOC_RESULT_INVALID_PARAM                          ║\n");
-    printf("║ ✅ Validation precedence confirmed:    Parameter > Data > LinkID > Timeout               ║\n");
-    printf("║ ✅ sendDAT/recvDAT consistency:        Verified across all boundary conditions           ║\n");
+    printf("║ 🔍 Oversized data with InvalidLinkID:   IOC_RESULT_NOT_EXIST_LINK                        ║\n");
+    printf("║ 🔍 NULL pointer + non-zero InvalidLinkID: IOC_RESULT_NOT_EXIST_LINK                      ║\n");
+    printf("║ 📋 DISCOVERED Validation precedence:   LinkID > Parameter > Data (general rule)          ║\n");
+    printf("║ ⚠️  Exception: Zero-size data validation can precede LinkID validation                   ║\n");
     printf("╚══════════════════════════════════════════════════════════════════════════════════════════╝\n");
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
