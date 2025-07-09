@@ -16,25 +16,24 @@
  * @return IOC_RESULT_NOT_EXIST_LINK: LinkID does not exist
  */
 IOC_Result_T IOC_sendDAT(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, IOC_Options_pT pOption) {
-    // Parameter validation (highest priority)
+    // Parameter validation
     if (!pDatDesc) {
         return IOC_RESULT_INVALID_PARAM;
     }
 
-    // LinkID validation (second priority - before data size validation)
     if (LinkID == IOC_ID_INVALID) {
         return IOC_RESULT_NOT_EXIST_LINK;
     }
 
-    // Get sender link object - validate LinkID existence before data validation
+    // Zero-size data validation - check if both PtrDataSize and EmdDataLen are zero
+    if (pDatDesc->Payload.PtrDataSize == 0 && pDatDesc->Payload.EmdDataLen == 0) {
+        return IOC_RESULT_ZERO_DATA;
+    }
+
+    // Get sender link object
     _IOC_LinkObject_pT pSenderLinkObj = _IOC_getLinkObjByLinkID(LinkID);
     if (!pSenderLinkObj) {
         return IOC_RESULT_NOT_EXIST_LINK;
-    }
-
-    // Data size validation (third priority - after LinkID validation)
-    if (pDatDesc->Payload.PtrDataSize == 0 && pDatDesc->Payload.EmdDataLen == 0) {
-        return IOC_RESULT_ZERO_DATA;
     }
 
     _IOC_LogDebug("IOC_sendDAT: Sending %lu bytes on LinkID=%llu\n", pDatDesc->Payload.PtrDataSize, LinkID);

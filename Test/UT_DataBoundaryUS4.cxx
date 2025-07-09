@@ -289,9 +289,8 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byDataSizeBoundaries_expectCons
     ZeroSizeDesc.Payload.EmdDataLen = 0;   // Zero embedded size
 
     result = IOC_sendDAT(InvalidLinkID, &ZeroSizeDesc, &ValidOptions);
-    EXPECT_EQ(result, IOC_RESULT_NOT_EXIST_LINK)
-        << "IOC_sendDAT with zero-size data should return "
-           "IOC_RESULT_NOT_EXIST_LINK (LinkID validation precedes data size validation)";
+    EXPECT_EQ(result, IOC_RESULT_ZERO_DATA) << "IOC_sendDAT with zero-size data should return "
+                                               "IOC_RESULT_ZERO_DATA (data size validation precedes LinkID validation)";
     //@VerifyPoint-1: Zero-size data validation takes precedence over LinkID
 
     // Test 1b: NULL pointer with zero size
@@ -302,8 +301,8 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byDataSizeBoundaries_expectCons
     NullZeroDesc.Payload.EmdDataLen = 0;   // Zero embedded size
 
     result = IOC_sendDAT(InvalidLinkID, &NullZeroDesc, &ValidOptions);
-    EXPECT_EQ(result, IOC_RESULT_NOT_EXIST_LINK)
-        << "IOC_sendDAT with NULL pointer + zero size should return IOC_RESULT_NOT_EXIST_LINK";
+    EXPECT_EQ(result, IOC_RESULT_ZERO_DATA) << "IOC_sendDAT with NULL pointer + zero size should return "
+                                               "IOC_RESULT_ZERO_DATA (data size validation precedes LinkID validation)";
     //@VerifyPoint-2: NULL pointer with zero size validation order
 
     // 2. Test minimum valid data size (1 byte)
@@ -444,7 +443,7 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byDataSizeBoundaries_expectCons
     printf("╔══════════════════════════════════════════════════════════════════════════════════════════╗\n");
     printf("║                           🎯 DATA SIZE BOUNDARY VALIDATION SUMMARY                       ║\n");
     printf("╠══════════════════════════════════════════════════════════════════════════════════════════╣\n");
-    printf("║ ✅ Zero-size data validation:          Consistent IOC_RESULT_NOT_EXIST_LINK              ║\n");
+    printf("║ ✅ Zero-size data validation:          Consistent IOC_RESULT_ZERO_DATA                 ║\n");
     printf("║ ✅ Minimum valid size (1 byte):        Accepted (IOC_RESULT_NOT_EXIST_LINK)             ║\n");
     printf("║ ✅ Large valid size validation:        Accepted within MaxDataQueueSize                 ║\n");
     printf("║ ✅ MaxDataQueueSize boundary:          %8lu bytes                                    ║",
