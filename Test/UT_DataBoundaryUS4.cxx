@@ -160,8 +160,8 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byParameterBoundaries_expectSpe
     // Create malformed DatDesc with invalid pointer but non-zero size
     IOC_DatDesc_T MalformedDatDesc = {0};
     IOC_initDatDesc(&MalformedDatDesc);
-    MalformedDatDesc.Payload.pData = (void *)0xDEADBEEF;  // Invalid pointer
-    MalformedDatDesc.Payload.PtrDataSize = 100;           // Non-zero size
+    MalformedDatDesc.Payload.pData = (void*)0xDEADBEEF;  // Invalid pointer
+    MalformedDatDesc.Payload.PtrDataSize = 100;          // Non-zero size
 
     result = IOC_sendDAT(IOC_ID_INVALID, &MalformedDatDesc, &ValidOptions);
     EXPECT_EQ(result, IOC_RESULT_NOT_EXIST_LINK)
@@ -285,7 +285,7 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byDataSizeBoundaries_expectCons
         ZeroSizeDesc.Payload.EmdDataLen = 0;
 
         result = IOC_sendDAT(InvalidLinkID, &ZeroSizeDesc, &ValidOptions);
-        EXPECT_EQ(result, IOC_RESULT_ZERO_DATA) 
+        EXPECT_EQ(result, IOC_RESULT_ZERO_DATA)
             << "Zero-size data should return IOC_RESULT_ZERO_DATA (data validation precedes LinkID validation)";
         //@VerifyPoint-1: Zero-size data validation takes precedence over LinkID validation
     }
@@ -333,9 +333,59 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byDataSizeBoundaries_expectCons
         RecvZeroDesc.Payload.PtrDataSize = 0;  // Zero receive buffer size
 
         result = IOC_recvDAT(InvalidLinkID, &RecvZeroDesc, &ValidOptions);
-        EXPECT_EQ(result, IOC_RESULT_NOT_EXIST_LINK)
-            << "recvDAT with zero buffer size should return IOC_RESULT_NOT_EXIST_LINK (different validation for receive)";
+        EXPECT_EQ(result, IOC_RESULT_NOT_EXIST_LINK) << "recvDAT with zero buffer size should return "
+                                                        "IOC_RESULT_NOT_EXIST_LINK (different validation for receive)";
         //@VerifyPoint-4: recvDAT zero buffer handling differs from sendDAT
+    }
+
+    // Step 5: Test oversized data error codes (CRITICAL MISSING TEST)
+    printf("   ├─ 🔍 Step 5/6: Testing oversized data boundaries...\n");
+    {
+        // Test data size exceeding MaxDataQueueSize → IOC_RESULT_DATA_TOO_LARGE
+        ULONG_T OversizedDataSize = MaxDataQueueSize + 1024;  // Clearly exceeds system limit
+
+        IOC_DatDesc_T OversizedDesc = {0};
+        IOC_initDatDesc(&OversizedDesc);
+        OversizedDesc.Payload.pData = TestDataBuffer;           // Valid pointer
+        OversizedDesc.Payload.PtrDataSize = OversizedDataSize;  // Oversized data
+
+        result = IOC_sendDAT(InvalidLinkID, &OversizedDesc, &ValidOptions);
+        EXPECT_EQ(result, IOC_RESULT_DATA_TOO_LARGE)
+            << "Oversized data should return IOC_RESULT_DATA_TOO_LARGE (data validation precedes LinkID validation)";
+        //@VerifyPoint-5: Oversized data validation takes precedence over LinkID validation
+
+        // Test extreme oversized data (multiple times larger than limit)
+        ULONG_T ExtremeOversizedSize = MaxDataQueueSize * 10;  // 10x larger than limit
+
+        IOC_DatDesc_T ExtremeOversizedDesc = {0};
+        IOC_initDatDesc(&ExtremeOversizedDesc);
+        ExtremeOversizedDesc.Payload.pData = TestDataBuffer;
+        ExtremeOversizedDesc.Payload.PtrDataSize = ExtremeOversizedSize;
+
+        result = IOC_sendDAT(InvalidLinkID, &ExtremeOversizedDesc, &ValidOptions);
+        EXPECT_EQ(result, IOC_RESULT_DATA_TOO_LARGE)
+            << "Extreme oversized data should consistently return IOC_RESULT_DATA_TOO_LARGE";
+        //@VerifyPoint-6: Extreme oversized data handling consistency
+    }
+
+    // Step 6: Test NULL pointer with non-zero size validation
+    printf("   └─ 🔍 Step 6/6: Testing NULL pointer with non-zero size...\n");
+    {
+        IOC_DatDesc_T NullPtrDesc = {0};
+        IOC_initDatDesc(&NullPtrDesc);
+        NullPtrDesc.Payload.pData = NULL;       // NULL pointer
+        NullPtrDesc.Payload.PtrDataSize = 100;  // Non-zero size (invalid combination)
+
+        result = IOC_sendDAT(InvalidLinkID, &NullPtrDesc, &ValidOptions);
+        EXPECT_EQ(result, IOC_RESULT_INVALID_PARAM)
+            << "NULL pointer with non-zero size should return IOC_RESULT_INVALID_PARAM (parameter validation first)";
+        //@VerifyPoint-7: NULL pointer with non-zero size parameter validation precedence
+
+        // Test recvDAT with same invalid combination
+        result = IOC_recvDAT(InvalidLinkID, &NullPtrDesc, &ValidOptions);
+        EXPECT_EQ(result, IOC_RESULT_INVALID_PARAM)
+            << "recvDAT: NULL pointer with non-zero size should return IOC_RESULT_INVALID_PARAM";
+        //@VerifyPoint-8: sendDAT/recvDAT consistency for NULL pointer validation
     }
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
@@ -344,8 +394,23 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byDataSizeBoundaries_expectCons
     //@KeyVerifyPoint-1: Zero-size data returns IOC_RESULT_ZERO_DATA (data validation first)
     //@KeyVerifyPoint-2: Valid data sizes pass validation, fail on invalid LinkID with IOC_RESULT_NOT_EXIST_LINK
     //@KeyVerifyPoint-3: sendDAT vs recvDAT have consistent but different zero-size handling
+    //@KeyVerifyPoint-4: Oversized data returns IOC_RESULT_DATA_TOO_LARGE (data validation precedence)
+    //@KeyVerifyPoint-5: NULL pointer with non-zero size returns IOC_RESULT_INVALID_PARAM (parameter validation first)
 
-    printf("✅ VERIFY: Data size boundary error codes validated - zero-size precedence confirmed\n");
+    printf("✅ VERIFY: Complete data size boundary error codes validated successfully\n");
+
+    // Visual summary of data size boundary validation results
+    printf("╔══════════════════════════════════════════════════════════════════════════════════════════╗\n");
+    printf("║                           🎯 DATA SIZE BOUNDARY VALIDATION SUMMARY                       ║\n");
+    printf("╠══════════════════════════════════════════════════════════════════════════════════════════╣\n");
+    printf("║ ✅ Zero-size data validation:          IOC_RESULT_ZERO_DATA                              ║\n");
+    printf("║ ✅ Minimum valid size (1 byte):        Accepted, LinkID validation applied               ║\n");
+    printf("║ ✅ Large valid size (within limits):   Accepted, LinkID validation applied               ║\n");
+    printf("║ ✅ Oversized data validation:          IOC_RESULT_DATA_TOO_LARGE                         ║\n");
+    printf("║ ✅ NULL pointer + non-zero size:       IOC_RESULT_INVALID_PARAM                          ║\n");
+    printf("║ ✅ Validation precedence confirmed:    Parameter > Data > LinkID > Timeout               ║\n");
+    printf("║ ✅ sendDAT/recvDAT consistency:        Verified across all boundary conditions           ║\n");
+    printf("╚══════════════════════════════════════════════════════════════════════════════════════════╝\n");
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               🧹 CLEANUP PHASE                                        │
@@ -381,7 +446,7 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byDataSizeBoundaries_withValidL
     // SETUP: Create a valid LinkID for isolated boundary testing
     IOC_Result_T result = IOC_RESULT_BUG;
     IOC_LinkID_T ValidLinkID = IOC_ID_INVALID;
-    
+
     // Step 1: Establish valid service connection
     IOC_SrvDesc_T SrvDesc = {0};
     IOC_initSrvDesc(&SrvDesc);
@@ -389,24 +454,24 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byDataSizeBoundaries_withValidL
     strcpy(SrvDesc.Identity.SrvName, "BoundaryTestSrv");
     result = IOC_onlineService(&SrvDesc);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
-    
+
     result = IOC_connectService(&SrvDesc, &ValidLinkID);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
     ASSERT_NE(IOC_ID_INVALID, ValidLinkID);
-    
+
     // BEHAVIOR: Test isolated data size boundaries with ValidLinkID
     IOC_DatDesc_T ZeroSizeDatDesc = {0};
     IOC_initDatDesc(&ZeroSizeDatDesc);
     ZeroSizeDatDesc.Payload.pData = NULL;
     ZeroSizeDatDesc.Payload.PtrDataSize = 0;  // Zero size boundary
-    
+
     IOC_Option_defineSyncMayBlock(ValidOptions);
-    
+
     // With ValidLinkID, we get PURE data size boundary error
     result = IOC_sendDAT(ValidLinkID, &ZeroSizeDatDesc, &ValidOptions);
     EXPECT_EQ(result, IOC_RESULT_ZERO_DATA)
         << "With ValidLinkID, zero-size data should return IOC_RESULT_ZERO_DATA (isolated boundary)";
-    
+
     // CLEANUP: Close the valid connection
     IOC_disconnectLink(ValidLinkID);
     IOC_offlineService(&SrvDesc);
