@@ -353,6 +353,68 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byDataSizeBoundaries_expectCons
     // No cleanup needed - stateless boundary testing
 }
 
+/**
+ * ╔══════════════════════════════════════════════════════════════════════════════════════════╗
+ * ║                           TEST DESIGN RATIONALE: LinkID Strategy                        ║
+ * ╠══════════════════════════════════════════════════════════════════════════════════════════╣
+ * ║ @[InvalidLinkID Strategy]:                                                               ║
+ * ║   • Tests validation precedence (parameter > data > LinkID)                             ║
+ * ║   • Verifies multiple error condition handling                                          ║
+ * ║   • Simulates real-world scenarios with multiple issues                                 ║
+ * ║   • Validates IOC implementation robustness                                             ║
+ * ║                                                                                          ║
+ * ║ @[ValidLinkID Strategy] (Future Enhancement):                                           ║
+ * ║   • Tests isolated boundary conditions without interference                             ║
+ * ║   • Provides cleaner error coverage for specific boundaries                             ║
+ * ║   • Enables true boundary analysis (one error condition at a time)                     ║
+ * ║   • Simplifies debugging of individual validation logic                                 ║
+ * ║                                                                                          ║
+ * ║ @[Optimal Approach]: Use BOTH strategies for comprehensive coverage                     ║
+ * ║   1) InvalidLinkID for precedence and multi-error scenarios                            ║
+ * ║   2) ValidLinkID for isolated boundary condition validation                             ║
+ * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
+ */
+
+// TODO: Future Enhancement - ValidLinkID Strategy Example
+/*
+TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byDataSizeBoundaries_withValidLinkID_expectIsolatedErrors) {
+    // SETUP: Create a valid LinkID for isolated boundary testing
+    IOC_Result_T result = IOC_RESULT_BUG;
+    IOC_LinkID_T ValidLinkID = IOC_ID_INVALID;
+    
+    // Step 1: Establish valid service connection
+    IOC_SrvDesc_T SrvDesc = {0};
+    IOC_initSrvDesc(&SrvDesc);
+    SrvDesc.Protocol.ProtocolID = IOC_PROTOCOL_CONET;
+    strcpy(SrvDesc.Identity.SrvName, "BoundaryTestSrv");
+    result = IOC_onlineService(&SrvDesc);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result);
+    
+    result = IOC_connectService(&SrvDesc, &ValidLinkID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result);
+    ASSERT_NE(IOC_ID_INVALID, ValidLinkID);
+    
+    // BEHAVIOR: Test isolated data size boundaries with ValidLinkID
+    IOC_DatDesc_T ZeroSizeDatDesc = {0};
+    IOC_initDatDesc(&ZeroSizeDatDesc);
+    ZeroSizeDatDesc.Payload.pData = NULL;
+    ZeroSizeDatDesc.Payload.PtrDataSize = 0;  // Zero size boundary
+    
+    IOC_Option_defineSyncMayBlock(ValidOptions);
+    
+    // With ValidLinkID, we get PURE data size boundary error
+    result = IOC_sendDAT(ValidLinkID, &ZeroSizeDatDesc, &ValidOptions);
+    EXPECT_EQ(result, IOC_RESULT_ZERO_DATA)
+        << "With ValidLinkID, zero-size data should return IOC_RESULT_ZERO_DATA (isolated boundary)";
+    
+    // CLEANUP: Close the valid connection
+    IOC_disconnectLink(ValidLinkID);
+    IOC_offlineService(&SrvDesc);
+}
+*/
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
 // TODO: Implement remaining US-4 test cases following TDD workflow
 //
 // [@US-4,AC-1] TC-2: Parameter error code consistency validation
