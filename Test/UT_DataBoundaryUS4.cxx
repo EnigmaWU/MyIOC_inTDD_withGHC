@@ -23,6 +23,8 @@
  *      @[Brief]: Test NULL parameters, malformed DatDesc with ValidLinkID in service/client + callback/poll modes
  *      @[Coverage]: Parameter validation isolation, cross-mode consistency, real-world error scenarios
  *
+ *  TODO: TC-3:...
+ *
  *-------------------------------------------------------------------------------------------------
  * [@US-4,AC-2] Data size boundary error code validation
  *  TC-1:
@@ -505,8 +507,10 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byParameterConsistency_expectRe
         ClientThread.join();
 
         // Add both client and server LinkIDs for comprehensive testing
-        TestConfigs.push_back({ClientLinkID, "SrvCallback_Client", "Service as DatReceiver + Callback Mode (Client)", true, true});
-        TestConfigs.push_back({ServerLinkID, "SrvCallback_Server", "Service as DatReceiver + Callback Mode (Server)", true, true});
+        TestConfigs.push_back(
+            {ClientLinkID, "SrvCallback_Client", "Service as DatReceiver + Callback Mode (Client)", true, true});
+        TestConfigs.push_back(
+            {ServerLinkID, "SrvCallback_Server", "Service as DatReceiver + Callback Mode (Server)", true, true});
     }
 
     // 2. Setup Service as DatReceiver + Poll Mode
@@ -554,8 +558,10 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byParameterConsistency_expectRe
         ClientThread.join();
 
         // Add both client and server LinkIDs for comprehensive testing
-        TestConfigs.push_back({ClientLinkID, "SrvPoll_Client", "Service as DatReceiver + Poll Mode (Client)", true, false});
-        TestConfigs.push_back({ServerLinkID, "SrvPoll_Server", "Service as DatReceiver + Poll Mode (Server)", true, false});
+        TestConfigs.push_back(
+            {ClientLinkID, "SrvPoll_Client", "Service as DatReceiver + Poll Mode (Client)", true, false});
+        TestConfigs.push_back(
+            {ServerLinkID, "SrvPoll_Server", "Service as DatReceiver + Poll Mode (Server)", true, false});
     }
 
     // 3. TODO: Setup Client as DatReceiver scenarios (if supported by IOC architecture)
@@ -644,7 +650,7 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byParameterConsistency_expectRe
     //@KeyVerifyPoint-1: NULL pDatDesc consistently returns IOC_RESULT_INVALID_PARAM across all ValidLinkID scenarios
     //@KeyVerifyPoint-2: Zero-size data consistently returns IOC_RESULT_ZERO_DATA across all ValidLinkID scenarios
     //@KeyVerifyPoint-3: Malformed parameters consistently return IOC_RESULT_INVALID_PARAM across all ValidLinkID
-    //scenarios
+    // scenarios
     //@KeyVerifyPoint-4: Parameter validation is reproducible (same inputs → same outputs) across multiple calls
     //@KeyVerifyPoint-5: Parameter validation behavior is independent of service configuration (callback vs poll mode)
 
