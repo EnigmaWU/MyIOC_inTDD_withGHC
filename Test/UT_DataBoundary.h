@@ -265,7 +265,7 @@
  *
  * 📂 UT_DataBoundaryUS4.cxx - [@US-4] Error code coverage validation
  *    └── [@AC-1,US-4] TC-1: verifyDatErrorCodeCoverage_byParameterBoundaries_expectSpecificErrorCodes
- *    └── [@AC-2,US-4] TC-2: verifyDatErrorCodeCoverage_byDataSizeBoundaries_expectConsistentErrorReporting
+ *    └── [@AC-2,US-4] TC-2: verifyDatErrorCodeCoverage_byDataSizeConsistency_expectIsolatedDataValidation
  *    └── [@AC-3,US-4] TC-3: verifyDatErrorCodeCoverage_byTimeoutModeBoundaries_expectTimeoutErrorCodes
  *    └── [@AC-4,US-4] TC-4: verifyDatErrorCodePrecedence_byMultipleErrorConditions_expectPriorityOrder
  *    └── [@AC-5,US-4] TC-5: verifyDatErrorCodeCompleteness_byComprehensiveValidation_expectFullCoverage

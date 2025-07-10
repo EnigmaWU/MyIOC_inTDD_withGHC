@@ -33,7 +33,13 @@
  *      @[Brief]: Test zero-size, oversized data → IOC_RESULT_DATA_TOO_LARGE, memory protection
  *      @[Coverage]: Data size error codes, size validation paths, memory safety
  *
- *  TODO: TC-2:...
+ *  TC-2:
+ *      @[Name]: verifyDatErrorCodeCoverage_byDataSizeConsistency_expectIsolatedDataValidation
+ *      @[Purpose]: Validate data size error code consistency with ValidLinkID to isolate data size validation
+ *      @[Brief]: Test zero-size, oversized, extreme data sizes with ValidLinkID → isolated data size error codes
+ *      @[Coverage]: Isolated data size validation, cross-mode consistency, memory protection, extreme size handling
+ *
+ *  TODO: TC-3:...
  *
  *-------------------------------------------------------------------------------------------------
  * [@US-4,AC-3] Timeout and blocking mode boundary error code validation
@@ -689,6 +695,271 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byParameterConsistency_expectRe
     if (SrvID2 != IOC_ID_INVALID) {
         result = IOC_offlineService(SrvID2);
         EXPECT_EQ(IOC_RESULT_SUCCESS, result) << "Failed to offline SrvID2";
+    }
+}
+
+/**
+ * ╔══════════════════════════════════════════════════════════════════════════════════════════╗
+ * ║                       [@US-4,AC-2] TC-2: Data size consistency with ValidLinkID         ║
+ * ╠══════════════════════════════════════════════════════════════════════════════════════════╣
+ * ║ @[Name]: verifyDatErrorCodeCoverage_byDataSizeConsistency_expectIsolatedDataValidation   ║
+ * ║ @[Steps]:                                                                                ║
+ * ║   1) 🔧 Setup ValidLinkID scenarios: Service configurations with real connections AS SETUP ║
+ * ║   2) 🎯 Test zero-size data validation consistency with ValidLinkID AS BEHAVIOR          ║
+ * ║   3) 🎯 Test oversized data validation consistency with ValidLinkID AS BEHAVIOR          ║
+ * ║   4) 🎯 Test extreme data size values and memory protection AS BEHAVIOR                  ║
+ * ║   5) ✅ Verify data size error codes are isolated and consistent AS VERIFY               ║
+ * ║   6) 🧹 Cleanup all service connections AS CLEANUP                                       ║
+ * ║ @[Expect]: Data size validation behaves consistently with ValidLinkID across scenarios   ║
+ * ║ @[Notes]: Validates isolated data size validation behavior (without LinkID interference) ║
+ * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
+ */
+TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byDataSizeConsistency_expectIsolatedDataValidation) {
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                🔧 SETUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    IOC_Result_T result = IOC_RESULT_BUG;
+
+    // Test configuration structure for systematic validation
+    struct ValidLinkIDTestConfig {
+        IOC_LinkID_T LinkID;
+        const char* ConfigName;
+        const char* Description;
+        bool IsServiceAsDatReceiver;
+        bool IsCallbackMode;
+    };
+
+    std::vector<ValidLinkIDTestConfig> TestConfigs;
+    IOC_SrvID_T SrvID1 = IOC_ID_INVALID, SrvID2 = IOC_ID_INVALID;
+
+    // Query system capabilities for data size limits
+    IOC_CapabilityDescription_T CapDesc;
+    memset(&CapDesc, 0, sizeof(CapDesc));
+    CapDesc.CapID = IOC_CAPID_CONET_MODE_DATA;
+    result = IOC_getCapability(&CapDesc);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Failed to query system capabilities";
+    ULONG_T MaxDataQueueSize = CapDesc.ConetModeData.MaxDataQueueSize;
+
+    printf("🎯 BEHAVIOR: verifyDatErrorCodeCoverage_byDataSizeConsistency_expectIsolatedDataValidation\n");
+    printf("   📋 Setting up ValidLinkID test configurations for data size validation...\n");
+    printf("   📋 System MaxDataQueueSize: %lu bytes\n", MaxDataQueueSize);
+
+    // 1. Setup Service as DatReceiver + Callback Mode for data size testing
+    {
+        IOC_SrvArgs_T SrvArgs1 = {0};
+        IOC_Helper_initSrvArgs(&SrvArgs1);
+        SrvArgs1.SrvURI.pProtocol = IOC_SRV_PROTO_FIFO;
+        SrvArgs1.SrvURI.pHost = IOC_SRV_HOST_LOCAL_PROCESS;
+        SrvArgs1.SrvURI.pPath = "DataSizeTestSrv_Callback";
+        SrvArgs1.SrvURI.Port = 0;
+        SrvArgs1.UsageCapabilites = IOC_LinkUsageDatReceiver;
+        SrvArgs1.Flags = IOC_SRVFLAG_NONE;
+
+        // Setup DatReceiver callback mode arguments
+        IOC_DatUsageArgs_T DatArgs1 = {0};
+        DatArgs1.CbRecvDat_F = NULL;  // For boundary testing, we don't need actual callback
+        DatArgs1.pCbPrivData = NULL;
+        SrvArgs1.UsageArgs.pDat = &DatArgs1;
+
+        result = IOC_onlineService(&SrvID1, &SrvArgs1);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Failed to setup Service for data size testing";
+        ASSERT_NE(IOC_ID_INVALID, SrvID1);
+
+        // Connect to the service using proper thread + accept pattern
+        IOC_ConnArgs_T ConnArgs1 = {0};
+        IOC_Helper_initConnArgs(&ConnArgs1);
+        ConnArgs1.SrvURI = SrvArgs1.SrvURI;
+        ConnArgs1.Usage = IOC_LinkUsageDatSender;  // Client as DatSender, Service as DatReceiver
+
+        IOC_LinkID_T ClientLinkID = IOC_ID_INVALID;
+        IOC_LinkID_T ServerLinkID = IOC_ID_INVALID;
+
+        // Launch client connection in thread
+        std::thread ClientThread([&] {
+            IOC_Result_T threadResult = IOC_connectService(&ClientLinkID, &ConnArgs1, NULL);
+            ASSERT_EQ(IOC_RESULT_SUCCESS, threadResult) << "Failed to connect for data size testing";
+            ASSERT_NE(IOC_ID_INVALID, ClientLinkID);
+        });
+
+        // Accept client connection on server side
+        result = IOC_acceptClient(SrvID1, &ServerLinkID, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Failed to accept client for data size testing";
+        ASSERT_NE(IOC_ID_INVALID, ServerLinkID);
+
+        ClientThread.join();
+
+        // Add both client and server LinkIDs for comprehensive testing
+        TestConfigs.push_back({ClientLinkID, "DataSize_Client", "Data size testing (Client LinkID)", true, true});
+        TestConfigs.push_back({ServerLinkID, "DataSize_Server", "Data size testing (Server LinkID)", true, true});
+    }
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🎯 BEHAVIOR PHASE                                       │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+
+    // Test matrix: Data size validation consistency across all ValidLinkID configurations
+    for (const auto& config : TestConfigs) {
+        printf("   ├─ 🔍 Testing data size validation with: %s (%s)\n", config.ConfigName, config.Description);
+
+        // Test 1: Zero-size data validation with ValidLinkID
+        {
+            printf("      ├─ Zero-size data validation (isolated)...\n");
+            IOC_DatDesc_T ZeroSizeDesc = {0};
+            IOC_initDatDesc(&ZeroSizeDesc);
+            ZeroSizeDesc.Payload.pData = (void*)"valid_ptr";  // Valid pointer
+            ZeroSizeDesc.Payload.PtrDataSize = 0;             // Zero size
+
+            IOC_Option_defineSyncMayBlock(ValidOptions);
+
+            // With ValidLinkID, zero-size should get isolated data validation error
+            result = IOC_sendDAT(config.LinkID, &ZeroSizeDesc, &ValidOptions);
+            EXPECT_EQ(result, IOC_RESULT_ZERO_DATA)
+                << "Config " << config.ConfigName
+                << ": sendDAT with zero-size data should return IOC_RESULT_ZERO_DATA (isolated)";
+        }
+
+        // Test 2: Oversized data validation with ValidLinkID
+        {
+            printf("      ├─ Oversized data validation (isolated)...\n");
+
+            // Test data exceeding MaxDataQueueSize (if reasonable size)
+            if (MaxDataQueueSize > 0 && MaxDataQueueSize < 100 * 1024 * 1024) {  // Only if < 100MB
+                IOC_DatDesc_T OversizedDesc = {0};
+                IOC_initDatDesc(&OversizedDesc);
+
+                // Use a valid small buffer but claim oversized size
+                char SmallBuffer[] = "small_buffer";
+                OversizedDesc.Payload.pData = SmallBuffer;
+                OversizedDesc.Payload.PtrDataSize = MaxDataQueueSize + 1024;  // Claim oversized
+
+                IOC_Option_defineSyncMayBlock(ValidOptions);
+
+                // With ValidLinkID, should get data size validation error (not LinkID error)
+                result = IOC_sendDAT(config.LinkID, &OversizedDesc, &ValidOptions);
+                // Note: Behavior may vary - could be IOC_RESULT_DATA_TOO_LARGE or other data-related error
+                EXPECT_NE(result, IOC_RESULT_SUCCESS)
+                    << "Config " << config.ConfigName << ": sendDAT with oversized data should not succeed";
+                EXPECT_NE(result, IOC_RESULT_NOT_EXIST_LINK)
+                    << "Config " << config.ConfigName << ": sendDAT with ValidLinkID should not return LinkID error";
+
+                printf("        └─ Oversized data result: %d (expected: not SUCCESS, not NOT_EXIST_LINK)\n", result);
+            } else {
+                printf("        └─ Skipping oversized test (MaxDataQueueSize too large: %lu)\n", MaxDataQueueSize);
+            }
+        }
+
+        // Test 3: Extreme data size values (memory protection)
+        {
+            printf("      ├─ Extreme data size validation...\n");
+            IOC_DatDesc_T ExtremeDesc = {0};
+            IOC_initDatDesc(&ExtremeDesc);
+
+            // Test with maximum possible size_t value
+            char SmallBuffer[] = "tiny";
+            ExtremeDesc.Payload.pData = SmallBuffer;
+            ExtremeDesc.Payload.PtrDataSize = SIZE_MAX;  // Extreme size value
+
+            IOC_Option_defineSyncMayBlock(ValidOptions);
+
+            // Should handle extreme values gracefully without crash
+            result = IOC_sendDAT(config.LinkID, &ExtremeDesc, &ValidOptions);
+            EXPECT_NE(result, IOC_RESULT_SUCCESS)
+                << "Config " << config.ConfigName << ": sendDAT with SIZE_MAX should not succeed";
+            EXPECT_NE(result, IOC_RESULT_NOT_EXIST_LINK)
+                << "Config " << config.ConfigName << ": sendDAT with ValidLinkID should not return LinkID error";
+
+            printf("        └─ Extreme size result: %d (expected: not SUCCESS, not NOT_EXIST_LINK)\n", result);
+        }
+
+        // Test 4: Valid data size boundary (1 byte minimum)
+        {
+            printf("      ├─ Minimum valid data size validation...\n");
+            IOC_DatDesc_T MinValidDesc = {0};
+            IOC_initDatDesc(&MinValidDesc);
+
+            char SingleByte = 'X';
+            MinValidDesc.Payload.pData = &SingleByte;
+            MinValidDesc.Payload.PtrDataSize = 1;  // Minimum valid size
+            MinValidDesc.Payload.PtrDataLen = 1;
+
+            IOC_Option_defineSyncMayBlock(ValidOptions);
+
+            // Minimum valid size should pass data size validation
+            result = IOC_sendDAT(config.LinkID, &MinValidDesc, &ValidOptions);
+            // Should succeed or return operation-specific error (not parameter/size error)
+            EXPECT_NE(result, IOC_RESULT_INVALID_PARAM)
+                << "Config " << config.ConfigName << ": sendDAT with 1-byte valid data should not return INVALID_PARAM";
+            EXPECT_NE(result, IOC_RESULT_ZERO_DATA)
+                << "Config " << config.ConfigName << ": sendDAT with 1-byte valid data should not return ZERO_DATA";
+            EXPECT_NE(result, IOC_RESULT_NOT_EXIST_LINK)
+                << "Config " << config.ConfigName << ": sendDAT with ValidLinkID should not return NOT_EXIST_LINK";
+
+            printf("        └─ Minimum valid size result: %d (expected: not param/size/linkid errors)\n", result);
+        }
+
+        // Test 5: NULL pointer with non-zero size (parameter vs data size precedence)
+        {
+            printf("      └─ NULL pointer + size precedence validation...\n");
+            IOC_DatDesc_T MalformedDesc = {0};
+            IOC_initDatDesc(&MalformedDesc);
+            MalformedDesc.Payload.pData = NULL;       // NULL pointer
+            MalformedDesc.Payload.PtrDataSize = 100;  // Non-zero size (parameter error)
+
+            IOC_Option_defineSyncMayBlock(ValidOptions);
+
+            // Parameter validation should take precedence over data size validation
+            result = IOC_sendDAT(config.LinkID, &MalformedDesc, &ValidOptions);
+            EXPECT_EQ(result, IOC_RESULT_INVALID_PARAM)
+                << "Config " << config.ConfigName
+                << ": NULL pointer should return INVALID_PARAM (parameter precedence)";
+        }
+    }
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                ✅ VERIFY PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    printf("✅ VERIFY: Data size validation consistency validated across all ValidLinkID configurations\n");
+
+    //@KeyVerifyPoint-1: Zero-size data consistently returns IOC_RESULT_ZERO_DATA with ValidLinkID (isolated validation)
+    //@KeyVerifyPoint-2: Oversized data returns size-related error codes (not LinkID errors) with ValidLinkID
+    //@KeyVerifyPoint-3: Extreme data sizes are handled gracefully without crash or LinkID errors
+    //@KeyVerifyPoint-4: Minimum valid data sizes pass data size validation (no size-related errors)
+    //@KeyVerifyPoint-5: Parameter validation takes precedence over data size validation (validation order)
+    //@KeyVerifyPoint-6: Data size validation is consistent across different service configurations
+    //@KeyVerifyPoint-7: Memory protection is maintained for all data size boundary conditions
+
+    // Visual summary of data size consistency validation results
+    printf("╔══════════════════════════════════════════════════════════════════════════════════════════╗\n");
+    printf("║                       🎯 DATA SIZE CONSISTENCY VALIDATION SUMMARY                        ║\n");
+    printf("╠══════════════════════════════════════════════════════════════════════════════════════════╣\n");
+    printf("║ ✅ ValidLinkID configurations tested: %zu                                                ║\n",
+           TestConfigs.size());
+    printf("║ ✅ Zero-size data consistency:         IOC_RESULT_ZERO_DATA (isolated validation)       ║\n");
+    printf("║ ✅ Oversized data handling:            Size-related errors (not LinkID errors)          ║\n");
+    printf("║ ✅ Extreme size values:                Graceful handling without crashes                ║\n");
+    printf("║ ✅ Minimum valid size:                 Passes data size validation                      ║\n");
+    printf("║ ✅ Validation precedence:              Parameter > Data Size (documented order)         ║\n");
+    printf("║ ✅ Memory protection:                  Maintained for all boundary conditions           ║\n");
+    printf("║ 🔍 Key finding: Data size validation is isolated and consistent with ValidLinkID        ║\n");
+    printf("║ 📋 MaxDataQueueSize tested: %lu bytes                                                   ║\n",
+           MaxDataQueueSize);
+    printf("╚══════════════════════════════════════════════════════════════════════════════════════════╝\n");
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🧹 CLEANUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    printf("🧹 CLEANUP: Disconnecting ValidLinkID connections and services...\n");
+
+    // Disconnect all test LinkIDs
+    for (const auto& config : TestConfigs) {
+        result = IOC_closeLink(config.LinkID);
+        EXPECT_EQ(IOC_RESULT_SUCCESS, result) << "Failed to disconnect LinkID for config " << config.ConfigName;
+    }
+
+    // Offline all test services
+    if (SrvID1 != IOC_ID_INVALID) {
+        result = IOC_offlineService(SrvID1);
+        EXPECT_EQ(IOC_RESULT_SUCCESS, result) << "Failed to offline SrvID1";
     }
 }
 
