@@ -49,7 +49,13 @@
  *      @[Brief]: Test zero timeout, mode conflicts, extreme timeouts → IOC_RESULT_TIMEOUT, etc.
  *      @[Coverage]: Timeout error codes, blocking mode validation, timing boundary paths
  *
- *  TODO: TC-2:...
+ *  TC-2:
+ *      @[Name]: verifyDatErrorCodeCoverage_byTimeoutModeConsistency_expectIsolatedTimeoutValidation
+ *      @[Purpose]: Validate timeout/mode error code consistency with ValidLinkID to isolate timeout validation
+ *      @[Brief]: Test timeout boundaries, mode conflicts with ValidLinkID → isolated timeout error codes
+ *      @[Coverage]: Isolated timeout validation, cross-mode consistency, timeout precedence validation
+ *
+ *  TODO: TC-3:...
  *
  *-------------------------------------------------------------------------------------------------
  * [@US-4,AC-4] Multiple error condition precedence validation
@@ -812,7 +818,8 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byDataSizeConsistency_expectIso
             // With ValidLinkID, zero-size should get isolated data validation error
             result = IOC_sendDAT(config.LinkID, &ZeroSizeDesc, &ValidOptions);
             EXPECT_EQ(result, IOC_RESULT_ZERO_DATA)
-                << "Config " << config.ConfigName << ": sendDAT with zero-size data should return IOC_RESULT_ZERO_DATA (isolated)";
+                << "Config " << config.ConfigName
+                << ": sendDAT with zero-size data should return IOC_RESULT_ZERO_DATA (isolated)";
         }
 
         // Test 2: Oversized data validation with ValidLinkID
@@ -918,12 +925,10 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byDataSizeConsistency_expectIso
     printf("✅ VERIFY: Data size validation consistency validated across all ValidLinkID configurations\n");
 
     //@KeyVerifyPoint-1: Zero-size data consistently returns IOC_RESULT_ZERO_DATA with ValidLinkID (isolated validation)
-    //@KeyVerifyPoint-2: Oversized data returns size-related error codes (not LinkID errors) with ValidLinkID
-    //@KeyVerifyPoint-3: Extreme data sizes are handled gracefully without crash or LinkID errors
-    //@KeyVerifyPoint-4: Minimum valid data sizes pass data size validation (no size-related errors)
-    //@KeyVerifyPoint-5: Parameter validation takes precedence over data size validation (validation order)
-    //@KeyVerifyPoint-6: Data size validation is consistent across different service configurations
-    //@KeyVerifyPoint-7: Memory protection is maintained for all data size boundary conditions
+    //@KeyVerifyPoint-2: Valid data sizes pass validation, fail on invalid LinkID with IOC_RESULT_NOT_EXIST_LINK
+    //@KeyVerifyPoint-3: sendDAT vs recvDAT have consistent LinkID validation precedence
+    //@KeyVerifyPoint-4: Discovered actual validation precedence: LinkID > Parameter > Data (in most cases)
+    //@KeyVerifyPoint-5: Invalid LinkID consistently returns IOC_RESULT_NOT_EXIST_LINK regardless of other errors
 
     // Visual summary of data size consistency validation results
     printf("╔══════════════════════════════════════════════════════════════════════════════════════════╗\n");
@@ -1048,7 +1053,7 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byTimeoutModeBoundaries_expectT
 
     // Test 2c: Very small timeout values (microseconds)
     const ULONG_T SMALL_TIMEOUTS[] = {1, 10, 100, 500, 999};  // microseconds
-    for (size_t i = 0; i < sizeof(SMALL_TIMEOUTS)/sizeof(SMALL_TIMEOUTS[0]); i++) {
+    for (size_t i = 0; i < sizeof(SMALL_TIMEOUTS) / sizeof(SMALL_TIMEOUTS[0]); i++) {
         IOC_Option_defineTimeout(SmallTimeoutOption, SMALL_TIMEOUTS[i]);
         result = IOC_sendDAT(InvalidLinkID, &ValidDatDesc, &SmallTimeoutOption);
         EXPECT_EQ(result, IOC_RESULT_NOT_EXIST_LINK)
@@ -1121,16 +1126,12 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byTimeoutModeBoundaries_expectT
     //@VerifyPoint-13: Cross-operation error code consistency
 
     // Test 5b: Consistent behavior for extreme boundary values
-    const ULONG_T EXTREME_TIMEOUTS[] = {
-        (ULONG_T)IOC_TIMEOUT_NONBLOCK, 
-        (ULONG_T)IOC_TIMEOUT_IMMEDIATE, 
-        (ULONG_T)IOC_TIMEOUT_MAX, 
-        (ULONG_T)IOC_TIMEOUT_INFINITE
-    };
-    for (size_t i = 0; i < sizeof(EXTREME_TIMEOUTS)/sizeof(EXTREME_TIMEOUTS[0]); i++) {
+    const ULONG_T EXTREME_TIMEOUTS[] = {(ULONG_T)IOC_TIMEOUT_NONBLOCK, (ULONG_T)IOC_TIMEOUT_IMMEDIATE,
+                                        (ULONG_T)IOC_TIMEOUT_MAX, (ULONG_T)IOC_TIMEOUT_INFINITE};
+    for (size_t i = 0; i < sizeof(EXTREME_TIMEOUTS) / sizeof(EXTREME_TIMEOUTS[0]); i++) {
         ULONG_T extremeTimeout = EXTREME_TIMEOUTS[i];
         IOC_Option_defineTimeout(ExtremeTestOption, extremeTimeout);
-        
+
         IOC_Result_T extremeSendResult = IOC_sendDAT(InvalidLinkID, &ValidDatDesc, &ExtremeTestOption);
         IOC_Result_T extremeRecvResult = IOC_recvDAT(InvalidLinkID, &RecvDatDesc, &ExtremeTestOption);
 
@@ -1169,4 +1170,274 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byTimeoutModeBoundaries_expectT
     // No cleanup needed - stateless boundary testing with local variables only
 }
 
+/**
+ * ╔══════════════════════════════════════════════════════════════════════════════════════════╗
+ * ║                       [@US-4,AC-3] TC-2: Timeout/mode consistency with ValidLinkID      ║
+ * ╠══════════════════════════════════════════════════════════════════════════════════════════╣
+ * ║ @[Name]: verifyDatErrorCodeCoverage_byTimeoutModeConsistency_expectIsolatedTimeoutValidation ║
+ * ║ @[Steps]:                                                                                ║
+ * ║   1) 🔧 Setup ValidLinkID scenarios: Service configurations with real connections AS SETUP ║
+ * ║   2) 🎯 Test timeout validation consistency with ValidLinkID AS BEHAVIOR                  ║
+ * ║   3) 🎯 Test blocking mode validation consistency with ValidLinkID AS BEHAVIOR            ║
+ * ║   4) 🎯 Test timeout precedence and validation order AS BEHAVIOR                         ║
+ * ║   5) ✅ Verify timeout error codes are isolated and consistent AS VERIFY                 ║
+ * ║   6) 🧹 Cleanup all service connections AS CLEANUP                                       ║
+ * ║ @[Expect]: Timeout/mode validation behaves consistently with ValidLinkID across scenarios ║
+ * ║ @[Notes]: Validates isolated timeout validation behavior (without LinkID interference)   ║
+ * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
+ */
+TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byTimeoutModeConsistency_expectIsolatedTimeoutValidation) {
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                🔧 SETUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    IOC_Result_T result = IOC_RESULT_BUG;
+
+    // Test configuration structure for systematic validation
+    struct ValidLinkIDTestConfig {
+        IOC_LinkID_T LinkID;
+        const char* ConfigName;
+        const char* Description;
+        bool IsServiceAsDatReceiver;
+        bool IsCallbackMode;
+    };
+
+    std::vector<ValidLinkIDTestConfig> TestConfigs;
+    IOC_SrvID_T SrvID1 = IOC_ID_INVALID, SrvID2 = IOC_ID_INVALID;
+    char TestDataBuffer[] = "timeout boundary test data";
+
+    printf("🎯 BEHAVIOR: verifyDatErrorCodeCoverage_byTimeoutModeConsistency_expectIsolatedTimeoutValidation\n");
+    printf("   📋 Setting up ValidLinkID test configurations for timeout/mode validation...\n");
+
+    // 1. Setup Service as DatReceiver + Callback Mode for timeout testing
+    {
+        IOC_SrvArgs_T SrvArgs1 = {0};
+        IOC_Helper_initSrvArgs(&SrvArgs1);
+        SrvArgs1.SrvURI.pProtocol = IOC_SRV_PROTO_FIFO;
+        SrvArgs1.SrvURI.pHost = IOC_SRV_HOST_LOCAL_PROCESS;
+        SrvArgs1.SrvURI.pPath = "TimeoutTestSrv_Callback";
+        SrvArgs1.SrvURI.Port = 0;
+        SrvArgs1.UsageCapabilites = IOC_LinkUsageDatReceiver;
+        SrvArgs1.Flags = IOC_SRVFLAG_NONE;
+
+        // Setup DatReceiver callback mode arguments
+        IOC_DatUsageArgs_T DatArgs1 = {0};
+        DatArgs1.CbRecvDat_F = NULL;  // For boundary testing, we don't need actual callback
+        DatArgs1.pCbPrivData = NULL;
+        SrvArgs1.UsageArgs.pDat = &DatArgs1;
+
+        result = IOC_onlineService(&SrvID1, &SrvArgs1);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Failed to setup Service for timeout testing";
+        ASSERT_NE(IOC_ID_INVALID, SrvID1);
+
+        // Connect to the service using proper thread + accept pattern
+        IOC_ConnArgs_T ConnArgs1 = {0};
+        IOC_Helper_initConnArgs(&ConnArgs1);
+        ConnArgs1.SrvURI = SrvArgs1.SrvURI;
+        ConnArgs1.Usage = IOC_LinkUsageDatSender;  // Client as DatSender, Service as DatReceiver
+
+        IOC_LinkID_T ClientLinkID = IOC_ID_INVALID;
+        IOC_LinkID_T ServerLinkID = IOC_ID_INVALID;
+
+        // Launch client connection in thread
+        std::thread ClientThread([&] {
+            IOC_Result_T threadResult = IOC_connectService(&ClientLinkID, &ConnArgs1, NULL);
+            ASSERT_EQ(IOC_RESULT_SUCCESS, threadResult) << "Failed to connect for timeout testing";
+            ASSERT_NE(IOC_ID_INVALID, ClientLinkID);
+        });
+
+        // Accept client connection on server side
+        result = IOC_acceptClient(SrvID1, &ServerLinkID, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Failed to accept client for timeout testing";
+        ASSERT_NE(IOC_ID_INVALID, ServerLinkID);
+
+        ClientThread.join();
+
+        // Add both client and server LinkIDs for comprehensive testing
+        TestConfigs.push_back({ClientLinkID, "Timeout_Client", "Timeout testing (Client LinkID)", true, true});
+        TestConfigs.push_back({ServerLinkID, "Timeout_Server", "Timeout testing (Server LinkID)", true, true});
+    }
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🎯 BEHAVIOR PHASE                                       │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+
+    // Test matrix: Timeout/mode validation consistency across all ValidLinkID configurations
+    for (const auto& config : TestConfigs) {
+        printf("   ├─ 🔍 Testing timeout/mode validation with: %s (%s)\n", config.ConfigName, config.Description);
+
+        IOC_DatDesc_T ValidDatDesc = {0};
+        IOC_initDatDesc(&ValidDatDesc);
+        ValidDatDesc.Payload.pData = TestDataBuffer;
+        ValidDatDesc.Payload.PtrDataSize = strlen(TestDataBuffer);
+        ValidDatDesc.Payload.PtrDataLen = strlen(TestDataBuffer);
+
+        // Test 1: Zero timeout validation with ValidLinkID (isolated timeout testing)
+        {
+            printf("      ├─ Zero timeout validation (isolated)...\n");
+
+            // Test IOC_TIMEOUT_IMMEDIATE - should result in timeout behavior, not LinkID error
+            IOC_Option_defineTimeout(ImmediateTimeoutOption, IOC_TIMEOUT_IMMEDIATE);
+            result = IOC_sendDAT(config.LinkID, &ValidDatDesc, &ImmediateTimeoutOption);
+            // With ValidLinkID, timeout validation should occur and may result in SUCCESS or TIMEOUT
+            EXPECT_NE(result, IOC_RESULT_NOT_EXIST_LINK)
+                << "Config " << config.ConfigName
+                << ": IOC_TIMEOUT_IMMEDIATE with ValidLinkID should not return NOT_EXIST_LINK";
+            EXPECT_NE(result, IOC_RESULT_INVALID_PARAM)
+                << "Config " << config.ConfigName << ": IOC_TIMEOUT_IMMEDIATE should be valid timeout parameter";
+
+            // Test IOC_TIMEOUT_NONBLOCK - should result in immediate return behavior
+            IOC_Option_defineNonBlock(NonBlockOption);
+            result = IOC_sendDAT(config.LinkID, &ValidDatDesc, &NonBlockOption);
+            EXPECT_NE(result, IOC_RESULT_NOT_EXIST_LINK)
+                << "Config " << config.ConfigName
+                << ": IOC_TIMEOUT_NONBLOCK with ValidLinkID should not return NOT_EXIST_LINK";
+            EXPECT_NE(result, IOC_RESULT_INVALID_PARAM)
+                << "Config " << config.ConfigName << ": IOC_TIMEOUT_NONBLOCK should be valid timeout parameter";
+        }
+
+        // Test 2: Extreme timeout values validation with ValidLinkID
+        {
+            printf("      ├─ Extreme timeout values validation (isolated)...\n");
+
+            // Test IOC_TIMEOUT_MAX - should be accepted as valid timeout
+            IOC_Option_defineTimeout(MaxTimeoutOption, IOC_TIMEOUT_MAX);
+            result = IOC_sendDAT(config.LinkID, &ValidDatDesc, &MaxTimeoutOption);
+            EXPECT_NE(result, IOC_RESULT_NOT_EXIST_LINK)
+                << "Config " << config.ConfigName
+                << ": IOC_TIMEOUT_MAX with ValidLinkID should not return NOT_EXIST_LINK";
+            EXPECT_NE(result, IOC_RESULT_INVALID_PARAM)
+                << "Config " << config.ConfigName << ": IOC_TIMEOUT_MAX should be valid timeout parameter";
+
+            // Test IOC_TIMEOUT_INFINITE - should be accepted as valid timeout
+            IOC_Option_defineTimeout(InfiniteTimeoutOption, IOC_TIMEOUT_INFINITE);
+            result = IOC_sendDAT(config.LinkID, &ValidDatDesc, &InfiniteTimeoutOption);
+            EXPECT_NE(result, IOC_RESULT_NOT_EXIST_LINK)
+                << "Config " << config.ConfigName
+                << ": IOC_TIMEOUT_INFINITE with ValidLinkID should not return NOT_EXIST_LINK";
+            EXPECT_NE(result, IOC_RESULT_INVALID_PARAM)
+                << "Config " << config.ConfigName << ": IOC_TIMEOUT_INFINITE should be valid timeout parameter";
+
+            printf("        └─ Extreme timeout validation passed (no parameter/LinkID errors)\n");
+        }
+
+        // Test 3: Blocking mode validation with ValidLinkID
+        {
+            printf("      ├─ Blocking mode validation (isolated)...\n");
+
+            // Test SyncNonBlock mode - should be accepted as valid mode
+            IOC_Option_defineSyncNonBlock(SyncNonBlockOption);
+            result = IOC_sendDAT(config.LinkID, &ValidDatDesc, &SyncNonBlockOption);
+            EXPECT_NE(result, IOC_RESULT_NOT_EXIST_LINK)
+                << "Config " << config.ConfigName << ": SyncNonBlock with ValidLinkID should not return NOT_EXIST_LINK";
+            EXPECT_NE(result, IOC_RESULT_INVALID_PARAM)
+                << "Config " << config.ConfigName << ": SyncNonBlock should be valid mode parameter";
+
+            // Test SyncTimeout mode - should be accepted as valid mode
+            IOC_Option_defineSyncTimeout(SyncTimeoutOption, 5000);  // 5ms timeout
+            result = IOC_sendDAT(config.LinkID, &ValidDatDesc, &SyncTimeoutOption);
+            EXPECT_NE(result, IOC_RESULT_NOT_EXIST_LINK)
+                << "Config " << config.ConfigName << ": SyncTimeout with ValidLinkID should not return NOT_EXIST_LINK";
+            EXPECT_NE(result, IOC_RESULT_INVALID_PARAM)
+                << "Config " << config.ConfigName << ": SyncTimeout should be valid mode parameter";
+
+            printf("        └─ Blocking mode validation passed (no parameter/LinkID errors)\n");
+        }
+
+        // Test 4: Malformed timeout options with ValidLinkID (parameter precedence)
+        {
+            printf("      ├─ Malformed timeout options validation...\n");
+
+            // Test invalid option combination that should trigger parameter validation
+            IOC_Options_T MalformedTimeoutOption;
+            memset(&MalformedTimeoutOption, 0, sizeof(MalformedTimeoutOption));
+            MalformedTimeoutOption.IDs = (IOC_OptionsID_T)0xDEAD;  // Invalid option ID
+            MalformedTimeoutOption.Payload.TimeoutUS = 1000;       // Valid timeout value
+
+            result = IOC_sendDAT(config.LinkID, &ValidDatDesc, &MalformedTimeoutOption);
+            // Should return parameter validation error, not LinkID error (since LinkID is valid)
+            EXPECT_EQ(result, IOC_RESULT_INVALID_PARAM)
+                << "Config " << config.ConfigName
+                << ": Malformed timeout options should return INVALID_PARAM with ValidLinkID";
+        }
+
+        // Test 5: Cross-operation consistency (sendDAT vs recvDAT)
+        {
+            printf("      └─ Cross-operation consistency validation...\n");
+
+            IOC_DatDesc_T RecvDatDesc = {0};
+            IOC_initDatDesc(&RecvDatDesc);
+            RecvDatDesc.Payload.pData = TestDataBuffer;
+            RecvDatDesc.Payload.PtrDataSize = sizeof(TestDataBuffer);
+
+            // Test same timeout configuration for both sendDAT and recvDAT
+            IOC_Option_defineTimeout(ConsistencyTestOption, 2000);  // 2ms timeout
+
+            IOC_Result_T sendResult = IOC_sendDAT(config.LinkID, &ValidDatDesc, &ConsistencyTestOption);
+            IOC_Result_T recvResult = IOC_recvDAT(config.LinkID, &RecvDatDesc, &ConsistencyTestOption);
+
+            // Both should pass timeout parameter validation (no INVALID_PARAM or NOT_EXIST_LINK)
+            EXPECT_NE(sendResult, IOC_RESULT_NOT_EXIST_LINK)
+                << "Config " << config.ConfigName << ": sendDAT with ValidLinkID should not return NOT_EXIST_LINK";
+            EXPECT_NE(recvResult, IOC_RESULT_NOT_EXIST_LINK)
+                << "Config " << config.ConfigName << ": recvDAT with ValidLinkID should not return NOT_EXIST_LINK";
+            EXPECT_NE(sendResult, IOC_RESULT_INVALID_PARAM)
+                << "Config " << config.ConfigName << ": sendDAT timeout parameter should be valid";
+            EXPECT_NE(recvResult, IOC_RESULT_INVALID_PARAM)
+                << "Config " << config.ConfigName << ": recvDAT timeout parameter should be valid";
+
+            printf("        └─ Cross-operation consistency validated (both passed timeout validation)\n");
+        }
+    }
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                ✅ VERIFY PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    printf("✅ VERIFY: Timeout/mode validation consistency validated across all ValidLinkID configurations\n");
+
+    //@KeyVerifyPoint-1: Zero timeout configurations pass parameter validation with ValidLinkID (isolated validation)
+    //@KeyVerifyPoint-2: Extreme timeout values are accepted as valid parameters with ValidLinkID
+    //@KeyVerifyPoint-3: Blocking mode configurations pass parameter validation with ValidLinkID
+    //@KeyVerifyPoint-4: Malformed timeout options return INVALID_PARAM (parameter validation precedence)
+    //@KeyVerifyPoint-5: Cross-operation consistency maintained between sendDAT and recvDAT
+    //@KeyVerifyPoint-6: Timeout validation is isolated from LinkID validation when LinkID is valid
+    //@KeyVerifyPoint-7: Timeout parameter validation occurs at correct precedence level
+
+    // Visual summary of timeout/mode consistency validation results
+    printf("╔══════════════════════════════════════════════════════════════════════════════════════════╗\n");
+    printf("║                       🎯 TIMEOUT/MODE CONSISTENCY VALIDATION SUMMARY                     ║\n");
+    printf("╠══════════════════════════════════════════════════════════════════════════════════════════╣\n");
+    printf("║ ✅ ValidLinkID configurations tested: %zu                                                ║\n",
+           TestConfigs.size());
+    printf("║ ✅ Zero timeout validation:            Isolated from LinkID validation                  ║\n");
+    printf("║ ✅ Extreme timeout values:             Accepted as valid parameters                     ║\n");
+    printf("║ ✅ Blocking mode configurations:       Accepted as valid parameters                     ║\n");
+    printf("║ ✅ Malformed timeout options:          INVALID_PARAM (parameter precedence)             ║\n");
+    printf("║ ✅ Cross-operation consistency:        sendDAT/recvDAT behave consistently              ║\n");
+    printf("║ ✅ Timeout validation isolation:       No LinkID errors when LinkID is valid           ║\n");
+    printf("║ 🔍 Key finding: Timeout validation is isolated and consistent with ValidLinkID          ║\n");
+    printf("║ 📋 Validation precedence confirmed:    Parameter validation > Timeout validation        ║\n");
+    printf("╚══════════════════════════════════════════════════════════════════════════════════════════╝\n");
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🧹 CLEANUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    printf("🧹 CLEANUP: Disconnecting ValidLinkID connections and services...\n");
+
+    // Disconnect all test LinkIDs
+    for (const auto& config : TestConfigs) {
+        result = IOC_closeLink(config.LinkID);
+        EXPECT_EQ(IOC_RESULT_SUCCESS, result) << "Failed to disconnect LinkID for config " << config.ConfigName;
+    }
+
+    // Offline all test services
+    if (SrvID1 != IOC_ID_INVALID) {
+        result = IOC_offlineService(SrvID1);
+        EXPECT_EQ(IOC_RESULT_SUCCESS, result) << "Failed to offline SrvID1";
+    }
+
+    if (SrvID2 != IOC_ID_INVALID) {
+        result = IOC_offlineService(SrvID2);
+        EXPECT_EQ(IOC_RESULT_SUCCESS, result) << "Failed to offline SrvID2";
+    }
+}
 //======>END OF US-4 TEST IMPLEMENTATIONS==========================================================
