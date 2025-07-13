@@ -16,13 +16,34 @@
  * @return IOC_RESULT_NOT_EXIST_LINK: LinkID does not exist
  */
 IOC_Result_T IOC_sendDAT(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, IOC_Options_pT pOption) {
-    // Parameter validation
-    if (!pDatDesc) {
-        return IOC_RESULT_INVALID_PARAM;
-    }
+    // ════════════════════════════════════════════════════════════════════════════════════════
+    // 🥇 PHASE 1: LinkID Validation (HIGHEST PRECEDENCE)
+    // Rationale: Validate resource exists before processing any data or configuration
+    // Security: Prevents data processing on invalid/unauthorized connections
+    // Performance: Fail fast on connection issues
+    // ════════════════════════════════════════════════════════════════════════════════════════
 
+    // Check for invalid LinkID constant
     if (LinkID == IOC_ID_INVALID) {
         return IOC_RESULT_NOT_EXIST_LINK;
+    }
+
+    // Get sender link object (validates LinkID exists and is accessible)
+    _IOC_LinkObject_pT pSenderLinkObj = _IOC_getLinkObjByLinkID(LinkID);
+    if (!pSenderLinkObj) {
+        return IOC_RESULT_NOT_EXIST_LINK;
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════════════════
+    // 🥈 PHASE 2: DatDesc Parameter Validation (SECOND PRECEDENCE)
+    // Rationale: Validate data parameters after confirming connection exists
+    // Security: Now safe to process data parameters on valid connection
+    // Logic: Resource exists → validate what we want to send through it
+    // ════════════════════════════════════════════════════════════════════════════════════════
+
+    // Check DatDesc pointer validity
+    if (!pDatDesc) {
+        return IOC_RESULT_INVALID_PARAM;
     }
 
     // Zero-size data validation - check if both PtrDataSize and EmdDataLen are zero
@@ -30,11 +51,12 @@ IOC_Result_T IOC_sendDAT(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, IOC_Optio
         return IOC_RESULT_ZERO_DATA;
     }
 
-    // Get sender link object
-    _IOC_LinkObject_pT pSenderLinkObj = _IOC_getLinkObjByLinkID(LinkID);
-    if (!pSenderLinkObj) {
-        return IOC_RESULT_NOT_EXIST_LINK;
-    }
+    // ════════════════════════════════════════════════════════════════════════════════════════
+    // 🥉 PHASE 3: Options Validation (LOWEST PRECEDENCE)
+    // Rationale: Validate configuration after confirming connection and data are valid
+    // Logic: Resource exists → Data is valid → Check how to send it
+    // Note: Options validation is typically handled by protocol-specific implementation
+    // ════════════════════════════════════════════════════════════════════════════════════════
 
     _IOC_LogDebug("IOC_sendDAT: Sending %lu bytes on LinkID=%llu\n", pDatDesc->Payload.PtrDataSize, LinkID);
 
@@ -109,20 +131,42 @@ IOC_Result_T IOC_flushDAT(IOC_LinkID_T LinkID, IOC_Options_pT pOption) {
  * @return IOC_RESULT_SUCCESS: data received successfully
  */
 IOC_Result_T IOC_recvDAT(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, IOC_Options_pT pOption) {
-    // Parameter validation
-    if (!pDatDesc) {
-        return IOC_RESULT_INVALID_PARAM;
-    }
+    // ════════════════════════════════════════════════════════════════════════════════════════
+    // 🥇 PHASE 1: LinkID Validation (HIGHEST PRECEDENCE - IDENTICAL to sendDAT)
+    // Rationale: Validate resource exists before processing any data or configuration
+    // Security: Prevents data processing on invalid/unauthorized connections
+    // Performance: Fail fast on connection issues
+    // ════════════════════════════════════════════════════════════════════════════════════════
 
+    // Check for invalid LinkID constant
     if (LinkID == IOC_ID_INVALID) {
         return IOC_RESULT_NOT_EXIST_LINK;
     }
 
-    // Get receiver link object
+    // Get receiver link object (validates LinkID exists and is accessible)
     _IOC_LinkObject_pT pReceiverLinkObj = _IOC_getLinkObjByLinkID(LinkID);
     if (!pReceiverLinkObj) {
         return IOC_RESULT_NOT_EXIST_LINK;
     }
+
+    // ════════════════════════════════════════════════════════════════════════════════════════
+    // 🥈 PHASE 2: DatDesc Parameter Validation (SECOND PRECEDENCE - IDENTICAL to sendDAT)
+    // Rationale: Validate data parameters after confirming connection exists
+    // Security: Now safe to process data parameters on valid connection
+    // Logic: Resource exists → validate what we want to receive through it
+    // ════════════════════════════════════════════════════════════════════════════════════════
+
+    // Check DatDesc pointer validity
+    if (!pDatDesc) {
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════════════════
+    // 🥉 PHASE 3: Options Validation (LOWEST PRECEDENCE - IDENTICAL to sendDAT)
+    // Rationale: Validate configuration after confirming connection and data are valid
+    // Logic: Resource exists → Data buffer is valid → Check how to receive it
+    // Note: Options validation is typically handled by protocol-specific implementation
+    // ════════════════════════════════════════════════════════════════════════════════════════
 
     _IOC_LogDebug("IOC_recvDAT: Receiving data on LinkID=%llu", LinkID);
 

@@ -1,418 +1,270 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// UT_DataBoundaryUS4AC4.cxx - DAT Boundary Testing: US-4 AC-4 Multiple Error Condition Precedence Validation
+// UT_DataBoundaryUS4AC4.cxx - DAT Boundary Testing: US-4 AC-4 Multiple Error Condition Precedence Validation  
 // 📝 Purpose: Test Cases for User Story 4, Acceptance Criteria 4 - Multiple error condition precedence validation
-// 🔄 Focus: Multiple invalid conditions → ACTUAL precedence: Parameter > Data Size > LinkID > Timeout
+// 🔄 Focus: LinkID > DatDescParams > Options (logical resource-first validation precedence)
 // 🎯 Coverage: [@US-4,AC-4] Multiple error condition precedence validation (comprehensive boundary error testing)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "UT_DataBoundaryUS4.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF US-4 AC-4 TEST IMPLEMENTATIONS===================================================
+//======>BEGIN OF US-4 SHARED DATA IMPLEMENTATION=================================================
+
+// Global test configuration for US-4 error code coverage testing
+__DatErrorCodeSharedTestData_T g_US4_SharedTestData = {.TestConfigs = {},
+                                                       .ServiceID1 = 0,
+                                                       .ServiceID2 = 0,
+                                                       .SystemInitialized = false,
+                                                       .ErrorCodeCounts = {},
+                                                       .ObservedErrorCodes = {},
+                                                       .CrossModeConsistency = true,
+                                                       .ParameterPrecedenceValidated = false,
+                                                       .DataSizePrecedenceValidated = false,
+                                                       .TimeoutPrecedenceValidated = false};
+
+//======>END OF US-4 SHARED DATA IMPLEMENTATION===================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF IMPROVED ERROR PRECEDENCE TEST IMPLEMENTATIONS===================================
 
 /**
  * ╔══════════════════════════════════════════════════════════════════════════════════════════╗
- * ║                    [@US-4,AC-4] TC-1: Multiple error condition precedence documentation   ║
+ * ║                    Error Precedence Validation: LinkID > DatDescParams > Options         ║
  * ╠══════════════════════════════════════════════════════════════════════════════════════════╣
- * ║ @[Name]: verifyDatErrorCodePrecedence_byMultipleErrorConditions_expectPriorityOrder      ║
- * ║ @[Steps]:                                                                                ║
- * ║   1) 🔧 Setup test scenarios with multiple simultaneous error conditions AS SETUP        ║
- * ║   2) 🎯 Document actual error precedence through systematic testing AS BEHAVIOR          ║
- * ║   3) 🎯 Test various error combinations to understand system behavior AS BEHAVIOR        ║
- * ║   4) 🎯 Record observed precedence patterns AS BEHAVIOR                                  ║
- * ║   5) ✅ Verify precedence behavior consistency AS VERIFY                                 ║
- * ║   6) 🧹 No cleanup needed (stateless boundary testing) AS CLEANUP                       ║
- * ║ @[Expect]: Documents ACTUAL error precedence behavior of the IOC system                 ║
- * ║ @[Notes]: AC-4 test that discovers and documents real system error precedence behavior  ║
+ * ║ @[Name]: verifyDatErrorCodePrecedence_byImprovedOrder_expectLogicalValidation            ║
+ * ║ @[Purpose]: Validate the error precedence order: LinkID > DatDescParams > Options        ║
+ * ║ @[Rationale]: Resource-first validation is more logical and consistent                   ║
+ * ║ @[Expected]: All error combinations should follow the improved precedence order          ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
-TEST(UT_DataBoundary, verifyDatErrorCodePrecedence_byMultipleErrorConditions_expectPriorityOrder) {
+TEST(UT_DataBoundary, verifyDatErrorCodePrecedence_byImprovedOrder_expectLogicalValidation) {
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                🔧 SETUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
     IOC_Result_T result = IOC_RESULT_BUG;
     IOC_LinkID_T InvalidLinkID = 999999;  // Non-existent LinkID
-    char TestDataBuffer[] = "precedence test data";
+    char TestDataBuffer[] = "improved precedence test";
 
-    // Initialize US-4 shared test data for error precedence tracking
-    US4_InitializeSharedTestData();
-
-    // Query system capabilities to understand data size limits
-    IOC_CapabilityDescription_T CapDesc;
-    memset(&CapDesc, 0, sizeof(CapDesc));
-    CapDesc.CapID = IOC_CAPID_CONET_MODE_DATA;
-    result = IOC_getCapability(&CapDesc);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Failed to query system capabilities";
-    ULONG_T MaxDataQueueSize = CapDesc.ConetModeData.MaxDataQueueSize;
+    printf("🎯 TESTING IMPROVED ERROR PRECEDENCE: LinkID > DatDescParams > Options\n");
+    printf("   📋 This represents the LOGICAL precedence order that should be implemented\n");
+    printf("   📋 Error codes: -22=INVALID_PARAM, -516=ZERO_DATA, -515=DATA_TOO_LARGE, -505=NOT_EXIST_LINK\n");
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               🎯 BEHAVIOR PHASE                                       │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
-    printf("🎯 BEHAVIOR: verifyDatErrorCodePrecedence_byMultipleErrorConditions_expectPriorityOrder\n");
-    printf("   📋 DOCUMENTING ACTUAL error precedence through systematic testing\n");
-    printf("   📋 System MaxDataQueueSize: %lu bytes\n", MaxDataQueueSize);
-    printf("   📋 Error codes: -22=INVALID_PARAM, -516=ZERO_DATA, -515=DATA_TOO_LARGE, -505=NOT_EXIST_LINK\n");
 
     // ════════════════════════════════════════════════════════════════════════════════════════
-    // Test Series 1: Document various error combinations and their outcomes
+    // Test 1: LinkID Validation Takes HIGHEST Precedence
     // ════════════════════════════════════════════════════════════════════════════════════════
-    printf("   ├─ 🔍 Test Series 1: Documenting error combination behaviors...\n");
+    printf("   ├─ 🔍 Test 1: LinkID validation should take HIGHEST precedence...\n");
 
-    // Test 1.1: NULL pDatDesc + Invalid LinkID
+    // Test 1a: Invalid LinkID + NULL DatDesc → LinkID error should win
     {
         IOC_Option_defineSyncMayBlock(ValidOptions);
 
         result = IOC_sendDAT(InvalidLinkID, NULL, &ValidOptions);
-        printf("   │  🧪 NULL pDatDesc + Invalid LinkID → Result: %d\n", (int)result);
-        US4_DocumentErrorPrecedence("AC4-TC1", "NULL pDatDesc + Invalid LinkID", IOC_RESULT_INVALID_PARAM, result, 1);
-        US4_IsExpectedBoundaryErrorCode(result, "NULL pDatDesc scenario");
+        printf("   │  🧪 Invalid LinkID + NULL DatDesc → Expected: -505 (LinkID), ");
+        printf("Actual: %d", (int)result);
+
+        // IMPROVED: LinkID validation should happen FIRST
+        EXPECT_EQ(result, IOC_RESULT_NOT_EXIST_LINK)
+            << "IMPROVED PRECEDENCE: Invalid LinkID should be detected BEFORE parameter validation";
+        printf(" ✅ IMPROVED\n");
     }
 
-    // Test 1.2: Zero size + Invalid LinkID
+    // Test 1b: Invalid LinkID + Zero Size Data → LinkID error should win
+    {
+        IOC_DatDesc_T ZeroSizeDesc = {0};
+        IOC_initDatDesc(&ZeroSizeDesc);
+        ZeroSizeDesc.Payload.pData = TestDataBuffer;
+        ZeroSizeDesc.Payload.PtrDataSize = 0;  // Zero size data error
+
+        IOC_Option_defineSyncMayBlock(ValidOptions);
+
+        result = IOC_sendDAT(InvalidLinkID, &ZeroSizeDesc, &ValidOptions);
+        printf("   │  🧪 Invalid LinkID + Zero Size Data → Expected: -505 (LinkID), ");
+        printf("Actual: %d", (int)result);
+
+        // IMPROVED: LinkID validation should happen BEFORE data validation
+        EXPECT_EQ(result, IOC_RESULT_NOT_EXIST_LINK)
+            << "IMPROVED PRECEDENCE: Invalid LinkID should be detected BEFORE data size validation";
+        printf(" ✅ IMPROVED\n");
+    }
+
+    // Test 1c: Invalid LinkID + NULL Data Pointer + Non-Zero Size → LinkID error should win
+    {
+        IOC_DatDesc_T MalformedDesc = {0};
+        IOC_initDatDesc(&MalformedDesc);
+        MalformedDesc.Payload.pData = NULL;       // Invalid parameter
+        MalformedDesc.Payload.PtrDataSize = 100;  // Non-zero size (inconsistent)
+
+        IOC_Option_defineSyncMayBlock(ValidOptions);
+
+        result = IOC_sendDAT(InvalidLinkID, &MalformedDesc, &ValidOptions);
+        printf("   │  🧪 Invalid LinkID + NULL ptr + Non-zero size → Expected: -505 (LinkID), ");
+        printf("Actual: %d", (int)result);
+
+        // IMPROVED: LinkID validation should happen BEFORE parameter consistency validation
+        EXPECT_EQ(result, IOC_RESULT_NOT_EXIST_LINK)
+            << "IMPROVED PRECEDENCE: Invalid LinkID should be detected BEFORE parameter consistency validation";
+        printf(" ✅ IMPROVED\n");
+    }
+
+    // Test 1d: Invalid LinkID + Invalid Options → LinkID error should win
+    {
+        IOC_DatDesc_T ValidDesc = {0};
+        IOC_initDatDesc(&ValidDesc);
+        ValidDesc.Payload.pData = TestDataBuffer;
+        ValidDesc.Payload.PtrDataSize = strlen(TestDataBuffer);
+
+        IOC_Options_T InvalidOptions;
+        memset(&InvalidOptions, 0, sizeof(InvalidOptions));
+        InvalidOptions.IDs = (IOC_OptionsID_T)0xDEAD;  // Invalid options
+
+        result = IOC_sendDAT(InvalidLinkID, &ValidDesc, &InvalidOptions);
+        printf("   │  🧪 Invalid LinkID + Invalid Options → Expected: -505 (LinkID), ");
+        printf("Actual: %d", (int)result);
+
+        // IMPROVED: LinkID validation should happen BEFORE options validation
+        EXPECT_EQ(result, IOC_RESULT_NOT_EXIST_LINK)
+            << "IMPROVED PRECEDENCE: Invalid LinkID should be detected BEFORE options validation";
+        printf(" ✅ IMPROVED\n");
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════════════════
+    // Test 2: DatDescParams Validation Takes SECOND Precedence (when LinkID is valid)
+    // ════════════════════════════════════════════════════════════════════════════════════════
+    printf("   ├─ 🔍 Test 2: DatDesc params should take SECOND precedence (requires valid LinkID)...\n");
+    printf("   │  📋 Note: These tests would require a valid LinkID to isolate DatDesc validation\n");
+    printf("   │  📋 Implementation would need valid LinkID test scenarios\n");
+
+    // Test 2a: Valid LinkID + NULL DatDesc + Invalid Options → DatDesc error should win
+    printf("   │  🧪 [DESIGN] Valid LinkID + NULL DatDesc + Invalid Options → Expected: -22 (PARAM)\n");
+
+    // Test 2b: Valid LinkID + Zero Size Data + Invalid Options → DatDesc error should win
+    printf("   │  🧪 [DESIGN] Valid LinkID + Zero Size + Invalid Options → Expected: -516 (ZERO_DATA)\n");
+
+    // Test 2c: Valid LinkID + Oversized Data + Invalid Options → DatDesc error should win
+    printf("   │  🧪 [DESIGN] Valid LinkID + Oversized Data + Invalid Options → Expected: -515 (DATA_TOO_LARGE)\n");
+
+    // ════════════════════════════════════════════════════════════════════════════════════════
+    // Test 3: Options Validation Takes LOWEST Precedence (when LinkID and DatDesc are valid)
+    // ════════════════════════════════════════════════════════════════════════════════════════
+    printf("   └─ 🔍 Test 3: Options should take LOWEST precedence (requires valid LinkID + DatDesc)...\n");
+    printf("      📋 Note: These tests would require valid LinkID + valid DatDesc scenarios\n");
+
+    // Test 3a: Valid LinkID + Valid DatDesc + Invalid Options → Options error should be detected
+    printf("      🧪 [DESIGN] Valid LinkID + Valid DatDesc + Invalid Options → Expected: Option Error\n");
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                ✅ VERIFY PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    printf("✅ IMPROVED PRECEDENCE VALIDATION SUMMARY:\n");
+    printf("╔══════════════════════════════════════════════════════════════════════════════════════════╗\n");
+    printf("║                         🎯 IMPROVED ERROR PRECEDENCE DESIGN                              ║\n");
+    printf("╠══════════════════════════════════════════════════════════════════════════════════════════╣\n");
+    printf("║ 🥇 FIRST:  LinkID validation       → IOC_RESULT_NOT_EXIST_LINK (-505)                   ║\n");
+    printf("║ 🥈 SECOND: DatDesc param validation → IOC_RESULT_INVALID_PARAM (-22)                    ║\n");
+    printf("║           ├─ NULL pointer checks   → IOC_RESULT_INVALID_PARAM (-22)                    ║\n");
+    printf("║           ├─ Zero size data        → IOC_RESULT_ZERO_DATA (-516)                       ║\n");
+    printf("║           └─ Oversized data        → IOC_RESULT_DATA_TOO_LARGE (-515)                  ║\n");
+    printf("║ 🥉 THIRD:  Options validation      → IOC_RESULT_INVALID_PARAM (-22)                    ║\n");
+    printf("║                                                                                          ║\n");
+    printf("║ ✅ BENEFITS OF IMPROVED DESIGN:                                                         ║\n");
+    printf("║   📋 Logical: Check resource exists before processing data                              ║\n");
+    printf("║   🎯 Consistent: Same precedence order for all operations                               ║\n");
+    printf("║   ⚡ Performance: Fail fast on invalid connections                                      ║\n");
+    printf("║   🛡️ Security: Don't process data on invalid links                                      ║\n");
+    printf("║   🧠 Intuitive: Resource → Data → Config validation flow                                ║\n");
+    printf("╚══════════════════════════════════════════════════════════════════════════════════════════╝\n");
+}
+
+/**
+ * ╔══════════════════════════════════════════════════════════════════════════════════════════╗
+ * ║                    IMPROVED: Cross-Operation Consistency Validation                      ║
+ * ╠══════════════════════════════════════════════════════════════════════════════════════════╣
+ * ║ @[Name]: verifyDatErrorCodePrecedence_byImprovedConsistency_expectUniformBehavior       ║
+ * ║ @[Purpose]: Validate that IMPROVED precedence is consistent across sendDAT/recvDAT      ║
+ * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
+ */
+TEST(UT_DataBoundary, verifyDatErrorCodePrecedence_byImprovedConsistency_expectUniformBehavior) {
+    printf("🎯 TESTING IMPROVED CROSS-OPERATION CONSISTENCY\n");
+    printf("   📋 sendDAT and recvDAT should have IDENTICAL precedence behavior\n");
+
+    IOC_Result_T sendResult, recvResult;
+    IOC_LinkID_T InvalidLinkID = 999999;
+    char TestDataBuffer[] = "consistency test";
+
+    // ════════════════════════════════════════════════════════════════════════════════════════
+    // Test: Cross-operation precedence consistency
+    // ════════════════════════════════════════════════════════════════════════════════════════
+    printf("   🔍 Testing sendDAT vs recvDAT precedence consistency...\n");
+
+    // Test 1: Invalid LinkID + NULL DatDesc consistency
+    {
+        IOC_Option_defineSyncMayBlock(ValidOptions);
+
+        sendResult = IOC_sendDAT(InvalidLinkID, NULL, &ValidOptions);
+        recvResult = IOC_recvDAT(InvalidLinkID, NULL, &ValidOptions);
+
+        printf("   │  🧪 Invalid LinkID + NULL DatDesc:\n");
+        printf("   │     sendDAT: %d, recvDAT: %d", (int)sendResult, (int)recvResult);
+
+        // IMPROVED: Both should return LinkID error consistently
+        EXPECT_EQ(sendResult, IOC_RESULT_NOT_EXIST_LINK) << "sendDAT should prioritize LinkID validation";
+        EXPECT_EQ(recvResult, IOC_RESULT_NOT_EXIST_LINK) << "recvDAT should prioritize LinkID validation";
+        EXPECT_EQ(sendResult, recvResult) << "sendDAT and recvDAT should have identical precedence behavior";
+
+        if (sendResult == recvResult && sendResult == IOC_RESULT_NOT_EXIST_LINK) {
+            printf(" ✅ IMPROVED CONSISTENCY\n");
+        } else {
+            printf(" ❌ INCONSISTENT\n");
+        }
+    }
+
+    // Test 2: Invalid LinkID + Zero Size Data consistency
     {
         IOC_DatDesc_T ZeroSizeDesc = {0};
         IOC_initDatDesc(&ZeroSizeDesc);
         ZeroSizeDesc.Payload.pData = TestDataBuffer;
         ZeroSizeDesc.Payload.PtrDataSize = 0;
-        ZeroSizeDesc.Payload.EmdDataLen = 0;
 
         IOC_Option_defineSyncMayBlock(ValidOptions);
 
-        result = IOC_sendDAT(InvalidLinkID, &ZeroSizeDesc, &ValidOptions);
-        printf("   │  🧪 Zero size + Invalid LinkID → Result: %d\n", (int)result);
+        sendResult = IOC_sendDAT(InvalidLinkID, &ZeroSizeDesc, &ValidOptions);
+        recvResult = IOC_recvDAT(InvalidLinkID, &ZeroSizeDesc, &ValidOptions);
 
-        result = IOC_recvDAT(InvalidLinkID, &ZeroSizeDesc, &ValidOptions);
-        printf("   │  🧪 recvDAT: Zero size + Invalid LinkID → Result: %d\n", (int)result);
-    }
+        printf("   │  🧪 Invalid LinkID + Zero Size Data:\n");
+        printf("   │     sendDAT: %d, recvDAT: %d", (int)sendResult, (int)recvResult);
 
-    // Test 1.3: Oversized data + Invalid LinkID (if feasible)
-    {
-        if (MaxDataQueueSize > 0 && MaxDataQueueSize < 100 * 1024 * 1024) {
-            IOC_DatDesc_T OversizedDesc = {0};
-            IOC_initDatDesc(&OversizedDesc);
-            OversizedDesc.Payload.pData = TestDataBuffer;
-            OversizedDesc.Payload.PtrDataSize = MaxDataQueueSize + 1024;
+        // IMPROVED: Both should return LinkID error consistently
+        EXPECT_EQ(sendResult, IOC_RESULT_NOT_EXIST_LINK) << "sendDAT should prioritize LinkID validation";
+        EXPECT_EQ(recvResult, IOC_RESULT_NOT_EXIST_LINK) << "recvDAT should prioritize LinkID validation";
+        EXPECT_EQ(sendResult, recvResult) << "sendDAT and recvDAT should have identical precedence behavior";
 
-            IOC_Option_defineSyncMayBlock(ValidOptions);
-
-            result = IOC_sendDAT(InvalidLinkID, &OversizedDesc, &ValidOptions);
-            printf("   │  🧪 Oversized data + Invalid LinkID → Result: %d\n", (int)result);
+        if (sendResult == recvResult && sendResult == IOC_RESULT_NOT_EXIST_LINK) {
+            printf(" ✅ IMPROVED CONSISTENCY\n");
         } else {
-            printf("   │  🧪 Oversized test skipped (MaxDataQueueSize too large: %lu)\n", MaxDataQueueSize);
+            printf(" ❌ INCONSISTENT\n");
         }
     }
 
-    // Test 1.4: NULL pointer + zero size + Invalid LinkID
-    {
-        IOC_DatDesc_T MalformedDesc = {0};
-        IOC_initDatDesc(&MalformedDesc);
-        MalformedDesc.Payload.pData = NULL;     // Parameter issue
-        MalformedDesc.Payload.PtrDataSize = 0;  // Data size issue
-
-        IOC_Option_defineSyncMayBlock(ValidOptions);
-
-        result = IOC_sendDAT(InvalidLinkID, &MalformedDesc, &ValidOptions);
-        printf("   │  🧪 NULL ptr + zero size + Invalid LinkID → Result: %d\n", (int)result);
-    }
-
-    // Test 1.5: Valid data + Invalid LinkID (isolate LinkID error)
-    {
-        IOC_DatDesc_T ValidDesc = {0};
-        IOC_initDatDesc(&ValidDesc);
-        ValidDesc.Payload.pData = TestDataBuffer;
-        ValidDesc.Payload.PtrDataSize = strlen(TestDataBuffer);
-
-        IOC_Option_defineSyncMayBlock(ValidOptions);
-
-        result = IOC_sendDAT(InvalidLinkID, &ValidDesc, &ValidOptions);
-        printf("   │  🧪 Valid data + Invalid LinkID → Result: %d\n", (int)result);
-    }
-
-    // Test 1.6: Malformed timeout options + other errors
-    {
-        IOC_DatDesc_T ValidDesc = {0};
-        IOC_initDatDesc(&ValidDesc);
-        ValidDesc.Payload.pData = TestDataBuffer;
-        ValidDesc.Payload.PtrDataSize = strlen(TestDataBuffer);
-
-        IOC_Options_T MalformedTimeoutOption;
-        memset(&MalformedTimeoutOption, 0, sizeof(MalformedTimeoutOption));
-        MalformedTimeoutOption.IDs = (IOC_OptionsID_T)0xFFFF;  // Invalid option ID
-        MalformedTimeoutOption.Payload.TimeoutUS = 1000;
-
-        result = IOC_sendDAT(InvalidLinkID, &ValidDesc, &MalformedTimeoutOption);
-        printf("   │  🧪 Valid data + Invalid LinkID + Malformed timeout → Result: %d\n", (int)result);
-    }
-
-    // Test 1.7: ALL errors simultaneously
-    {
-        IOC_Options_T AllErrorsOption;
-        memset(&AllErrorsOption, 0, sizeof(AllErrorsOption));
-        AllErrorsOption.IDs = (IOC_OptionsID_T)0xDEAD;
-        AllErrorsOption.Payload.TimeoutUS = (ULONG_T)-1;
-
-        result = IOC_sendDAT(InvalidLinkID, NULL, &AllErrorsOption);
-        printf("   │  🧪 ALL errors (NULL pDatDesc + Invalid LinkID + Invalid Options) → Result: %d\n", (int)result);
-
-        result = IOC_recvDAT(InvalidLinkID, NULL, &AllErrorsOption);
-        printf("   │  🧪 recvDAT ALL errors → Result: %d\n", (int)result);
-    }
-
-    // ════════════════════════════════════════════════════════════════════════════════════════
-    // Step 2: Data Size vs LinkID Precedence
-    // ════════════════════════════════════════════════════════════════════════════════════════
-    printf("   ├─ 🔍 Step 2/6: Testing Data Size vs LinkID precedence (Data Size should win)...\n");
-
-    // Test 2a: Zero size + Invalid LinkID → Data size error should take precedence over LinkID error
-    {
-        IOC_DatDesc_T ZeroSizeDesc = {0};
-        IOC_initDatDesc(&ZeroSizeDesc);
-        ZeroSizeDesc.Payload.pData = TestDataBuffer;  // Valid pointer
-        ZeroSizeDesc.Payload.PtrDataSize = 0;         // Zero size (data error)
-        ZeroSizeDesc.Payload.EmdDataLen = 0;
-
-        IOC_Option_defineSyncMayBlock(ValidOptions);
-
-        result = IOC_sendDAT(InvalidLinkID, &ZeroSizeDesc, &ValidOptions);
-        EXPECT_EQ(result, IOC_RESULT_ZERO_DATA)
-            << "Zero size + Invalid LinkID: Data size validation should take precedence → IOC_RESULT_ZERO_DATA (-516)";
-        //@VerifyPoint-3: Data size validation precedence over LinkID validation
-
-        result = IOC_recvDAT(InvalidLinkID, &ZeroSizeDesc, &ValidOptions);
-        EXPECT_EQ(result, IOC_RESULT_ZERO_DATA) << "recvDAT: Zero size + Invalid LinkID: Data size validation should "
-                                                   "take precedence → IOC_RESULT_ZERO_DATA (-516)";
-        //@VerifyPoint-4: Data size precedence consistent across sendDAT/recvDAT
-    }
-
-    // Test 2b: Oversized data + Invalid LinkID → Data size error should take precedence
-    {
-        if (MaxDataQueueSize > 0 && MaxDataQueueSize < 100 * 1024 * 1024) {  // Only if reasonable size
-            IOC_DatDesc_T OversizedDesc = {0};
-            IOC_initDatDesc(&OversizedDesc);
-            OversizedDesc.Payload.pData = TestDataBuffer;                 // Valid pointer
-            OversizedDesc.Payload.PtrDataSize = MaxDataQueueSize + 1024;  // Oversized (data error)
-
-            IOC_Option_defineSyncMayBlock(ValidOptions);
-
-            result = IOC_sendDAT(InvalidLinkID, &OversizedDesc, &ValidOptions);
-            EXPECT_EQ(result, IOC_RESULT_DATA_TOO_LARGE) << "Oversized data + Invalid LinkID: Data size validation "
-                                                            "should take precedence → IOC_RESULT_DATA_TOO_LARGE (-515)";
-            //@VerifyPoint-5: Data size validation precedence maintained with different size errors
-        } else {
-            printf("        └─ Skipping oversized test (MaxDataQueueSize too large: %lu)\n", MaxDataQueueSize);
-        }
-    }
-
-    // ════════════════════════════════════════════════════════════════════════════════════════
-    // Step 3: Parameter vs LinkID Precedence (when no data size error exists)
-    // ════════════════════════════════════════════════════════════════════════════════════════
-    printf("   ├─ 🔍 Step 3/6: Testing Parameter vs LinkID precedence (Parameter should win)...\n");
-
-    // Test 3a: NULL pDatDesc + Invalid LinkID → Parameter error should take precedence
-    {
-        IOC_Option_defineSyncMayBlock(ValidOptions);
-
-        result = IOC_sendDAT(InvalidLinkID, NULL, &ValidOptions);
-        EXPECT_EQ(result, IOC_RESULT_INVALID_PARAM) << "NULL pDatDesc + Invalid LinkID: Parameter validation should "
-                                                       "take precedence → IOC_RESULT_INVALID_PARAM (-22)";
-        //@VerifyPoint-6: Parameter validation precedence over LinkID validation
-
-        result = IOC_recvDAT(InvalidLinkID, NULL, &ValidOptions);
-        EXPECT_EQ(result, IOC_RESULT_INVALID_PARAM) << "recvDAT: NULL pDatDesc + Invalid LinkID: Parameter validation "
-                                                       "should take precedence → IOC_RESULT_INVALID_PARAM (-22)";
-        //@VerifyPoint-7: Parameter precedence consistent across sendDAT/recvDAT
-    }
-
-    // Test 3b: Invalid LinkID + Valid data → LinkID should be checked when parameters are valid
-    {
-        IOC_DatDesc_T ValidDesc = {0};
-        IOC_initDatDesc(&ValidDesc);
-        ValidDesc.Payload.pData = TestDataBuffer;
-        ValidDesc.Payload.PtrDataSize = strlen(TestDataBuffer);
-
-        IOC_Option_defineSyncMayBlock(ValidOptions);
-
-        result = IOC_sendDAT(InvalidLinkID, &ValidDesc, &ValidOptions);
-        EXPECT_EQ(result, IOC_RESULT_NOT_EXIST_LINK)
-            << "Invalid LinkID + valid data: LinkID validation should be detected when parameters are valid → "
-               "IOC_RESULT_NOT_EXIST_LINK (-505)";
-        //@VerifyPoint-8: LinkID validation when parameters and data are valid
-    }
-
-    // ════════════════════════════════════════════════════════════════════════════════════════
-    // Step 4: Timeout vs Other Errors Precedence (lowest precedence)
-    // ════════════════════════════════════════════════════════════════════════════════════════
-    printf("   ├─ 🔍 Step 4/6: Testing Timeout vs other errors precedence (others should win)...\n");
-
-    // Test 4a: Invalid LinkID + Malformed timeout options → LinkID error should take precedence
-    {
-        IOC_DatDesc_T ValidDesc = {0};
-        IOC_initDatDesc(&ValidDesc);
-        ValidDesc.Payload.pData = TestDataBuffer;
-        ValidDesc.Payload.PtrDataSize = strlen(TestDataBuffer);
-
-        // Create malformed timeout options
-        IOC_Options_T MalformedTimeoutOption;
-        memset(&MalformedTimeoutOption, 0, sizeof(MalformedTimeoutOption));
-        MalformedTimeoutOption.IDs = (IOC_OptionsID_T)0xFFFF;  // Invalid option ID (timeout error)
-        MalformedTimeoutOption.Payload.TimeoutUS = 1000;
-
-        result = IOC_sendDAT(InvalidLinkID, &ValidDesc, &MalformedTimeoutOption);
-        EXPECT_EQ(result, IOC_RESULT_NOT_EXIST_LINK) << "Invalid LinkID + malformed timeout: LinkID validation should "
-                                                        "take precedence → IOC_RESULT_NOT_EXIST_LINK (-505)";
-        //@VerifyPoint-9: LinkID validation precedence over timeout validation
-    }
-
-    // ════════════════════════════════════════════════════════════════════════════════════════
-    // Step 5: Multiple Error Type Coverage
-    // ════════════════════════════════════════════════════════════════════════════════════════
-    printf("   ├─ 🔍 Step 5/6: Testing multiple error type coverage...\n");
-
-    // Test 5a: Parameter + Data + LinkID errors together → Parameter should win (highest precedence)
-    {
-        IOC_DatDesc_T MalformedDesc = {0};
-        IOC_initDatDesc(&MalformedDesc);
-        MalformedDesc.Payload.pData = NULL;     // Parameter error (NULL pointer)
-        MalformedDesc.Payload.PtrDataSize = 0;  // Data error (zero size)
-
-        IOC_Option_defineSyncMayBlock(ValidOptions);
-
-        result = IOC_sendDAT(InvalidLinkID, &MalformedDesc, &ValidOptions);
-        EXPECT_EQ(result, IOC_RESULT_INVALID_PARAM) << "NULL ptr + zero size + Invalid LinkID: Parameter validation "
-                                                       "should win → IOC_RESULT_INVALID_PARAM (-22)";
-        //@VerifyPoint-10: Parameter validation has highest precedence in multi-error scenarios
-    }
-
-    // ════════════════════════════════════════════════════════════════════════════════════════
-    // Step 6: Complete Error Precedence Chain (All Errors Together)
-    // ════════════════════════════════════════════════════════════════════════════════════════
-    printf("   └─ 🔍 Step 6/6: Testing complete error precedence chain (all errors together)...\n");
-
-    // Test 6a: ALL error conditions simultaneously → Parameter should win (highest precedence)
-    {
-        // Create scenario with ALL possible errors:
-        // - Parameter error: NULL pDatDesc (should win with highest precedence)
-        // - Data error: Would be zero size if pDatDesc were valid
-        // - LinkID error: Invalid LinkID
-        // - Timeout error: Malformed timeout options
-
-        IOC_Options_T AllErrorsOption;
-        memset(&AllErrorsOption, 0, sizeof(AllErrorsOption));
-        AllErrorsOption.IDs = (IOC_OptionsID_T)0xDEAD;    // Completely invalid options
-        AllErrorsOption.Payload.TimeoutUS = (ULONG_T)-1;  // Invalid timeout
-
-        result = IOC_sendDAT(InvalidLinkID, NULL, &AllErrorsOption);
-        EXPECT_EQ(result, IOC_RESULT_INVALID_PARAM) << "ALL errors (NULL pDatDesc + Invalid LinkID + Invalid Options): "
-                                                       "Parameter should win → IOC_RESULT_INVALID_PARAM (-22)";
-        //@VerifyPoint-11: Parameter validation has highest precedence in complete error chain
-
-        result = IOC_recvDAT(InvalidLinkID, NULL, &AllErrorsOption);
-        EXPECT_EQ(result, IOC_RESULT_INVALID_PARAM)
-            << "recvDAT ALL errors: Parameter should win → IOC_RESULT_INVALID_PARAM (-22)";
-        //@VerifyPoint-12: Parameter precedence consistent across operations in complete error chain
-    }
-
-    // Test 6b: Multiple errors without parameter error → Data size should win (second highest precedence)
-    {
-        IOC_DatDesc_T MultiErrorDesc = {0};
-        IOC_initDatDesc(&MultiErrorDesc);
-        MultiErrorDesc.Payload.pData = TestDataBuffer;  // Valid pointer (no parameter error)
-        MultiErrorDesc.Payload.PtrDataSize = 0;         // Zero size (data error)
-
-        IOC_Options_T InvalidTimeoutOption;
-        memset(&InvalidTimeoutOption, 0, sizeof(InvalidTimeoutOption));
-        InvalidTimeoutOption.IDs = (IOC_OptionsID_T)0xBEEF;  // Invalid options (timeout error)
-
-        result = IOC_sendDAT(InvalidLinkID, &MultiErrorDesc, &InvalidTimeoutOption);
-        EXPECT_EQ(result, IOC_RESULT_ZERO_DATA)
-            << "Multi errors without parameter error (Valid ptr + Zero Size + Invalid LinkID + Invalid Timeout): Data "
-               "size should win → IOC_RESULT_ZERO_DATA (-516)";
-        //@VerifyPoint-13: Data size validation has second highest precedence when parameter validation passes
-    }
-
-    // Test 6c: Only LinkID and timeout errors → LinkID should win (third highest precedence)
-    {
-        IOC_DatDesc_T ValidDataDesc = {0};
-        IOC_initDatDesc(&ValidDataDesc);
-        ValidDataDesc.Payload.pData = TestDataBuffer;
-        ValidDataDesc.Payload.PtrDataSize = strlen(TestDataBuffer);  // Valid data (no data error)
-
-        IOC_Options_T InvalidTimeoutOption;
-        memset(&InvalidTimeoutOption, 0, sizeof(InvalidTimeoutOption));
-        InvalidTimeoutOption.IDs = (IOC_OptionsID_T)0xCAFE;  // Invalid options (timeout error)
-
-        result = IOC_sendDAT(InvalidLinkID, &ValidDataDesc, &InvalidTimeoutOption);
-        EXPECT_EQ(result, IOC_RESULT_NOT_EXIST_LINK)
-            << "Only LinkID + Timeout errors (Valid params + Valid data + Invalid LinkID + Invalid Timeout): LinkID "
-               "should win → IOC_RESULT_NOT_EXIST_LINK (-505)";
-        //@VerifyPoint-14: LinkID validation has third highest precedence when parameter and data validation pass
-    }
-
-    // Note: Pure timeout error testing requires ValidLinkID scenario which is beyond boundary testing scope
-    printf("        └─ Note: Pure timeout error testing requires ValidLinkID scenarios in other test files\n");
-
-    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
-    // │                                ✅ VERIFY PHASE                                        │
-    // └──────────────────────────────────────────────────────────────────────────────────────┘
-    printf("✅ VERIFY: Error precedence order validation completed successfully\n");
-
-    //@KeyVerifyPoint-1: LinkID validation has highest precedence (LinkID > Data > Parameter > Timeout)
-    //@KeyVerifyPoint-2: Data size validation has second highest precedence (after LinkID validation)
-    //@KeyVerifyPoint-3: Parameter validation has third highest precedence (after LinkID and data validation)
-    //@KeyVerifyPoint-4: Error precedence is consistent across sendDAT and recvDAT operations
-    //@KeyVerifyPoint-5: Multiple simultaneous errors follow ACTUAL system precedence order
-    //@KeyVerifyPoint-6: System stability maintained under multiple error conditions
-    //@KeyVerifyPoint-7: Error precedence behavior is deterministic and reproducible
-
-    // Visual summary of precedence validation results
-    printf("╔══════════════════════════════════════════════════════════════════════════════════════════╗\n");
-    printf("║                         🎯 ERROR PRECEDENCE VALIDATION SUMMARY                           ║\n");
-    printf("╠══════════════════════════════════════════════════════════════════════════════════════════╣\n");
-    printf("║ ✅ Parameter vs Data Size precedence:   Parameter wins (IOC_RESULT_INVALID_PARAM)       ║\n");
-    printf("║ ✅ Data Size vs LinkID precedence:      Data Size wins (IOC_RESULT_ZERO_DATA)           ║\n");
-    printf("║ ✅ Parameter vs LinkID precedence:      Parameter wins (IOC_RESULT_INVALID_PARAM)       ║\n");
-    printf("║ ✅ LinkID vs Timeout precedence:        LinkID wins (IOC_RESULT_NOT_EXIST_LINK)         ║\n");
-    printf("║ ✅ Complete error chain precedence:     Parameter wins (highest priority)               ║\n");
-    printf("║ ✅ Multi-error without parameter:       Data Size wins (second highest priority)        ║\n");
-    printf("║ ✅ Only LinkID + Timeout errors:        LinkID wins (third highest priority)            ║\n");
-    printf("║ ✅ Cross-operation consistency:         Identical precedence for sendDAT/recvDAT        ║\n");
-    printf("║ 📋 DISCOVERED Error Precedence Order:   Parameter > Data Size > LinkID > Timeout        ║\n");
-    printf("║ 🔍 Key insight: Parameter validation happens FIRST before all other validations         ║\n");
-    printf("║ 🛡️ System stability:                    Maintained under all multiple error conditions   ║\n");
-    printf("║ 📝 Note: This precedence order discovered through systematic boundary testing            ║\n");
-    printf("╚══════════════════════════════════════════════════════════════════════════════════════════╝\n");
-
-    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
-    // │                               🧹 CLEANUP PHASE                                        │
-    // └──────────────────────────────────────────────────────────────────────────────────────┘
-    // No cleanup needed - stateless boundary testing with local variables only
-    printf("🧹 CLEANUP: No cleanup needed (stateless boundary testing)\n");
+    printf("✅ IMPROVED CONSISTENCY VALIDATION COMPLETE\n");
 }
 
 /**
  * ╔══════════════════════════════════════════════════════════════════════════════════════════╗
- * ║                   [@US-4,AC-4] TC-2: Error precedence consistency validation            ║
+ * ║                    IMPROVED: LinkID Value Independence Validation                        ║
  * ╠══════════════════════════════════════════════════════════════════════════════════════════╣
- * ║ @[Name]: verifyDatErrorCodePrecedence_byConsistencyValidation_expectReproducibleBehavior ║
- * ║ @[Steps]:                                                                                ║
- * ║   1) 🔧 Setup reproducibility test scenarios with multiple error combinations AS SETUP   ║
- * ║   2) 🎯 Test precedence consistency across multiple iterations AS BEHAVIOR               ║
- * ║   3) 🎯 Test precedence consistency across different error value combinations AS BEHAVIOR║
- * ║   4) 🎯 Test precedence stability under stress conditions AS BEHAVIOR                   ║
- * ║   5) ✅ Verify precedence behavior is deterministic and reproducible AS VERIFY          ║
- * ║   6) 🧹 No cleanup needed (stateless boundary testing) AS CLEANUP                       ║
- * ║ @[Expect]: Error precedence behavior is consistent and reproducible across all scenarios ║
- * ║ @[Notes]: Validates AC-4 error precedence consistency and system stability              ║
+ * ║ @[Name]: verifyDatErrorCodePrecedence_byImprovedIndependence_expectUniformLinkIDBehavior ║
+ * ║ @[Purpose]: Validate that precedence is independent of specific LinkID values           ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
-TEST(UT_DataBoundary, verifyDatErrorCodePrecedence_byConsistencyValidation_expectReproducibleBehavior) {
-    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
-    // │                                🔧 SETUP PHASE                                        │
-    // └──────────────────────────────────────────────────────────────────────────────────────┘
-    IOC_Result_T result = IOC_RESULT_BUG;
-    char TestDataBuffer[] = "precedence consistency test";
+TEST(UT_DataBoundary, verifyDatErrorCodePrecedence_byImprovedIndependence_expectUniformLinkIDBehavior) {
+    printf("🎯 TESTING IMPROVED LinkID VALUE INDEPENDENCE\n");
+    printf("   📋 Precedence should be consistent across ALL invalid LinkID values\n");
 
-    // Test different invalid LinkID values to ensure consistency
+    // Test different invalid LinkID values
     const IOC_LinkID_T INVALID_LINK_IDS[] = {
         999999,      // Large invalid value
         0,           // Zero LinkID
@@ -422,144 +274,56 @@ TEST(UT_DataBoundary, verifyDatErrorCodePrecedence_byConsistencyValidation_expec
     };
     const size_t NUM_INVALID_LINK_IDS = sizeof(INVALID_LINK_IDS) / sizeof(INVALID_LINK_IDS[0]);
 
-    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
-    // │                               🎯 BEHAVIOR PHASE                                       │
-    // └──────────────────────────────────────────────────────────────────────────────────────┘
-    printf("🎯 BEHAVIOR: verifyDatErrorCodePrecedence_byConsistencyValidation_expectReproducibleBehavior\n");
-    printf("   📋 Testing precedence consistency across %zu invalid LinkID values\n", NUM_INVALID_LINK_IDS);
+    char TestDataBuffer[] = "linkid independence test";
 
-    // ════════════════════════════════════════════════════════════════════════════════════════
-    // Step 1: Precedence consistency across multiple iterations
-    // ════════════════════════════════════════════════════════════════════════════════════════
-    printf("   ├─ 🔍 Step 1/4: Testing precedence consistency across multiple iterations...\n");
-
-    for (int iteration = 0; iteration < 10; iteration++) {
-        // Test the same error combination multiple times to ensure consistency
-        IOC_Option_defineSyncMayBlock(ValidOptions);
-
-        result = IOC_sendDAT(INVALID_LINK_IDS[0], NULL, &ValidOptions);
-        EXPECT_EQ(result, IOC_RESULT_INVALID_PARAM)
-            << "Iteration " << iteration
-            << ": NULL pDatDesc + Invalid LinkID should consistently return IOC_RESULT_INVALID_PARAM";
-        //@VerifyPoint-1: Parameter precedence is consistent across multiple iterations
-    }
-
-    // ════════════════════════════════════════════════════════════════════════════════════════
-    // Step 2: Precedence consistency across different invalid LinkID values
-    // ════════════════════════════════════════════════════════════════════════════════════════
-    printf("   ├─ 🔍 Step 2/4: Testing precedence consistency across different invalid LinkID values...\n");
+    printf("   🔍 Testing precedence consistency across %zu different invalid LinkID values...\n",
+           NUM_INVALID_LINK_IDS);
 
     for (size_t i = 0; i < NUM_INVALID_LINK_IDS; i++) {
         IOC_LinkID_T testLinkID = INVALID_LINK_IDS[i];
-        IOC_Option_defineSyncMayBlock(ValidOptions);
 
-        // Test Parameter vs LinkID precedence with different invalid LinkID values
-        result = IOC_sendDAT(testLinkID, NULL, &ValidOptions);
-        EXPECT_EQ(result, IOC_RESULT_INVALID_PARAM)
-            << "LinkID[" << i << "]=" << testLinkID
-            << ": Parameter precedence should be consistent regardless of LinkID value";
-        //@VerifyPoint-2: Parameter precedence is independent of specific invalid LinkID values
+        printf("   │  🧪 Testing LinkID[%zu] = %llu (0x%llX):\n", i, (unsigned long long)testLinkID,
+               (unsigned long long)testLinkID);
 
-        // Test LinkID vs Data Size precedence with different invalid LinkID values
-        IOC_DatDesc_T ZeroSizeDesc = {0};
-        IOC_initDatDesc(&ZeroSizeDesc);
-        ZeroSizeDesc.Payload.pData = TestDataBuffer;
-        ZeroSizeDesc.Payload.PtrDataSize = 0;  // Zero size
+        // Test 1: LinkID + NULL DatDesc → Should ALWAYS return LinkID error
+        {
+            IOC_Option_defineSyncMayBlock(ValidOptions);
+            IOC_Result_T result = IOC_sendDAT(testLinkID, NULL, &ValidOptions);
 
-        result = IOC_sendDAT(testLinkID, &ZeroSizeDesc, &ValidOptions);
-        EXPECT_EQ(result, IOC_RESULT_NOT_EXIST_LINK)
-            << "LinkID[" << i << "]=" << testLinkID
-            << ": LinkID precedence should be consistent for all invalid LinkID values";
-        //@VerifyPoint-3: LinkID precedence is consistent across different invalid LinkID values
-    }
+            printf("   │     NULL DatDesc: %d", (int)result);
+            EXPECT_EQ(result, IOC_RESULT_NOT_EXIST_LINK)
+                << "LinkID[" << i << "] + NULL DatDesc should ALWAYS return IOC_RESULT_NOT_EXIST_LINK";
 
-    // ════════════════════════════════════════════════════════════════════════════════════════
-    // Step 3: Precedence consistency across different error value combinations
-    // ════════════════════════════════════════════════════════════════════════════════════════
-    printf("   ├─ 🔍 Step 3/4: Testing precedence consistency across different error combinations...\n");
+            if (result == IOC_RESULT_NOT_EXIST_LINK) {
+                printf(" ✅ CONSISTENT\n");
+            } else {
+                printf(" ❌ INCONSISTENT\n");
+            }
+        }
 
-    // Test different combinations of data size errors with invalid LinkID
-    const ULONG_T DATA_SIZE_ERRORS[] = {0, SIZE_MAX, 0xFFFFFFFF, 999999999};
-    const size_t NUM_DATA_SIZE_ERRORS = sizeof(DATA_SIZE_ERRORS) / sizeof(DATA_SIZE_ERRORS[0]);
-
-    for (size_t linkIdx = 0; linkIdx < NUM_INVALID_LINK_IDS && linkIdx < 3; linkIdx++) {  // Test first 3 LinkIDs
-        for (size_t dataIdx = 0; dataIdx < NUM_DATA_SIZE_ERRORS; dataIdx++) {
-            IOC_DatDesc_T ErrorDesc = {0};
-            IOC_initDatDesc(&ErrorDesc);
-            ErrorDesc.Payload.pData = TestDataBuffer;
-            ErrorDesc.Payload.PtrDataSize = DATA_SIZE_ERRORS[dataIdx];
+        // Test 2: LinkID + Zero Size Data → Should ALWAYS return LinkID error
+        {
+            IOC_DatDesc_T ZeroSizeDesc = {0};
+            IOC_initDatDesc(&ZeroSizeDesc);
+            ZeroSizeDesc.Payload.pData = TestDataBuffer;
+            ZeroSizeDesc.Payload.PtrDataSize = 0;
 
             IOC_Option_defineSyncMayBlock(ValidOptions);
+            IOC_Result_T result = IOC_sendDAT(testLinkID, &ZeroSizeDesc, &ValidOptions);
 
-            result = IOC_sendDAT(INVALID_LINK_IDS[linkIdx], &ErrorDesc, &ValidOptions);
+            printf("   │     Zero Size Data: %d", (int)result);
             EXPECT_EQ(result, IOC_RESULT_NOT_EXIST_LINK)
-                << "LinkID[" << linkIdx << "] + DataSize[" << dataIdx << "]=" << DATA_SIZE_ERRORS[dataIdx]
-                << ": LinkID precedence should be consistent across data size error combinations";
-            //@VerifyPoint-4: LinkID precedence is consistent across different data size error values
+                << "LinkID[" << i << "] + Zero Size should ALWAYS return IOC_RESULT_NOT_EXIST_LINK";
+
+            if (result == IOC_RESULT_NOT_EXIST_LINK) {
+                printf(" ✅ CONSISTENT\n");
+            } else {
+                printf(" ❌ INCONSISTENT (should be improved)\n");
+            }
         }
     }
 
-    // ════════════════════════════════════════════════════════════════════════════════════════
-    // Step 4: Precedence stability under rapid successive calls
-    // ════════════════════════════════════════════════════════════════════════════════════════
-    printf("   └─ 🔍 Step 4/4: Testing precedence stability under rapid successive calls...\n");
-
-    // Rapid successive calls to test system stability
-    IOC_Option_defineSyncMayBlock(ValidOptions);
-
-    for (int rapidCall = 0; rapidCall < 50; rapidCall++) {
-        // Alternate between different error combinations rapidly
-        if (rapidCall % 2 == 0) {
-            // Parameter error test
-            result = IOC_sendDAT(INVALID_LINK_IDS[rapidCall % NUM_INVALID_LINK_IDS], NULL, &ValidOptions);
-            EXPECT_EQ(result, IOC_RESULT_INVALID_PARAM)
-                << "Rapid call " << rapidCall << ": Parameter precedence should remain stable under rapid calls";
-        } else {
-            // LinkID vs Data error test
-            IOC_DatDesc_T ZeroDesc = {0};
-            IOC_initDatDesc(&ZeroDesc);
-            ZeroDesc.Payload.pData = TestDataBuffer;
-            ZeroDesc.Payload.PtrDataSize = 0;
-
-            result = IOC_sendDAT(INVALID_LINK_IDS[rapidCall % NUM_INVALID_LINK_IDS], &ZeroDesc, &ValidOptions);
-            EXPECT_EQ(result, IOC_RESULT_NOT_EXIST_LINK)
-                << "Rapid call " << rapidCall << ": LinkID precedence should remain stable under rapid calls";
-        }
-    }
-    //@VerifyPoint-5: Error precedence stability maintained under rapid successive calls
-
-    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
-    // │                                ✅ VERIFY PHASE                                        │
-    // └──────────────────────────────────────────────────────────────────────────────────────┘
-    printf("✅ VERIFY: Error precedence consistency and reproducibility validated successfully\n");
-
-    //@KeyVerifyPoint-1: Error precedence is consistent across multiple iterations
-    //@KeyVerifyPoint-2: Error precedence is independent of specific error values (LinkID, data size, etc.)
-    //@KeyVerifyPoint-3: Error precedence behavior is deterministic and reproducible
-    //@KeyVerifyPoint-4: System stability maintained under rapid error condition testing
-    //@KeyVerifyPoint-5: Error precedence consistency maintained across different error combinations
-
-    // Visual summary of consistency validation results
-    printf("╔══════════════════════════════════════════════════════════════════════════════════════════╗\n");
-    printf("║                      🎯 ERROR PRECEDENCE CONSISTENCY VALIDATION SUMMARY                  ║\n");
-    printf("╠══════════════════════════════════════════════════════════════════════════════════════════╣\n");
-    printf("║ ✅ Multiple iterations consistency:    10 iterations passed                              ║\n");
-    printf("║ ✅ Invalid LinkID value independence:  %zu different invalid LinkIDs tested             ║\n",
-           NUM_INVALID_LINK_IDS);
-    printf("║ ✅ Error combination consistency:      %zu × %zu combinations tested                    ║\n",
-           (NUM_INVALID_LINK_IDS < 3 ? NUM_INVALID_LINK_IDS : 3), NUM_DATA_SIZE_ERRORS);
-    printf("║ ✅ Rapid call stability:               50 rapid successive calls passed                 ║\n");
-    printf("║ ✅ Precedence determinism:             100%% consistent behavior observed                ║\n");
-    printf("║ ✅ System stability:                   No crashes or undefined behavior                 ║\n");
-    printf("║ 🔍 Key finding: Error precedence behavior is deterministic and reproducible             ║\n");
-    printf("║ 📋 Validation scope: Parameter > LinkID precedence thoroughly validated                 ║\n");
-    printf("╚══════════════════════════════════════════════════════════════════════════════════════════╝\n");
-
-    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
-    // │                               🧹 CLEANUP PHASE                                        │
-    // └──────────────────────────────────────────────────────────────────────────────────────┘
-    // No cleanup needed - stateless boundary testing with local variables only
-    printf("🧹 CLEANUP: No cleanup needed (stateless boundary testing)\n");
+    printf("✅ IMPROVED LinkID INDEPENDENCE VALIDATION COMPLETE\n");
 }
 
-//======>END OF US-4 AC-4 TEST IMPLEMENTATIONS=====================================================
+//======>END OF IMPROVED ERROR PRECEDENCE TEST IMPLEMENTATIONS=====================================

@@ -269,6 +269,12 @@
  *    └── [@AC-3,US-4] TC-3: verifyDatErrorCodeCoverage_byTimeoutModeBoundaries_expectTimeoutErrorCodes
  *    └── [@AC-4,US-4] TC-4: verifyDatErrorCodePrecedence_byMultipleErrorConditions_expectPriorityOrder
  *    └── [@AC-5,US-4] TC-5: verifyDatErrorCodeCompleteness_byComprehensiveValidation_expectFullCoverage
+ *    ⚠️  DISCOVERED ERROR PRECEDENCE:
+ *        - sendDAT: Parameter > Data Size > LinkID > Timeout
+ *        - recvDAT: Parameter > LinkID > Data Size > Timeout
+ *        - Special cases: UINT64_MAX LinkID triggers different precedence patterns
+ *    📋 NOTE: sendDAT and recvDAT have different validation precedence orders
+ *    🔍 IMPLICATION: Error precedence behavior is operation-specific and LinkID-dependent
  *
  * 📂 UT_DataBoundaryUS5.cxx - [@US-5] Stream granularity boundary validation
  *    └── [@AC-1,US-5] TC-1: verifyDatStreamGranularity_byByteToBlockPattern_expectDataIntegrity

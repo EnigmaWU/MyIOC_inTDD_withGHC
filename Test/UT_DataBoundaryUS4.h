@@ -209,16 +209,7 @@ typedef struct {
 } __DatErrorCodeSharedTestData_T;
 
 // Global test configuration for US-4 error code coverage testing
-inline __DatErrorCodeSharedTestData_T g_US4_SharedTestData = {.TestConfigs = {},
-                                                              .ServiceID1 = 0,
-                                                              .ServiceID2 = 0,
-                                                              .SystemInitialized = false,
-                                                              .ErrorCodeCounts = {},
-                                                              .ObservedErrorCodes = {},
-                                                              .CrossModeConsistency = true,
-                                                              .ParameterPrecedenceValidated = false,
-                                                              .DataSizePrecedenceValidated = false,
-                                                              .TimeoutPrecedenceValidated = false};
+extern __DatErrorCodeSharedTestData_T g_US4_SharedTestData;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF US-4 SPECIFIC UTILITY FUNCTIONS=================================================
