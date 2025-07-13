@@ -154,8 +154,10 @@
  *    └── TODO: [@AC-3,US-4] Mode conflict boundary validation
  *
  * 📂 UT_DataBoundaryUS4AC4.cxx - [@US-4,AC-4] Multiple error condition precedence validation
- *    └── TODO: [@AC-4,US-4] TC-1: verifyDatErrorCodePrecedence_byMultipleErrorConditions_expectPriorityOrder
- *    └── TODO: [@AC-4,US-4] Error precedence consistency validation
+ *    └── [@AC-4,US-4] TC-1: verifyDatErrorCodePrecedence_byMultipleErrorConditions_expectPriorityOrder
+ *    └── [@AC-4,US-4] TC-2: verifyDatErrorCodePrecedence_byConsistencyValidation_expectReproducibleBehavior
+ *    └── TODO: [@AC-4,US-4] Error precedence with ValidLinkID scenarios
+ *    └── TODO: [@AC-4,US-4] Cross-mode error precedence validation
  *
  * 📂 UT_DataBoundaryUS4AC5.cxx - [@US-4,AC-5] Comprehensive error code coverage validation
  *    └── TODO: [@AC-5,US-4] TC-1: verifyDatErrorCodeCompleteness_byComprehensiveValidation_expectFullCoverage
@@ -207,8 +209,104 @@ typedef struct {
 } __DatErrorCodeSharedTestData_T;
 
 // Global test configuration for US-4 error code coverage testing
-extern __DatErrorCodeSharedTestData_T g_US4_SharedTestData;
+inline __DatErrorCodeSharedTestData_T g_US4_SharedTestData = {.TestConfigs = {},
+                                                              .ServiceID1 = 0,
+                                                              .ServiceID2 = 0,
+                                                              .SystemInitialized = false,
+                                                              .ErrorCodeCounts = {},
+                                                              .ObservedErrorCodes = {},
+                                                              .CrossModeConsistency = true,
+                                                              .ParameterPrecedenceValidated = false,
+                                                              .DataSizePrecedenceValidated = false,
+                                                              .TimeoutPrecedenceValidated = false};
 
-//======>END OF SHARED TEST ENVIRONMENT SETUP=====================================================
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF US-4 SPECIFIC UTILITY FUNCTIONS=================================================
+
+/**
+ * @brief Document and track error precedence discoveries for US-4 testing
+ * @param testName Name of the test case documenting the precedence
+ * @param scenario Description of the error scenario
+ * @param expectedResult Expected error code
+ * @param actualResult Actual error code returned by system
+ * @param precedenceLevel Precedence level (1=highest, 2=medium, 3=lowest)
+ */
+inline void US4_DocumentErrorPrecedence(const char* testName, const char* scenario, IOC_Result_T expectedResult,
+                                        IOC_Result_T actualResult, int precedenceLevel) {
+    printf("   🔍 [%s] Scenario: %s\n", testName, scenario);
+    printf("        Expected: %d, Actual: %d, Precedence Level: %d\n", expectedResult, actualResult, precedenceLevel);
+
+    // Track error code observations
+    g_US4_SharedTestData.ErrorCodeCounts[actualResult]++;
+    g_US4_SharedTestData.ObservedErrorCodes.push_back(actualResult);
+}
+
+/**
+ * @brief Validate that error codes match US-4 acceptance criteria expectations
+ * @param errorCode The error code to validate
+ * @param errorContext Description of when this error occurred
+ * @return true if error code is expected for US-4 boundary testing
+ */
+inline bool US4_IsExpectedBoundaryErrorCode(IOC_Result_T errorCode, const char* errorContext) {
+    // US-4 focuses on comprehensive boundary error coverage
+    bool isExpected = (errorCode == IOC_RESULT_INVALID_PARAM) || (errorCode == IOC_RESULT_NOT_EXIST_LINK) ||
+                      (errorCode == IOC_RESULT_ZERO_DATA) || (errorCode == IOC_RESULT_DATA_TOO_LARGE) ||
+                      (errorCode == IOC_RESULT_TIMEOUT) || (errorCode == IOC_RESULT_BUFFER_FULL) ||
+                      (errorCode == IOC_RESULT_BUFFER_TOO_SMALL);
+
+    if (!isExpected) {
+        printf("   ⚠️  Unexpected error code %d in context: %s\n", errorCode, errorContext);
+    }
+
+    return isExpected;
+}
+
+/**
+ * @brief Initialize US-4 shared test data
+ */
+inline void US4_InitializeSharedTestData() {
+    g_US4_SharedTestData.ErrorCodeCounts.clear();
+    g_US4_SharedTestData.ObservedErrorCodes.clear();
+    g_US4_SharedTestData.CrossModeConsistency = true;
+    g_US4_SharedTestData.ParameterPrecedenceValidated = false;
+    g_US4_SharedTestData.DataSizePrecedenceValidated = false;
+    g_US4_SharedTestData.TimeoutPrecedenceValidated = false;
+}
+
+//======>END OF US-4 SPECIFIC UTILITY FUNCTIONS===================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF HIERARCHICAL INCLUDE STRUCTURE DOCUMENTATION====================================
+
+/**
+ * @brief Hierarchical Include Structure for US-4 Test Files
+ *
+ * The UT_DataBoundaryUS4 test files follow a hierarchical include structure:
+ *
+ * ┌─── UT_DataBoundaryUS4ACn.cxx (AC-specific test implementations)
+ * │    └── #include "UT_DataBoundaryUS4.h"
+ * │        └── #include "UT_DataBoundary.h" (base boundary testing framework)
+ * │            └── System IOC headers, GoogleTest, etc.
+ * │
+ * ├─── Shared US-4 Utilities Available in All AC Files:
+ * │    ├── US4_DocumentErrorPrecedence() - Document error precedence discoveries
+ * │    ├── US4_IsExpectedBoundaryErrorCode() - Validate expected boundary error codes
+ * │    ├── US4_InitializeSharedTestData() - Initialize shared test data
+ * │    └── g_US4_SharedTestData - Global shared test data for error tracking
+ * │
+ * ├─── Benefits of This Structure:
+ * │    ├── Reduced duplication: US-4 common code in one place
+ * │    ├── Better organization: Clear hierarchy UT_DataBoundaryUS4ACn → US4 → DataBoundary
+ * │    ├── Cleaner dependencies: Each level builds on the previous
+ * │    ├── Better maintainability: Changes to US-4 utilities affect all AC files
+ * │    └── Shared state: Error tracking and validation across all AC test cases
+ * │
+ * └─── File Responsibilities:
+ *      ├── UT_DataBoundary.h: Base boundary testing framework, common test utilities
+ *      ├── UT_DataBoundaryUS4.h: US-4 specific types, utilities, shared test data
+ *      └── UT_DataBoundaryUS4ACn.cxx: Individual acceptance criteria implementations
+ */
+
+//======>END OF HIERARCHICAL INCLUDE STRUCTURE DOCUMENTATION======================================
 
 #endif  // UT_DATABOUNDARYUS4_H
