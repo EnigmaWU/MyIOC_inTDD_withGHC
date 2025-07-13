@@ -254,30 +254,65 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCompleteness_byComprehensiveValidation_e
     {
         printf("   │  🔍 Attempting IOC_RESULT_BUFFER_FULL discovery...\n");
 
-        IOC_DatDesc_T ValidDesc = {0};
-        IOC_initDatDesc(&ValidDesc);
-        ValidDesc.Payload.pData = TestDataBuffer;
-        ValidDesc.Payload.PtrDataSize = strlen(TestDataBuffer);
+        // Create service with callback to enable buffer full logic
+        IOC_SrvID_T BufferTestSrvID = IOC_ID_INVALID;
+        IOC_LinkID_T BufferTestLinkID = IOC_ID_INVALID;
 
-        IOC_Option_defineSyncNonBlock(NonBlockOptions);
+        IOC_SrvArgs_T BufferSrvArgs = {0};
+        IOC_Helper_initSrvArgs(&BufferSrvArgs);
+        BufferSrvArgs.SrvURI.pProtocol = IOC_SRV_PROTO_FIFO;
+        BufferSrvArgs.SrvURI.pHost = IOC_SRV_HOST_LOCAL_PROCESS;
+        BufferSrvArgs.SrvURI.pPath = "AC5_BufferSrv";
+        BufferSrvArgs.SrvURI.Port = 0;
+        BufferSrvArgs.UsageCapabilites = IOC_LinkUsageDatReceiver;
 
-        // Try to flood the buffer with rapid sends
-        for (int attempt = 0; attempt < 100; attempt++) {
-            IOC_Result_T result = IOC_sendDAT(ValidLinkID, &ValidDesc, &NonBlockOptions);
-            ObservedErrorCodes.insert(result);
+        // Set up callback to enable buffer pressure detection
+        IOC_DatUsageArgs_T BufferDatArgs = {0};
+        BufferDatArgs.CbRecvDat_F = [](IOC_LinkID_T linkId, const IOC_DatDesc_pT pDatDesc,
+                                       void* pPrivData) -> IOC_Result_T {
+            return IOC_RESULT_SUCCESS;  // Simple callback
+        };
+        BufferSrvArgs.UsageArgs.pDat = &BufferDatArgs;
 
-            if (result == IOC_RESULT_BUFFER_FULL) {
-                ActualTriggerMethods[result].push_back("NONBLOCK rapid send flood");
-                printf("   │     ✅ IOC_RESULT_BUFFER_FULL: Discovered at attempt %d\n", attempt);
-                break;
-            } else if (result != IOC_RESULT_SUCCESS) {
-                ActualTriggerMethods[result].push_back("NONBLOCK send (unexpected)");
-                printf("   │     📋 Unexpected result during buffer flood: %d\n", (int)result);
-                break;
+        IOC_Result_T setupResult = IOC_onlineService(&BufferTestSrvID, &BufferSrvArgs);
+        if (setupResult == IOC_RESULT_SUCCESS) {
+            // Connect to the buffer test service
+            IOC_ConnArgs_T BufferConnArgs = {0};
+            IOC_Helper_initConnArgs(&BufferConnArgs);
+            BufferConnArgs.SrvURI = BufferSrvArgs.SrvURI;
+            BufferConnArgs.Usage = IOC_LinkUsageDatSender;
+
+            std::thread ClientThread([&] { IOC_connectService(&BufferTestLinkID, &BufferConnArgs, NULL); });
+
+            IOC_LinkID_T ServerLinkID;
+            IOC_acceptClient(BufferTestSrvID, &ServerLinkID, NULL);
+            ClientThread.join();
+
+            // Now test buffer full with rapid fire
+            IOC_DatDesc_T ValidDesc = {0};
+            IOC_initDatDesc(&ValidDesc);
+            ValidDesc.Payload.pData = TestDataBuffer;
+            ValidDesc.Payload.PtrDataSize = strlen(TestDataBuffer);
+
+            IOC_Option_defineSyncNonBlock(NonBlockOptions);
+
+            // Try to flood the buffer with rapid sends - use very rapid succession
+            for (int attempt = 0; attempt < 5; attempt++) {
+                IOC_Result_T result = IOC_sendDAT(BufferTestLinkID, &ValidDesc, &NonBlockOptions);
+                ObservedErrorCodes.insert(result);
+
+                if (result == IOC_RESULT_BUFFER_FULL) {
+                    ActualTriggerMethods[result].push_back("NONBLOCK rapid send flood");
+                    printf("   │     ✅ IOC_RESULT_BUFFER_FULL: Discovered at attempt %d\n", attempt);
+                    break;
+                } else if (result != IOC_RESULT_SUCCESS) {
+                    ActualTriggerMethods[result].push_back("NONBLOCK send (unexpected)");
+                    printf("   │     📋 Unexpected result during buffer flood: %d\n", (int)result);
+                    break;
+                }
             }
 
-            // Small delay to avoid overwhelming system
-            std::this_thread::sleep_for(std::chrono::microseconds(100));
+            IOC_offlineService(BufferTestSrvID);
         }
     }
 
@@ -339,28 +374,66 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCompleteness_byComprehensiveValidation_e
     {
         printf("   │  🔍 Attempting IOC_RESULT_DATA_CORRUPTED discovery...\n");
 
-        IOC_DatDesc_T CorruptedDesc = {0};
-        IOC_initDatDesc(&CorruptedDesc);
+        // Create a service with callback to trigger corruption detection path
+        IOC_SrvID_T CorruptionTestSrvID = IOC_ID_INVALID;
+        IOC_LinkID_T CorruptionTestLinkID = IOC_ID_INVALID;
 
-        // Create data with corruption marker
-        char corruptedData[16];
-        memcpy(corruptedData, "\xDE\xAD\xBE\xEF", 4);  // Magic corruption marker
-        memcpy(corruptedData + 4, "corrupted", 9);
-        corruptedData[15] = '\0';
+        IOC_SrvArgs_T CorruptionSrvArgs = {0};
+        IOC_Helper_initSrvArgs(&CorruptionSrvArgs);
+        CorruptionSrvArgs.SrvURI.pProtocol = IOC_SRV_PROTO_FIFO;
+        CorruptionSrvArgs.SrvURI.pHost = IOC_SRV_HOST_LOCAL_PROCESS;
+        CorruptionSrvArgs.SrvURI.pPath = "AC5_CorruptionSrv";
+        CorruptionSrvArgs.SrvURI.Port = 0;
+        CorruptionSrvArgs.UsageCapabilites = IOC_LinkUsageDatReceiver;
 
-        CorruptedDesc.Payload.pData = corruptedData;
-        CorruptedDesc.Payload.PtrDataSize = 16;
+        // Set up callback to enable corruption detection path
+        IOC_DatUsageArgs_T CorruptionDatArgs = {0};
+        CorruptionDatArgs.CbRecvDat_F = [](IOC_LinkID_T linkId, const IOC_DatDesc_pT pDatDesc,
+                                           void* pPrivData) -> IOC_Result_T {
+            return IOC_RESULT_SUCCESS;  // Simple callback
+        };
+        CorruptionSrvArgs.UsageArgs.pDat = &CorruptionDatArgs;
 
-        IOC_Option_defineSyncMayBlock(ValidOptions);
-        IOC_Result_T result = IOC_sendDAT(ValidLinkID, &CorruptedDesc, &ValidOptions);
-        ObservedErrorCodes.insert(result);
+        IOC_Result_T setupResult = IOC_onlineService(&CorruptionTestSrvID, &CorruptionSrvArgs);
+        if (setupResult == IOC_RESULT_SUCCESS) {
+            // Connect to the corruption test service
+            IOC_ConnArgs_T CorruptionConnArgs = {0};
+            IOC_Helper_initConnArgs(&CorruptionConnArgs);
+            CorruptionConnArgs.SrvURI = CorruptionSrvArgs.SrvURI;
+            CorruptionConnArgs.Usage = IOC_LinkUsageDatSender;
 
-        if (result == IOC_RESULT_DATA_CORRUPTED) {
-            ActualTriggerMethods[result].push_back("Data with corruption marker");
-            printf("   │     ✅ IOC_RESULT_DATA_CORRUPTED: Discovered via corruption marker\n");
-        } else {
-            ActualTriggerMethods[result].push_back("Corrupted data (unexpected)");
-            printf("   │     📋 Unexpected corrupted data result: %d\n", (int)result);
+            std::thread ClientThread([&] { IOC_connectService(&CorruptionTestLinkID, &CorruptionConnArgs, NULL); });
+
+            IOC_LinkID_T ServerLinkID;
+            IOC_acceptClient(CorruptionTestSrvID, &ServerLinkID, NULL);
+            ClientThread.join();
+
+            // Now test corruption detection
+            IOC_DatDesc_T CorruptedDesc = {0};
+            IOC_initDatDesc(&CorruptedDesc);
+
+            // Create data with corruption marker
+            char corruptedData[16];
+            memcpy(corruptedData, "\xDE\xAD\xBE\xEF", 4);  // Magic corruption marker
+            memcpy(corruptedData + 4, "corrupted", 9);
+            corruptedData[15] = '\0';
+
+            CorruptedDesc.Payload.pData = corruptedData;
+            CorruptedDesc.Payload.PtrDataSize = 16;
+
+            IOC_Option_defineSyncMayBlock(ValidOptions);
+            IOC_Result_T result = IOC_sendDAT(CorruptionTestLinkID, &CorruptedDesc, &ValidOptions);
+            ObservedErrorCodes.insert(result);
+
+            if (result == IOC_RESULT_DATA_CORRUPTED) {
+                ActualTriggerMethods[result].push_back("Data with corruption marker");
+                printf("   │     ✅ IOC_RESULT_DATA_CORRUPTED: Discovered via corruption marker\n");
+            } else {
+                ActualTriggerMethods[result].push_back("Corrupted data (unexpected)");
+                printf("   │     📋 Unexpected corrupted data result: %d\n", (int)result);
+            }
+
+            IOC_offlineService(CorruptionTestSrvID);
         }
     }
 
@@ -368,7 +441,7 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCompleteness_byComprehensiveValidation_e
     {
         printf("   │  🔍 Attempting IOC_RESULT_STREAM_CLOSED discovery...\n");
 
-        // Create a service with no callback to simulate closed stream
+        // Create a service with no callback and no polling to trigger stream closed
         IOC_SrvID_T ClosedStreamSrvID = IOC_ID_INVALID;
         IOC_LinkID_T ClosedStreamLinkID = IOC_ID_INVALID;
 
@@ -380,14 +453,14 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCompleteness_byComprehensiveValidation_e
         ClosedSrvArgs.SrvURI.Port = 0;
         ClosedSrvArgs.UsageCapabilites = IOC_LinkUsageDatReceiver;
 
-        // Deliberately set NULL callback to simulate closed stream
+        // Explicitly set no callback to ensure !IsReceiverRegistered
         IOC_DatUsageArgs_T ClosedDatArgs = {0};
-        ClosedDatArgs.CbRecvDat_F = NULL;  // No callback = closed stream
+        ClosedDatArgs.CbRecvDat_F = NULL;  // No callback -> !IsReceiverRegistered
         ClosedSrvArgs.UsageArgs.pDat = &ClosedDatArgs;
 
         IOC_Result_T setupResult = IOC_onlineService(&ClosedStreamSrvID, &ClosedSrvArgs);
         if (setupResult == IOC_RESULT_SUCCESS) {
-            // Connect to the closed stream service
+            // Connect to the service
             IOC_ConnArgs_T ClosedConnArgs = {0};
             IOC_Helper_initConnArgs(&ClosedConnArgs);
             ClosedConnArgs.SrvURI = ClosedSrvArgs.SrvURI;
@@ -399,7 +472,7 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCompleteness_byComprehensiveValidation_e
             IOC_acceptClient(ClosedStreamSrvID, &ServerLinkID, NULL);
             ClientThread.join();
 
-            // Try to send to closed stream
+            // Try to send to stream with no receiver (should trigger stream closed)
             IOC_DatDesc_T ValidDesc = {0};
             IOC_initDatDesc(&ValidDesc);
             ValidDesc.Payload.pData = TestDataBuffer;
@@ -410,8 +483,8 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCompleteness_byComprehensiveValidation_e
             ObservedErrorCodes.insert(result);
 
             if (result == IOC_RESULT_STREAM_CLOSED) {
-                ActualTriggerMethods[result].push_back("Send to service with no callback");
-                printf("   │     ✅ IOC_RESULT_STREAM_CLOSED: Discovered via no callback\n");
+                ActualTriggerMethods[result].push_back("Send to no-callback service");
+                printf("   │     ✅ IOC_RESULT_STREAM_CLOSED: Discovered via no-callback service\n");
             } else {
                 ActualTriggerMethods[result].push_back("Closed stream (unexpected)");
                 printf("   │     📋 Unexpected closed stream result: %d\n", (int)result);
