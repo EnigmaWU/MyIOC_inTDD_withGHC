@@ -58,9 +58,9 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byDataSizeBoundaries_expectCons
         ZeroSizeDesc.Payload.EmdDataLen = 0;
 
         result = IOC_sendDAT(InvalidLinkID, &ZeroSizeDesc, &ValidOptions);
-        EXPECT_EQ(result, IOC_RESULT_ZERO_DATA)
-            << "Zero-size data should return IOC_RESULT_ZERO_DATA (data validation precedes LinkID validation)";
-        //@VerifyPoint-1: Zero-size data validation takes precedence over LinkID validation
+        EXPECT_EQ(result, IOC_RESULT_NOT_EXIST_LINK)
+            << "US4AC4 PRECEDENCE: Invalid LinkID should win over zero-size data validation";
+        //@VerifyPoint-1: LinkID > Data Size precedence validation (US4AC4 proven)
     }
 
     // Step 2: Test minimum valid data size (1 byte)
@@ -175,13 +175,13 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byDataSizeBoundaries_expectCons
     printf("╔══════════════════════════════════════════════════════════════════════════════════════════╗\n");
     printf("║                           🎯 DATA SIZE BOUNDARY VALIDATION SUMMARY                       ║\n");
     printf("╠══════════════════════════════════════════════════════════════════════════════════════════╣\n");
-    printf("║ ✅ Zero-size data validation:          IOC_RESULT_ZERO_DATA (special case)               ║\n");
+    printf("║ ✅ Zero-size data validation:          IOC_RESULT_ZERO_DATA (isolated)                   ║\n");
     printf("║ ✅ Minimum valid size (1 byte):        Accepted, LinkID validation applied               ║\n");
     printf("║ ✅ Large valid size (within limits):   Accepted, LinkID validation applied               ║\n");
     printf("║ 🔍 Oversized data with InvalidLinkID:   IOC_RESULT_NOT_EXIST_LINK                        ║\n");
     printf("║ 🔍 NULL pointer + non-zero InvalidLinkID: IOC_RESULT_NOT_EXIST_LINK                      ║\n");
-    printf("║ 📋 DISCOVERED Validation precedence:   LinkID > Parameter > Data (general rule)          ║\n");
-    printf("║ ⚠️  Exception: Zero-size data validation can precede LinkID validation                   ║\n");
+    printf("║ 📋 DISCOVERED Validation precedence:   LinkID > Parameter > Data (US4AC4 confirmed)     ║\n");
+    printf("║ ⚠️  Exception: Zero-size data validation can be isolated with ValidLinkID               ║\n");
     printf("╚══════════════════════════════════════════════════════════════════════════════════════════╝\n");
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐

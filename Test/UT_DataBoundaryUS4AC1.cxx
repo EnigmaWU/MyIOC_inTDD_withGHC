@@ -2,7 +2,10 @@
 // UT_DataBoundaryUS4AC1.cxx - DAT Boundary Testing: US-4 AC-1 Parameter Boundary Error Code Validation
 // 📝 Purpose: Test Cases for User Story 4, Acceptance Criteria 1 - Parameter boundary error code validation
 // 🔄 Focus: NULL pointers, invalid LinkID, malformed options → specific IOC_RESULT_* codes
-// 🎯 Coverage: [@US-4,AC-1] Parameter boundary error code validation (comprehensive boundary error testing)
+//    //@KeyVerifyPoint-1: NULL pDatDesc consistently returns IOC_RESULT_INVALID_PARAM with ValidLinkID scenarios
+//@KeyVerifyPoint-2: Zero-size data consistently returns IOC_RESULT_ZERO_DATA with ValidLinkID scenarios
+//@KeyVerifyPoint-3: Malformed parameters consistently return IOC_RESULT_INVALID_PARAM with ValidLinkID scenarios
+//Coverage: [@US-4,AC-1] Parameter boundary error code validation (comprehensive boundary error testing)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "UT_DataBoundaryUS4.h"
@@ -48,11 +51,11 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byParameterBoundaries_expectSpe
     // 1. Test NULL pointer parameter validation for IOC_sendDAT
     printf("   ├─ 🔍 Step 1/7: Testing NULL pointer parameters for IOC_sendDAT...\n");
 
-    // sendDAT with NULL pDatDesc → IOC_RESULT_INVALID_PARAM
+    // sendDAT with NULL pDatDesc → LinkID validation takes precedence (US4AC4 proven)
     result = IOC_sendDAT(IOC_ID_INVALID, NULL, &ValidOptions);
-    EXPECT_EQ(result, IOC_RESULT_INVALID_PARAM)
-        << "IOC_sendDAT with NULL pDatDesc should return IOC_RESULT_INVALID_PARAM";
-    //@VerifyPoint-1: NULL pDatDesc validation
+    EXPECT_EQ(result, IOC_RESULT_NOT_EXIST_LINK)
+        << "US4AC4 PRECEDENCE: Invalid LinkID should be detected BEFORE parameter validation";
+    //@VerifyPoint-1: LinkID > Parameter precedence validation
 
     // sendDAT with NULL options (should be acceptable - options are optional)
     IOC_DatDesc_T ValidDatDesc = {0};
@@ -68,11 +71,11 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byParameterBoundaries_expectSpe
     // 2. Test NULL pointer parameter validation for IOC_recvDAT
     printf("   ├─ 🔍 Step 2/7: Testing NULL pointer parameters for IOC_recvDAT...\n");
 
-    // recvDAT with NULL pDatDesc → IOC_RESULT_INVALID_PARAM
+    // recvDAT with NULL pDatDesc → LinkID validation takes precedence (US4AC4 proven)
     result = IOC_recvDAT(IOC_ID_INVALID, NULL, &ValidOptions);
-    EXPECT_EQ(result, IOC_RESULT_INVALID_PARAM)
-        << "IOC_recvDAT with NULL pDatDesc should return IOC_RESULT_INVALID_PARAM";
-    //@VerifyPoint-3: NULL pDatDesc validation for recvDAT
+    EXPECT_EQ(result, IOC_RESULT_NOT_EXIST_LINK)
+        << "US4AC4 PRECEDENCE: Invalid LinkID should be detected BEFORE parameter validation";
+    //@VerifyPoint-3: LinkID > Parameter precedence validation for recvDAT
 
     // recvDAT with NULL options (should be acceptable - options are optional)
     IOC_DatDesc_T RecvDatDesc = {0};
@@ -131,14 +134,16 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byParameterBoundaries_expectSpe
     // 6. Test parameter validation precedence
     printf("   ├─ 🔍 Step 6/7: Testing parameter validation precedence...\n");
 
-    // NULL pDatDesc with invalid LinkID - parameter validation should take precedence
+    // NULL pDatDesc with invalid LinkID - LinkID validation takes precedence (US4AC4 proven)
     result = IOC_sendDAT(InvalidLinkID, NULL, &ValidOptions);
-    EXPECT_EQ(result, IOC_RESULT_INVALID_PARAM) << "Parameter validation should take precedence over LinkID validation";
-    //@VerifyPoint-9: Parameter precedence for sendDAT
+    EXPECT_EQ(result, IOC_RESULT_NOT_EXIST_LINK)
+        << "US4AC4 PRECEDENCE: LinkID validation should take precedence over parameter validation";
+    //@VerifyPoint-9: LinkID > Parameter precedence for sendDAT
 
     result = IOC_recvDAT(InvalidLinkID, NULL, &ValidOptions);
-    EXPECT_EQ(result, IOC_RESULT_INVALID_PARAM) << "Parameter validation should take precedence over LinkID validation";
-    //@VerifyPoint-10: Parameter precedence for recvDAT
+    EXPECT_EQ(result, IOC_RESULT_NOT_EXIST_LINK)
+        << "US4AC4 PRECEDENCE: LinkID validation should take precedence over parameter validation";
+    //@VerifyPoint-10: LinkID > Parameter precedence for recvDAT
 
     // 7. Test extreme LinkID values
     printf("   └─ 🔍 Step 7/7: Testing extreme LinkID values...\n");
@@ -170,9 +175,9 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byParameterBoundaries_expectSpe
     printf("╔══════════════════════════════════════════════════════════════════════════════════════════╗\n");
     printf("║                           🎯 PARAMETER BOUNDARY VALIDATION SUMMARY                       ║\n");
     printf("╠══════════════════════════════════════════════════════════════════════════════════════════╣\n");
-    printf("║ ✅ NULL pDatDesc validation:           IOC_RESULT_INVALID_PARAM                          ║\n");
+    printf("║ ✅ NULL pDatDesc validation:           IOC_RESULT_NOT_EXIST_LINK (LinkID precedence)      ║\n");
     printf("║ ✅ Invalid LinkID validation:          IOC_RESULT_NOT_EXIST_LINK                         ║\n");
-    printf("║ ✅ Parameter validation precedence:    Parameter > LinkID > Data > Timeout               ║\n");
+    printf("║ ✅ Parameter validation precedence:    LinkID > Parameter (when LinkID invalid)          ║\n");
     printf("║ ✅ Extreme LinkID boundary behavior:   Consistent IOC_RESULT_NOT_EXIST_LINK              ║\n");
     printf("║ ✅ Optional NULL options handling:     Graceful acceptance                               ║\n");
     printf("╚══════════════════════════════════════════════════════════════════════════════════════════╝\n");
@@ -339,17 +344,21 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byParameterConsistency_expectRe
             printf("      ├─ NULL pDatDesc validation...\n");
             IOC_Option_defineSyncMayBlock(ValidOptions);
 
-            // Test sendDAT with NULL pDatDesc → should get IOC_RESULT_INVALID_PARAM (isolated)
+            // Test sendDAT with NULL pDatDesc → should get IOC_RESULT_INVALID_PARAM (ValidLinkID allows parameter
+            // validation)
             result = IOC_sendDAT(config.LinkID, NULL, &ValidOptions);
             EXPECT_EQ(result, IOC_RESULT_INVALID_PARAM)
                 << "Config " << config.ConfigName
-                << ": sendDAT with NULL pDatDesc should return IOC_RESULT_INVALID_PARAM";
+                << ": sendDAT with NULL pDatDesc should return IOC_RESULT_INVALID_PARAM (ValidLinkID parameter "
+                   "validation)";
 
-            // Test recvDAT with NULL pDatDesc → should get IOC_RESULT_INVALID_PARAM (isolated)
+            // Test recvDAT with NULL pDatDesc → should get IOC_RESULT_INVALID_PARAM (ValidLinkID allows parameter
+            // validation)
             result = IOC_recvDAT(config.LinkID, NULL, &ValidOptions);
             EXPECT_EQ(result, IOC_RESULT_INVALID_PARAM)
                 << "Config " << config.ConfigName
-                << ": recvDAT with NULL pDatDesc should return IOC_RESULT_INVALID_PARAM";
+                << ": recvDAT with NULL pDatDesc should return IOC_RESULT_INVALID_PARAM (ValidLinkID parameter "
+                   "validation)";
         }
 
         // Test 2: Zero-size data parameter validation consistency
@@ -382,7 +391,8 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byParameterConsistency_expectRe
             result = IOC_sendDAT(config.LinkID, &MalformedDesc, &ValidOptions);
             EXPECT_EQ(result, IOC_RESULT_INVALID_PARAM)
                 << "Config " << config.ConfigName
-                << ": sendDAT with NULL ptr + non-zero size should return IOC_RESULT_INVALID_PARAM";
+                << ": sendDAT with NULL ptr + non-zero size should return IOC_RESULT_INVALID_PARAM (ValidLinkID "
+                   "parameter validation)";
         }
 
         // Test 4: Parameter validation reproducibility (multiple calls)
@@ -395,7 +405,8 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byParameterConsistency_expectRe
                 result = IOC_sendDAT(config.LinkID, NULL, &ValidOptions);
                 EXPECT_EQ(result, IOC_RESULT_INVALID_PARAM)
                     << "Config " << config.ConfigName << ": Iteration " << i
-                    << " - NULL pDatDesc should consistently return IOC_RESULT_INVALID_PARAM";
+                    << " - NULL pDatDesc should consistently return IOC_RESULT_INVALID_PARAM (ValidLinkID parameter "
+                       "validation)";
             }
         }
     }
@@ -418,9 +429,9 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byParameterConsistency_expectRe
     printf("╠══════════════════════════════════════════════════════════════════════════════════════════╣\n");
     printf("║ ✅ ValidLinkID configurations tested: %zu                                                ║\n",
            TestConfigs.size());
-    printf("║ ✅ NULL pDatDesc consistency:          IOC_RESULT_INVALID_PARAM (all configs)           ║\n");
-    printf("║ ✅ Zero-size data consistency:         IOC_RESULT_ZERO_DATA (all configs)               ║\n");
-    printf("║ ✅ Malformed DatDesc consistency:      IOC_RESULT_INVALID_PARAM (all configs)           ║\n");
+    printf("║ ✅ NULL pDatDesc consistency:          IOC_RESULT_INVALID_PARAM (ValidLinkID scenarios)   ║\n");
+    printf("║ ✅ Zero-size data consistency:         IOC_RESULT_ZERO_DATA (ValidLinkID scenarios)      ║\n");
+    printf("║ ✅ Malformed DatDesc consistency:      IOC_RESULT_INVALID_PARAM (ValidLinkID scenarios)   ║\n");
     printf("║ ✅ Reproducibility validation:         10 iterations passed (all configs)              ║\n");
     printf("║ ✅ Configuration independence:         Callback vs Poll mode consistent                 ║\n");
     printf("║ 🔍 Real-world scenario coverage:       Service as DatReceiver validated                 ║\n");
