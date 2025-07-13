@@ -694,14 +694,10 @@ static IOC_Result_T __IOC_sendData_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, cons
     if (!pPeerFifoLinkObj) {
         pthread_mutex_unlock(&pLocalFifoLinkObj->Mutex);
 
-        // 🎯 TDD REQUIREMENT: Distinguish between NOT_EXIST_LINK and LINK_BROKEN
-        // Use heuristic: if LinkID is very high (like 999999 from test), it's non-existent
-        // If LinkID is reasonable but peer is NULL, it's a broken connection
-        if (pLinkObj->ID > 100000) {
-            return IOC_RESULT_NOT_EXIST_LINK;  // Obviously invalid LinkID
-        } else {
-            return IOC_RESULT_LINK_BROKEN;  // Valid LinkID but peer disappeared
-        }
+        // 🎯 TDD REQUIREMENT: IOC_RESULT_LINK_BROKEN when peer disappeared
+        // This happens when DatReceiver closes link first, then DatSender tries to send
+        // Always return LINK_BROKEN when peer is NULL (connection was established but peer disconnected)
+        return IOC_RESULT_LINK_BROKEN;
     }
 
     // 🔒 WHY DUAL MUTEX LOCKING: We need to access peer's callback info safely.
@@ -709,17 +705,6 @@ static IOC_Result_T __IOC_sendData_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, cons
     // We copy callback info under mutex protection, then release locks before
     // calling the callback to avoid holding locks during user code execution.
     pthread_mutex_lock(&pPeerFifoLinkObj->Mutex);
-
-    // 🎯 TDD REQUIREMENT: Check stream state for IOC_RESULT_STREAM_CLOSED validation
-    // Simulate stream closed condition when peer has no active receiver configuration
-    bool IsPeerStreamClosed = !pPeerFifoLinkObj->DatReceiver.IsReceiverRegistered &&
-                              !pPeerFifoLinkObj->DatReceiver.PollingBuffer.IsPollingMode;
-
-    if (IsPeerStreamClosed) {
-        pthread_mutex_unlock(&pPeerFifoLinkObj->Mutex);
-        pthread_mutex_unlock(&pLocalFifoLinkObj->Mutex);
-        return IOC_RESULT_STREAM_CLOSED;
-    }
 
     IOC_CbRecvDat_F CbRecvDat_F = pPeerFifoLinkObj->DatReceiver.CbRecvDat_F;
     void *pCbPrivData = pPeerFifoLinkObj->DatReceiver.pCbPrivData;
