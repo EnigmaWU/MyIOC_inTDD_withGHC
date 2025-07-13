@@ -370,16 +370,84 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCompleteness_byComprehensiveValidation_e
         printf("   │     Simulated IOC_RESULT_TIMEOUT for coverage\n");
     }
 
-    // IOC_RESULT_LINK_BROKEN discovery attempt - COMPLETELY SKIPPED
+    // IOC_RESULT_LINK_BROKEN discovery attempt - PEER DISCONNECTION APPROACH
     {
-        printf("   │  [SKIPPED] Link broken test - causes hanging\n");
-        printf("   │     This test will be implemented in a future iteration\n");
+        printf("   │  🔍 Attempting IOC_RESULT_LINK_BROKEN discovery (peer disconnection)...\n");
 
-        // Just simulate the expected result without any IOC calls
-        // DON'T actually trigger this error to avoid hanging
-        printf("   │     Link broken test skipped to prevent process hanging\n");
+        // Strategy: Create two separate links, close one, then try to use the other
+        IOC_SrvID_T BrokenTestSrvID = IOC_ID_INVALID;
+        IOC_LinkID_T SenderLinkID = IOC_ID_INVALID;
+        IOC_LinkID_T ReceiverLinkID = IOC_ID_INVALID;
 
-        // DO NOT mark ValidLinkID as invalid here - keep it for flushDAT tests
+        // Create a separate service for the broken link test
+        {
+            IOC_SrvArgs_T BrokenSrvArgs = {0};
+            IOC_Helper_initSrvArgs(&BrokenSrvArgs);
+            BrokenSrvArgs.SrvURI.pProtocol = IOC_SRV_PROTO_FIFO;
+            BrokenSrvArgs.SrvURI.pHost = IOC_SRV_HOST_LOCAL_PROCESS;
+            BrokenSrvArgs.SrvURI.pPath = "AC5_BrokenLinkSrv";
+            BrokenSrvArgs.SrvURI.Port = 0;
+            BrokenSrvArgs.UsageCapabilites = IOC_LinkUsageDatReceiver;
+
+            IOC_DatUsageArgs_T BrokenDatArgs = {0};
+            BrokenSrvArgs.UsageArgs.pDat = &BrokenDatArgs;
+
+            IOC_Result_T setupResult = IOC_onlineService(&BrokenTestSrvID, &BrokenSrvArgs);
+            if (setupResult == IOC_RESULT_SUCCESS) {
+                // Connect sender
+                IOC_ConnArgs_T SenderConnArgs = {0};
+                IOC_Helper_initConnArgs(&SenderConnArgs);
+                SenderConnArgs.SrvURI = BrokenSrvArgs.SrvURI;
+                SenderConnArgs.Usage = IOC_LinkUsageDatSender;
+
+                std::thread SenderThread([&] { IOC_connectService(&SenderLinkID, &SenderConnArgs, NULL); });
+
+                IOC_Result_T acceptResult = IOC_acceptClient(BrokenTestSrvID, &ReceiverLinkID, NULL);
+                SenderThread.join();
+
+                if (acceptResult == IOC_RESULT_SUCCESS && SenderLinkID != IOC_ID_INVALID) {
+                    printf("   │     📋 Connected sender and receiver links\n");
+
+                    // Now deliberately disconnect the receiver side
+                    printf("   │     📋 Disconnecting receiver to break the link...\n");
+                    IOC_closeLink(ReceiverLinkID);
+
+                    // Now try to send data on the sender side (whose peer just disconnected)
+                    IOC_DatDesc_T TestDesc = {0};
+                    IOC_initDatDesc(&TestDesc);
+                    TestDesc.Payload.pData = TestDataBuffer;
+                    TestDesc.Payload.PtrDataSize = strlen(TestDataBuffer);
+
+                    IOC_Option_defineSyncNonBlock(NonBlockOptions);
+                    IOC_Result_T result = IOC_sendDAT(SenderLinkID, &TestDesc, &NonBlockOptions);
+                    ObservedErrorCodes.insert(result);
+
+                    printf("   │     📋 Send after peer disconnect result: %d\n", (int)result);
+
+                    if (result == IOC_RESULT_LINK_BROKEN) {
+                        ActualTriggerMethods[result].push_back("sendDAT after peer disconnect");
+                        printf("   │     ✅ IOC_RESULT_LINK_BROKEN: Discovered via peer disconnection\n");
+                    } else {
+                        ActualTriggerMethods[result].push_back("sendDAT after disconnect (unexpected)");
+                        printf("   │     📋 Unexpected result after peer disconnect: %d\n", (int)result);
+                    }
+
+                    // Cleanup sender link
+                    if (SenderLinkID != IOC_ID_INVALID) {
+                        IOC_closeLink(SenderLinkID);
+                    }
+                } else {
+                    printf("   │     ⚠️  Failed to establish sender-receiver connection\n");
+                }
+            } else {
+                printf("   │     ⚠️  Failed to setup broken link test service\n");
+            }
+        }
+
+        // Cleanup test service
+        if (BrokenTestSrvID != IOC_ID_INVALID) {
+            IOC_offlineService(BrokenTestSrvID);
+        }
     }
 
     // ════════════════════════════════════════════════════════════════════════════════════════
