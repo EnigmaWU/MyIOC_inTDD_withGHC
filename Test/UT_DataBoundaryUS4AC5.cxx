@@ -306,6 +306,122 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCompleteness_byComprehensiveValidation_e
     }
 
     // ════════════════════════════════════════════════════════════════════════════════════════
+    // Test Group 2.5: NEW AC5 Error Code Discovery (Advanced Error Scenarios)
+    // ════════════════════════════════════════════════════════════════════════════════════════
+    printf("   ├─ 🆕 Discovering advanced AC5 error codes (size, corruption, stream state)...\n");
+
+    // IOC_RESULT_DATA_TOO_LARGE discovery attempt
+    {
+        printf("   │  🔍 Attempting IOC_RESULT_DATA_TOO_LARGE discovery...\n");
+
+        IOC_DatDesc_T OversizedDesc = {0};
+        IOC_initDatDesc(&OversizedDesc);
+
+        // Create a descriptor claiming very large data size (simulate oversized data)
+        OversizedDesc.Payload.pData = TestDataBuffer;           // Use small buffer but claim huge size
+        OversizedDesc.Payload.PtrDataSize = 128 * 1024 * 1024;  // 128MB (exceeds our 64MB limit)
+        OversizedDesc.Payload.EmdDataLen = 0;
+
+        IOC_Option_defineSyncMayBlock(ValidOptions);
+        IOC_Result_T result = IOC_sendDAT(ValidLinkID, &OversizedDesc, &ValidOptions);
+        ObservedErrorCodes.insert(result);
+
+        if (result == IOC_RESULT_DATA_TOO_LARGE) {
+            ActualTriggerMethods[result].push_back("128MB data size exceeds limit");
+            printf("   │     ✅ IOC_RESULT_DATA_TOO_LARGE: Discovered via oversized data\n");
+        } else {
+            ActualTriggerMethods[result].push_back("Oversized data (unexpected)");
+            printf("   │     📋 Unexpected oversized data result: %d\n", (int)result);
+        }
+    }
+
+    // IOC_RESULT_DATA_CORRUPTED discovery attempt
+    {
+        printf("   │  🔍 Attempting IOC_RESULT_DATA_CORRUPTED discovery...\n");
+
+        IOC_DatDesc_T CorruptedDesc = {0};
+        IOC_initDatDesc(&CorruptedDesc);
+
+        // Create data with corruption marker
+        char corruptedData[16];
+        memcpy(corruptedData, "\xDE\xAD\xBE\xEF", 4);  // Magic corruption marker
+        memcpy(corruptedData + 4, "corrupted", 9);
+        corruptedData[15] = '\0';
+
+        CorruptedDesc.Payload.pData = corruptedData;
+        CorruptedDesc.Payload.PtrDataSize = 16;
+
+        IOC_Option_defineSyncMayBlock(ValidOptions);
+        IOC_Result_T result = IOC_sendDAT(ValidLinkID, &CorruptedDesc, &ValidOptions);
+        ObservedErrorCodes.insert(result);
+
+        if (result == IOC_RESULT_DATA_CORRUPTED) {
+            ActualTriggerMethods[result].push_back("Data with corruption marker");
+            printf("   │     ✅ IOC_RESULT_DATA_CORRUPTED: Discovered via corruption marker\n");
+        } else {
+            ActualTriggerMethods[result].push_back("Corrupted data (unexpected)");
+            printf("   │     📋 Unexpected corrupted data result: %d\n", (int)result);
+        }
+    }
+
+    // IOC_RESULT_STREAM_CLOSED discovery attempt
+    {
+        printf("   │  🔍 Attempting IOC_RESULT_STREAM_CLOSED discovery...\n");
+
+        // Create a service with no callback to simulate closed stream
+        IOC_SrvID_T ClosedStreamSrvID = IOC_ID_INVALID;
+        IOC_LinkID_T ClosedStreamLinkID = IOC_ID_INVALID;
+
+        IOC_SrvArgs_T ClosedSrvArgs = {0};
+        IOC_Helper_initSrvArgs(&ClosedSrvArgs);
+        ClosedSrvArgs.SrvURI.pProtocol = IOC_SRV_PROTO_FIFO;
+        ClosedSrvArgs.SrvURI.pHost = IOC_SRV_HOST_LOCAL_PROCESS;
+        ClosedSrvArgs.SrvURI.pPath = "AC5_ClosedStreamSrv";
+        ClosedSrvArgs.SrvURI.Port = 0;
+        ClosedSrvArgs.UsageCapabilites = IOC_LinkUsageDatReceiver;
+
+        // Deliberately set NULL callback to simulate closed stream
+        IOC_DatUsageArgs_T ClosedDatArgs = {0};
+        ClosedDatArgs.CbRecvDat_F = NULL;  // No callback = closed stream
+        ClosedSrvArgs.UsageArgs.pDat = &ClosedDatArgs;
+
+        IOC_Result_T setupResult = IOC_onlineService(&ClosedStreamSrvID, &ClosedSrvArgs);
+        if (setupResult == IOC_RESULT_SUCCESS) {
+            // Connect to the closed stream service
+            IOC_ConnArgs_T ClosedConnArgs = {0};
+            IOC_Helper_initConnArgs(&ClosedConnArgs);
+            ClosedConnArgs.SrvURI = ClosedSrvArgs.SrvURI;
+            ClosedConnArgs.Usage = IOC_LinkUsageDatSender;
+
+            std::thread ClientThread([&] { IOC_connectService(&ClosedStreamLinkID, &ClosedConnArgs, NULL); });
+
+            IOC_LinkID_T ServerLinkID;
+            IOC_acceptClient(ClosedStreamSrvID, &ServerLinkID, NULL);
+            ClientThread.join();
+
+            // Try to send to closed stream
+            IOC_DatDesc_T ValidDesc = {0};
+            IOC_initDatDesc(&ValidDesc);
+            ValidDesc.Payload.pData = TestDataBuffer;
+            ValidDesc.Payload.PtrDataSize = strlen(TestDataBuffer);
+
+            IOC_Option_defineSyncMayBlock(ValidOptions);
+            IOC_Result_T result = IOC_sendDAT(ClosedStreamLinkID, &ValidDesc, &ValidOptions);
+            ObservedErrorCodes.insert(result);
+
+            if (result == IOC_RESULT_STREAM_CLOSED) {
+                ActualTriggerMethods[result].push_back("Send to service with no callback");
+                printf("   │     ✅ IOC_RESULT_STREAM_CLOSED: Discovered via no callback\n");
+            } else {
+                ActualTriggerMethods[result].push_back("Closed stream (unexpected)");
+                printf("   │     📋 Unexpected closed stream result: %d\n", (int)result);
+            }
+
+            IOC_offlineService(ClosedStreamSrvID);
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════════════════
     // Test Group 3: flushDAT Error Code Coverage
     // ════════════════════════════════════════════════════════════════════════════════════════
     printf("   ├─ 🔍 Testing flushDAT error code coverage...\n");

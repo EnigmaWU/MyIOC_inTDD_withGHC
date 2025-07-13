@@ -46,6 +46,15 @@ IOC_Result_T IOC_sendDAT(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, IOC_Optio
         return IOC_RESULT_INVALID_PARAM;
     }
 
+    // Data size validation - check for maximum allowed data size
+    // 🎯 TDD REQUIREMENT: Implement IOC_RESULT_DATA_TOO_LARGE validation
+    const size_t IOC_MAX_DATA_SIZE = 64 * 1024 * 1024;  // 64MB limit for single data chunk
+    size_t totalDataSize = pDatDesc->Payload.PtrDataSize + pDatDesc->Payload.EmdDataLen;
+
+    if (totalDataSize > IOC_MAX_DATA_SIZE) {
+        return IOC_RESULT_DATA_TOO_LARGE;
+    }
+
     // Zero-size data validation - check if both PtrDataSize and EmdDataLen are zero
     if (pDatDesc->Payload.PtrDataSize == 0 && pDatDesc->Payload.EmdDataLen == 0) {
         return IOC_RESULT_ZERO_DATA;
