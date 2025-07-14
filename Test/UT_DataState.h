@@ -92,6 +92,311 @@
  *************************************************************************************************/
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF USER STORY=======================================================================
+/**************************************************************************************************
+ * @brief 【User Story】
+ *
+ *  US-1: AS a DAT connection state developer,
+ *    I WANT to verify that service online/offline and link connect/disconnect operations
+ *          maintain correct state transitions,
+ *   SO THAT I can ensure connection state consistency throughout the DAT lifecycle
+ *      AND detect invalid state transitions during connection management,
+ *      AND implement reliable connection state monitoring for DAT services.
+ *
+ *  US-2: AS a DAT transmission state developer,
+ *    I WANT to verify that IOC_sendDAT/IOC_recvDAT operations properly track transmission states,
+ *   SO THAT I can ensure data transmission state integrity during send/receive operations
+ *      AND monitor concurrent transmission state consistency,
+ *      AND implement proper state-aware error handling during data transfer.
+ *
+ *  US-3: AS a DAT buffer state developer,
+ *    I WANT to verify that buffer fill/empty/overflow states are accurately tracked,
+ *   SO THAT I can ensure buffer state synchronization across sender and receiver
+ *      AND detect buffer overflow conditions with proper state reporting,
+ *      AND implement buffer state-aware flow control mechanisms.
+ *
+ *  US-4: AS a DAT state transition developer,
+ *    I WANT to verify that all state transitions are atomic and follow valid transition rules,
+ *   SO THAT I can ensure state machine integrity under all conditions
+ *      AND prevent invalid state transitions that could corrupt system state,
+ *      AND implement robust state validation in DAT operations.
+ *
+ *  US-5: AS a DAT error recovery state developer,
+ *    I WANT to verify that error conditions trigger proper state recovery mechanisms,
+ *   SO THAT I can ensure system resilience during DAT operation failures
+ *      AND implement automatic state recovery from transient errors,
+ *      AND maintain state consistency during link breakage and timeout scenarios.
+ *
+ *************************************************************************************************/
+//======>END OF USER STORY=========================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//=======>BEGIN OF ACCEPTANCE CRITERIA=============================================================
+/**************************************************************************************************
+ * @brief 【Acceptance Criteria】
+ *
+ * [@US-1] DAT connection state verification
+ *  AC-1: GIVEN a DAT service that needs to be onlined,
+ *         WHEN calling IOC_onlineService() to start the service,
+ *         THEN service state should transition to online
+ *          AND subsequent IOC_connectService() should be able to establish links
+ *          AND link state should properly reflect connected status.
+ *
+ *  AC-2: GIVEN an established DAT link connection,
+ *         WHEN calling IOC_closeLink() to disconnect the link,
+ *         THEN link state should transition to disconnected
+ *          AND further DAT operations on that LinkID should return appropriate error codes
+ *          AND service state should remain stable after link disconnection.
+ *
+ *  AC-3: GIVEN a DAT service accepting multiple client connections,
+ *         WHEN multiple clients connect and disconnect concurrently,
+ *         THEN each link should maintain independent state tracking
+ *          AND service state should remain consistent across all connection changes
+ *          AND no state corruption should occur during concurrent operations.
+ *
+ *---------------------------------------------------------------------------------------------------
+ * [@US-2] DAT transmission state verification
+ *  AC-1: GIVEN an established DAT link for data transmission,
+ *         WHEN calling IOC_sendDAT() to transmit data chunks,
+ *         THEN send operation should properly track transmission state
+ *          AND transmission state should be consistent across multiple sends
+ *          AND concurrent send operations should maintain state integrity.
+ *
+ *  AC-2: GIVEN a DAT receiver waiting for data,
+ *         WHEN data arrives and triggers receive callback or polling,
+ *         THEN receive operation should properly track reception state
+ *          AND receive state should accurately reflect data availability
+ *          AND multiple concurrent receives should maintain state consistency.
+ *
+ *  AC-3: GIVEN buffered data that needs to be flushed,
+ *         WHEN calling IOC_flushDAT() to force transmission,
+ *         THEN flush operation should properly track flush state
+ *          AND flush state should indicate completion status
+ *          AND subsequent operations should reflect post-flush state.
+ *
+ *---------------------------------------------------------------------------------------------------
+ * [@US-3] DAT buffer state verification
+ *  AC-1: GIVEN an empty DAT buffer at initialization,
+ *         WHEN data is sent and buffered by the IOC framework,
+ *         THEN buffer state should accurately track buffer fill level
+ *          AND buffer empty/partial/full states should be correctly reported
+ *          AND buffer state should be synchronized between sender and receiver.
+ *
+ *  AC-2: GIVEN a DAT buffer approaching its capacity limit,
+ *         WHEN additional data is sent that would exceed buffer capacity,
+ *         THEN buffer overflow state should be properly detected and reported
+ *          AND appropriate flow control mechanisms should engage
+ *          AND buffer state should remain consistent during overflow handling.
+ *
+ *  AC-3: GIVEN DAT buffers that need synchronization across multiple operations,
+ *         WHEN buffer state changes occur during concurrent access,
+ *         THEN buffer state should be thread-safe and atomic
+ *          AND buffer state reporting should be consistent across all operations
+ *          AND no buffer state corruption should occur during concurrent access.
+ *
+ *---------------------------------------------------------------------------------------------------
+ * [@US-4] DAT state transition verification
+ *  AC-1: GIVEN a DAT link in any valid state,
+ *         WHEN a state transition is triggered by valid operations,
+ *         THEN state transition should follow predefined valid transition rules
+ *          AND state transition should be atomic without intermediate invalid states
+ *          AND state transition should be observable and verifiable.
+ *
+ *  AC-2: GIVEN a DAT link in any state,
+ *         WHEN an invalid operation is attempted that would cause invalid transition,
+ *         THEN invalid state transition should be prevented
+ *          AND appropriate error codes should be returned
+ *          AND current state should remain unchanged after invalid attempt.
+ *
+ *  AC-3: GIVEN multiple concurrent operations that could affect state,
+ *         WHEN these operations execute simultaneously,
+ *         THEN state transitions should remain atomic and consistent
+ *          AND no race conditions should cause invalid intermediate states
+ *          AND final state should be deterministic based on operation ordering.
+ *
+ *---------------------------------------------------------------------------------------------------
+ * [@US-5] DAT error recovery state verification
+ *  AC-1: GIVEN a DAT link that encounters transmission errors,
+ *         WHEN error conditions are detected during operations,
+ *         THEN error state should be properly recorded and reported
+ *          AND error recovery mechanisms should be triggered
+ *          AND state should transition to appropriate recovery or error state.
+ *
+ *  AC-2: GIVEN a DAT link that experiences timeout conditions,
+ *         WHEN timeout occurs during send/receive/flush operations,
+ *         THEN timeout state should be properly tracked and reported
+ *          AND timeout recovery should restore link to operational state
+ *          AND subsequent operations should work normally after timeout recovery.
+ *
+ *  AC-3: GIVEN a DAT link that becomes broken or disconnected,
+ *         WHEN link breakage is detected during operations,
+ *         THEN broken link state should be immediately detected and reported
+ *          AND broken link recovery should restore connectivity if possible
+ *          AND state should accurately reflect link operational status.
+ *
+ *************************************************************************************************/
+//=======>END OF ACCEPTANCE CRITERIA================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF TEST CASES=======================================================================
+/**************************************************************************************************
+ * @brief 【Test Cases】
+ *
+ * [@AC-1,US-1] DAT service online state transition verification
+ *  TC-1:
+ *      @[Name]: verifyServiceOnlineState_byOnlineService_expectStateTransition
+ *      @[Purpose]: Verify IOC_onlineService() properly transitions service to online state
+ *      @[Brief]: Online DAT service, verify state transitions from offline to online, check link establishment
+ *capability
+ *
+ *  TC-2:
+ *      @[Name]: verifyLinkConnectState_byConnectService_expectConnectionState
+ *      @[Purpose]: Verify IOC_connectService() establishes proper link connection state
+ *      @[Brief]: Connect to online DAT service, verify link state transitions and connection establishment
+ *
+ *---------------------------------------------------------------------------------------------------
+ * [@AC-2,US-1] DAT link disconnect state verification
+ *  TC-1:
+ *      @[Name]: verifyLinkDisconnectState_byCloseLink_expectDisconnectedState
+ *      @[Purpose]: Verify IOC_closeLink() properly transitions link to disconnected state
+ *      @[Brief]: Close established DAT link, verify state transitions and error handling for subsequent operations
+ *
+ *  TC-2:
+ *      @[Name]: verifyServiceStability_afterLinkDisconnect_expectServiceStateIntact
+ *      @[Purpose]: Verify service state remains stable after individual link disconnections
+ *      @[Brief]: Disconnect individual links, verify service state consistency and stability
+ *
+ *---------------------------------------------------------------------------------------------------
+ * [@AC-3,US-1] DAT concurrent connection state verification
+ *  TC-1:
+ *      @[Name]: verifyMultiClientState_byConcurrentConnections_expectIndependentStates
+ *      @[Purpose]: Verify independent state tracking for multiple concurrent client connections
+ *      @[Brief]: Establish multiple concurrent connections, verify each link maintains independent state
+ *
+ *  TC-2:
+ *      @[Name]: verifyServiceStateConsistency_underConcurrentConnectionChanges_expectNoCorruption
+ *      @[Purpose]: Verify service state consistency during concurrent connect/disconnect operations
+ *      @[Brief]: Perform concurrent connection changes, verify no state corruption occurs
+ *
+ *---------------------------------------------------------------------------------------------------
+ * [@AC-1,US-2] DAT send operation state tracking
+ *  TC-1:
+ *      @[Name]: verifySendOperationState_bySendDAT_expectTransmissionStateTracking
+ *      @[Purpose]: Verify IOC_sendDAT() properly tracks transmission state during send operations
+ *      @[Brief]: Send data chunks via IOC_sendDAT(), verify transmission state changes and consistency
+ *
+ *  TC-2:
+ *      @[Name]: verifyConcurrentSendState_byMultipleSends_expectStateIntegrity
+ *      @[Purpose]: Verify transmission state integrity during concurrent send operations
+ *      @[Brief]: Perform concurrent sends, verify state consistency and no corruption
+ *
+ *---------------------------------------------------------------------------------------------------
+ * [@AC-2,US-2] DAT receive operation state tracking
+ *  TC-1:
+ *      @[Name]: verifyReceiveOperationState_byRecvDAT_expectReceptionStateTracking
+ *      @[Purpose]: Verify IOC_recvDAT() and callbacks properly track reception state
+ *      @[Brief]: Receive data via callback and polling, verify reception state changes and accuracy
+ *
+ *  TC-2:
+ *      @[Name]: verifyDataAvailabilityState_byReceiveOperations_expectAccurateStateReporting
+ *      @[Purpose]: Verify receive state accurately reflects data availability status
+ *      @[Brief]: Test data availability states, verify accurate state reporting for available/no-data scenarios
+ *
+ *---------------------------------------------------------------------------------------------------
+ * [@AC-3,US-2] DAT flush operation state tracking
+ *  TC-1:
+ *      @[Name]: verifyFlushOperationState_byFlushDAT_expectFlushStateTracking
+ *      @[Purpose]: Verify IOC_flushDAT() properly tracks flush operation state
+ *      @[Brief]: Perform flush operations, verify flush state changes and completion tracking
+ *
+ *  TC-2:
+ *      @[Name]: verifyPostFlushState_afterFlushCompletion_expectUpdatedState
+ *      @[Purpose]: Verify state accurately reflects post-flush status
+ *      @[Brief]: Complete flush operations, verify subsequent state reflects flushed status
+ *
+ *---------------------------------------------------------------------------------------------------
+ * [@AC-1,US-3] DAT buffer fill state tracking
+ *  TC-1:
+ *      @[Name]: verifyBufferFillState_byDataTransmission_expectAccurateBufferTracking
+ *      @[Purpose]: Verify buffer state accurately tracks fill level during data transmission
+ *      @[Brief]: Send varying amounts of data, verify buffer state tracking from empty to full
+ *
+ *  TC-2:
+ *      @[Name]: verifyBufferStateSynchronization_betweenSenderReceiver_expectConsistentState
+ *      @[Purpose]: Verify buffer state synchronization between sender and receiver sides
+ *      @[Brief]: Send/receive data, verify buffer state consistency across both sides
+ *
+ *---------------------------------------------------------------------------------------------------
+ * [@AC-2,US-3] DAT buffer overflow state handling
+ *  TC-1:
+ *      @[Name]: verifyBufferOverflowDetection_byExceedingCapacity_expectOverflowState
+ *      @[Purpose]: Verify buffer overflow detection when capacity limits are exceeded
+ *      @[Brief]: Send data exceeding buffer capacity, verify overflow state detection and reporting
+ *
+ *  TC-2:
+ *      @[Name]: verifyFlowControlState_duringBufferOverflow_expectProperFlowControl
+ *      @[Purpose]: Verify flow control mechanisms engage properly during buffer overflow
+ *      @[Brief]: Trigger buffer overflow, verify flow control state and mechanisms
+ *
+ *---------------------------------------------------------------------------------------------------
+ * [@AC-3,US-3] DAT buffer state thread safety
+ *  TC-1:
+ *      @[Name]: verifyBufferStateThreadSafety_underConcurrentAccess_expectAtomicUpdates
+ *      @[Purpose]: Verify buffer state remains thread-safe during concurrent operations
+ *      @[Brief]: Perform concurrent buffer operations, verify atomic state updates and no corruption
+ *
+ *---------------------------------------------------------------------------------------------------
+ * [@AC-1,US-4] Valid state transition verification
+ *  TC-1:
+ *      @[Name]: verifyValidStateTransitions_byValidOperations_expectCorrectTransitions
+ *      @[Purpose]: Verify all valid state transitions follow predefined rules
+ *      @[Brief]: Execute valid operations, verify state transitions follow expected patterns
+ *
+ *  TC-2:
+ *      @[Name]: verifyAtomicStateTransitions_duringOperations_expectNoIntermediateStates
+ *      @[Purpose]: Verify state transitions are atomic without invalid intermediate states
+ *      @[Brief]: Monitor state during transitions, verify atomicity and no intermediate invalid states
+ *
+ *---------------------------------------------------------------------------------------------------
+ * [@AC-2,US-4] Invalid state transition prevention
+ *  TC-1:
+ *      @[Name]: verifyInvalidTransitionPrevention_byInvalidOperations_expectPreventionAndErrors
+ *      @[Purpose]: Verify invalid state transitions are properly prevented with error reporting
+ *      @[Brief]: Attempt invalid operations, verify prevention and appropriate error codes
+ *
+ *---------------------------------------------------------------------------------------------------
+ * [@AC-3,US-4] Concurrent state transition consistency
+ *  TC-1:
+ *      @[Name]: verifyConcurrentStateConsistency_underSimultaneousOperations_expectDeterministicFinalState
+ *      @[Purpose]: Verify state consistency during concurrent operations with deterministic final state
+ *      @[Brief]: Execute concurrent operations, verify final state is deterministic and consistent
+ *
+ *---------------------------------------------------------------------------------------------------
+ * [@AC-1,US-5] Error state recovery
+ *  TC-1:
+ *      @[Name]: verifyErrorStateRecovery_afterTransmissionErrors_expectRecoveryMechanisms
+ *      @[Purpose]: Verify error state recording and recovery mechanisms during transmission errors
+ *      @[Brief]: Trigger transmission errors, verify error state tracking and recovery mechanisms
+ *
+ *---------------------------------------------------------------------------------------------------
+ * [@AC-2,US-5] Timeout state handling
+ *  TC-1:
+ *      @[Name]: verifyTimeoutStateHandling_duringOperationTimeouts_expectTimeoutRecovery
+ *      @[Purpose]: Verify timeout state tracking and recovery during operation timeouts
+ *      @[Brief]: Trigger operation timeouts, verify timeout state handling and recovery
+ *
+ *---------------------------------------------------------------------------------------------------
+ * [@AC-3,US-5] Broken link state recovery
+ *  TC-1:
+ *      @[Name]: verifyBrokenLinkStateRecovery_afterLinkBreakage_expectLinkRecovery
+ *      @[Purpose]: Verify broken link state detection and recovery mechanisms
+ *      @[Brief]: Simulate link breakage, verify broken state detection and recovery mechanisms
+ *
+ *************************************************************************************************/
+//======>END OF TEST CASES=========================================================================
+//======>END OF UNIT TESTING DESIGN================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF DATA STRUCTURES AND HELPERS====================================================
 
 /**
