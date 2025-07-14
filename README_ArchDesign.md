@@ -424,10 +424,8 @@
   * **IOC_RESULT_NOT_EXIST_LINK**: LinkID does not exist or already closed
   * **IOC_RESULT_BUFFER_FULL**: IOC buffer is full (when immediate NONBLOCK mode)
   * **IOC_RESULT_TIMEOUT**: Data transmission timeout (when NONBLOCK mode with timeout configured)
-  * **IOC_RESULT_STREAM_CLOSED**: Data stream was closed by peer or due to error
   * **IOC_RESULT_LINK_BROKEN**: Communication link is broken during data transmission
   * **IOC_RESULT_RECV_DAT_TIMEOUT**: IOC_recvDAT timeout (when configured with timeout)
-  * **IOC_RESULT_DATA_CORRUPTED**: Data integrity check failed during transmission
 
 #### Blocking Behavior Clarification
 * **MAYBLOCK (DAT default)**: Infinite blocking until operation completes or fails

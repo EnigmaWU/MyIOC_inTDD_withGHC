@@ -36,7 +36,6 @@ extern "C" {
  * @return IOC_RESULT_SUCCESS: data chunk queued for transmission successfully
  * @return IOC_RESULT_BUFFER_FULL: IOC buffer is full (when immediate NONBLOCK mode)
  * @return IOC_RESULT_TIMEOUT: data transmission timeout (when NONBLOCK mode with timeout)
- * @return IOC_RESULT_STREAM_CLOSED: data stream was closed by peer or due to error
  * @return IOC_RESULT_LINK_BROKEN: communication link is broken during transmission
  * @return IOC_RESULT_INVALID_PARAM: invalid parameters
  * @return IOC_RESULT_NOT_EXIST_LINK: LinkID does not exist or already closed
@@ -61,7 +60,6 @@ IOC_Result_T IOC_sendDAT(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, IOC_Optio
  * @return IOC_RESULT_INVALID_PARAM: invalid parameters
  * @return IOC_RESULT_NOT_EXIST_LINK: LinkID does not exist or already closed
  * @return IOC_RESULT_NO_DATA: no data available (when immediate NONBLOCK mode)
- * @return IOC_RESULT_DATA_CORRUPTED: data integrity check failed
  *
  * RefUT: UT_ConetDatRecvPollingXXX
  */
@@ -78,7 +76,6 @@ IOC_Result_T IOC_recvDAT(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, IOC_Optio
  *
  * @return IOC_RESULT_SUCCESS: buffered data flushed successfully
  * @return IOC_RESULT_TIMEOUT: flush timeout
- * @return IOC_RESULT_STREAM_CLOSED: data stream is closed
  * @return IOC_RESULT_LINK_BROKEN: communication link is broken
  * @return IOC_RESULT_INVALID_PARAM: invalid parameters
  * @return IOC_RESULT_NOT_EXIST_LINK: LinkID does not exist or already closed

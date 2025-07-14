@@ -63,8 +63,6 @@ typedef enum {
     // DAT specific result codes
     IOC_RESULT_BUFFER_FULL = -511,
     IOC_RESULT_BUFFER_TOO_SMALL = -512,
-    IOC_RESULT_STREAM_CLOSED = -513,
-    IOC_RESULT_DATA_CORRUPTED = -514,
     IOC_RESULT_DATA_TOO_LARGE = -515,
     IOC_RESULT_NO_DATA = -516,
     IOC_RESULT_ZERO_DATA = -516,  // Alias for when both PtrDataSize and EmdDataSize are zero

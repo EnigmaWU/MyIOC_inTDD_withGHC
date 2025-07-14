@@ -395,7 +395,6 @@ IOC_Result_T IOC_sendDAT(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, IOC_Optio
 - `IOC_RESULT_SUCCESS`: 数据块成功排队传输
 - `IOC_RESULT_BUFFER_FULL`: IOC 缓冲区满（立即非阻塞模式）
 - `IOC_RESULT_TIMEOUT`: 数据传输超时（带超时的非阻塞模式）
-- `IOC_RESULT_STREAM_CLOSED`: 数据流已被对端或错误关闭
 - `IOC_RESULT_LINK_BROKEN`: 传输过程中通信链路断开
 - `IOC_RESULT_INVALID_PARAM`: 参数无效
 - `IOC_RESULT_NOT_EXIST_LINK`: LinkID 不存在或已关闭
@@ -473,12 +472,10 @@ IOC_Result_T IOC_recvDAT(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, IOC_Optio
 **返回值**：
 - `IOC_RESULT_SUCCESS`: 数据块接收成功
 - `IOC_RESULT_TIMEOUT`: 接收超时（配置超时时）
-- `IOC_RESULT_STREAM_CLOSED`: 数据流已被发送方关闭
 - `IOC_RESULT_LINK_BROKEN`: 通信链路断开
 - `IOC_RESULT_INVALID_PARAM`: 参数无效
 - `IOC_RESULT_NOT_EXIST_LINK`: LinkID 不存在或已关闭
 - `IOC_RESULT_NO_DATA`: 无数据可用（立即非阻塞模式）
-- `IOC_RESULT_DATA_CORRUPTED`: 数据完整性检查失败
 
 **示例**：
 ```c
@@ -529,7 +526,6 @@ IOC_Result_T IOC_flushDAT(IOC_LinkID_T LinkID, IOC_Options_pT pOption);
 **返回值**：
 - `IOC_RESULT_SUCCESS`: 缓冲数据成功刷新
 - `IOC_RESULT_TIMEOUT`: 刷新超时
-- `IOC_RESULT_STREAM_CLOSED`: 数据流已关闭
 - `IOC_RESULT_LINK_BROKEN`: 通信链路断开
 - `IOC_RESULT_INVALID_PARAM`: 参数无效
 - `IOC_RESULT_NOT_EXIST_LINK`: LinkID 不存在或已关闭
@@ -816,7 +812,6 @@ static inline IOC_Result_T IOC_getDatPayload(const IOC_DatDesc_pT pDatDesc, void
 | `IOC_RESULT_CMD_EXEC_FAILED`          | -201 | 命令执行失败   | 检查命令参数              |
 | `IOC_RESULT_BUSY`                     | -202 | 资源忙碌       | 稍后重试                  |
 | `IOC_RESULT_BUFFER_FULL`              | -300 | 缓冲区满       | 等待或使用非阻塞模式      |
-| `IOC_RESULT_STREAM_CLOSED`            | -301 | 数据流关闭     | 重新建立连接              |
 | `IOC_RESULT_DATA_TOO_LARGE`           | -302 | 数据过大       | 分块传输                  |
 | `IOC_RESULT_NOT_EXIST_LINK`           | -400 | 连接不存在     | 重新建立连接              |
 | `IOC_RESULT_LINK_BROKEN`              | -401 | 连接断开       | 重新建立连接              |

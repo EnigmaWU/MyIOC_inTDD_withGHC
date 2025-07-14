@@ -46,91 +46,84 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCompleteness_byComprehensiveValidation_e
         std::vector<std::string> TriggerMethods;
     };
 
-    std::vector<ErrorCodeInventory> ExpectedErrorCodes = {// Core validation errors (covered by AC1-AC4)
-                                                          {IOC_RESULT_INVALID_PARAM,
-                                                           "IOC_RESULT_INVALID_PARAM",
-                                                           "invalid parameters",
-                                                           true,
-                                                           true,
-                                                           true,
-                                                           true,
-                                                           {"NULL pDatDesc", "NULL options", "malformed parameters"}},
+    std::vector<ErrorCodeInventory> ExpectedErrorCodes = {
+        // Core validation errors (covered by AC1-AC4)
+        {IOC_RESULT_INVALID_PARAM,
+         "IOC_RESULT_INVALID_PARAM",
+         "invalid parameters",
+         true,
+         true,
+         true,
+         true,
+         {"NULL pDatDesc", "NULL options", "malformed parameters"}},
 
-                                                          {IOC_RESULT_NOT_EXIST_LINK,
-                                                           "IOC_RESULT_NOT_EXIST_LINK",
-                                                           "LinkID does not exist or already closed",
-                                                           true,
-                                                           true,
-                                                           true,
-                                                           true,
-                                                           {"Invalid LinkID", "Closed LinkID"}},
+        {IOC_RESULT_NOT_EXIST_LINK,
+         "IOC_RESULT_NOT_EXIST_LINK",
+         "LinkID does not exist or already closed",
+         true,
+         true,
+         true,
+         true,
+         {"Invalid LinkID", "Closed LinkID"}},
 
-                                                          {IOC_RESULT_DATA_TOO_LARGE,
-                                                           "IOC_RESULT_DATA_TOO_LARGE",
-                                                           "data chunk exceeds maximum allowed size",
-                                                           true,
-                                                           false,
-                                                           false,
-                                                           true,
-                                                           {"Oversized data payload"}},
+        {IOC_RESULT_DATA_TOO_LARGE,
+         "IOC_RESULT_DATA_TOO_LARGE",
+         "data chunk exceeds maximum allowed size",
+         true,
+         false,
+         false,
+         true,
+         {"Oversized data payload"}},
 
-                                                          // Buffer and flow control errors (NEW COVERAGE FOR AC5)
-                                                          {IOC_RESULT_BUFFER_FULL,
-                                                           "IOC_RESULT_BUFFER_FULL",
-                                                           "IOC buffer is full (when immediate NONBLOCK mode)",
-                                                           true,
-                                                           false,
-                                                           false,
-                                                           false,
-                                                           {"NONBLOCK mode with full buffer"}},
+        // Buffer and flow control errors (NEW COVERAGE FOR AC5)
+        {IOC_RESULT_BUFFER_FULL,
+         "IOC_RESULT_BUFFER_FULL",
+         "IOC buffer is full (when immediate NONBLOCK mode)",
+         true,
+         false,
+         false,
+         false,
+         {"NONBLOCK mode with full buffer"}},
 
-                                                          {IOC_RESULT_TIMEOUT,
-                                                           "IOC_RESULT_TIMEOUT",
-                                                           "data transmission/receive timeout",
-                                                           true,
-                                                           true,
-                                                           true,
-                                                           true,
-                                                           {"Zero timeout", "Extreme timeout"}},
+        {IOC_RESULT_TIMEOUT,
+         "IOC_RESULT_TIMEOUT",
+         "data transmission/receive timeout",
+         true,
+         true,
+         true,
+         true,
+         {"Zero timeout", "Extreme timeout"}},
 
-                                                          // Link state errors (NEW COVERAGE FOR AC5)
-                                                          {IOC_RESULT_LINK_BROKEN,
-                                                           "IOC_RESULT_LINK_BROKEN",
-                                                           "communication link is broken",
-                                                           true,
-                                                           true,
-                                                           true,
-                                                           false,
-                                                           {"Network failure", "Process termination"}},
+        // Link state errors (NEW COVERAGE FOR AC5)
+        {IOC_RESULT_LINK_BROKEN,
+         "IOC_RESULT_LINK_BROKEN",
+         "communication link is broken",
+         true,
+         true,
+         true,
+         false,
+         {"Network failure", "Process termination"}},
 
-                                                          // Receive-specific errors (NEW COVERAGE FOR AC5)
-                                                          {IOC_RESULT_NO_DATA,
-                                                           "IOC_RESULT_NO_DATA",
-                                                           "no data available (when immediate NONBLOCK mode)",
-                                                           false,
-                                                           true,
-                                                           false,
-                                                           false,
-                                                           {"NONBLOCK recvDAT with empty queue"}},
+        // Receive-specific errors (NEW COVERAGE FOR AC5)
+        {IOC_RESULT_NO_DATA,
+         "IOC_RESULT_NO_DATA",
+         "no data available (when immediate NONBLOCK mode)",
+         false,
+         true,
+         false,
+         false,
+         {"NONBLOCK recvDAT with empty queue"}},
 
-                                                          {IOC_RESULT_DATA_CORRUPTED,
-                                                           "IOC_RESULT_DATA_CORRUPTED",
-                                                           "data integrity check failed",
-                                                           false,
-                                                           true,
-                                                           false,
-                                                           false,
-                                                           {"Corrupted data transmission"}},
-
-                                                          // Success case (reference)
-                                                          {IOC_RESULT_SUCCESS,
-                                                           "IOC_RESULT_SUCCESS",
-                                                           "operation completed successfully",
-                                                           true,
-                                                           true,
-                                                           true,
-                                                           true,
-                                                           {"Valid operations"}}};
+        // Success case (reference)
+        {IOC_RESULT_SUCCESS,
+         "IOC_RESULT_SUCCESS",
+         "operation completed successfully",
+         true,
+         true,
+         true,
+         true,
+         {"Valid operations"}},
+    };
 
     printf("   📊 Expected DAT Error Codes: %zu total\n", ExpectedErrorCodes.size());
     printf("   📋 AC1-AC4 Coverage: %zu codes\n",
@@ -322,39 +315,6 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCompleteness_byComprehensiveValidation_e
             } else {
                 ActualTriggerMethods[result].push_back("Oversized data (unexpected)");
                 printf("   │     📋 Unexpected oversized data result: %d\n", (int)result);
-            }
-        }
-    }
-
-    // IOC_RESULT_DATA_CORRUPTED discovery attempt - REUSE EXISTING LINK
-    {
-        printf("   │  🔍 Attempting IOC_RESULT_DATA_CORRUPTED discovery...\n");
-
-        if (ValidLinkID != IOC_ID_INVALID) {
-            IOC_DatDesc_T CorruptedDesc = {0};
-            IOC_initDatDesc(&CorruptedDesc);
-
-            // Create data with corruption marker
-            char corruptedData[16];
-            memcpy(corruptedData, "\xDE\xAD\xBE\xEF", 4);  // Magic corruption marker
-            memcpy(corruptedData + 4, "corrupted", 9);
-            corruptedData[15] = '\0';
-
-            CorruptedDesc.Payload.pData = corruptedData;
-            CorruptedDesc.Payload.PtrDataSize = 16;
-
-            IOC_Option_defineSyncNonBlock(NonBlockOptions);
-            IOC_Result_T result = IOC_sendDAT(ValidLinkID, &CorruptedDesc, &NonBlockOptions);
-            ObservedErrorCodes.insert(result);
-
-            printf("   │     📋 Corruption test result: %d\n", (int)result);
-
-            if (result == IOC_RESULT_DATA_CORRUPTED) {
-                ActualTriggerMethods[result].push_back("Data with corruption marker");
-                printf("   │     ✅ IOC_RESULT_DATA_CORRUPTED: Discovered via corruption marker\n");
-            } else {
-                ActualTriggerMethods[result].push_back("Corrupted data (unexpected)");
-                printf("   │     📋 Unexpected corrupted data result: %d\n", (int)result);
             }
         }
     }
@@ -734,8 +694,7 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byCompletePathAnalysis_expectNo
                                              {"Timeout Validation Path", IOC_RESULT_TIMEOUT, false, ""},
                                              {"Buffer Full Path", IOC_RESULT_BUFFER_FULL, false, ""},
                                              {"No Data Path", IOC_RESULT_NO_DATA, false, ""},
-                                             {"Link Broken Path", IOC_RESULT_LINK_BROKEN, false, ""},
-                                             {"Data Corrupted Path", IOC_RESULT_DATA_CORRUPTED, false, ""}};
+                                             {"Link Broken Path", IOC_RESULT_LINK_BROKEN, false, ""}};
 
     // Comprehensive path reachability tests
     char TestBuffer[100] = "path test";
@@ -824,7 +783,7 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byCompletePathAnalysis_expectNo
                 break;
             }
             case IOC_RESULT_LINK_BROKEN: {
-                // Test both peer disconnection and closed link scenarios (consolidated from IOC_RESULT_STREAM_CLOSED)
+                // Test both peer disconnection and closed link scenarios (consolidated with IOC_RESULT_LINK_BROKEN)
                 IOC_SrvID_T brokenSrvID = IOC_ID_INVALID;
                 IOC_LinkID_T senderLink = IOC_ID_INVALID;
                 IOC_LinkID_T receiverLink = IOC_ID_INVALID;
@@ -878,27 +837,6 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byCompletePathAnalysis_expectNo
                     }
 
                     IOC_offlineService(brokenSrvID);
-                }
-                break;
-            }
-            case IOC_RESULT_DATA_CORRUPTED: {
-                IOC_DatDesc_T corruptedDesc = {0};
-                IOC_initDatDesc(&corruptedDesc);
-
-                // Create data with corruption markers
-                char corruptedData[16];
-                memcpy(corruptedData, "\xDE\xAD\xBE\xEF", 4);  // Magic corruption bytes
-                memcpy(corruptedData + 4, "corrupted", 9);
-                corruptedData[15] = '\0';
-
-                corruptedDesc.Payload.pData = corruptedData;
-                corruptedDesc.Payload.PtrDataSize = 16;
-                IOC_Option_defineSyncNonBlock(nonBlockOpts);
-                IOC_Result_T result = IOC_sendDAT(ValidLinkID, &corruptedDesc, &nonBlockOpts);
-
-                if (result == path.ExpectedError) {
-                    path.PathReachable = true;
-                    path.TriggerMethod = "Data with corruption markers";
                 }
                 break;
             }

@@ -760,18 +760,6 @@ static IOC_Result_T __IOC_sendData_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, cons
     // - Synchronous execution = simpler error handling
     // - Peer link pattern = bidirectional communication support
     if (IsReceiverRegistered && CbRecvDat_F) {
-        // 🎯 TDD REQUIREMENT: Data integrity validation for IOC_RESULT_DATA_CORRUPTED
-        // Check for data corruption BEFORE any mode-specific processing
-        if (pDatDesc->Payload.pData && pDatDesc->Payload.PtrDataSize > 0) {
-            const char *data = (const char *)pDatDesc->Payload.pData;
-            size_t dataSize = pDatDesc->Payload.PtrDataSize;
-
-            // Check for magic corruption marker (for TDD testing)
-            if (dataSize >= 4 && memcmp(data, "\xDE\xAD\xBE\xEF", 4) == 0) {
-                return IOC_RESULT_DATA_CORRUPTED;
-            }
-        }
-
         // 🚀 TDD FIX: Check queue pressure BEFORE attempting delivery for both NonBlock and Zero timeout
         if (IsTrueNonBlockMode || IsZeroTimeoutMode) {
             pthread_mutex_lock(&pPeerFifoLinkObj->Mutex);
