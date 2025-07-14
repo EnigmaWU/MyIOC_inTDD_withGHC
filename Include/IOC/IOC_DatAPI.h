@@ -57,7 +57,6 @@ IOC_Result_T IOC_sendDAT(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, IOC_Optio
  *
  * @return IOC_RESULT_SUCCESS: data chunk received successfully
  * @return IOC_RESULT_TIMEOUT: receive timeout (when timeout configured)
- * @return IOC_RESULT_STREAM_CLOSED: data stream was closed by sender
  * @return IOC_RESULT_LINK_BROKEN: communication link is broken
  * @return IOC_RESULT_INVALID_PARAM: invalid parameters
  * @return IOC_RESULT_NOT_EXIST_LINK: LinkID does not exist or already closed
