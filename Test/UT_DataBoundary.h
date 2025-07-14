@@ -10,6 +10,8 @@
 #ifndef UT_DATABOUNDARY_H
 #define UT_DATABOUNDARY_H
 
+#include <mutex>
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF OVERVIEW OF THIS UNIT TESTING FILE===============================================
 /**
@@ -320,6 +322,7 @@ typedef struct {
     bool FirstCallbackRecorded;
     ULONG_T LargestSingleCallback;       // Track largest single callback size
     std::vector<ULONG_T> CallbackSizes;  // Track all callback sizes for analysis
+    std::mutex CallbackMutex;            // Protect concurrent access to callback data
 
     // Control flags for slow receiver simulation
     bool SlowReceiverMode;     // Enable slow receiver simulation
@@ -346,18 +349,23 @@ static IOC_Result_T __CbRecvDat_Boundary_F(IOC_LinkID_T LinkID, IOC_DatDesc_pT p
     pPrivData->CallbackExecuted = true;
     pPrivData->TotalReceivedSize += DataLen;
 
-    // Record timing for batching analysis
-    auto currentTime = std::chrono::high_resolution_clock::now();
-    if (!pPrivData->FirstCallbackRecorded) {
-        pPrivData->FirstCallbackTime = currentTime;
-        pPrivData->FirstCallbackRecorded = true;
-    }
-    pPrivData->LastCallbackTime = currentTime;
+    // Thread-safe timing and callback size tracking
+    {
+        std::lock_guard<std::mutex> lock(pPrivData->CallbackMutex);
 
-    // Track callback sizes for batching analysis
-    pPrivData->CallbackSizes.push_back(DataLen);
-    if (DataLen > pPrivData->LargestSingleCallback) {
-        pPrivData->LargestSingleCallback = DataLen;
+        // Record timing for batching analysis
+        auto currentTime = std::chrono::high_resolution_clock::now();
+        if (!pPrivData->FirstCallbackRecorded) {
+            pPrivData->FirstCallbackTime = currentTime;
+            pPrivData->FirstCallbackRecorded = true;
+        }
+        pPrivData->LastCallbackTime = currentTime;
+
+        // Track callback sizes for batching analysis
+        pPrivData->CallbackSizes.push_back(DataLen);
+        if (DataLen > pPrivData->LargestSingleCallback) {
+            pPrivData->LargestSingleCallback = DataLen;
+        }
     }
 
     // Track boundary conditions
