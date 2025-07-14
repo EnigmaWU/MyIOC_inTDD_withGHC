@@ -34,12 +34,12 @@ extern "C" {
  *     Note: RELIABILITY_MODE is always NODROP (immutable for stream consistency)
  *
  * @return IOC_RESULT_SUCCESS: data chunk queued for transmission successfully
+ * @return IOC_RESULT_INVALID_PARAM: invalid parameters (NULL pDatDesc)
+ * @return IOC_RESULT_NOT_EXIST_LINK: LinkID does not exist or already closed
+ * @return IOC_RESULT_DATA_TOO_LARGE: data chunk exceeds maximum allowed size
  * @return IOC_RESULT_BUFFER_FULL: IOC buffer is full (when immediate NONBLOCK mode)
  * @return IOC_RESULT_TIMEOUT: data transmission timeout (when NONBLOCK mode with timeout)
  * @return IOC_RESULT_LINK_BROKEN: communication link is broken during transmission
- * @return IOC_RESULT_INVALID_PARAM: invalid parameters
- * @return IOC_RESULT_NOT_EXIST_LINK: LinkID does not exist or already closed
- * @return IOC_RESULT_DATA_TOO_LARGE: data chunk exceeds maximum allowed size
  *
  * RefUT: UT_ConetDatSendXXX
  */
@@ -55,11 +55,11 @@ IOC_Result_T IOC_sendDAT(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, IOC_Optio
  *     Supported options: IOC_OPTID_TIMEOUT, IOC_OPTID_BLOCKING_MODE
  *
  * @return IOC_RESULT_SUCCESS: data chunk received successfully
+ * @return IOC_RESULT_NO_DATA: no data available (when immediate NONBLOCK mode)
+ * @return IOC_RESULT_INVALID_PARAM: invalid parameters (NULL pDatDesc)
+ * @return IOC_RESULT_NOT_EXIST_LINK: LinkID does not exist or already closed
  * @return IOC_RESULT_TIMEOUT: receive timeout (when timeout configured)
  * @return IOC_RESULT_LINK_BROKEN: communication link is broken
- * @return IOC_RESULT_INVALID_PARAM: invalid parameters
- * @return IOC_RESULT_NOT_EXIST_LINK: LinkID does not exist or already closed
- * @return IOC_RESULT_NO_DATA: no data available (when immediate NONBLOCK mode)
  *
  * RefUT: UT_ConetDatRecvPollingXXX
  */
@@ -75,10 +75,10 @@ IOC_Result_T IOC_recvDAT(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, IOC_Optio
  *     Supported options: IOC_OPTID_TIMEOUT
  *
  * @return IOC_RESULT_SUCCESS: buffered data flushed successfully
- * @return IOC_RESULT_TIMEOUT: flush timeout
- * @return IOC_RESULT_LINK_BROKEN: communication link is broken
  * @return IOC_RESULT_INVALID_PARAM: invalid parameters
  * @return IOC_RESULT_NOT_EXIST_LINK: LinkID does not exist or already closed
+ * @return IOC_RESULT_TIMEOUT: flush timeout
+ * @return IOC_RESULT_LINK_BROKEN: communication link is broken
  *
  * RefUT: UT_ConetDatFlushXXX
  */
