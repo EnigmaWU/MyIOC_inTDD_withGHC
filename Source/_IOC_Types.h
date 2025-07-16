@@ -31,6 +31,15 @@ typedef struct {
         _IOC_LinkObject_pT pAcceptedLinks[_MAX_BROADCAST_EVENT_ACCEPTED_LINK_NUM];
     } BroadcastEvent;
 
+    // WHEN Flags has IOC_SRVFLAG_AUTO_ACCEPT
+    struct {
+        pthread_t DaemonThreadID;
+
+#define _MAX_AUTO_ACCEPT_ACCEPTED_LINK_NUM 16  // Increased to support more concurrent connections
+        _IOC_LinkObject_pT pAcceptedLinks[_MAX_AUTO_ACCEPT_ACCEPTED_LINK_NUM];
+        int AcceptedLinkCount;
+    } AutoAccept;
+
     void *pProtoPriv;
 } _IOC_ServiceObject_T, *_IOC_ServiceObject_pT;
 

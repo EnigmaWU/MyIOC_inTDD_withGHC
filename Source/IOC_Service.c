@@ -111,7 +111,7 @@ static _IOC_ServiceObject_pT __IOC_getSrvObjBySrvID(IOC_SrvID_T SrvID) {
 // TODO: __IOC_putSrvObj
 
 //=================================================================================================
-#define _MAX_IOC_LINK_OBJ_NUM 8
+#define _MAX_IOC_LINK_OBJ_NUM 32  // Increased from 8 to 32 to support auto-accept daemon threads and concurrent tests
 static _IOC_LinkObject_pT _mIOC_LinkObjTbl[_MAX_IOC_LINK_OBJ_NUM] = {};
 static pthread_mutex_t _mIOC_LinkObjTblMutex = PTHREAD_MUTEX_INITIALIZER;
 static inline void ___IOC_lockLinkObjTbl(void) { pthread_mutex_lock(&_mIOC_LinkObjTblMutex); }
@@ -169,13 +169,13 @@ _IOC_LinkObject_pT _IOC_getLinkObjByLinkID(IOC_LinkID_T LinkID) {
     if (LinkID == IOC_ID_INVALID) {
         return NULL;
     }
-    
+
     // Check if LinkID is in valid range for our link object table
     int TblIdx = LinkID - IOC_CONLES_MODE_AUTO_LINK_ID_MAX - 1;
     if (TblIdx < 0 || TblIdx >= _MAX_IOC_LINK_OBJ_NUM) {
         return NULL;
     }
-    
+
     return _mIOC_LinkObjTbl[TblIdx];
 }
 
@@ -299,6 +299,55 @@ static void *__IOC_ServiceBroadcastDaemonThread(void *pArg) {
     };
 }
 
+/**
+ * @brief The auto-accept daemon thread function is created
+ *  when the service is onlined with IOC_SRVFLAG_AUTO_ACCEPT flag.
+ * @param pArg: the pointer to the service object.
+ *
+ * @details
+ *    1) auto accept incoming client connections for any service type (DAT, Event, etc.)
+ *    2) automatically handle connection acceptance without manual IOC_acceptClient() calls
+ *    3) works with P2P communication pattern (not broadcast)
+ */
+static void *__IOC_ServiceAutoAcceptDaemonThread(void *pArg) {
+    _IOC_ServiceObject_pT pSrvObj = (_IOC_ServiceObject_pT)pArg;
+    _IOC_LogAssert(NULL != pSrvObj);
+
+    _IOC_LogInfo("Auto-accept daemon thread started for service (URI: %s)",
+                 IOC_Helper_printSingleLineSrvURI(&pSrvObj->Args.SrvURI, NULL, 0));
+
+    while (1) {
+        _IOC_LinkObject_pT pLinkObj = __IOC_allocLinkObj();
+        if (NULL == pLinkObj) {
+            _IOC_LogWarn("Failed to alloc a new link object for auto-accept");
+            // Brief sleep before retrying to avoid busy waiting
+            usleep(10000);  // 10ms
+            continue;
+        }
+
+        IOC_Result_T Result = pSrvObj->pMethods->OpAcceptClient_F(pSrvObj, pLinkObj, NULL);
+        if (IOC_RESULT_SUCCESS != Result) {
+            _IOC_LogDebug("Auto-accept waiting for connection, Result=%d", Result);
+            __IOC_freeLinkObj(pLinkObj);
+            // Brief sleep when no connections are available to avoid busy waiting
+            usleep(10000);  // 10ms
+        } else {
+            _IOC_LogInfo("Auto-accepted new client connection, LinkID=%" PRIu64 "", pLinkObj->ID);
+
+            // Store the accepted link for tracking
+            for (int i = 0; i < _MAX_AUTO_ACCEPT_ACCEPTED_LINK_NUM; i++) {
+                if (NULL == pSrvObj->AutoAccept.pAcceptedLinks[i]) {
+                    pSrvObj->AutoAccept.pAcceptedLinks[i] = pLinkObj;
+                    pSrvObj->AutoAccept.AcceptedLinkCount++;
+                    break;
+                }
+            }
+        }
+    }
+
+    return NULL;
+}
+
 IOC_Result_T IOC_onlineService(
     /*ARG_OUT */ IOC_SrvID_pT pSrvID,
     /*ARG_IN*/ const IOC_SrvArgs_pT pSrvArgs) {
@@ -343,11 +392,27 @@ IOC_Result_T IOC_onlineService(
         }
     }
 
+    if (pSrvArgs->Flags & IOC_SRVFLAG_AUTO_ACCEPT) {
+        int PosixResult =
+            pthread_create(&pSrvObj->AutoAccept.DaemonThreadID, NULL, __IOC_ServiceAutoAcceptDaemonThread, pSrvObj);
+        if (0 != PosixResult) {
+            _IOC_LogWarn("Failed to create auto-accept daemon thread, PosixResult=%d", PosixResult);
+            Result = -errno;
+            _IOC_LogNotTested();
+            goto _RetFail_createAutoAcceptDaemonThread;
+        }
+    }
+
     // finally we reach the success return point
     *pSrvID = pSrvObj->ID;
     //_IOC_LogNotTested();
     return IOC_RESULT_SUCCESS;
 
+_RetFail_createAutoAcceptDaemonThread:
+    if (pSrvArgs->Flags & IOC_SRVFLAG_BROADCAST_EVENT) {
+        pthread_cancel(pSrvObj->BroadcastEvent.DaemonThreadID);
+        pthread_join(pSrvObj->BroadcastEvent.DaemonThreadID, NULL);
+    }
 _RetFail_createBroadcastDaemonThread:
     Result = pSrvObj->pMethods->OpOfflineService_F(pSrvObj);
     if (IOC_RESULT_SUCCESS != Result) {
@@ -378,6 +443,17 @@ IOC_Result_T IOC_offlineService(
         for (int i = 0; i < _MAX_BROADCAST_EVENT_ACCEPTED_LINK_NUM; i++) {
             if (NULL != pSrvObj->BroadcastEvent.pAcceptedLinks[i]) {
                 pSrvObj->pMethods->OpCloseLink_F(pSrvObj->BroadcastEvent.pAcceptedLinks[i]);
+            }
+        }
+    }
+
+    if (pSrvObj->Args.Flags & IOC_SRVFLAG_AUTO_ACCEPT) {
+        pthread_cancel(pSrvObj->AutoAccept.DaemonThreadID);
+        pthread_join(pSrvObj->AutoAccept.DaemonThreadID, NULL);
+
+        for (int i = 0; i < _MAX_AUTO_ACCEPT_ACCEPTED_LINK_NUM; i++) {
+            if (NULL != pSrvObj->AutoAccept.pAcceptedLinks[i]) {
+                pSrvObj->pMethods->OpCloseLink_F(pSrvObj->AutoAccept.pAcceptedLinks[i]);
             }
         }
     }

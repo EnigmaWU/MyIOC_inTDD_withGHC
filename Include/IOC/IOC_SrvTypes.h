@@ -178,6 +178,20 @@ typedef enum {
      *          e.g. postEVT(SrvLinkID) --> ALL ConnLinkIDs will CbProcEvt
      */
     IOC_SRVFLAG_BROADCAST_EVENT = 1 << 0,
+
+    /**
+     * @brief AUTO_ACCEPT flag for automatic connection acceptance
+     *  WHEN service is onlined with AUTO_ACCEPT flag,
+     *      incoming client connections are automatically accepted without manual IOC_acceptClient() calls.
+     *  This is useful for DAT services and other service types that want to automatically handle connections.
+     *
+     *  BEHAVIOR:
+     *    - Automatically starts a daemon thread to accept incoming connections
+     *    - Works with any service type (DAT, Event, Command, etc.)
+     *    - No manual IOC_acceptClient() required
+     *    - Connections are accepted in the order they arrive
+     */
+    IOC_SRVFLAG_AUTO_ACCEPT = 1 << 1,
 } IOC_SrvFlags_T;
 
 typedef struct {

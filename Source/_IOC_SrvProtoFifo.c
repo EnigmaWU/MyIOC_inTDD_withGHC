@@ -326,11 +326,14 @@ static IOC_Result_T __IOC_connectService_ofProtoFifo(_IOC_LinkObject_pT pLinkObj
         return IOC_RESULT_NOT_EXIST_SERVICE;
     }
 
-    // Step-2.5: Note the service mode (broadcast auto-accept vs manual accept)
+    // Step-2.5: Note the service mode (auto-accept vs manual accept)
     // Both modes allow connections, but they handle acceptance differently
-    bool IsAutoAcceptMode = (pFifoSrvObj->pSrvObj->Args.Flags & IOC_SRVFLAG_BROADCAST_EVENT);
+    bool IsAutoAcceptMode = (pFifoSrvObj->pSrvObj->Args.Flags & IOC_SRVFLAG_BROADCAST_EVENT) ||
+                            (pFifoSrvObj->pSrvObj->Args.Flags & IOC_SRVFLAG_AUTO_ACCEPT);
     if (!IsAutoAcceptMode) {
         _IOC_LogInfo("Service in manual accept mode, connection will wait for manual accept");
+    } else {
+        _IOC_LogDebug("Service in auto-accept mode, connection will be accepted automatically");
     }
 
     // Step-3: Create a FifoLinkObj
