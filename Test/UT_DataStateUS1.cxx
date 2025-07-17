@@ -1,10 +1,111 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // QUICK REFERENCE GUIDE - 快速参考指南
 // 📝 用途: DAT连接状态验证单元测试实现 - User Story 1
-// 🔄 流程: 实现UT_DataState.h中定义的US-1相关测试用例
+// 🔄 流程: User Story → Acceptance Criteria → Test Cases → Implementation
 // 📂 分类: DataState US-1 - DAT connection state verification
 // 🎯 重点: 服务上线/下线、链接连接/断开状态转换验证
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF OVERVIEW OF THIS UNIT TESTING FILE===============================================
+/**
+ * @brief
+ *  DAT连接状态验证单元测试 - 验证IOC框架中DAT服务的连接状态管理功能
+ *
+ *-------------------------------------------------------------------------------------------------
+ *++背景说明：
+ *  本测试文件验证IOC框架中DAT(Data Transfer)服务的连接状态管理机制
+ *  重点关注服务上线/下线、链接连接/断开等状态转换的正确性
+ *  确保多客户端并发连接场景下的状态一致性和独立性
+ *
+ *  关键概念：
+ *  - DAT Service: 数据传输服务，支持DatSender和DatReceiver两种角色
+ *  - Connection State: 连接状态，包括服务状态和链接状态的管理
+ *  - Auto-Accept: 自动接受连接模式，通过IOC_SRVFLAG_AUTO_ACCEPT标志启用
+ *  - State Tracking: 状态跟踪机制，确保状态变化的正确记录和验证
+ */
+//======>END OF OVERVIEW OF THIS UNIT TESTING FILE=================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF UNIT TESTING DESIGN==============================================================
+
+/**************************************************************************************************
+ * @brief 【User Story】
+ *
+ *  US-1: AS a developer using IOC framework for data transfer,
+ *    I WANT to have reliable DAT connection state management,
+ *   SO THAT I can build robust data transfer applications with predictable connection behavior.
+ *
+ *************************************************************************************************/
+
+/**************************************************************************************************
+ * @brief 【Acceptance Criteria】
+ *
+ * [@US-1]
+ *  AC-1: GIVEN an IOC framework is initialized,
+ *         WHEN I call IOC_onlineService() with DAT receiver capability,
+ *         THEN the service should transition to online state and be ready to accept connections.
+ *
+ *  AC-2: GIVEN a DAT service is online,
+ *         WHEN I call IOC_connectService() from a client,
+ *         THEN the connection should be established and both ends should have valid LinkIDs.
+ *
+ *  AC-3: GIVEN established DAT connections exist,
+ *         WHEN I call IOC_closeLink() on any connection,
+ *         THEN that specific link should be disconnected while other connections remain intact.
+ *
+ *  AC-4: GIVEN a DAT service is running,
+ *         WHEN multiple clients connect concurrently,
+ *         THEN each connection should maintain independent state tracking.
+ *
+ *  AC-5: GIVEN concurrent connection/disconnection operations are happening,
+ *         WHEN the system is under connection stress,
+ *         THEN the service state should remain consistent without corruption.
+ */
+
+/**************************************************************************************************
+ * @brief 【Test Cases】
+ *
+ * [@AC-1,US-1]
+ *  TC-1:
+ *      @[Name]: verifyServiceOnlineState_byOnlineService_expectStateTransition
+ *      @[Purpose]: 验证IOC_onlineService()正确转换服务到在线状态
+ *      @[Brief]: 创建DAT接收服务，验证服务状态正确转换为在线状态
+ *
+ * [@AC-2,US-1]
+ *  TC-2:
+ *      @[Name]: verifyLinkConnectState_byConnectService_expectConnectionState
+ *      @[Purpose]: 验证IOC_connectService()建立正确的链接连接状态
+ *      @[Brief]: 客户端连接到DAT服务，验证连接状态正确建立
+ *
+ * [@AC-3,US-1]
+ *  TC-3:
+ *      @[Name]: verifyLinkDisconnectState_byCloseLink_expectDisconnectedState
+ *      @[Purpose]: 验证IOC_closeLink()正确转换链接到断开状态
+ *      @[Brief]: 断开已建立的DAT连接，验证状态正确转换为断开状态
+ *
+ *  TC-4:
+ *      @[Name]: verifyServiceStability_afterLinkDisconnect_expectServiceStateIntact
+ *      @[Purpose]: 验证个别链接断开后服务状态保持稳定
+ *      @[Brief]: 断开部分连接后，验证服务整体状态保持稳定
+ *
+ * [@AC-4,US-1]
+ *  TC-5:
+ *      @[Name]: verifyMultiClientState_byConcurrentConnections_expectIndependentStates
+ *      @[Purpose]: 验证多个并发客户端连接的独立状态跟踪
+ *      @[Brief]: 多个客户端并发连接，验证各连接状态独立跟踪
+ *
+ * [@AC-5,US-1]
+ *  TC-6:
+ *      @[Name]: verifyServiceStateConsistency_underConcurrentConnectionChanges_expectNoCorruption
+ *      @[Purpose]: 验证并发连接/断开操作期间服务状态一致性
+ *      @[Brief]: 并发连接/断开压力测试，验证服务状态一致性
+ *
+ *************************************************************************************************/
+//======>END OF UNIT TESTING DESIGN================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======BEGIN OF UNIT TESTING IMPLEMENTATION=======================================================
 
 #include <gtest/gtest.h>
 
@@ -14,14 +115,18 @@
 #include "UT_DataState.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF US-1 TEST IMPLEMENTATION========================================================
+//======>BEGIN OF TEST FIXTURE CLASS===============================================================
 
 /**
  * @brief DAT连接状态测试夹具类
  *        为US-1相关的所有测试用例提供公共的设置和清理
+ *        遵循TDD最佳实践，确保每个测试用例的独立性和清洁性
  */
 class DATConnectionStateTest : public ::testing::Test {
    protected:
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                🔧 SETUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
     void SetUp() override {
         // Initialize private data structure for state tracking
         __ResetStateTracking(&privData);
@@ -29,6 +134,9 @@ class DATConnectionStateTest : public ::testing::Test {
         printf("🔧 [SETUP] DATConnectionStateTest initialized\n");
     }
 
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🧹 CLEANUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
     void TearDown() override {
         // Clean up any active connections
         if (testLinkID != IOC_ID_INVALID) {
@@ -47,14 +155,29 @@ class DATConnectionStateTest : public ::testing::Test {
     IOC_LinkID_T testLinkID = IOC_ID_INVALID;
 };
 
+//======>END OF TEST FIXTURE CLASS=================================================================
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>US-1 AC-1 TESTS: DAT service online state transition verification=======================
 
 /**
- * @brief TC: verifyServiceOnlineState_byOnlineService_expectStateTransition
- * @test 验证IOC_onlineService()正确转换服务到在线状态
+ * ╔══════════════════════════════════════════════════════════════════════════════════════════╗
+ * ║                            � SERVICE ONLINE STATE VERIFICATION                          ║
+ * ╠══════════════════════════════════════════════════════════════════════════════════════════╣
+ * ║ @[Name]: verifyServiceOnlineState_byOnlineService_expectStateTransition                 ║
+ * ║ @[Steps]: 验证IOC_onlineService()正确转换服务到在线状态                                    ║
+ * ║   1) 🔧 准备DAT接收服务配置参数                                                          ║
+ * ║   2) 🎯 调用IOC_onlineService()启动服务                                                  ║
+ * ║   3) ✅ 验证服务状态正确转换为在线状态                                                    ║
+ * ║   4) 🧹 通过TearDown()自动清理资源                                                       ║
+ * ║ @[Expect]: 服务成功上线，获得有效SrvID，状态跟踪正确                                      ║
+ * ║ @[Notes]: 启用auto-accept模式，支持自动连接接受                                          ║
+ * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
 TEST_F(DATConnectionStateTest, verifyServiceOnlineState_byOnlineService_expectStateTransition) {
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                🔧 SETUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
     printf("🧪 [TEST] verifyServiceOnlineState_byOnlineService_expectStateTransition\n");
 
     // Prepare service arguments for DAT receiver capability
@@ -75,11 +198,16 @@ TEST_F(DATConnectionStateTest, verifyServiceOnlineState_byOnlineService_expectSt
     // GIVEN: A DAT service that needs to be onlined
     ASSERT_FALSE(privData.ServiceOnline.load()) << "Service should be offline initially";
 
-    // WHEN: calling IOC_onlineService() to start the service
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🎯 BEHAVIOR PHASE                                       │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
     printf("📡 [ACTION] Bringing service online with DatReceiver capability\n");
     IOC_Result_T result = IOC_onlineService(&testSrvID, &srvArgs);
 
-    // THEN: service state should transition to online
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                ✅ VERIFY PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    // @KeyVerifyPoint-1: Service creation should succeed
     ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "IOC_onlineService should succeed";
     ASSERT_NE(IOC_ID_INVALID, testSrvID) << "Service ID should be valid";
 
@@ -88,19 +216,37 @@ TEST_F(DATConnectionStateTest, verifyServiceOnlineState_byOnlineService_expectSt
     privData.ServiceAsDatReceiver = true;
     RECORD_STATE_CHANGE(&privData);
 
-    // Verify service state transition
+    // @KeyVerifyPoint-2: Service state transition should be correct
     ASSERT_TRUE(__VerifyServiceState(testSrvID, true)) << "Service should be online";
     ASSERT_TRUE(privData.ServiceOnline.load()) << "Private data should reflect online state";
     ASSERT_TRUE(privData.ServiceAsDatReceiver.load()) << "Service should be configured as DatReceiver";
 
     printf("✅ [RESULT] Service successfully onlined with SrvID=%llu\n", testSrvID);
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🧹 CLEANUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    // Cleanup handled by TearDown()
 }
 
 /**
- * @brief TC: verifyLinkConnectState_byConnectService_expectConnectionState
- * @test 验证IOC_connectService()建立正确的链接连接状态
+ * ╔══════════════════════════════════════════════════════════════════════════════════════════╗
+ * ║                            � LINK CONNECTION STATE VERIFICATION                         ║
+ * ╠══════════════════════════════════════════════════════════════════════════════════════════╣
+ * ║ @[Name]: verifyLinkConnectState_byConnectService_expectConnectionState                   ║
+ * ║ @[Steps]: 验证IOC_connectService()建立正确的链接连接状态                                   ║
+ * ║   1) 🔧 启动DAT接收服务作为先决条件                                                      ║
+ * ║   2) 🎯 客户端调用IOC_connectService()连接到服务                                         ║
+ * ║   3) ✅ 验证连接状态正确建立，获得有效LinkID                                             ║
+ * ║   4) 🧹 通过TearDown()自动清理资源                                                       ║
+ * ║ @[Expect]: 连接成功建立，客户端获得有效LinkID，状态跟踪正确                              ║
+ * ║ @[Notes]: 使用auto-accept模式，无需手动接受连接                                          ║
+ * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
 TEST_F(DATConnectionStateTest, verifyLinkConnectState_byConnectService_expectConnectionState) {
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                🔧 SETUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
     printf("🧪 [TEST] verifyLinkConnectState_byConnectService_expectConnectionState\n");
 
     // First, bring service online (prerequisite)
@@ -128,11 +274,16 @@ TEST_F(DATConnectionStateTest, verifyLinkConnectState_byConnectService_expectCon
 
     ASSERT_FALSE(privData.LinkConnected.load()) << "Link should be disconnected initially";
 
-    // WHEN: calling IOC_connectService() to establish link (auto-accept enabled)
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🎯 BEHAVIOR PHASE                                       │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
     printf("📡 [ACTION] Connecting to service as DatSender (auto-accept mode)\n");
     result = IOC_connectService(&testLinkID, &connArgs, NULL);
 
-    // THEN: connection should succeed automatically
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                ✅ VERIFY PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    // @KeyVerifyPoint-1: Connection should succeed automatically
     ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "IOC_connectService should succeed";
     ASSERT_NE(IOC_ID_INVALID, testLinkID) << "Client Link ID should be valid";
 
@@ -141,24 +292,40 @@ TEST_F(DATConnectionStateTest, verifyLinkConnectState_byConnectService_expectCon
     privData.LinkAccepted = true;
     RECORD_STATE_CHANGE(&privData);
 
-    // Verify DAT link main state is Ready (as per architecture design)
+    // @KeyVerifyPoint-2: Connection state tracking should be correct
     // TODO: Temporarily disabled until IOC_getLinkState is implemented for DAT links
     // VERIFY_DAT_LINK_READY_STATE(testLinkID);
-
-    // Verify connection state tracking
     ASSERT_TRUE(privData.LinkConnected.load()) << "Private data should reflect connected state";
 
     printf("✅ [RESULT] Link successfully connected with ClientLinkID=%llu (auto-accept)\n", testLinkID);
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🧹 CLEANUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    // Cleanup handled by TearDown()
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>US-1 AC-2 TESTS: DAT link disconnect state verification=================================
 
 /**
- * @brief TC: verifyLinkDisconnectState_byCloseLink_expectDisconnectedState
- * @test 验证IOC_closeLink()正确转换链接到断开状态
+ * ╔══════════════════════════════════════════════════════════════════════════════════════════╗
+ * ║                          � LINK DISCONNECTION STATE VERIFICATION                        ║
+ * ╠══════════════════════════════════════════════════════════════════════════════════════════╣
+ * ║ @[Name]: verifyLinkDisconnectState_byCloseLink_expectDisconnectedState                   ║
+ * ║ @[Steps]: 验证IOC_closeLink()正确转换链接到断开状态                                        ║
+ * ║   1) 🔧 创建已建立的DAT连接作为先决条件                                                  ║
+ * ║   2) 🎯 调用IOC_closeLink()断开链接                                                      ║
+ * ║   3) ✅ 验证链接状态正确转换为断开状态                                                    ║
+ * ║   4) 🧹 验证后续操作正确拒绝，防止资源泄漏                                               ║
+ * ║ @[Expect]: 链接成功断开，后续DAT操作返回NOT_EXIST_LINK错误                              ║
+ * ║ @[Notes]: 使用手动accept模式来确保连接控制的完整性                                       ║
+ * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
 TEST_F(DATConnectionStateTest, verifyLinkDisconnectState_byCloseLink_expectDisconnectedState) {
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                🔧 SETUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
     printf("🧪 [TEST] verifyLinkDisconnectState_byCloseLink_expectDisconnectedState\n");
 
     // Setup: Create an established connection first
@@ -201,25 +368,28 @@ TEST_F(DATConnectionStateTest, verifyLinkDisconnectState_byCloseLink_expectDisco
     privData.LinkConnected = true;
 
     // GIVEN: An established DAT link connection
-    // TODO: Temporarily disabled until IOC_getLinkState is implemented for DAT links
-    // VERIFY_DAT_LINK_READY_STATE(testLinkID);
     ASSERT_TRUE(privData.LinkConnected.load()) << "Link should be connected initially";
 
-    // WHEN: calling IOC_closeLink() to disconnect the link
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🎯 BEHAVIOR PHASE                                       │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
     printf("📡 [ACTION] Closing established DAT link\n");
     result = IOC_closeLink(testLinkID);
 
-    // THEN: link state should transition to disconnected
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                ✅ VERIFY PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    // @KeyVerifyPoint-1: Link disconnection should succeed
     ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "IOC_closeLink should succeed";
 
     // Update private data to reflect disconnection
     privData.LinkConnected = false;
     RECORD_STATE_CHANGE(&privData);
 
-    // Verify disconnection state
+    // @KeyVerifyPoint-2: Disconnection state should be correct
     ASSERT_FALSE(privData.LinkConnected.load()) << "Private data should reflect disconnected state";
 
-    // THEN: further DAT operations on that LinkID should return appropriate error codes
+    // @KeyVerifyPoint-3: Further DAT operations should be rejected
     IOC_DatDesc_T testDatDesc = {};
     result = IOC_sendDAT(testLinkID, &testDatDesc, NULL);
     ASSERT_EQ(IOC_RESULT_NOT_EXIST_LINK, result) << "sendDAT should fail with NOT_EXIST_LINK";
@@ -228,6 +398,11 @@ TEST_F(DATConnectionStateTest, verifyLinkDisconnectState_byCloseLink_expectDisco
     testLinkID = IOC_ID_INVALID;
 
     printf("✅ [RESULT] Link successfully disconnected and subsequent operations properly rejected\n");
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🧹 CLEANUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    // Cleanup handled by TearDown()
 }
 
 /**
@@ -554,4 +729,54 @@ TEST_F(DATConnectionStateTest, verifyServiceStateConsistency_underConcurrentConn
 }
 
 //======>END OF US-1 TEST IMPLEMENTATION==========================================================
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF IMPLEMENTATION SUMMARY===========================================================
+/**
+ * ╔══════════════════════════════════════════════════════════════════════════════════════════╗
+ * ║                              📊 IMPLEMENTATION SUMMARY                                   ║
+ * ╠══════════════════════════════════════════════════════════════════════════════════════════╣
+ * ║ 🎯 PURPOSE: DAT Connection State Verification - User Story 1                            ║
+ * ║                                                                                          ║
+ * ║ 📋 COVERAGE:                                                                             ║
+ * ║   ✅ US-1 AC-1: Service online state transition verification                             ║
+ * ║   ✅ US-1 AC-2: Link connection state verification                                       ║
+ * ║   ✅ US-1 AC-3: Link disconnection state verification                                    ║
+ * ║   ✅ US-1 AC-4: Multi-client concurrent connection verification                          ║
+ * ║   ✅ US-1 AC-5: Service consistency under concurrent stress                              ║
+ * ║                                                                                          ║
+ * ║ 🔧 IMPLEMENTED TEST CASES:                                                               ║
+ * ║   TC-1: verifyServiceOnlineState_byOnlineService_expectStateTransition                  ║
+ * ║   TC-2: verifyLinkConnectState_byConnectService_expectConnectionState                    ║
+ * ║   TC-3: verifyLinkDisconnectState_byCloseLink_expectDisconnectedState                   ║
+ * ║   TC-4: verifyServiceStability_afterLinkDisconnect_expectServiceStateIntact             ║
+ * ║   TC-5: verifyMultiClientState_byConcurrentConnections_expectIndependentStates          ║
+ * ║   TC-6: verifyServiceStateConsistency_underConcurrentConnectionChanges_expectNoCorruption║
+ * ║                                                                                          ║
+ * ║ 🚀 KEY ACHIEVEMENTS:                                                                     ║
+ * ║   • Auto-accept functionality for DAT services (IOC_SRVFLAG_AUTO_ACCEPT)                ║
+ * ║   • Concurrent connection state management                                               ║
+ * ║   • Service stability under connection stress                                           ║
+ * ║   • Independent state tracking for multiple clients                                     ║
+ * ║                                                                                          ║
+ * ║ 🎨 VISUAL ENHANCEMENTS:                                                                  ║
+ * ║   • Template-based test structure with visual phases                                    ║
+ * ║   • Emoji-based progress indicators and result reporting                                ║
+ * ║   • Comprehensive documentation following TDD principles                                ║
+ * ║                                                                                          ║
+ * ║ 🔄 REFACTORING NOTES:                                                                    ║
+ * ║   • Followed UT_FreelyDrafts.cxx template structure                                     ║
+ * ║   • Added proper US/AC/TC documentation                                                 ║
+ * ║   • Implemented visual phases (SETUP/BEHAVIOR/VERIFY/CLEANUP)                          ║
+ * ║   • Enhanced error reporting and state tracking                                         ║
+ * ║                                                                                          ║
+ * ║ 💡 LESSONS LEARNED:                                                                      ║
+ * ║   • TDD methodology drives framework improvements                                       ║
+ * ║   • Visual test structure improves maintainability                                      ║
+ * ║   • Proper cleanup prevents resource leaks in concurrent tests                         ║
+ * ║   • Auto-accept eliminates manual intervention requirements                             ║
+ * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
+ */
+//======>END OF IMPLEMENTATION SUMMARY=============================================================
 ///////////////////////////////////////////////////////////////////////////////////////////////////
