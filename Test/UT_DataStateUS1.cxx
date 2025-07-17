@@ -72,34 +72,46 @@
  *      @[Purpose]: 验证IOC_onlineService()正确转换服务到在线状态
  *      @[Brief]: 创建DAT接收服务，验证服务状态正确转换为在线状态
  *
+ *  TODO:TC-2:...
+ *-------------------------------------------------------------------------------------------------
  * [@AC-2,US-1]
- *  TC-2:
+ *  TC-1:
  *      @[Name]: verifyLinkConnectState_byConnectService_expectConnectionState
  *      @[Purpose]: 验证IOC_connectService()建立正确的链接连接状态
  *      @[Brief]: 客户端连接到DAT服务，验证连接状态正确建立
  *
+ *  TODO:TC-2:...
+ *--------------------------------------------------------------------------------------------------
  * [@AC-3,US-1]
- *  TC-3:
+ *  TC-1:
  *      @[Name]: verifyLinkDisconnectState_byCloseLink_expectDisconnectedState
  *      @[Purpose]: 验证IOC_closeLink()正确转换链接到断开状态
  *      @[Brief]: 断开已建立的DAT连接，验证状态正确转换为断开状态
  *
- *  TC-4:
+ *  TC-2:
  *      @[Name]: verifyServiceStability_afterLinkDisconnect_expectServiceStateIntact
  *      @[Purpose]: 验证个别链接断开后服务状态保持稳定
  *      @[Brief]: 断开部分连接后，验证服务整体状态保持稳定
  *
+ *  TODO:TC-3:...
+ *--------------------------------------------------------------------------------------------------
+ *
  * [@AC-4,US-1]
- *  TC-5:
+ *  TC-1:
  *      @[Name]: verifyMultiClientState_byConcurrentConnections_expectIndependentStates
  *      @[Purpose]: 验证多个并发客户端连接的独立状态跟踪
  *      @[Brief]: 多个客户端并发连接，验证各连接状态独立跟踪
  *
+ *  TODO:TC-2:...
+ *--------------------------------------------------------------------------------------------------
+ *
  * [@AC-5,US-1]
- *  TC-6:
+ *  TC-1:
  *      @[Name]: verifyServiceStateConsistency_underConcurrentConnectionChanges_expectNoCorruption
  *      @[Purpose]: 验证并发连接/断开操作期间服务状态一致性
  *      @[Brief]: 并发连接/断开压力测试，验证服务状态一致性
+ *
+ *  TODO:TC-2:...
  *
  *************************************************************************************************/
 //======>END OF UNIT TESTING DESIGN================================================================
