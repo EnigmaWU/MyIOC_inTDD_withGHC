@@ -43,6 +43,8 @@ IOC_Result_T IOC_getLinkState(
     /*ARG_OUT*/ IOC_LinkState_pT pLinkMainState,
     /*ARG_OUT_OPTIONAL*/ IOC_LinkSubState_pT pLinkSubState);
 
+// TODO: IOC_getServiceState
+
 #define IOC_BugAbort()                                       \
     do {                                                     \
         fprintf(stderr, "BUG: %s:%d\n", __FILE__, __LINE__); \
