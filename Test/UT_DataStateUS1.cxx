@@ -293,8 +293,7 @@ TEST_F(DATConnectionStateTest, verifyLinkConnectState_byConnectService_expectCon
     RECORD_STATE_CHANGE(&privData);
 
     // @KeyVerifyPoint-2: Connection state tracking should be correct
-    // TODO: Temporarily disabled until IOC_getLinkState is implemented for DAT links
-    // VERIFY_DAT_LINK_READY_STATE(testLinkID);
+    VERIFY_DAT_LINK_READY_STATE(testLinkID);
     ASSERT_TRUE(privData.LinkConnected.load()) << "Private data should reflect connected state";
 
     printf("✅ [RESULT] Link successfully connected with ClientLinkID=%llu (auto-accept)\n", testLinkID);
@@ -587,8 +586,7 @@ TEST_F(DATConnectionStateTest, verifyMultiClientState_byConcurrentConnections_ex
 
     for (int i = 0; i < numClients; i++) {
         ASSERT_NE(IOC_ID_INVALID, clientLinks[i]) << "Client " << i << " should have valid LinkID";
-        // TODO: Temporarily disabled until IOC_getLinkState is implemented for DAT links
-        // VERIFY_DAT_LINK_READY_STATE(clientLinks[i]);
+        VERIFY_DAT_LINK_READY_STATE(clientLinks[i]);
         ASSERT_TRUE(clientPrivData[i].LinkConnected.load()) << "Client " << i << " should be connected";
         ASSERT_EQ(i, clientPrivData[i].ClientIndex) << "Client " << i << " should maintain correct index";
     }
@@ -608,8 +606,7 @@ TEST_F(DATConnectionStateTest, verifyMultiClientState_byConcurrentConnections_ex
             ASSERT_FALSE(clientPrivData[i].LinkConnected.load()) << "Disconnected client should be disconnected";
         } else {
             ASSERT_TRUE(clientPrivData[i].LinkConnected.load()) << "Other clients should remain connected";
-            // TODO: Temporarily disabled until IOC_getLinkState is implemented for DAT links
-            // VERIFY_DAT_LINK_READY_STATE(clientLinks[i]);
+            VERIFY_DAT_LINK_READY_STATE(clientLinks[i]);
         }
     }
 

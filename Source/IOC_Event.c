@@ -65,7 +65,7 @@ IOC_Result_T IOC_getLinkState(
     if (IOC_RESULT_YES == _IOC_isAutoLink_inConlesMode(LinkID)) {
         return _IOC_getLinkState_inConlesMode(LinkID, pLinkState, pLinkSubState);
     } else {
-        // TODO: getLinkState_inConetMode
-        return IOC_RESULT_NOT_IMPLEMENTED;
+        // 🎯 TDD IMPLEMENTATION: Now supporting Conet Mode for DAT links
+        return _IOC_getLinkState_inConetMode(LinkID, pLinkState, pLinkSubState);
     }
 }
