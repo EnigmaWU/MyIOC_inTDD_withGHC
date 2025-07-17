@@ -406,8 +406,15 @@ TEST_F(DATConnectionStateTest, verifyLinkDisconnectState_byCloseLink_expectDisco
 }
 
 /**
- * @brief TC: verifyServiceStability_afterLinkDisconnect_expectServiceStateIntact
- * @test 验证个别链接断开后服务状态保持稳定
+ * ╔══════════════════════════════════════════════════════════════════════════════════════════╗
+ * ║                           🔄 SERVICE STABILITY VERIFICATION                              ║
+ * ╠══════════════════════════════════════════════════════════════════════════════════════════╣
+ * ║ @[Name]: verifyServiceStability_afterLinkDisconnect_expectServiceStateIntact            ║
+ * ║ @[Purpose]: 验证个别链接断开后服务状态保持稳定                                            ║
+ * ║ @[Steps]: 建立连接后断开个别链接，验证服务整体状态保持稳定                                 ║
+ * ║ @[Expect]: 服务状态保持稳定，可以继续接受新连接                                           ║
+ * ║ @[Notes]: 测试服务在部分连接断开后的鲁棒性                                               ║
+ * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
 TEST_F(DATConnectionStateTest, verifyServiceStability_afterLinkDisconnect_expectServiceStateIntact) {
     printf("🧪 [TEST] verifyServiceStability_afterLinkDisconnect_expectServiceStateIntact\n");
@@ -499,8 +506,15 @@ TEST_F(DATConnectionStateTest, verifyServiceStability_afterLinkDisconnect_expect
 //======>US-1 AC-3 TESTS: DAT concurrent connection state verification===========================
 
 /**
- * @brief TC: verifyMultiClientState_byConcurrentConnections_expectIndependentStates
- * @test 验证多个并发客户端连接的独立状态跟踪
+ * ╔══════════════════════════════════════════════════════════════════════════════════════════╗
+ * ║                         👥 MULTI-CLIENT CONCURRENCY VERIFICATION                        ║
+ * ╠══════════════════════════════════════════════════════════════════════════════════════════╣
+ * ║ @[Name]: verifyMultiClientState_byConcurrentConnections_expectIndependentStates         ║
+ * ║ @[Purpose]: 验证多个并发客户端连接的独立状态跟踪                                          ║
+ * ║ @[Steps]: 多个客户端并发连接，验证各连接状态独立跟踪                                       ║
+ * ║ @[Expect]: 每个客户端连接独立维护状态，互不影响                                           ║
+ * ║ @[Notes]: 使用auto-accept模式支持并发连接                                               ║
+ * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
 TEST_F(DATConnectionStateTest, verifyMultiClientState_byConcurrentConnections_expectIndependentStates) {
     printf("🧪 [TEST] verifyMultiClientState_byConcurrentConnections_expectIndependentStates\n");
@@ -610,8 +624,15 @@ TEST_F(DATConnectionStateTest, verifyMultiClientState_byConcurrentConnections_ex
 }
 
 /**
- * @brief TC: verifyServiceStateConsistency_underConcurrentConnectionChanges_expectNoCorruption
- * @test 验证并发连接/断开操作期间服务状态一致性
+ * ╔══════════════════════════════════════════════════════════════════════════════════════════╗
+ * ║                        ⚡ CONCURRENT STRESS STATE VERIFICATION                           ║
+ * ╠══════════════════════════════════════════════════════════════════════════════════════════╣
+ * ║ @[Name]: verifyServiceStateConsistency_underConcurrentConnectionChanges_expectNoCorruption║
+ * ║ @[Purpose]: 验证并发连接/断开操作期间服务状态一致性                                        ║
+ * ║ @[Steps]: 并发连接/断开压力测试，验证服务状态一致性                                        ║
+ * ║ @[Expect]: 服务状态在并发压力下保持一致，无状态损坏                                        ║
+ * ║ @[Notes]: 高并发场景下的服务稳定性验证                                                   ║
+ * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
 TEST_F(DATConnectionStateTest, verifyServiceStateConsistency_underConcurrentConnectionChanges_expectNoCorruption) {
     printf("🧪 [TEST] verifyServiceStateConsistency_underConcurrentConnectionChanges_expectNoCorruption\n");
