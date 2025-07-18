@@ -679,4 +679,33 @@ TEST_F(DATTransmissionStateTest, verifyLargeDataTransmissionState_byLargePayload
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
 //======>END OF IMPLEMENTATION SUMMARY=============================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF NOTE ON COMPANION FILES==========================================================
+
+/**************************************************************************************************
+ * @brief 【Companion Files Note】
+ *
+ *  📁 FILE ORGANIZATION:
+ *     - UT_DataStateUS2.cxx: DAT transmission state verification (THIS FILE)
+ *     - UT_DataStateUS3.cxx: DAT buffer state verification
+ *     - UT_DataStateUS4.cxx: DAT state transition verification
+ *     - UT_DataStateUS5.cxx: DAT error recovery state verification
+ *     - UT_DataState.h: Common header with shared utilities and macros
+ *
+ *  💡 DESIGN RATIONALE:
+ *     - Each User Story has its own dedicated file for maintainability
+ *     - Common utilities are shared through UT_DataState.h
+ *     - Consistent naming pattern: UT_DataStateUS{N}.cxx
+ *     - Each file focuses on specific aspects of DAT state management
+ *
+ *  🔄 CROSS-REFERENCES:
+ *     - US-2 (this file): Transmission states (Ready, Busy, Idle, Flushing)
+ *     - US-3: Buffer states (Empty, Partial, Full, Flow Control)
+ *     - US-4: State transitions (Valid, Invalid, Atomic, Concurrent)
+ *     - US-5: Error recovery states (Error, Timeout, Broken Link, Recovery)
+ *
+ *************************************************************************************************/
+
+//======>END OF NOTE ON COMPANION FILES============================================================
 ///////////////////////////////////////////////////////////////////////////////////////////////////
