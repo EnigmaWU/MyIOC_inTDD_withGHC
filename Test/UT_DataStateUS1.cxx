@@ -23,6 +23,66 @@
  *  - Connection State: 连接状态，包括服务状态和链接状态的管理
  *  - Auto-Accept: 自动接受连接模式，通过IOC_SRVFLAG_AUTO_ACCEPT标志启用
  *  - State Tracking: 状态跟踪机制，确保状态变化的正确记录和验证
+ *
+ *-------------------------------------------------------------------------------------------------
+ *++为什么错误处理测试用例属于DataState测试范畴的设计理由：
+ *
+ *  🎯 核心设计原则：Data State Testing = 数据传输状态的完整性验证
+ *
+ *  📊 DataState测试范畴包含以下几个关键维度：
+ *  ┌─────────────────────────────────────────────────────────────────────────────────────────┐
+ *  │ 1. 正常状态转换验证 (Normal State Transitions)                                          │
+ *  │    • 服务上线/下线状态转换                                                               │
+ *  │    • 链接连接/断开状态转换                                                               │
+ *  │    • 数据传输就绪状态管理                                                               │
+ *  │                                                                                         │
+ *  │ 2. 异常状态处理验证 (Exception State Handling) ← 新增测试用例重点关注                   │
+ *  │    • 错误条件下状态一致性保护                                                           │
+ *  │    • 无效操作时状态完整性验证                                                           │
+ *  │    • 异常场景下状态恢复机制                                                             │
+ *  │                                                                                         │
+ *  │ 3. 并发状态管理验证 (Concurrent State Management)                                       │
+ *  │    • 多客户端并发连接状态独立性                                                         │
+ *  │    • 状态变化的原子性和一致性                                                           │
+ *  │    • 资源竞争条件下状态保护                                                             │
+ *  │                                                                                         │
+ *  │ 4. 状态边界条件验证 (State Boundary Conditions)                                        │
+ *  │    • 极限参数下状态行为验证                                                             │
+ *  │    • 边界值操作时状态稳定性                                                             │
+ *  │    • 资源耗尽时状态管理                                                                 │
+ *  └─────────────────────────────────────────────────────────────────────────────────────────┘
+ *
+ *  🔍 具体到新增的错误处理测试用例：
+ *
+ *  ✅ verifyServiceOnlineError_byInvalidConfig_expectErrorHandling (AC-1 TC-2)
+ *     为什么属于DataState测试：
+ *     • 验证DAT服务在配置错误时的状态完整性
+ *     • 确保无效配置不会导致服务状态损坏
+ *     • 测试数据传输服务状态管理的鲁棒性
+ *     • 保证系统在异常条件下仍能正确跟踪状态
+ *
+ *  ✅ verifyConnectionError_byOfflineService_expectConnectionFailed (AC-2 TC-2)
+ *     为什么属于DataState测试：
+ *     • 验证连接失败时客户端状态保持正确
+ *     • 确保服务不可用时连接状态管理的一致性
+ *     • 测试数据传输就绪状态在异常条件下的表现
+ *     • 防止连接错误导致状态跟踪混乱
+ *
+ *  ✅ verifyInvalidLinkDisconnect_byInvalidLinkID_expectErrorHandling (AC-3 TC-3)
+ *     为什么属于DataState测试：
+ *     • 验证无效断开操作不会影响系统状态一致性
+ *     • 确保错误的LinkID操作不会导致状态损坏
+ *     • 测试数据传输状态管理在边界条件下的鲁棒性
+ *     • 保护状态跟踪系统免受无效操作影响
+ *
+ *  🏆 总结：这些错误处理测试用例是DataState测试的重要组成部分，因为：
+ *     • 它们验证数据传输状态管理的完整性和鲁棒性
+ *     • 确保系统在异常条件下仍能维持正确的状态跟踪
+ *     • 防止错误操作导致数据传输状态系统损坏
+ *     • 保证数据传输服务在各种条件下都能提供可靠的状态管理
+ *
+ *  💡 设计哲学：完整的DataState测试不仅要验证正常路径，更要验证异常路径下的状态管理，
+ *     这样才能确保数据传输系统在实际应用中的可靠性和稳定性。
  */
 //======>END OF OVERVIEW OF THIS UNIT TESTING FILE=================================================
 
@@ -76,6 +136,12 @@
  *      @[Name]: verifyServiceOnlineError_byInvalidConfig_expectErrorHandling
  *      @[Purpose]: 验证无效配置参数时IOC_onlineService()的错误处理
  *      @[Brief]: 使用无效配置参数调用IOC_onlineService()，验证错误处理
+ *      @[DataState_Rationale]:
+ *          🎯 属于DataState测试范畴的设计理由：
+ *          • 验证DAT服务状态在错误条件下的完整性和一致性
+ *          • 确保无效配置不会导致服务状态损坏或不一致
+ *          • 测试数据传输服务的状态转换在异常场景下的鲁棒性
+ *          • 保证系统在配置错误时仍能维持正确的状态跟踪
  *-------------------------------------------------------------------------------------------------
  * [@AC-2,US-1]
  *  TC-1:
@@ -87,6 +153,12 @@
  *      @[Name]: verifyConnectionError_byOfflineService_expectConnectionFailed
  *      @[Purpose]: 验证连接到离线服务时的错误处理
  *      @[Brief]: 客户端尝试连接到离线/不存在的服务，验证连接失败处理
+ *      @[DataState_Rationale]:
+ *          🎯 属于DataState测试范畴的设计理由：
+ *          • 验证DAT连接状态在服务不可用时的正确管理
+ *          • 确保连接失败时客户端状态保持正确的"未连接"状态
+ *          • 测试数据传输准备状态在异常条件下的一致性
+ *          • 防止连接错误导致状态跟踪混乱或资源泄漏
  *--------------------------------------------------------------------------------------------------
  * [@AC-3,US-1]
  *  TC-1:
@@ -103,6 +175,12 @@
  *      @[Name]: verifyInvalidLinkDisconnect_byInvalidLinkID_expectErrorHandling
  *      @[Purpose]: 验证无效LinkID断开连接时的错误处理
  *      @[Brief]: 使用无效LinkID调用IOC_closeLink()，验证错误处理
+ *      @[DataState_Rationale]:
+ *          🎯 属于DataState测试范畴的设计理由：
+ *          • 验证DAT链接状态在无效操作下的完整性保护
+ *          • 确保无效断开操作不会影响系统整体状态一致性
+ *          • 测试数据传输状态管理在边界条件下的鲁棒性
+ *          • 防止错误的断开操作导致状态跟踪系统损坏
  *--------------------------------------------------------------------------------------------------
  *
  * [@AC-4,US-1]
@@ -262,6 +340,13 @@ TEST_F(DATConnectionStateTest, verifyServiceOnlineState_byOnlineService_expectSt
  * ║   4) 🧹 验证第一个服务状态保持正常                                                       ║
  * ║ @[Expect]: 第二个服务创建失败，第一个服务保持正常                                        ║
  * ║ @[Notes]: 测试资源冲突和重复创建的错误处理                                               ║
+ * ║                                                                                          ║
+ * ║ 🎯 为什么属于DataState测试范畴：                                                        ║
+ * ║   • 验证DAT服务状态管理在配置错误时的完整性保护                                          ║
+ * ║   • 确保无效配置不会导致已有服务的状态损坏                                               ║
+ * ║   • 测试数据传输服务状态转换在异常条件下的鲁棒性                                         ║
+ * ║   • 保证系统在配置冲突时仍能维持正确的状态跟踪                                           ║
+ * ║   • 防止服务状态在资源冲突时出现不一致或损坏                                             ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
 TEST_F(DATConnectionStateTest, verifyServiceOnlineError_byInvalidConfig_expectErrorHandling) {
@@ -450,6 +535,13 @@ TEST_F(DATConnectionStateTest, verifyLinkConnectState_byConnectService_expectCon
  * ║   4) 🧹 验证状态保持断开                                                                 ║
  * ║ @[Expect]: 连接失败，返回IOC_RESULT_NOT_EXIST_LINK或适当错误，状态保持断开              ║
  * ║ @[Notes]: 测试连接错误处理和服务不可用场景                                               ║
+ * ║                                                                                          ║
+ * ║ 🎯 为什么属于DataState测试范畴：                                                        ║
+ * ║   • 验证DAT连接状态在服务不可用时的正确管理                                              ║
+ * ║   • 确保连接失败时客户端状态保持正确的"未连接"状态                                        ║
+ * ║   • 测试数据传输准备状态在异常条件下的一致性                                             ║
+ * ║   • 防止连接错误导致状态跟踪混乱或资源泄漏                                               ║
+ * ║   • 保证数据传输状态管理在网络异常时的鲁棒性                                             ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
 TEST_F(DATConnectionStateTest, verifyConnectionError_byOfflineService_expectConnectionFailed) {
@@ -721,6 +813,13 @@ TEST_F(DATConnectionStateTest, verifyServiceStability_afterLinkDisconnect_expect
  * ║   4) 🧹 验证系统状态保持一致                                                             ║
  * ║ @[Expect]: 断开失败，返回IOC_RESULT_NOT_EXIST_LINK，系统状态保持一致                   ║
  * ║ @[Notes]: 测试无效LinkID断开操作的错误处理和鲁棒性                                       ║
+ * ║                                                                                          ║
+ * ║ 🎯 为什么属于DataState测试范畴：                                                        ║
+ * ║   • 验证DAT链接状态在无效操作下的完整性保护                                              ║
+ * ║   • 确保无效断开操作不会影响系统整体状态一致性                                           ║
+ * ║   • 测试数据传输状态管理在边界条件下的鲁棒性                                             ║
+ * ║   • 防止错误的断开操作导致状态跟踪系统损坏                                               ║
+ * ║   • 保证数据传输状态管理在异常输入时的自我保护能力                                       ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
 TEST_F(DATConnectionStateTest, verifyInvalidLinkDisconnect_byInvalidLinkID_expectErrorHandling) {
