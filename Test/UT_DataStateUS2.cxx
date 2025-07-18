@@ -79,30 +79,50 @@
  *      @[Name]: verifyTransmissionState_bySendDAT_expectStateTracking
  *      @[Purpose]: 验证IOC_sendDAT()操作期间的传输状态跟踪
  *      @[Brief]: 发送数据时验证传输状态正确跟踪
+ *      @[TransmissionState_Focus]: 测试发送操作期间的状态变化和一致性
+ *
+ *  TODO:TC-2:...
+ *-------------------------------------------------------------------------------------------------
  *
  * [@AC-2,US-2]
- *  TC-2:
+ *  TC-1:
  *      @[Name]: verifyReceivingState_byCallbackProcessing_expectStateTracking
  *      @[Purpose]: 验证数据接收回调期间的接收状态跟踪
  *      @[Brief]: 接收数据时验证接收状态正确跟踪
+ *      @[TransmissionState_Focus]: 测试接收回调期间的状态变化和一致性
+ *
+ *  TODO:TC-2:...
+ *-------------------------------------------------------------------------------------------------
  *
  * [@AC-3,US-2]
- *  TC-3:
+ *  TC-1:
  *      @[Name]: verifyConcurrentTransmissionState_byMultipleSends_expectIndependentTracking
  *      @[Purpose]: 验证并发发送操作的独立状态跟踪
  *      @[Brief]: 并发发送时验证各传输状态独立跟踪
+ *      @[TransmissionState_Focus]: 测试并发传输场景下的状态独立性和一致性
+ *
+ *  TODO:TC-2:...
+ *-------------------------------------------------------------------------------------------------
  *
  * [@AC-4,US-2]
- *  TC-4:
+ *  TC-1:
  *      @[Name]: verifyTransmissionErrorState_byBrokenLink_expectErrorRecovery
  *      @[Purpose]: 验证传输错误时的状态反映和错误恢复
  *      @[Brief]: 链接中断时验证错误状态和恢复机制
+ *      @[TransmissionState_Focus]: 测试错误条件下的状态管理和恢复机制
+ *
+ *  TODO:TC-2:...
+ *-------------------------------------------------------------------------------------------------
  *
  * [@AC-5,US-2]
- *  TC-5:
+ *  TC-1:
  *      @[Name]: verifyLargeDataTransmissionState_byLargePayload_expectProgressTracking
  *      @[Purpose]: 验证大数据传输的进度状态跟踪
  *      @[Brief]: 大数据传输时验证进度状态正确跟踪
+ *      @[TransmissionState_Focus]: 测试大数据传输场景下的状态跟踪和进度管理
+ *
+ *  TODO:TC-2:...
+ *-------------------------------------------------------------------------------------------------
  *
  *************************************************************************************************/
 //======>END OF UNIT TESTING DESIGN================================================================
@@ -209,6 +229,13 @@ class DATTransmissionStateTest : public ::testing::Test {
  * ║ @[Steps]: 建立DAT连接，发送数据，验证传输状态正确跟踪                                      ║
  * ║ @[Expect]: 传输状态在发送期间正确跟踪，链接状态反映传输活动                               ║
  * ║ @[Notes]: 验证基础传输状态跟踪功能                                                       ║
+ * ║                                                                                          ║
+ * ║ 🎯 TransmissionState测试重点：                                                          ║
+ * ║   • 验证IOC_sendDAT()调用期间的状态变化                                                 ║
+ * ║   • 确保发送操作前后的状态一致性                                                         ║
+ * ║   • 测试链接状态反映传输活动的准确性                                                     ║
+ * ║   • 验证发送完成后状态正确恢复到ready状态                                               ║
+ * ║ @[TestPattern]: US-2 AC-1 TC-1 - 基础传输状态跟踪验证                                  ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
 TEST_F(DATTransmissionStateTest, verifyTransmissionState_bySendDAT_expectStateTracking) {
@@ -273,6 +300,13 @@ TEST_F(DATTransmissionStateTest, verifyTransmissionState_bySendDAT_expectStateTr
  * ║ @[Steps]: 建立DAT连接，发送数据触发回调，验证接收状态正确跟踪                               ║
  * ║ @[Expect]: 接收状态在回调处理期间正确跟踪，链接状态反映接收活动                            ║
  * ║ @[Notes]: 验证回调模式下的接收状态跟踪功能                                               ║
+ * ║                                                                                          ║
+ * ║ 🎯 TransmissionState测试重点：                                                          ║
+ * ║   • 验证数据接收回调期间的状态变化                                                       ║
+ * ║   • 确保回调处理前后的状态一致性                                                         ║
+ * ║   • 测试接收状态跟踪的准确性和及时性                                                     ║
+ * ║   • 验证回调完成后状态正确恢复到ready状态                                               ║
+ * ║ @[TestPattern]: US-2 AC-2 TC-1 - 基础接收状态跟踪验证                                  ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
 TEST_F(DATTransmissionStateTest, verifyReceivingState_byCallbackProcessing_expectStateTracking) {
@@ -341,6 +375,13 @@ TEST_F(DATTransmissionStateTest, verifyReceivingState_byCallbackProcessing_expec
  * ║ @[Steps]: 建立DAT连接，并发发送多个数据，验证各传输状态独立跟踪                           ║
  * ║ @[Expect]: 每个传输操作独立维护状态，整体链接状态保持一致                                 ║
  * ║ @[Notes]: 验证并发传输场景下的状态一致性                                                 ║
+ * ║                                                                                          ║
+ * ║ 🎯 TransmissionState测试重点：                                                          ║
+ * ║   • 验证多个并发发送操作的状态独立性                                                     ║
+ * ║   • 确保并发场景下整体链接状态的一致性                                                   ║
+ * ║   • 测试状态跟踪在高并发下的准确性                                                       ║
+ * ║   • 验证并发传输不会导致状态混乱或损坏                                                   ║
+ * ║ @[TestPattern]: US-2 AC-3 TC-1 - 并发传输状态独立性验证                                ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
 TEST_F(DATTransmissionStateTest, verifyConcurrentTransmissionState_byMultipleSends_expectIndependentTracking) {
@@ -426,6 +467,13 @@ TEST_F(DATTransmissionStateTest, verifyConcurrentTransmissionState_byMultipleSen
  * ║ @[Steps]: 建立DAT连接，断开链接，尝试发送数据，验证错误状态和恢复机制                      ║
  * ║ @[Expect]: 传输状态反映错误条件，触发适当的错误恢复机制                                   ║
  * ║ @[Notes]: 验证错误处理场景下的状态管理                                                   ║
+ * ║                                                                                          ║
+ * ║ 🎯 TransmissionState测试重点：                                                          ║
+ * ║   • 验证链接断开后的状态变化和错误反映                                                   ║
+ * ║   • 确保错误条件下的状态一致性                                                           ║
+ * ║   • 测试错误恢复机制的有效性                                                             ║
+ * ║   • 验证错误状态不会导致系统状态损坏                                                     ║
+ * ║ @[TestPattern]: US-2 AC-4 TC-1 - 传输错误状态管理验证                                  ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
 TEST_F(DATTransmissionStateTest, verifyTransmissionErrorState_byBrokenLink_expectErrorRecovery) {
@@ -499,6 +547,13 @@ TEST_F(DATTransmissionStateTest, verifyTransmissionErrorState_byBrokenLink_expec
  * ║ @[Steps]: 建立DAT连接，发送大数据载荷，验证进度状态正确跟踪                               ║
  * ║ @[Expect]: 传输状态正确跟踪大数据传输进度，支持状态感知的流量控制                         ║
  * ║ @[Notes]: 验证大数据传输场景下的状态跟踪功能                                             ║
+ * ║                                                                                          ║
+ * ║ 🎯 TransmissionState测试重点：                                                          ║
+ * ║   • 验证大数据传输期间的进度状态跟踪                                                     ║
+ * ║   • 确保大数据传输不会导致状态管理异常                                                   ║
+ * ║   • 测试状态感知的流量控制机制                                                           ║
+ * ║   • 验证大数据传输完成后的状态正确恢复                                                   ║
+ * ║ @[TestPattern]: US-2 AC-5 TC-1 - 大数据传输进度跟踪验证                                ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
 TEST_F(DATTransmissionStateTest, verifyLargeDataTransmissionState_byLargePayload_expectProgressTracking) {
@@ -582,12 +637,12 @@ TEST_F(DATTransmissionStateTest, verifyLargeDataTransmissionState_byLargePayload
  * ║   ✅ US-2 AC-4: Transmission error state tracking and recovery                           ║
  * ║   ✅ US-2 AC-5: Large data transmission progress tracking                                ║
  * ║                                                                                          ║
- * ║ 🔧 IMPLEMENTED TEST CASES:                                                               ║
- * ║   TC-1: verifyTransmissionState_bySendDAT_expectStateTracking                           ║
- * ║   TC-2: verifyReceivingState_byCallbackProcessing_expectStateTracking                   ║
- * ║   TC-3: verifyConcurrentTransmissionState_byMultipleSends_expectIndependentTracking     ║
- * ║   TC-4: verifyTransmissionErrorState_byBrokenLink_expectErrorRecovery                   ║
- * ║   TC-5: verifyLargeDataTransmissionState_byLargePayload_expectProgressTracking          ║
+ * ║ 🔧 IMPLEMENTED TEST CASES (AC-X TC-Y Pattern):                                          ║
+ * ║   AC-1 TC-1: verifyTransmissionState_bySendDAT_expectStateTracking                      ║
+ * ║   AC-2 TC-1: verifyReceivingState_byCallbackProcessing_expectStateTracking              ║
+ * ║   AC-3 TC-1: verifyConcurrentTransmissionState_byMultipleSends_expectIndependentTracking║
+ * ║   AC-4 TC-1: verifyTransmissionErrorState_byBrokenLink_expectErrorRecovery              ║
+ * ║   AC-5 TC-1: verifyLargeDataTransmissionState_byLargePayload_expectProgressTracking     ║
  * ║                                                                                          ║
  * ║ 🚀 KEY ACHIEVEMENTS:                                                                     ║
  * ║   • Transmission state tracking during send/receive operations                          ║
@@ -596,16 +651,18 @@ TEST_F(DATTransmissionStateTest, verifyLargeDataTransmissionState_byLargePayload
  * ║   • Large data transmission progress monitoring                                          ║
  * ║   • State-aware error handling implementation                                            ║
  * ║                                                                                          ║
- * ║ 🎨 VISUAL ENHANCEMENTS:                                                                  ║
- * ║   • Template-based test structure following UT_FreelyDrafts.cxx                        ║
- * ║   • Emoji-based progress indicators for transmission activities                         ║
- * ║   • Comprehensive state tracking with metrics reporting                                 ║
+ * ║ 🎨 REFACTORING IMPROVEMENTS:                                                             ║
+ * ║   • Consistent AC-X TC-Y naming pattern alignment with US-1                            ║
+ * ║   • Enhanced comments with TransmissionState_Focus annotations                          ║
+ * ║   • Improved test case organization and documentation                                   ║
+ * ║   • Better traceability between ACs and TCs                                            ║
  * ║                                                                                          ║
  * ║ 🔄 DESIGN PRINCIPLES:                                                                    ║
  * ║   • Test-driven development methodology                                                 ║
  * ║   • State-aware testing approach                                                        ║
  * ║   • Independent transmission state tracking                                             ║
  * ║   • Proper error handling and recovery testing                                         ║
+ * ║   • Consistent naming convention across User Stories                                    ║
  * ║                                                                                          ║
  * ║ 💡 TRANSMISSION STATE INSIGHTS:                                                          ║
  * ║   • IOC_sendDAT operations maintain state consistency                                   ║
@@ -613,6 +670,12 @@ TEST_F(DATTransmissionStateTest, verifyLargeDataTransmissionState_byLargePayload
  * ║   • Concurrent transmissions maintain independent state tracking                       ║
  * ║   • Error conditions trigger appropriate state recovery mechanisms                     ║
  * ║   • Large data transfers support progress tracking and flow control                    ║
+ * ║                                                                                          ║
+ * ║ 🔍 NAMING PATTERN RATIONALE:                                                            ║
+ * ║   • AC-X TC-Y pattern ensures clear traceability from requirements to tests           ║
+ * ║   • Each AC can have multiple TCs for comprehensive coverage                           ║
+ * ║   • Consistent with US-1 pattern for maintainability                                   ║
+ * ║   • Supports future expansion with AC-X TC-2, AC-X TC-3, etc.                         ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
 //======>END OF IMPLEMENTATION SUMMARY=============================================================
