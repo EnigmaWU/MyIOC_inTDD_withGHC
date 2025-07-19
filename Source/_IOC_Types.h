@@ -4,6 +4,7 @@
  */
 #include <IOC/IOC.h>  //Module IOC's public header file
 #include <pthread.h>  //POSIX pthread
+#include <time.h>     //For timestamp tracking in DAT state
 
 #ifndef __INTER_OBJECT_COMMUNICATION_TYPES_H__
 #define __INTER_OBJECT_COMMUNICATION_TYPES_H__
@@ -48,6 +49,20 @@ struct _IOC_LinkObjectStru {
     IOC_ConnArgs_T Args;
 
     _IOC_SrvProtoMethods_pT pMethods;
+
+    // 🎯 TDD IMPLEMENTATION: DAT substate tracking for IOC_getLinkState()
+    // Added to support RED→GREEN transition for DAT state verification tests
+    struct {
+        IOC_LinkSubState_T CurrentSubState;  // Current DAT substate (Ready, Busy, etc.)
+        pthread_mutex_t SubStateMutex;       // Thread-safe substate updates
+
+        // Operation-specific tracking
+        bool IsSending;    // True during IOC_sendDAT() operation
+        bool IsReceiving;  // True during data reception/callback
+
+        // Last operation timestamp for debugging
+        time_t LastOperationTime;
+    } DatState;
 
     void *pProtoPriv;
 };

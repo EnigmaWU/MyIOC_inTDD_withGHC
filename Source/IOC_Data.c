@@ -69,6 +69,13 @@ IOC_Result_T IOC_sendDAT(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, IOC_Optio
 
     _IOC_LogDebug("IOC_sendDAT: Sending %lu bytes on LinkID=%llu\n", pDatDesc->Payload.PtrDataSize, LinkID);
 
+    // 🎯 TDD IMPLEMENTATION: Track DAT sender state transitions
+    // Set sender to "busy sending" before operation, restore to "ready" after
+    pthread_mutex_lock(&pSenderLinkObj->DatState.SubStateMutex);
+    pSenderLinkObj->DatState.IsSending = true;
+    pSenderLinkObj->DatState.LastOperationTime = time(NULL);
+    pthread_mutex_unlock(&pSenderLinkObj->DatState.SubStateMutex);
+
     // 🔄 WHY ARCHITECTURE CHANGE: The original implementation used global variables
     // (_gTDD_PendingData) to store data, completely bypassing the protocol layer.
     // This violated the layered architecture where:
@@ -84,10 +91,20 @@ IOC_Result_T IOC_sendDAT(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, IOC_Optio
     // Each protocol (FIFO, TCP, UDP) can implement its own optimal transmission strategy.
     _IOC_SrvProtoMethods_pT pMethods = pSenderLinkObj->pMethods;
     if (!pMethods || !pMethods->OpSendData_F) {
+        // Restore sender state on error
+        pthread_mutex_lock(&pSenderLinkObj->DatState.SubStateMutex);
+        pSenderLinkObj->DatState.IsSending = false;
+        pthread_mutex_unlock(&pSenderLinkObj->DatState.SubStateMutex);
         return IOC_RESULT_NOT_SUPPORT;
     }
 
     IOC_Result_T Result = pMethods->OpSendData_F(pSenderLinkObj, pDatDesc, pOption);
+
+    // 🎯 TDD IMPLEMENTATION: Restore sender state after operation completes
+    pthread_mutex_lock(&pSenderLinkObj->DatState.SubStateMutex);
+    pSenderLinkObj->DatState.IsSending = false;
+    pSenderLinkObj->DatState.LastOperationTime = time(NULL);
+    pthread_mutex_unlock(&pSenderLinkObj->DatState.SubStateMutex);
 
     return Result;
 }

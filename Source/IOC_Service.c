@@ -141,6 +141,18 @@ _IOC_LinkObject_pT __IOC_allocLinkObj(void) {
             }
 
             pLinkObj->ID = ___IOC_convertLinkObjTblIdxToLinkID(i);
+
+            // 🎯 TDD IMPLEMENTATION: Initialize DAT state for IOC_getLinkState() support
+            pLinkObj->DatState.CurrentSubState = IOC_LinkSubStateDefault;
+            if (pthread_mutex_init(&pLinkObj->DatState.SubStateMutex, NULL) != 0) {
+                _IOC_LogError("Failed to initialize DAT substate mutex for LinkID=%llu", pLinkObj->ID);
+                free(pLinkObj);
+                return NULL;
+            }
+            pLinkObj->DatState.IsSending = false;
+            pLinkObj->DatState.IsReceiving = false;
+            pLinkObj->DatState.LastOperationTime = time(NULL);
+
             _mIOC_LinkObjTbl[i] = pLinkObj;
             break;
         }
@@ -159,6 +171,9 @@ void __IOC_freeLinkObj(_IOC_LinkObject_pT pLinkObj) {
     ___IOC_lockLinkObjTbl();
     _mIOC_LinkObjTbl[___IOC_convertLinkIDToLinkObjTblIdx(pLinkObj->ID)] = NULL;
     ___IOC_unlockLinkObjTbl();
+
+    // 🎯 TDD IMPLEMENTATION: Cleanup DAT state mutex
+    pthread_mutex_destroy(&pLinkObj->DatState.SubStateMutex);
 
     free(pLinkObj);
     //_IOC_LogNotTested();

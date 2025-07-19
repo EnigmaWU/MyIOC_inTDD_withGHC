@@ -98,16 +98,39 @@ IOC_Result_T _IOC_getLinkState_inConetMode(
 
     // 🎯 TDD IMPLEMENTATION: For DAT links in Conet mode, we determine state based on:
     // 1. Link existence and validity -> IOC_LinkStateReady
-    // 2. Active data transfer operations -> IOC_LinkStateBusy* (future enhancement)
-    // 3. Link disconnection -> IOC_RESULT_NOT_EXIST_LINK (handled above)
+    // 2. Link usage (Sender vs Receiver) -> Specific DAT substates
+    // 3. Active operations (sending/receiving) -> Busy substates
 
     // For now, all valid DAT links are considered "Ready"
     // This matches the test expectation from VERIFY_DAT_LINK_READY_STATE macro
     *pLinkState = IOC_LinkStateReady;
 
-    // Set sub-state to default if requested
+    // Determine DAT-specific substate based on link usage and current operation state
     if (pLinkSubState != NULL) {
-        *pLinkSubState = IOC_LinkSubStateDefault;
+        pthread_mutex_lock(&pLinkObj->DatState.SubStateMutex);
+
+        // Determine substate based on link usage (sender vs receiver)
+        // Note: IOC_LinkUsage uses bit flags, so use bitwise AND (&) not equality (==)
+        if (pLinkObj->Args.Usage & IOC_LinkUsageDatSender) {
+            // DataSender substates
+            if (pLinkObj->DatState.IsSending) {
+                *pLinkSubState = IOC_LinkSubStateDatSenderBusySendDat;
+            } else {
+                *pLinkSubState = IOC_LinkSubStateDatSenderReady;
+            }
+        } else if (pLinkObj->Args.Usage & IOC_LinkUsageDatReceiver) {
+            // DataReceiver substates
+            if (pLinkObj->DatState.IsReceiving) {
+                *pLinkSubState = IOC_LinkSubStateDatReceiverBusyCbRecvDat;  // Assuming callback mode
+            } else {
+                *pLinkSubState = IOC_LinkSubStateDatReceiverReady;
+            }
+        } else {
+            // For non-DAT links, use default substate
+            *pLinkSubState = IOC_LinkSubStateDefault;
+        }
+
+        pthread_mutex_unlock(&pLinkObj->DatState.SubStateMutex);
     }
 
     return IOC_RESULT_SUCCESS;
