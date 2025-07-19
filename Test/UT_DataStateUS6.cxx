@@ -280,8 +280,32 @@ TEST_F(DATServiceSenderRoleTest, verifyServiceSenderRole_byServiceSendToClient_e
     size_t initialServiceTransitions = servicePrivData.StateTransitionCount.load();
     size_t initialClientTransitions = clientPrivData.StateTransitionCount.load();
 
+    // 🔴 TDD RED: Before sending, service should be in DatSender Ready state
+    IOC_LinkState_T preServiceLinkState = IOC_LinkStateUndefined;
+    IOC_LinkSubState_T preServiceLinkSubState = IOC_LinkSubStateDefault;
+    IOC_Result_T preResult = IOC_getLinkState(clientLinkID, &preServiceLinkState, &preServiceLinkSubState);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, preResult) << "Should get Service link state before send";
+    printf("🔴 [TDD RED] PRE-SEND Service LinkSubState = %d (expecting IOC_LinkSubStateDatSenderReady = %d)\n",
+           preServiceLinkSubState, IOC_LinkSubStateDatSenderReady);
+    ASSERT_EQ(IOC_LinkSubStateDatSenderReady, preServiceLinkSubState)
+        << "🔴 TDD RED: Service should be in DatSender Ready state before sending";
+
     // Service sends data to Client (role-reversed operation)
     IOC_Result_T result = IOC_sendDAT(clientLinkID, &datDesc, NULL);
+
+    // 🔴 TDD RED: During send operation, service should be in DatSender Busy state
+    IOC_LinkState_T duringServiceLinkState = IOC_LinkStateUndefined;
+    IOC_LinkSubState_T duringServiceLinkSubState = IOC_LinkSubStateDefault;
+    IOC_Result_T duringResult = IOC_getLinkState(clientLinkID, &duringServiceLinkState, &duringServiceLinkSubState);
+    if (duringResult == IOC_RESULT_SUCCESS) {
+        printf(
+            "🔴 [TDD RED] DURING-SEND Service LinkSubState = %d (expecting IOC_LinkSubStateDatSenderBusySendDat = "
+            "%d)\n",
+            duringServiceLinkSubState, IOC_LinkSubStateDatSenderBusySendDat);
+        ASSERT_EQ(IOC_LinkSubStateDatSenderBusySendDat, duringServiceLinkSubState)
+            << "🔴 TDD RED: Service should be in DatSender Busy state during send operation";
+    }
+
     ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Service asDatSender should successfully send data to Client";
 
     // Allow time for data transmission and callback execution
@@ -309,11 +333,11 @@ TEST_F(DATServiceSenderRoleTest, verifyServiceSenderRole_byServiceSendToClient_e
     ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Should get Service sender link state";
     ASSERT_EQ(IOC_LinkStateReady, serviceLinkState) << "Service sender main state should be Ready";
 
-    // 🔴 RED TDD: Service should show DatSender substates
-    printf("🔴 [RED TDD] Service LinkSubState = %d (expecting IOC_LinkSubStateDatSenderReady = %d)\n",
+    // 🔴 TDD RED: Service should show DatSender Ready substate after send completion
+    printf("🔴 [TDD RED] Service LinkSubState = %d (expecting IOC_LinkSubStateDatSenderReady = %d)\n",
            serviceLinkSubState, IOC_LinkSubStateDatSenderReady);
     ASSERT_EQ(IOC_LinkSubStateDatSenderReady, serviceLinkSubState)
-        << "🔴 RED TDD: Service should show DatSender Ready substate after send completion";
+        << "🔴 TDD RED: Service should show DatSender Ready substate after send completion";
 
     printf("✅ [RESULT] Service asDatSender role verification successful\n");
     printf("🔄 [ROLE-REVERSAL] Service → Client data push pattern verified\n");
@@ -405,13 +429,19 @@ TEST_F(DATServiceSenderRoleTest, verifyClientReceiverRole_byServiceDataPush_expe
     ASSERT_EQ(strlen(pushData2) + 1, clientPrivData.TotalDataReceived)
         << "Client should receive latest push data with correct size";
 
-    // @KeyVerifyPoint-4: Verify Client receiver substate (if accessible)
-    // Note: In half-duplex architecture, we might not directly see receiver substates from client link
-    // But we can verify the link state consistency
+    // @KeyVerifyPoint-4: Verify Client receiver substates using TDD RED approach
+    // Note: In callback mode, we expect IOC_LinkSubStateDatReceiverBusyCbRecvDat during callback execution
     IOC_LinkState_T clientLinkState = IOC_LinkStateUndefined;
-    result = IOC_getLinkState(clientLinkID, &clientLinkState, NULL);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Should get Client link state";
+    IOC_LinkSubState_T clientLinkSubState = IOC_LinkSubStateDefault;
+    result = IOC_getLinkState(clientLinkID, &clientLinkState, &clientLinkSubState);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Should get Client receiver link state";
     ASSERT_EQ(IOC_LinkStateReady, clientLinkState) << "Client link main state should be Ready";
+
+    // 🔴 TDD RED: Client should show DatReceiver Ready state after callback completion
+    printf("🔴 [TDD RED] Client LinkSubState = %d (expecting IOC_LinkSubStateDatReceiverReady = %d)\n",
+           clientLinkSubState, IOC_LinkSubStateDatReceiverReady);
+    ASSERT_EQ(IOC_LinkSubStateDatReceiverReady, clientLinkSubState)
+        << "🔴 TDD RED: Client should show DatReceiver Ready substate after callback completion";
 
     // @KeyVerifyPoint-5: Client receiver role verification
     ASSERT_TRUE(clientPrivData.ClientAsDatReceiver.load()) << "Client should maintain DatReceiver role";
@@ -424,6 +454,95 @@ TEST_F(DATServiceSenderRoleTest, verifyClientReceiverRole_byServiceDataPush_expe
     // │                               🧹 CLEANUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
     // Cleanup handled by TearDown()
+}
+
+/**
+ * ╔══════════════════════════════════════════════════════════════════════════════════════════╗
+ * ║                    🔴 TDD RED: DAT SERVICE SUBSTATE VERIFICATION                        ║
+ * ╠══════════════════════════════════════════════════════════════════════════════════════════╣
+ * ║ @[Name]: verifyDatServiceSubStates_byFullTransitionCycle_expectCorrectSubStates         ║
+ * ║ @[Purpose]: TDD RED验证DAT服务子状态完整转换周期                                         ║
+ * ║ @[Steps]: 验证完整的DAT子状态转换序列: Ready → Busy → Ready                              ║
+ * ║ @[Expect]: 所有子状态按预期值正确转换                                                    ║
+ * ║                                                                                          ║
+ * ║ 🔴 TDD RED要求验证的子状态:                                                              ║
+ * ║   • IOC_LinkSubStateDatSenderReady = Service准备发送状态                                 ║
+ * ║   • IOC_LinkSubStateDatSenderBusySendDat = Service发送中状态                             ║
+ * ║   • IOC_LinkSubStateDatReceiverReady = Client准备接收状态                                ║
+ * ║   • IOC_LinkSubStateDatReceiverBusyRecvDat = Client轮询接收忙状态                        ║
+ * ║   • IOC_LinkSubStateDatReceiverBusyCbRecvDat = Client回调接收忙状态                      ║
+ * ║ @[TestPattern]: US-6 AC-2 TC-1 - DAT服务子状态完整验证                                  ║
+ * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
+ */
+TEST_F(DATServiceSenderRoleTest, verifyDatServiceSubStates_byFullTransitionCycle_expectCorrectSubStates) {
+    printf("🧪 [TDD RED TEST] verifyDatServiceSubStates_byFullTransitionCycle_expectCorrectSubStates\n");
+
+    setupServiceSenderClientReceiver();
+
+    IOC_LinkID_T clientLinkID = clientLinkIDs[0];
+    const char* testData = "TDD RED SubState Test Data";
+    IOC_DatDesc_T datDesc = {};
+    IOC_initDatDesc(&datDesc);
+    datDesc.Payload.pData = (void*)testData;
+    datDesc.Payload.PtrDataSize = strlen(testData) + 1;
+    datDesc.Payload.PtrDataLen = strlen(testData) + 1;
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                      🔴 TDD RED: COMPLETE SUBSTATE CYCLE                             │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+
+    // Phase 1: 🔴 TDD RED - Verify initial DatSender Ready state
+    IOC_LinkState_T linkState;
+    IOC_LinkSubState_T linkSubState;
+    IOC_Result_T result = IOC_getLinkState(clientLinkID, &linkState, &linkSubState);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Should get link state";
+
+    printf("🔴 [TDD RED] Phase 1 - Initial Service SubState = %d\n", linkSubState);
+    ASSERT_EQ(IOC_LinkSubStateDatSenderReady, linkSubState)
+        << "🔴 TDD RED FAIL: Service should start in DatSender Ready state";
+
+    // Phase 2: 🔴 TDD RED - Verify DatSender Busy during send operation
+    printf("🔴 [TDD RED] Phase 2 - Initiating sendDAT operation...\n");
+    result = IOC_sendDAT(clientLinkID, &datDesc, NULL);
+
+    // Check if we can catch the busy state (timing-dependent)
+    result = IOC_getLinkState(clientLinkID, &linkState, &linkSubState);
+    if (result == IOC_RESULT_SUCCESS) {
+        printf("🔴 [TDD RED] Phase 2 - During Send SubState = %d\n", linkSubState);
+        // This might be busy or already back to ready depending on timing
+        ASSERT_TRUE(linkSubState == IOC_LinkSubStateDatSenderBusySendDat ||
+                    linkSubState == IOC_LinkSubStateDatSenderReady)
+            << "🔴 TDD RED: Service should be in Busy or Ready state during/after send";
+    }
+
+    // Phase 3: 🔴 TDD RED - Verify Client Receiver states (callback mode)
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Client should be in callback busy state during callback execution
+    // Then return to receiver ready state
+    result = IOC_getLinkState(clientLinkID, &linkState, &linkSubState);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Should get client link state";
+
+    printf("🔴 [TDD RED] Phase 3 - Client Final SubState = %d\n", linkSubState);
+    // In callback mode, client should show receiver ready after callback completion
+    ASSERT_EQ(IOC_LinkSubStateDatReceiverReady, linkSubState)
+        << "🔴 TDD RED FAIL: Client should be in DatReceiver Ready state after callback completion";
+
+    // Phase 4: 🔴 TDD RED - Verify Service returns to Ready state
+    result = IOC_getLinkState(clientLinkID, &linkState, &linkSubState);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Should get service final link state";
+
+    printf("🔴 [TDD RED] Phase 4 - Service Final SubState = %d\n", linkSubState);
+    ASSERT_EQ(IOC_LinkSubStateDatSenderReady, linkSubState)
+        << "🔴 TDD RED FAIL: Service should return to DatSender Ready state after send completion";
+
+    printf("🔴 [TDD RED] All substate assertions WILL FAIL until framework implements proper substate management\n");
+    printf("🔴 [TDD RED] Expected SubStates to implement:\n");
+    printf("🔴   - IOC_LinkSubStateDatSenderReady = %d\n", IOC_LinkSubStateDatSenderReady);
+    printf("🔴   - IOC_LinkSubStateDatSenderBusySendDat = %d\n", IOC_LinkSubStateDatSenderBusySendDat);
+    printf("🔴   - IOC_LinkSubStateDatReceiverReady = %d\n", IOC_LinkSubStateDatReceiverReady);
+    printf("🔴   - IOC_LinkSubStateDatReceiverBusyRecvDat = %d\n", IOC_LinkSubStateDatReceiverBusyRecvDat);
+    printf("🔴   - IOC_LinkSubStateDatReceiverBusyCbRecvDat = %d\n", IOC_LinkSubStateDatReceiverBusyCbRecvDat);
 }
 
 // Additional test cases for AC-2 and AC-3 would be implemented here...
