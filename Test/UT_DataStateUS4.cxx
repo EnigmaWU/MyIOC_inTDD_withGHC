@@ -319,41 +319,43 @@ TEST_F(DATStateTransitionTest, verifyValidStateTransition_byValidOperations_expe
     ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Should get current link main and sub state";
     ASSERT_EQ(IOC_LinkStateReady, currentMainState) << "Main state should remain Ready";
 
-    // FRAMEWORK STATUS: IOC_getLinkState() returns IOC_LinkSubStateDefault until framework implementation is updated
-    // For now, verify framework extension is present and use hybrid approach
-    printf("🔍 [FRAMEWORK STATUS] IOC_getLinkState() substate = %d (0=Default until implementation updated)\n",
+    // 🔴 RED TDD: This is what we WANT IOC_getLinkState() to return for DAT substates
+    printf("🔴 [RED TDD] Testing IOC_getLinkState() substate = %d (expecting DAT-specific substates)\n",
            currentSubState);
-    ASSERT_EQ(IOC_LinkSubStateDefault, currentSubState) << "Framework implementation pending - returns Default";
 
-    // HYBRID APPROACH: Use private data for detailed substate verification while framework is updated
-    bool isDataSenderBusyFromPrivData = privData.SendInProgress.load();
-    bool isDataSenderCompletedFromPrivData = (privData.StateTransitionCount.load() > initialTransitionCount);
-    bool isStreamInitialized = privData.StreamAutoInitialized.load();
+    // 🔴 RED TEST: IOC_getLinkState() should return IOC_LinkSubStateDatSenderReady after sendDAT completes
+    // Currently this WILL FAIL because IOC framework only returns IOC_LinkSubStateDefault
+    printf("� [RED TDD] EXPECTED: IOC_LinkSubStateDatSenderReady (%d), ACTUAL: %d\n", IOC_LinkSubStateDatSenderReady,
+           currentSubState);
 
-    // DataSender should have either completed operation OR be in progress OR have stream initialized
-    ASSERT_TRUE(isDataSenderBusyFromPrivData || isDataSenderCompletedFromPrivData || isStreamInitialized)
-        << "DataSender should show evidence of operation: "
-        << "Busy=" << isDataSenderBusyFromPrivData << ", Completed=" << isDataSenderCompletedFromPrivData
-        << ", StreamInit=" << isStreamInitialized;
+    EXPECT_EQ(IOC_LinkSubStateDatSenderReady, currentSubState)
+        << "🔴 RED TDD FAILURE: IOC_getLinkState() should return IOC_LinkSubStateDatSenderReady but returns "
+        << currentSubState << ". This test should FAIL until we implement IOC framework substate tracking.";
 
-    // Check DataSender operational state using hybrid verification
-    if (isDataSenderBusyFromPrivData) {
-        printf("🔍 [DATASENDER] Currently in BusySending sub-state during operation (via private data)\n");
+    // 🔴 RED TDD: Document what we expect the framework to do
+    printf("🔴 [RED TDD] This test demonstrates the requirement:\n");
+    printf("🔴   - After IOC_sendDAT() completes, IOC_getLinkState() should return IOC_LinkSubStateDatSenderReady\n");
+    printf("🔴   - During IOC_sendDAT() operation, it could return IOC_LinkSubStateDatSenderBusySendDat\n");
+    printf("🔴   - The IOC framework needs to track and update these substates internally\n");
 
-        // FUTURE: When framework is implemented, this would be:
-        // VERIFY_DAT_SENDER_BUSY_SUBSTATE(testLinkID);
+    // Check DataSender operational state using RED TDD approach
+    if (currentSubState == IOC_LinkSubStateDatSenderBusySendDat) {
+        printf("✅ [GREEN FUTURE] IOC_getLinkState() correctly returned BusySendDat during operation\n");
 
         // Verify DataSender is in valid sending state
         ASSERT_TRUE(privData.LinkConnected.load()) << "DataSender link should be connected during operation";
-    } else {
-        printf("🔍 [DATASENDER] Operation completed - verifying Ready sub-state (via private data)\n");
-
-        // FUTURE: When framework is implemented, this would be:
-        // VERIFY_DAT_SENDER_READY_SUBSTATE(testLinkID);
+    } else if (currentSubState == IOC_LinkSubStateDatSenderReady) {
+        printf("✅ [GREEN FUTURE] IOC_getLinkState() correctly returned Ready after operation\n");
 
         // Verify DataSender operation evidence
-        ASSERT_TRUE(isDataSenderCompletedFromPrivData || isStreamInitialized)
-            << "DataSender should show evidence of completed operation";
+        ASSERT_GT(privData.StateTransitionCount.load(), initialTransitionCount)
+            << "DataSender should have recorded state transitions";
+    } else {
+        printf("🔴 [RED TDD] IOC_getLinkState() returned unexpected substate: %d\n", currentSubState);
+        printf(
+            "🔴 [RED TDD] Expected either IOC_LinkSubStateDatSenderReady (%d) or IOC_LinkSubStateDatSenderBusySendDat "
+            "(%d)\n",
+            IOC_LinkSubStateDatSenderReady, IOC_LinkSubStateDatSenderBusySendDat);
     }
 
     // @KeyVerifyPoint-2B: DataSender state isolation verification
@@ -410,34 +412,36 @@ TEST_F(DATStateTransitionTest, verifyValidStateTransition_byValidOperations_expe
     ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Should get receiver substate";
     ASSERT_EQ(IOC_LinkStateReady, currentMainState) << "Main state should remain Ready";
 
-    // FRAMEWORK STATUS: Still returns Default until implementation updated
-    printf("🔍 [FRAMEWORK STATUS] Receiver substate = %d (Default until framework updated)\n", receiverSubState);
-    ASSERT_EQ(IOC_LinkSubStateDefault, receiverSubState) << "Framework implementation pending";
+    // RED TDD: Show expected behavior - IOC_getLinkState() should return DAT-specific substates
+    printf("� [RED TDD] Expected IOC_getLinkState() to return DAT receiver substates, got: %d\n", receiverSubState);
 
-    // HYBRID APPROACH: Use private data for receiver substate verification
-    bool isReceiverBusyFromPrivData = privData.ReceiveInProgress.load();
-    bool isReceiverReadyFromPrivData = privData.CallbackExecuted.load() && !privData.ReceiveInProgress.load();
+    // RED TDD expectation: Framework should return DAT-specific substates, not Default
+    bool frameworkReturnsExpectedSubstates = (receiverSubState == IOC_LinkSubStateDatReceiverReady ||
+                                              receiverSubState == IOC_LinkSubStateDatReceiverBusyRecvDat);
 
-    ASSERT_TRUE(isReceiverBusyFromPrivData || isReceiverReadyFromPrivData || privData.CallbackExecuted.load())
-        << "DataReceiver should be in valid state based on private data tracking";
+    ASSERT_TRUE(frameworkReturnsExpectedSubstates)
+        << "🔴 [RED] IOC_getLinkState() should return DAT receiver substates. Current: " << receiverSubState
+        << ", Expected: Ready(" << IOC_LinkSubStateDatReceiverReady << ") or BusyRecvDat("
+        << IOC_LinkSubStateDatReceiverBusyRecvDat << ")";
 
-    if (isReceiverBusyFromPrivData) {
-        printf("🔍 [DATARECEIVER] Currently in BusyCbRecvDat sub-state during callback (via private data)\n");
-
-        // FUTURE: When framework is implemented, this would be:
-        // VERIFY_DAT_RECEIVER_BUSY_CALLBACK_SUBSTATE(testLinkID);
+    // Check DataReceiver operational state using RED TDD approach
+    if (currentSubState == IOC_LinkSubStateDatReceiverBusyRecvDat) {
+        printf("✅ [GREEN FUTURE] IOC_getLinkState() correctly returned BusyRecvDat during operation\n");
 
         // Verify DataReceiver is in valid receiving state
         ASSERT_TRUE(privData.ServiceAsDatReceiver.load()) << "DataReceiver should be configured as receiver";
         ASSERT_TRUE(privData.LinkConnected.load()) << "DataReceiver link should be connected";
-    } else {
-        printf("🔍 [DATARECEIVER] Completed transition back to Ready sub-state (via private data)\n");
-
-        // FUTURE: When framework is implemented, this would be:
-        // VERIFY_DAT_RECEIVER_READY_SUBSTATE(testLinkID);
+    } else if (currentSubState == IOC_LinkSubStateDatReceiverReady) {
+        printf("✅ [GREEN FUTURE] IOC_getLinkState() correctly returned Ready after operation\n");
 
         // Verify DataReceiver completed transition successfully
         ASSERT_TRUE(privData.CallbackExecuted.load()) << "DataReceiver should have completed callback processing";
+    } else {
+        printf("🔴 [RED TDD] IOC_getLinkState() returned unexpected substate: %d\n", currentSubState);
+        printf(
+            "🔴 [RED TDD] Expected either IOC_LinkSubStateDatReceiverReady (%d) or "
+            "IOC_LinkSubStateDatReceiverBusyRecvDat (%d)\n",
+            IOC_LinkSubStateDatReceiverReady, IOC_LinkSubStateDatReceiverBusyRecvDat);
     }
 
     // @KeyVerifyPoint-7C: DataReceiver state isolation verification using IOC_getLinkState()
