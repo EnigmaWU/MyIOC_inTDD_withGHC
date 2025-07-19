@@ -273,18 +273,17 @@ TEST_F(RealTDDDATSubStateTest, verifyDatReceiverBusyRecvDat_duringIOCrecvDAT_exp
     } else if (recvResult == IOC_RESULT_NOT_SUPPORT) {
         printf("🔴 [RED TDD] IOC_recvDAT returned NOT_SUPPORT (-501) - API not supported on this LinkID type\n");
         printf("💡 [INSIGHT] IOC_recvDAT may not be supported on sender LinkIDs - this is architectural\n");
-        
+
         // This is actually an architectural insight - not a bug
         printf("✅ [ARCHITECTURAL] IOC_recvDAT correctly rejects sender LinkID - this is proper design\n");
         EXPECT_EQ(IOC_RESULT_NOT_SUPPORT, recvResult) << "IOC_recvDAT should reject sender LinkID";
-        
+
     } else {
         printf("🔴 [RED TDD] IOC_recvDAT unexpected error: result=%d\n", recvResult);
         printf("🔨 [IMPLEMENTATION-NEEDED] IOC_recvDAT API issue needs investigation\n");
 
-        ASSERT_TRUE(recvResult == IOC_RESULT_SUCCESS || 
-                   recvResult == IOC_RESULT_NO_DATA || 
-                   recvResult == IOC_RESULT_NOT_SUPPORT)
+        ASSERT_TRUE(recvResult == IOC_RESULT_SUCCESS || recvResult == IOC_RESULT_NO_DATA ||
+                    recvResult == IOC_RESULT_NOT_SUPPORT)
             << "🔴 RED TDD: IOC_recvDAT should return success, no-data, or not-support";
     }
 }
@@ -428,8 +427,10 @@ TEST_F(RealTDDDATSubStateTest, comprehensiveSubStateCoverage_allDATSubStates_exp
     IOC_Result_T recvResult = IOC_recvDAT(testLinkID, &recvDesc, NULL);
 
     if (recvResult == IOC_RESULT_NOT_SUPPORT) {
-        printf("✅ IOC_LinkSubStateDatReceiverBusyRecvDat (%d): 🟢 GREEN - IOC_recvDAT correctly rejects sender LinkID (architectural correctness)\n",
-               IOC_LinkSubStateDatReceiverBusyRecvDat);
+        printf(
+            "✅ IOC_LinkSubStateDatReceiverBusyRecvDat (%d): 🟢 GREEN - IOC_recvDAT correctly rejects sender LinkID "
+            "(architectural correctness)\n",
+            IOC_LinkSubStateDatReceiverBusyRecvDat);
         printf("🏆 [ARCHITECTURAL] IOC_recvDAT API is implemented and working correctly\n");
     } else if (recvResult == IOC_RESULT_SUCCESS || recvResult == IOC_RESULT_NO_DATA) {
         printf("✅ IOC_LinkSubStateDatReceiverBusyRecvDat (%d): � GREEN - IOC_recvDAT API working\n",

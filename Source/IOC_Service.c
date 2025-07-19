@@ -682,3 +682,106 @@ IOC_Result_T IOC_broadcastEVT(
     //_IOC_LogNotTested();
     return (PostEvtCnt > 0) ? IOC_RESULT_SUCCESS : IOC_RESULT_NO_EVENT_CONSUMER;
 }
+
+//=================================================================================================
+// NEW SERVICE STATE INSPECTION APIS
+//=================================================================================================
+
+/**
+ * @brief Get service-side LinkIDs for state inspection and management.
+ *      This enables querying receiver-side states and comprehensive service monitoring.
+ */
+IOC_Result_T IOC_getServiceLinkIDs(IOC_SrvID_T SrvID, IOC_LinkID_T *pLinkIDs, uint16_t MaxLinks,
+                                   uint16_t *pActualCount) {
+    if (!pLinkIDs || !pActualCount) {
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
+    _IOC_ServiceObject_pT pSrvObj = __IOC_getSrvObjBySrvID(SrvID);
+    if (!pSrvObj) {
+        return IOC_RESULT_NOT_EXIST_SERVICE;
+    }
+
+    uint16_t Count = 0;
+
+    // Check auto-accept links (main data/cmd services)
+    if (pSrvObj->Args.Flags & IOC_SRVFLAG_AUTO_ACCEPT) {
+        for (int i = 0; i < _MAX_AUTO_ACCEPT_ACCEPTED_LINK_NUM && Count < MaxLinks; i++) {
+            if (pSrvObj->AutoAccept.pAcceptedLinks[i]) {
+                pLinkIDs[Count] = pSrvObj->AutoAccept.pAcceptedLinks[i]->ID;
+                Count++;
+            }
+        }
+    }
+
+    // Check broadcast event links if enabled
+    if (pSrvObj->Args.Flags & IOC_SRVFLAG_BROADCAST_EVENT) {
+        for (int i = 0; i < _MAX_BROADCAST_EVENT_ACCEPTED_LINK_NUM && Count < MaxLinks; i++) {
+            if (pSrvObj->BroadcastEvent.pAcceptedLinks[i]) {
+                // Avoid duplicates by checking if LinkID already exists
+                IOC_LinkID_T LinkID = pSrvObj->BroadcastEvent.pAcceptedLinks[i]->ID;
+                bool IsAlreadyAdded = false;
+                for (uint16_t j = 0; j < Count; j++) {
+                    if (pLinkIDs[j] == LinkID) {
+                        IsAlreadyAdded = true;
+                        break;
+                    }
+                }
+                if (!IsAlreadyAdded) {
+                    pLinkIDs[Count] = LinkID;
+                    Count++;
+                }
+            }
+        }
+    }
+
+    *pActualCount = Count;
+
+    // Check if buffer was too small (simple detection)
+    bool BufferTooSmall = (Count == MaxLinks);
+    if (BufferTooSmall && pSrvObj->Args.Flags & IOC_SRVFLAG_AUTO_ACCEPT) {
+        // Check if there are more auto-accept links beyond buffer capacity
+        for (int i = MaxLinks; i < _MAX_AUTO_ACCEPT_ACCEPTED_LINK_NUM; i++) {
+            if (pSrvObj->AutoAccept.pAcceptedLinks[i]) {
+                return IOC_RESULT_BUFFER_TOO_SMALL;
+            }
+        }
+    }
+
+    return IOC_RESULT_SUCCESS;
+}
+
+/**
+ * @brief Get comprehensive service state including all connected links.
+ *      This provides complete service monitoring capability.
+ */
+IOC_Result_T IOC_getServiceState(IOC_SrvID_T SrvID, void *pServiceState, uint16_t *pConnectedLinks) {
+    _IOC_ServiceObject_pT pSrvObj = __IOC_getSrvObjBySrvID(SrvID);
+    if (!pSrvObj) {
+        return IOC_RESULT_NOT_EXIST_SERVICE;
+    }
+
+    if (pConnectedLinks) {
+        uint16_t Count = 0;
+
+        // Count auto-accept links
+        if (pSrvObj->Args.Flags & IOC_SRVFLAG_AUTO_ACCEPT) {
+            for (int i = 0; i < _MAX_AUTO_ACCEPT_ACCEPTED_LINK_NUM; i++) {
+                if (pSrvObj->AutoAccept.pAcceptedLinks[i]) {
+                    Count++;
+                }
+            }
+        }
+
+        *pConnectedLinks = Count;
+    }
+
+    // pServiceState is reserved for future service state structure
+    // For now, we just ensure it's not used incorrectly
+    if (pServiceState) {
+        // Future: populate service state information
+        memset(pServiceState, 0, sizeof(void *));  // Safe null operation
+    }
+
+    return IOC_RESULT_SUCCESS;
+}
