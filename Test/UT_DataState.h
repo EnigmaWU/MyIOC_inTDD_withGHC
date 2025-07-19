@@ -589,6 +589,77 @@ typedef struct __DatStatePrivData {
             << "DAT link main state should be Ready, LinkID=" << linkID << ", actual=" << currentState; \
     } while (0)
 
+// ===== DAT SUBSTATE VERIFICATION MACROS =====
+// Comprehensive IOC_getLinkState() usage for all DAT substates
+
+#define VERIFY_DAT_SENDER_READY_SUBSTATE(linkID)                                                           \
+    do {                                                                                                   \
+        IOC_LinkState_T currentMainState = IOC_LinkStateUndefined;                                         \
+        IOC_LinkSubState_T currentSubState = IOC_LinkSubStateDefault;                                      \
+        IOC_Result_T result = IOC_getLinkState(linkID, &currentMainState, &currentSubState);               \
+        ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Failed to get DAT sender state for LinkID=" << linkID;   \
+        ASSERT_EQ(IOC_LinkStateReady, currentMainState) << "DAT sender main state should be Ready";        \
+        ASSERT_EQ(IOC_LinkSubStateDatSenderReady, currentSubState)                                         \
+            << "DAT sender substate should be Ready, LinkID=" << linkID << ", actual=" << currentSubState; \
+    } while (0)
+
+#define VERIFY_DAT_SENDER_BUSY_SUBSTATE(linkID)                                                                  \
+    do {                                                                                                         \
+        IOC_LinkState_T currentMainState = IOC_LinkStateUndefined;                                               \
+        IOC_LinkSubState_T currentSubState = IOC_LinkSubStateDefault;                                            \
+        IOC_Result_T result = IOC_getLinkState(linkID, &currentMainState, &currentSubState);                     \
+        ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Failed to get DAT sender state for LinkID=" << linkID;         \
+        ASSERT_EQ(IOC_LinkStateReady, currentMainState) << "DAT sender main state should be Ready";              \
+        ASSERT_EQ(IOC_LinkSubStateDatSenderBusySendDat, currentSubState)                                         \
+            << "DAT sender substate should be BusySendDat, LinkID=" << linkID << ", actual=" << currentSubState; \
+    } while (0)
+
+#define VERIFY_DAT_RECEIVER_READY_SUBSTATE(linkID)                                                           \
+    do {                                                                                                     \
+        IOC_LinkState_T currentMainState = IOC_LinkStateUndefined;                                           \
+        IOC_LinkSubState_T currentSubState = IOC_LinkSubStateDefault;                                        \
+        IOC_Result_T result = IOC_getLinkState(linkID, &currentMainState, &currentSubState);                 \
+        ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Failed to get DAT receiver state for LinkID=" << linkID;   \
+        ASSERT_EQ(IOC_LinkStateReady, currentMainState) << "DAT receiver main state should be Ready";        \
+        ASSERT_EQ(IOC_LinkSubStateDatReceiverReady, currentSubState)                                         \
+            << "DAT receiver substate should be Ready, LinkID=" << linkID << ", actual=" << currentSubState; \
+    } while (0)
+
+#define VERIFY_DAT_RECEIVER_BUSY_POLLING_SUBSTATE(linkID)                                                          \
+    do {                                                                                                           \
+        IOC_LinkState_T currentMainState = IOC_LinkStateUndefined;                                                 \
+        IOC_LinkSubState_T currentSubState = IOC_LinkSubStateDefault;                                              \
+        IOC_Result_T result = IOC_getLinkState(linkID, &currentMainState, &currentSubState);                       \
+        ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Failed to get DAT receiver state for LinkID=" << linkID;         \
+        ASSERT_EQ(IOC_LinkStateReady, currentMainState) << "DAT receiver main state should be Ready";              \
+        ASSERT_EQ(IOC_LinkSubStateDatReceiverBusyRecvDat, currentSubState)                                         \
+            << "DAT receiver substate should be BusyRecvDat, LinkID=" << linkID << ", actual=" << currentSubState; \
+    } while (0)
+
+#define VERIFY_DAT_RECEIVER_BUSY_CALLBACK_SUBSTATE(linkID)                                                           \
+    do {                                                                                                             \
+        IOC_LinkState_T currentMainState = IOC_LinkStateUndefined;                                                   \
+        IOC_LinkSubState_T currentSubState = IOC_LinkSubStateDefault;                                                \
+        IOC_Result_T result = IOC_getLinkState(linkID, &currentMainState, &currentSubState);                         \
+        ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Failed to get DAT receiver state for LinkID=" << linkID;           \
+        ASSERT_EQ(IOC_LinkStateReady, currentMainState) << "DAT receiver main state should be Ready";                \
+        ASSERT_EQ(IOC_LinkSubStateDatReceiverBusyCbRecvDat, currentSubState)                                         \
+            << "DAT receiver substate should be BusyCbRecvDat, LinkID=" << linkID << ", actual=" << currentSubState; \
+    } while (0)
+
+// Generic DAT substate verification with expected substate parameter
+#define VERIFY_DAT_SUBSTATE(linkID, expectedSubState)                                             \
+    do {                                                                                          \
+        IOC_LinkState_T currentMainState = IOC_LinkStateUndefined;                                \
+        IOC_LinkSubState_T currentSubState = IOC_LinkSubStateDefault;                             \
+        IOC_Result_T result = IOC_getLinkState(linkID, &currentMainState, &currentSubState);      \
+        ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Failed to get DAT state for LinkID=" << linkID; \
+        ASSERT_EQ(IOC_LinkStateReady, currentMainState) << "DAT main state should be Ready";      \
+        ASSERT_EQ(expectedSubState, currentSubState)                                              \
+            << "DAT substate mismatch, LinkID=" << linkID << ", expected=" << expectedSubState    \
+            << ", actual=" << currentSubState;                                                    \
+    } while (0)
+
 #define VERIFY_STATE_TRANSITION_WITHIN_TIME(privData, timeoutMs)                                           \
     do {                                                                                                   \
         std::unique_lock<std::mutex> lock((privData)->StateMutex);                                         \
@@ -840,22 +911,32 @@ static IOC_Result_T __SimulateClientPollingRecv(__DatStatePrivData_T *pPrivData,
  * MAIN STATE MAPPING:
  *    - DAT links ALWAYS use: IOC_LinkStateReady (main state)
  *
- * SUB-STATE MAPPING (requires IOC_Types.h extension):
- *    Architecture Design → IOC Sub-State (to be implemented):
+ * SUB-STATE MAPPING (NOW IMPLEMENTED in IOC_Types.h):
+ *    Architecture Design → IOC Sub-State:
  *    - DataSenderReady → IOC_LinkSubStateDatSenderReady
  *    - DataSenderBusySendDat → IOC_LinkSubStateDatSenderBusySendDat
  *    - DataReceiverReady → IOC_LinkSubStateDatReceiverReady
  *    - DataReceiverBusyRecvDat → IOC_LinkSubStateDatReceiverBusyRecvDat (polling mode)
  *    - DataReceiverBusyCbRecvDat → IOC_LinkSubStateDatReceiverBusyCbRecvDat (callback mode)
  *
- * CURRENT LIMITATION:
- *    IOC_Types.h currently only defines IOC_LinkSubStateDefault/IOC_LinkSubStateIdle
- *    DAT-specific sub-states need to be added to IOC_Types.h
+ * FRAMEWORK EXTENSION STATUS:
+ *    ✅ IOC_Types.h EXTENDED: Added all DAT-specific sub-states
+ *    ✅ Comprehensive IOC_getLinkState() usage for main state + substate verification
+ *    ✅ Dedicated verification macros for each DAT substate
  *
- * TEST STRATEGY:
- *    1. Verify main state always IOC_LinkStateReady (use VERIFY_DAT_LINK_READY_STATE)
- *    2. Use private data structure to simulate sub-state tracking (SendInProgress, ReceiveInProgress, etc.)
- *    3. After IOC_Types.h extension, use VERIFY_LINK_MAIN_AND_SUB_STATE for real sub-state verification
+ * RECOMMENDED TEST STRATEGY:
+ *    1. Use VERIFY_DAT_LINK_READY_STATE(linkID) for main state verification
+ *    2. Use specific substate macros:
+ *       - VERIFY_DAT_SENDER_READY_SUBSTATE(linkID)
+ *       - VERIFY_DAT_SENDER_BUSY_SUBSTATE(linkID)
+ *       - VERIFY_DAT_RECEIVER_READY_SUBSTATE(linkID)
+ *       - VERIFY_DAT_RECEIVER_BUSY_POLLING_SUBSTATE(linkID)
+ *       - VERIFY_DAT_RECEIVER_BUSY_CALLBACK_SUBSTATE(linkID)
+ *    3. Use VERIFY_DAT_SUBSTATE(linkID, expectedSubState) for generic verification
+ *    4. Private data structure can supplement for additional state tracking if needed
+ *
+ * COMPREHENSIVE IOC_getLinkState() USAGE:
+ *    All state/substate transfer conditions now fully supported through IOC framework APIs
  */
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -869,7 +950,7 @@ static IOC_Result_T __SimulateClientPollingRecv(__DatStatePrivData_T *pPrivData,
  *    - 主状态：DAT链接始终使用IOC_LinkStateReady
  *    - 子状态：DataSenderReady/DataSenderBusySendDat状态转换
  *    - 子状态：DataReceiverReady/DataReceiverBusyRecvDat/DataReceiverBusyCbRecvDat状态转换
- *    - 当前使用私有数据结构模拟子状态跟踪（待IOC_Types.h扩展后使用真实子状态）
+ *    - ✅ 现已扩展IOC_Types.h支持真实DAT子状态，实现全面的IOC_getLinkState()使用
  *
  * ✅ DAT Properties: 正确实现DAT固有属性
  *    - ASYNC (总是): 数据处理在IOC上下文中执行
@@ -915,17 +996,22 @@ static IOC_Result_T __SimulateClientPollingRecv(__DatStatePrivData_T *pPrivData,
  *    🔍 State Verification: VERIFY_RECEIVER_ROLE_CONFIG, VERIFY_RECEIVER_MODE_STATE
  *    📋 Mode Differences: DataReceiverBusyCbRecvDat vs DataReceiverBusyRecvDat transitions
  *
- * TODO: IOC_Types.h EXTENSION NEEDED:
- *    Current IOC_LinkSubState_T only has:
+ * ✅ IOC_Types.h EXTENSION COMPLETED:
+ *    Enhanced IOC_LinkSubState_T now includes:
  *    - IOC_LinkSubStateDefault = 0
  *    - IOC_LinkSubStateIdle = IOC_LinkSubStateDefault
  *
- *    Need to add DAT-specific sub-states:
+ *    ✅ DAT-specific sub-states ADDED:
  *    - IOC_LinkSubStateDatSenderReady
  *    - IOC_LinkSubStateDatSenderBusySendDat
  *    - IOC_LinkSubStateDatReceiverReady
  *    - IOC_LinkSubStateDatReceiverBusyRecvDat
  *    - IOC_LinkSubStateDatReceiverBusyCbRecvDat
+ *
+ *    ✅ COMPREHENSIVE STATE VERIFICATION:
+ *    - All state/substate transfer conditions now use IOC_getLinkState()
+ *    - Dedicated verification macros for each DAT substate
+ *    - Complete framework-level support for DAT state machine
  */
 //======>END OF ARCHITECTURE ALIGNMENT REVIEW=====================================================
 

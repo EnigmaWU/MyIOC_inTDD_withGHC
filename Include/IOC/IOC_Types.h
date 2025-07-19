@@ -154,6 +154,13 @@ typedef enum {
     IOC_LinkSubStateDefault = 0,
     IOC_LinkSubStateIdle = IOC_LinkSubStateDefault,
 
+    // DAT Service SubStates
+    IOC_LinkSubStateDatSenderReady,
+    IOC_LinkSubStateDatSenderBusySendDat,
+    IOC_LinkSubStateDatReceiverReady,
+    IOC_LinkSubStateDatReceiverBusyRecvDat,    // polling mode
+    IOC_LinkSubStateDatReceiverBusyCbRecvDat,  // callback mode
+
 } IOC_LinkSubState_T,
     *IOC_LinkSubState_pT;
 
