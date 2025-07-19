@@ -69,12 +69,17 @@ IOC_Result_T IOC_sendDAT(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, IOC_Optio
 
     _IOC_LogDebug("IOC_sendDAT: Sending %lu bytes on LinkID=%llu\n", pDatDesc->Payload.PtrDataSize, LinkID);
 
-    // 🎯 TDD IMPLEMENTATION: Track DAT sender state transitions
+    // 🎯 TDD IMPLEMENTATION: Track DAT sender state transitions for TDD GREEN
     // Set sender to "busy sending" before operation, restore to "ready" after
     pthread_mutex_lock(&pSenderLinkObj->DatState.SubStateMutex);
     pSenderLinkObj->DatState.IsSending = true;
+    pSenderLinkObj->DatState.CurrentSubState = IOC_LinkSubStateDatSenderBusySendDat;
     pSenderLinkObj->DatState.LastOperationTime = time(NULL);
     pthread_mutex_unlock(&pSenderLinkObj->DatState.SubStateMutex);
+
+    // 🔄 TDD GREEN: Update ConlesEvent SubState for IOC_getLinkState() compatibility
+    // Bridge the gap between Service-mode DAT state and ConlesMode state reporting
+    _IOC_updateConlesEventSubState(LinkID, IOC_LinkSubStateDatSenderBusySendDat);
 
     // 🔄 WHY ARCHITECTURE CHANGE: The original implementation used global variables
     // (_gTDD_PendingData) to store data, completely bypassing the protocol layer.
@@ -103,8 +108,12 @@ IOC_Result_T IOC_sendDAT(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, IOC_Optio
     // 🎯 TDD IMPLEMENTATION: Restore sender state after operation completes
     pthread_mutex_lock(&pSenderLinkObj->DatState.SubStateMutex);
     pSenderLinkObj->DatState.IsSending = false;
+    pSenderLinkObj->DatState.CurrentSubState = IOC_LinkSubStateDatSenderReady;
     pSenderLinkObj->DatState.LastOperationTime = time(NULL);
     pthread_mutex_unlock(&pSenderLinkObj->DatState.SubStateMutex);
+
+    // 🔄 TDD GREEN: Update ConlesEvent SubState back to Ready
+    _IOC_updateConlesEventSubState(LinkID, IOC_LinkSubStateDatSenderReady);
 
     return Result;
 }

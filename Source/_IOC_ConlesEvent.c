@@ -588,6 +588,33 @@ IOC_Result_T _IOC_getLinkState_inConlesMode(
     return IOC_RESULT_SUCCESS;
 }
 
+// 🎯 TDD GREEN: Bridge function to update ConlesEvent SubState for DAT operations
+void _IOC_updateConlesEventSubState(IOC_LinkID_T linkID, IOC_LinkSubState_T subState) {
+    // Handle ConlesMode (LinkID=0)
+    if (linkID == IOC_CONLES_MODE_AUTO_LINK_ID) {
+        _ClsEvtLinkObj_pT pLinkObj = __IOC_ClsEvt_getLinkObjNotLocked(linkID);
+        if (pLinkObj != NULL) {
+            pthread_mutex_lock(&pLinkObj->State.Mutex);
+            pLinkObj->State.Sub = subState;
+            pthread_mutex_unlock(&pLinkObj->State.Mutex);
+            printf("🔄 [TDD GREEN] ConlesEvent SubState updated to %d for LinkID=%llu\n", subState, linkID);
+        } else {
+            printf("🔄 [TDD GREEN] Failed to get ConlesEvent LinkObj for LinkID=%llu\n", linkID);
+        }
+    } else {
+        // Handle ServiceMode (LinkID>0) - Update ConetMode DatState
+        _IOC_LinkObject_pT pLinkObj = _IOC_getLinkObjByLinkID(linkID);
+        if (pLinkObj != NULL) {
+            pthread_mutex_lock(&pLinkObj->DatState.SubStateMutex);
+            pLinkObj->DatState.CurrentSubState = subState;
+            pthread_mutex_unlock(&pLinkObj->DatState.SubStateMutex);
+            printf("🔄 [TDD GREEN] ServiceMode SubState updated to %d for LinkID=%llu\n", subState, linkID);
+        } else {
+            printf("🔄 [TDD GREEN] Failed to get ServiceMode LinkObj for LinkID=%llu\n", linkID);
+        }
+    }
+}
+
 IOC_Result_T _IOC_getCapability_inConlesMode(
     /*ARG_INOUT*/ IOC_CapabilityDescription_pT pCapDesc) {
     IOC_Result_T Result = IOC_RESULT_BUG;

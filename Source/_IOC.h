@@ -28,6 +28,10 @@ extern "C" {
 
 #define _MAX_IOC_SRV_OBJ_NUM 2
 #define _MAX_IOC_CLI_OBJ_NUM_PER_SRV 3
+
+// 🎯 TDD GREEN: ConlesEvent SubState bridge function for DAT operations
+void _IOC_updateConlesEventSubState(IOC_LinkID_T linkID, IOC_LinkSubState_T subState);
+
 #ifdef __cplusplus
 }
 #endif

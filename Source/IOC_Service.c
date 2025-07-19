@@ -349,6 +349,18 @@ static void *__IOC_ServiceAutoAcceptDaemonThread(void *pArg) {
         } else {
             _IOC_LogInfo("Auto-accepted new client connection, LinkID=%" PRIu64 "", pLinkObj->ID);
 
+            // [🔧 TDD GREEN] Initialize auto-accepted connection properties based on service configuration
+            pLinkObj->Args.Usage = pSrvObj->Args.UsageCapabilites;  // Set Usage for IOC_getLinkState()
+
+            // Initialize SubState for auto-accepted connection based on service usage
+            IOC_LinkSubState_T initialSubState = IOC_LinkSubStateDefault;
+            if (pSrvObj->Args.UsageCapabilites == IOC_LinkUsageDatSender) {
+                initialSubState = IOC_LinkSubStateDatSenderReady;
+            } else if (pSrvObj->Args.UsageCapabilites == IOC_LinkUsageDatReceiver) {
+                initialSubState = IOC_LinkSubStateDatReceiverReady;
+            }
+            _IOC_updateConlesEventSubState(pLinkObj->ID, initialSubState);
+
             // Store the accepted link for tracking
             for (int i = 0; i < _MAX_AUTO_ACCEPT_ACCEPTED_LINK_NUM; i++) {
                 if (NULL == pSrvObj->AutoAccept.pAcceptedLinks[i]) {
@@ -420,6 +432,20 @@ IOC_Result_T IOC_onlineService(
 
     // finally we reach the success return point
     *pSrvID = pSrvObj->ID;
+
+    // 🎯 TDD GREEN: Initialize ConlesEvent SubState based on service usage
+    // This ensures tests can properly verify DAT SubStates from the start
+    IOC_LinkSubState_T initialSubState = IOC_LinkSubStateDefault;
+    if (pSrvArgs->UsageCapabilites & IOC_LinkUsageDatSender) {
+        initialSubState = IOC_LinkSubStateDatSenderReady;
+    } else if (pSrvArgs->UsageCapabilites & IOC_LinkUsageDatReceiver) {
+        initialSubState = IOC_LinkSubStateDatReceiverReady;
+    }
+
+    if (initialSubState != IOC_LinkSubStateDefault) {
+        _IOC_updateConlesEventSubState(IOC_CONLES_MODE_AUTO_LINK_ID, initialSubState);
+    }
+
     //_IOC_LogNotTested();
     return IOC_RESULT_SUCCESS;
 
