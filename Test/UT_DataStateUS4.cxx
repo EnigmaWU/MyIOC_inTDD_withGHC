@@ -4,7 +4,7 @@
 // 🔄 流程: User Story → Acceptance Criteria → Test Cases → Implementation
 // 📂 分类: DataState US-4 - DAT state transition verification
 // 🎯 重点: 状态转换规则、转换原子性、无效转换预防、流生命周期转换验证
-///////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF OVERVIEW OF THIS UNIT TESTING FILE===============================================
@@ -328,35 +328,13 @@ TEST_F(DATStateTransitionTest, verifyValidStateTransition_byValidOperations_expe
     printf("� [RED TDD] EXPECTED: IOC_LinkSubStateDatSenderReady (%d), ACTUAL: %d\n", IOC_LinkSubStateDatSenderReady,
            currentSubState);
 
-    EXPECT_EQ(IOC_LinkSubStateDatSenderReady, currentSubState)
-        << "🔴 RED TDD FAILURE: IOC_getLinkState() should return IOC_LinkSubStateDatSenderReady but returns "
-        << currentSubState << ". This test should FAIL until we implement IOC framework substate tracking.";
-
-    // 🔴 RED TDD: Document what we expect the framework to do
-    printf("🔴 [RED TDD] This test demonstrates the requirement:\n");
-    printf("🔴   - After IOC_sendDAT() completes, IOC_getLinkState() should return IOC_LinkSubStateDatSenderReady\n");
-    printf("🔴   - During IOC_sendDAT() operation, it could return IOC_LinkSubStateDatSenderBusySendDat\n");
-    printf("🔴   - The IOC framework needs to track and update these substates internally\n");
-
-    // Check DataSender operational state using RED TDD approach
-    if (currentSubState == IOC_LinkSubStateDatSenderBusySendDat) {
-        printf("✅ [GREEN FUTURE] IOC_getLinkState() correctly returned BusySendDat during operation\n");
-
-        // Verify DataSender is in valid sending state
-        ASSERT_TRUE(privData.LinkConnected.load()) << "DataSender link should be connected during operation";
-    } else if (currentSubState == IOC_LinkSubStateDatSenderReady) {
-        printf("✅ [GREEN FUTURE] IOC_getLinkState() correctly returned Ready after operation\n");
-
-        // Verify DataSender operation evidence
-        ASSERT_GT(privData.StateTransitionCount.load(), initialTransitionCount)
-            << "DataSender should have recorded state transitions";
-    } else {
-        printf("🔴 [RED TDD] IOC_getLinkState() returned unexpected substate: %d\n", currentSubState);
-        printf(
-            "🔴 [RED TDD] Expected either IOC_LinkSubStateDatSenderReady (%d) or IOC_LinkSubStateDatSenderBusySendDat "
-            "(%d)\n",
-            IOC_LinkSubStateDatSenderReady, IOC_LinkSubStateDatSenderBusySendDat);
-    }
+    // 🔴 RED TDD: Direct assertion of expected substate - will naturally fail until framework is implemented
+    ASSERT_EQ(IOC_LinkSubStateDatSenderReady, currentSubState)
+        << "🔴 RED TDD: IOC_getLinkState() should return IOC_LinkSubStateDatSenderReady after IOC_sendDAT() completes\n"
+        << "FRAMEWORK REQUIREMENT: IOC framework must track DAT sender substates internally\n"
+        << "EXPECTED: IOC_LinkSubStateDatSenderReady (" << IOC_LinkSubStateDatSenderReady << ")\n"
+        << "ACTUAL: " << currentSubState << " (likely IOC_LinkSubStateDefault - framework not implemented yet)\n"
+        << "GREEN PHASE: This assertion will pass when IOC framework populates DAT sender substates";
 
     // @KeyVerifyPoint-2B: DataSender state isolation verification
     // DataSender state should be independent of DataReceiver state
@@ -419,10 +397,14 @@ TEST_F(DATStateTransitionTest, verifyValidStateTransition_byValidOperations_expe
     bool frameworkReturnsExpectedSubstates = (receiverSubState == IOC_LinkSubStateDatReceiverReady ||
                                               receiverSubState == IOC_LinkSubStateDatReceiverBusyRecvDat);
 
-    ASSERT_TRUE(frameworkReturnsExpectedSubstates)
-        << "🔴 [RED] IOC_getLinkState() should return DAT receiver substates. Current: " << receiverSubState
-        << ", Expected: Ready(" << IOC_LinkSubStateDatReceiverReady << ") or BusyRecvDat("
-        << IOC_LinkSubStateDatReceiverBusyRecvDat << ")";
+    // 🔴 RED TDD: Direct assertion of expected DataReceiver substate - will naturally fail until framework is
+    // implemented
+    ASSERT_EQ(IOC_LinkSubStateDatReceiverReady, receiverSubState)
+        << "🔴 RED TDD: IOC_getLinkState() should return IOC_LinkSubStateDatReceiverReady for DataReceiver\n"
+        << "FRAMEWORK REQUIREMENT: IOC framework must track DAT receiver substates internally\n"
+        << "EXPECTED: IOC_LinkSubStateDatReceiverReady (" << IOC_LinkSubStateDatReceiverReady << ")\n"
+        << "ACTUAL: " << receiverSubState << " (likely IOC_LinkSubStateDefault - framework not implemented yet)\n"
+        << "GREEN PHASE: This assertion will pass when IOC framework populates DAT receiver substates";
 
     // Check DataReceiver operational state using RED TDD approach
     if (currentSubState == IOC_LinkSubStateDatReceiverBusyRecvDat) {
