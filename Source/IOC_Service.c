@@ -351,12 +351,18 @@ static void *__IOC_ServiceAutoAcceptDaemonThread(void *pArg) {
 
             // [🔧 TDD GREEN] Initialize auto-accepted connection properties based on service configuration
             pLinkObj->Args.Usage = pSrvObj->Args.UsageCapabilites;  // Set Usage for IOC_getLinkState()
+            pLinkObj->pMethods = pSrvObj->pMethods;                 // Copy protocol methods from Service
+
+            // 🔧 [TDD GREEN] Copy DAT callback configuration to auto-accepted connection
+            if (pSrvObj->Args.UsageArgs.pDat) {
+                pLinkObj->Args.UsageArgs.pDat = pSrvObj->Args.UsageArgs.pDat;
+            }
 
             // Initialize SubState for auto-accepted connection based on service usage
             IOC_LinkSubState_T initialSubState = IOC_LinkSubStateDefault;
-            if (pSrvObj->Args.UsageCapabilites == IOC_LinkUsageDatSender) {
+            if (pSrvObj->Args.UsageCapabilites & IOC_LinkUsageDatSender) {
                 initialSubState = IOC_LinkSubStateDatSenderReady;
-            } else if (pSrvObj->Args.UsageCapabilites == IOC_LinkUsageDatReceiver) {
+            } else if (pSrvObj->Args.UsageCapabilites & IOC_LinkUsageDatReceiver) {
                 initialSubState = IOC_LinkSubStateDatReceiverReady;
             }
             _IOC_updateConlesEventSubState(pLinkObj->ID, initialSubState);
