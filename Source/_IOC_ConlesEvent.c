@@ -608,9 +608,9 @@ void _IOC_updateConlesEventSubState(IOC_LinkID_T linkID, IOC_LinkSubState_T subS
             pthread_mutex_lock(&pLinkObj->DatState.SubStateMutex);
             pLinkObj->DatState.CurrentSubState = subState;
             pthread_mutex_unlock(&pLinkObj->DatState.SubStateMutex);
-            printf("🔄 [TDD GREEN] ServiceMode SubState updated to %d for LinkID=%llu\n", subState, linkID);
+            // printf("🔄 [TDD GREEN] ServiceMode SubState updated to %d for LinkID=%llu\n", subState, linkID);
         } else {
-            printf("🔄 [TDD GREEN] Failed to get ServiceMode LinkObj for LinkID=%llu\n", linkID);
+            // printf("🔄 [TDD GREEN] Failed to get ServiceMode LinkObj for LinkID=%llu\n", linkID);
         }
     }
 }
