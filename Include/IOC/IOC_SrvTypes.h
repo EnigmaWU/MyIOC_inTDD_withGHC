@@ -231,11 +231,30 @@ static inline void IOC_Helper_initSrvArgs(IOC_SrvArgs_pT pSrvArgs) {
 typedef struct {
     IOC_SrvURI_T SrvURI;
     /**
-     * @brief what this link is used for, which means what the link can do.
-     *  SUCH AS:
-     *      IF: Usage = IOC_LINK_USAGE_EVT_CONSUMER;
-     *      THEN: Link can only subscribe events.
-     *      AND: Service must have IOC_LINK_USAGE_EVT_PRODUCER usage capability.
+     * @brief Determines the usage capability of the Link created by IOC_connectService()
+     *
+     * ⚠️  **CRITICAL**: This Usage field directly determines what operations the resulting
+     *                  LinkID can perform after IOC_connectService() succeeds:
+     *
+     *        - IOC_LinkUsageDatSender: Link can call IOC_sendDAT() to send data
+     *        - IOC_LinkUsageDatReceiver: Link can call IOC_recvDAT() to receive data
+     *        - IOC_LinkUsageEvtConsumer: Link can subscribe to events
+     *        - IOC_LinkUsageEvtProducer: Link can publish events
+     *        - IOC_LinkUsageCmdInitiator: Link can initiate commands
+     *        - IOC_LinkUsageCmdExecutor: Link can execute commands
+     *
+     *  COMPATIBILITY REQUIREMENT:
+     *      The service's UsageCapabilites must be compatible with this Usage:
+     *      IF: Usage = IOC_LinkUsageDatSender;
+     *      THEN: Service must have IOC_LinkUsageDatReceiver capability.
+     *      IF: Usage = IOC_LinkUsageEvtConsumer;
+     *      THEN: Service must have IOC_LinkUsageEvtProducer capability.
+     *      AND so on for other usage types.
+     *
+     *  EXAMPLE:
+     *      connArgs.Usage = IOC_LinkUsageDatSender;
+     *      IOC_connectService(&linkID, &connArgs, NULL);
+     *      // Now linkID can be used with IOC_sendDAT(linkID, ...)
      */
     IOC_LinkUsage_T Usage;
 
