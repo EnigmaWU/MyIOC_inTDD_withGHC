@@ -46,17 +46,6 @@
  *  - Memory Usage: 内存使用量和内存效率
  *  - Concurrent Capacity: 并发处理能力
  *  - Resource Efficiency: 资源利用效率
- *
- *  不包括：
- *  - 功能正确性测试（DataTypical 覆盖）
- *  - 边界条件测试（DataBoundary 覆盖）
- *  - 状态转换测试（DataState 覆盖）
- *  - 系统稳定性测试（DataRobust 覆盖）
- *
- *  参考文档：
- *  - IOC_Data.c: 数据传输API实现和性能优化
- *  - IOC_SrvProtoFifo: FIFO协议的性能特性
- *  - 系统性能需求规格书
  */
 //======>END OF OVERVIEW OF THIS UNIT TESTING FILE=================================================
 
@@ -229,99 +218,6 @@
  *              AND system should handle sustained operations reliably.
  */
 //=======>END OF ACCEPTANCE CRITERIA================================================================
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF TEST CASE DEFINITIONS============================================================
-/**************************************************************************************************
- * @brief 【Test Cases】
- *
- * [@AC-1,US-1] High-throughput bulk data transfer
- *  TC-1:
- *      @[Name]: verifyBulkDataThroughput_byLargePayloads_expectOptimalRates
- *      @[Purpose]: 验证大负载数据传输的吞吐量性能
- *      @[Brief]: 使用1KB到1MB负载测试吞吐量，验证性能目标达成
- *      @[Throughput_Focus]: 测试最大数据传输速率和负载大小对性能的影响
- *
- *  TC-2:
- *      @[Name]: verifyThroughputScaling_byPayloadSize_expectLinearScaling
- *      @[Purpose]: 验证吞吐量随负载大小的扩展性
- *      @[Brief]: 测试不同负载大小下的吞吐量扩展性
- *      @[Scaling_Focus]: 测试性能随数据大小的扩展规律
- *
- * [@AC-2,US-1] Multi-stream concurrent throughput
- *  TC-1:
- *      @[Name]: verifyMultiStreamThroughput_byConcurrentStreams_expectLinearScaling
- *      @[Purpose]: 验证多流并发传输的吞吐量扩展性
- *      @[Brief]: 同时运行多个数据流，验证聚合吞吐量的线性扩展
- *      @[Concurrent_Focus]: 测试并发数据流的性能影响
- *
- * [@AC-1,US-2] Low-latency message delivery
- *  TC-1:
- *      @[Name]: verifyEndToEndLatency_bySmallMessages_expectMinimalDelay
- *      @[Purpose]: 验证小消息端到端传输延迟
- *      @[Brief]: 测试64B到4KB消息的传输延迟，验证实时性要求
- *      @[Latency_Focus]: 测试低延迟数据传输能力
- *
- *  TC-2:
- *      @[Name]: verifyAPIResponseTime_byCallLatency_expectMicrosecondLevel
- *      @[Purpose]: 验证API调用响应时间
- *      @[Brief]: 测量IOC_sendDAT/IOC_recvDAT的API调用延迟
- *      @[API_Focus]: 测试API级别的性能特性
- *
- * [@AC-1,US-3] Memory and CPU resource efficiency
- *  TC-1:
- *      @[Name]: verifyMemoryEfficiency_byAllocationPatterns_expectOptimalUsage
- *      @[Purpose]: 验证内存使用效率和分配模式
- *      @[Brief]: 监控数据传输过程中的内存分配和释放效率
- *      @[Memory_Focus]: 测试内存使用优化效果
- *
- *  TC-2:
- *      @[Name]: verifyCPUUtilization_byDataVolume_expectProportionalUsage
- *      @[Purpose]: 验证CPU使用率与数据量的比例关系
- *      @[Brief]: 测量不同数据量下的CPU使用率
- *      @[CPU_Focus]: 测试CPU资源利用效率
- *
- * [@AC-1,US-4] Concurrent operations performance
- *  TC-1:
- *      @[Name]: verifyConcurrentThreadPerformance_byMultiThreading_expectLinearScaling
- *      @[Purpose]: 验证多线程并发操作的性能扩展性
- *      @[Brief]: 增加线程数量，测试并发性能扩展性
- *      @[Threading_Focus]: 测试多线程环境下的性能表现
- *
- *  TC-2:
- *      @[Name]: verifyMultiClientPerformance_byConcurrentConnections_expectFairSharing
- *      @[Purpose]: 验证多客户端并发连接的性能公平性
- *      @[Brief]: 测试多客户端同时连接时的性能分配
- *      @[MultiClient_Focus]: 测试并发客户端的资源公平分配
- *
- * [@AC-1,US-5] Performance optimization features
- *  TC-1:
- *      @[Name]: verifyBufferingOptimization_byBufferSizeTuning_expectPerformanceGains
- *      @[Purpose]: 验证缓冲优化对性能的提升效果
- *      @[Brief]: 比较不同缓冲区大小对传输性能的影响
- *      @[Buffering_Focus]: 测试缓冲机制的性能优化效果
- *
- *  TC-2:
- *      @[Name]: verifyZeroCopyOptimization_byLargeTransfers_expectReducedOverhead
- *      @[Purpose]: 验证零拷贝优化的性能提升
- *      @[Brief]: 测试零拷贝机制对大数据传输的性能影响
- *      @[ZeroCopy_Focus]: 测试零拷贝优化的实际效果
- *
- * [@AC-1,US-6] System capacity and scalability
- *  TC-1:
- *      @[Name]: verifySystemCapacity_byIncreasingLoad_expectGracefulLimits
- *      @[Purpose]: 验证系统容量限制和优雅降级
- *      @[Brief]: 逐步增加系统负载，确定最大容量和性能边界
- *      @[Capacity_Focus]: 测试系统最大承载能力
- *
- *  TC-2:
- *      @[Name]: verifyEndurancePerformance_byLongRunning_expectStablePerformance
- *      @[Purpose]: 验证长期运行的性能稳定性
- *      @[Brief]: 长时间运行性能测试，验证性能稳定性
- *      @[Endurance_Focus]: 测试长期运行的性能一致性
- *
- *************************************************************************************************/
-//======>END OF TEST CASE DEFINITIONS==============================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF PERFORMANCE TESTING INFRASTRUCTURE===============================================
