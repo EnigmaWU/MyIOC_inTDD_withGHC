@@ -92,24 +92,27 @@ TEST(UT_DataPerformance, verifyBulkDataThroughput_byLargePayloads_expectOptimalR
     IOC_SrvID_T testSrvID = IOC_ID_INVALID;
     IOC_LinkID_T senderLinkID = IOC_ID_INVALID;
 
-    // Service setup
+    // Service setup - Configure service to RECEIVE data from clients
     IOC_SrvArgs_T srvArgs = {};
     IOC_Helper_initSrvArgs(&srvArgs);
     srvArgs.SrvURI.pProtocol = IOC_SRV_PROTO_FIFO;
     srvArgs.SrvURI.pHost = IOC_SRV_HOST_LOCAL_PROCESS;
     srvArgs.SrvURI.pPath = "test/performance/throughput";
-    srvArgs.UsageCapabilites = IOC_LinkUsageDatSender;
+    srvArgs.UsageCapabilites = IOC_LinkUsageDatReceiver;  // Service will RECEIVE data
     srvArgs.Flags = IOC_SRVFLAG_AUTO_ACCEPT;
 
     IOC_Result_T result = IOC_onlineService(&testSrvID, &srvArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Service setup failed";
 
-    // Client connection setup
+    // Client connection setup - Client will SEND data to service
     IOC_ConnArgs_T connArgs = {};
     IOC_Helper_initConnArgs(&connArgs);
     connArgs.SrvURI = srvArgs.SrvURI;
-    connArgs.Usage = IOC_LinkUsageDatReceiver;
+    connArgs.Usage = IOC_LinkUsageDatSender;  // Client will SEND data
 
+    // Connect in SYNC mode (default when pOption = NULL)
+    // This means IOC_sendDAT will block until data is transmitted
+    // Connection establishment blocks until completed, so no sleep needed
     result = IOC_connectService(&senderLinkID, &connArgs, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Client connection setup failed";
 
@@ -237,7 +240,7 @@ class UT_DataPerformanceUS1Fixture : public ::testing::Test {
         srvArgs.SrvURI.pProtocol = IOC_SRV_PROTO_FIFO;
         srvArgs.SrvURI.pHost = IOC_SRV_HOST_LOCAL_PROCESS;
         srvArgs.SrvURI.pPath = "test/performance/throughput_us1";
-        srvArgs.UsageCapabilites = IOC_LinkUsageDatSender;
+        srvArgs.UsageCapabilites = IOC_LinkUsageDatReceiver;  // Service will RECEIVE data from clients
         srvArgs.Flags = IOC_SRVFLAG_AUTO_ACCEPT;
 
         IOC_Result_T result = IOC_onlineService(&testSrvID, &srvArgs);
@@ -246,15 +249,16 @@ class UT_DataPerformanceUS1Fixture : public ::testing::Test {
         IOC_ConnArgs_T connArgs = {};
         IOC_Helper_initConnArgs(&connArgs);
         connArgs.SrvURI = srvArgs.SrvURI;
-        connArgs.Usage = IOC_LinkUsageDatReceiver;
+        connArgs.Usage = IOC_LinkUsageDatSender;  // Client will SEND data to service
 
-        result = IOC_connectService(&receiverLinkID, &connArgs, NULL);
-        ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Client connection setup failed";
+        // Connect in SYNC mode (default when pOption = NULL) for throughput testing
+        result = IOC_connectService(&senderLinkID, &connArgs, NULL);  // This is the SENDER link
+        ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Sender connection setup failed";
 
-        senderLinkID = receiverLinkID;  // Same link for bi-directional testing
+        // For throughput tests, we primarily need the sender link
+        receiverLinkID = IOC_ID_INVALID;  // Not needed for this test
         senderPrivData.ServiceOnline = true;
         senderPrivData.LinkConnected = true;
-        receiverPrivData.LinkConnected = true;
     }
 
     // Test data members for US-1

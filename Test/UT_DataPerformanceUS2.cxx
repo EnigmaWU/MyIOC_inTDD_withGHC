@@ -95,7 +95,7 @@ TEST(UT_DataPerformance, verifyAPIResponseTime_byCallLatency_expectMicrosecondLe
     srvArgs.SrvURI.pProtocol = IOC_SRV_PROTO_FIFO;
     srvArgs.SrvURI.pHost = IOC_SRV_HOST_LOCAL_PROCESS;
     srvArgs.SrvURI.pPath = "test/performance/latency";
-    srvArgs.UsageCapabilites = IOC_LinkUsageDatSender;
+    srvArgs.UsageCapabilites = IOC_LinkUsageDatReceiver;  // Service will RECEIVE data
     srvArgs.Flags = IOC_SRVFLAG_AUTO_ACCEPT;
 
     IOC_Result_T result = IOC_onlineService(&testSrvID, &srvArgs);
@@ -104,10 +104,15 @@ TEST(UT_DataPerformance, verifyAPIResponseTime_byCallLatency_expectMicrosecondLe
     IOC_ConnArgs_T connArgs = {};
     IOC_Helper_initConnArgs(&connArgs);
     connArgs.SrvURI = srvArgs.SrvURI;
-    connArgs.Usage = IOC_LinkUsageDatReceiver;
+    connArgs.Usage = IOC_LinkUsageDatSender;  // Client will SEND data
 
+    // Connect in SYNC mode (default when pOption = NULL) - suitable for latency testing
+    // This ensures precise timing measurements as operations block until completion
     result = IOC_connectService(&senderLinkID, &connArgs, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Client connection setup failed";
+
+    // Allow connection to be fully established
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               🎯 BEHAVIOR PHASE                                       │
