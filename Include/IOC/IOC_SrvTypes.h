@@ -188,8 +188,14 @@ typedef enum {
      *  BEHAVIOR:
      *    - Automatically starts a daemon thread to accept incoming connections
      *    - Works with any service type (DAT, Event, Command, etc.)
-     *    - No manual IOC_acceptClient() required
+     *    - No manual IOC_acceptClient() required, but callback in each UsageArgs must be set, such as:
+     *        - IOC_DatUsageArgs_T.CbRecvDat_F for service as DatReceiver
+     *        - IOC_EvtUsageArgs_T.CbProcEvt_F for service as EvtConsumer
+     *        - IOC_CmdUsageArgs_T.CbExecCmd_F for service as CmdExecutor
      *    - Connections are accepted in the order they arrive
+     *
+     *  RESTRITIONS:
+     *.   When AutoAcceptFlagOn, service MUST be as DatReciver|EvtConsumer|CmdExecutor in callback mode.
      */
     IOC_SRVFLAG_AUTO_ACCEPT = 1 << 1,
 } IOC_SrvFlags_T;
