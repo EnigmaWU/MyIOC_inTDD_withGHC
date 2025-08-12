@@ -426,10 +426,108 @@ TEST(UT_DataTypicalAutoAccept, verifyAutoAcceptConnection_byDatReceiverService_e
  * @[Notes]: 验证AC-2@US-1 - 自动数据处理功能，展示回调驱动的无缝处理。
  */
 TEST(UT_DataTypicalAutoAccept, verifyAutoDataProcessing_byCallbackDriven_expectSeamlessProcessing) {
-    // TODO: Implement this test case
-    // This test will verify that once auto-accept connection is established,
-    // data processing happens automatically through callbacks
-    GTEST_SKIP() << "Test case implementation pending - designed for auto-accept data processing verification";
+    //===SETUP===
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    IOC_LinkID_T SenderLinkID = IOC_ID_INVALID;
+
+    __AutoAcceptDatReceiverPrivData_T Priv = {};
+    Priv.ClientIndex = 2;
+
+    IOC_SrvURI_T SrvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = (const char *)"AutoAccept_CallbackProcessing",
+    };
+
+    IOC_DatUsageArgs_T DatArgs = {
+        .CbRecvDat_F = __AutoAcceptCbRecvDat_F,
+        .pCbPrivData = &Priv,
+    };
+
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = SrvURI,
+        .Flags = IOC_SRVFLAG_AUTO_ACCEPT,
+        .UsageCapabilites = IOC_LinkUsageDatReceiver,
+        .UsageArgs = {.pDat = &DatArgs},
+    };
+
+    Result = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    //===BEHAVIOR===
+    printf("BEHAVIOR: verifyAutoDataProcessing_byCallbackDriven_expectSeamlessProcessing\n");
+
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = SrvURI,
+        .Usage = IOC_LinkUsageDatSender,
+    };
+
+    Result = IOC_connectService(&SenderLinkID, &ConnArgs, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    ASSERT_NE(IOC_ID_INVALID, SenderLinkID);
+
+    // Prepare and send 3 typical chunks
+    const char *Chunk1 = "AC2-Chunk1: Hello AutoAccept";
+    const char *Chunk2 = "AC2-Chunk2: Lorem ipsum dolor sit amet";
+    const int Chunk3Size = 2048;  // 2KB binary
+    std::vector<char> Chunk3(Chunk3Size);
+    for (int i = 0; i < Chunk3Size; ++i) Chunk3[i] = (char)(i % 256);
+
+    auto sendChunk = [&](const void *data, size_t size) {
+        IOC_DatDesc_T d = {0};
+        IOC_initDatDesc(&d);
+        d.Payload.pData = (void *)data;
+        d.Payload.PtrDataSize = size;
+        d.Payload.PtrDataLen = size;
+        IOC_Result_T r = IOC_sendDAT(SenderLinkID, &d, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, r);
+        // NOTE: Avoid per-chunk flush which can block depending on transport/backpressure.
+        // We'll batch flush after all sends to prevent potential deadlocks.
+    };
+
+    sendChunk(Chunk1, strlen(Chunk1));
+    sendChunk(Chunk2, strlen(Chunk2));
+    sendChunk(Chunk3.data(), Chunk3.size());
+
+    // Single flush after batching sends to push all data through.
+    IOC_flushDAT(SenderLinkID, NULL);
+
+    // Expected total length for all chunks (coalescing by transport is allowed)
+    ULONG_T expectedTotal = (ULONG_T)strlen(Chunk1) + (ULONG_T)strlen(Chunk2) + (ULONG_T)Chunk3.size();
+
+    // Wait for total received bytes to reach expected amount (up to ~600ms)
+    for (int i = 0; i < 60; ++i) {
+        if (Priv.TotalReceivedSize.load() >= expectedTotal) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    //===VERIFY===
+    ASSERT_TRUE(Priv.CallbackExecuted.load());
+    // Depending on transport, multiple sends may be coalesced into fewer callback deliveries.
+    // We only require at least one callback and the correct total/content.
+    ASSERT_GE(Priv.ReceivedDataCnt.load(), 1);
+    ASSERT_LE(Priv.ReceivedDataCnt.load(), 3);
+    ASSERT_EQ(expectedTotal, Priv.TotalReceivedSize.load());
+
+    // Verify content integrity in order, allowing that chunks may arrive combined
+    size_t offset = 0;
+    ASSERT_GE(Priv.TotalReceivedSize.load(), (ULONG_T)(strlen(Chunk1)));
+    ASSERT_EQ(0, memcmp(Priv.ReceivedContent + offset, Chunk1, strlen(Chunk1)));
+    offset += strlen(Chunk1);
+
+    ASSERT_GE(Priv.TotalReceivedSize.load(), (ULONG_T)(offset + strlen(Chunk2)));
+    ASSERT_EQ(0, memcmp(Priv.ReceivedContent + offset, Chunk2, strlen(Chunk2)));
+    offset += strlen(Chunk2);
+
+    ASSERT_GE(Priv.TotalReceivedSize.load(), (ULONG_T)(offset + Chunk3.size()));
+    ASSERT_EQ(0, memcmp(Priv.ReceivedContent + offset, Chunk3.data(), Chunk3.size()));
+
+    //===CLEANUP===
+    if (SenderLinkID != IOC_ID_INVALID) IOC_closeLink(SenderLinkID);
+    if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
 //======>END OF: [@AC-2,US-1]======================================================================
