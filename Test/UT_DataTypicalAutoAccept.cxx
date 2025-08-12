@@ -381,6 +381,7 @@ TEST(UT_DataTypicalAutoAccept, verifyAutoAcceptConnection_byDatReceiverService_e
     IOC_initDatDesc(&TestDatDesc);
     TestDatDesc.Payload.pData = (void *)TestMessage;
     TestDatDesc.Payload.PtrDataSize = strlen(TestMessage);
+    TestDatDesc.Payload.PtrDataLen = strlen(TestMessage);
 
     Result = IOC_sendDAT(DatSenderLinkID, &TestDatDesc, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Data transmission should work immediately after auto-accept connection";
