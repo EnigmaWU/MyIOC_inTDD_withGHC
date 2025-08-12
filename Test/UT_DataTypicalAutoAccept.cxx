@@ -246,8 +246,10 @@
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======BEGIN OF UNIT TESTING IMPLEMENTATION=======================================================
+#include <algorithm>
 #include <atomic>  // For std::atomic
 #include <chrono>  // For std::chrono::milliseconds
+#include <mutex>
 #include <thread>  // For std::this_thread::sleep_for
 #include <vector>
 
@@ -264,6 +266,10 @@ typedef struct __AutoAcceptDatReceiverPrivData {
     std::atomic<bool> ConnectionAccepted{false};
     char ReceivedContent[204800];  // Buffer for 200KB+ data
     int ClientIndex;               // Client identifier for multi-client scenarios
+    // For AC-3/AC-6: track unique link IDs observed on callbacks (best-effort)
+    std::mutex LinksMu;
+    IOC_LinkID_T UniqueLinks[16] = {0};
+    std::atomic<int> UniqueLinkCnt{0};
 } __AutoAcceptDatReceiverPrivData_T;
 
 // Auto-accept callback function for receiving DAT data (TDD Design)
@@ -284,6 +290,23 @@ static IOC_Result_T __AutoAcceptCbRecvDat_F(IOC_LinkID_T LinkID, IOC_DatDesc_pT 
 
     int currentCount = pPrivData->ReceivedDataCnt.fetch_add(1) + 1;
     pPrivData->CallbackExecuted = true;
+
+    // Track unique LinkIDs (best-effort)
+    {
+        std::lock_guard<std::mutex> g(pPrivData->LinksMu);
+        bool found = false;
+        int cnt = pPrivData->UniqueLinkCnt.load();
+        for (int i = 0; i < cnt; ++i) {
+            if (pPrivData->UniqueLinks[i] == LinkID) {
+                found = true;
+                break;
+            }
+        }
+        if (!found && cnt < (int)(sizeof(pPrivData->UniqueLinks) / sizeof(pPrivData->UniqueLinks[0]))) {
+            pPrivData->UniqueLinks[cnt] = LinkID;
+            pPrivData->UniqueLinkCnt.store(cnt + 1);
+        }
+    }
 
     // Copy received data to buffer for verification (if space available)
     ULONG_T currentTotalSize = pPrivData->TotalReceivedSize.load();
@@ -615,6 +638,19 @@ TEST(UT_DataTypicalAutoAccept, verifyMultiClientAutoAccept_byConcurrentConnectio
     ASSERT_GE(Priv.ReceivedDataCnt.load(), kClients);
     ASSERT_EQ(expectedTotal, Priv.TotalReceivedSize.load());
 
+    // Per-client evidence: unique link IDs observed should be >= clients
+    ASSERT_GE(Priv.UniqueLinkCnt.load(), kClients);
+
+    // Each client message should appear in the received content (order-agnostic)
+    const char *bufBegin = Priv.ReceivedContent;
+    const char *bufEnd = Priv.ReceivedContent + Priv.TotalReceivedSize.load();
+    for (int i = 0; i < kClients; ++i) {
+        const char *m = Msgs[i];
+        size_t ml = strlen(m);
+        auto it = std::search(bufBegin, bufEnd, m, m + ml);
+        ASSERT_NE(it, bufEnd) << "Missing client message in buffer index=" << i;
+    }
+
     //===CLEANUP===
     if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
@@ -712,6 +748,150 @@ TEST(UT_DataTypicalAutoAccept, verifyAutoAcceptDataTypes_byTypicalTypes_expectTr
 }
 
 //======>END OF: [@AC-4,US-1]======================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF: [@AC-5,US-1]====================================================================
+/**
+ * @[Name]: verifyAutoAcceptLargePayload_bySingleSend_expectIntegrity
+ * @[Purpose]: Typical large (not perf) single payload goes through auto-accept path.
+ */
+TEST(UT_DataTypicalAutoAccept, verifyAutoAcceptLargePayload_bySingleSend_expectIntegrity) {
+    //===SETUP===
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    IOC_LinkID_T LinkID = IOC_ID_INVALID;
+
+    __AutoAcceptDatReceiverPrivData_T Priv = {};
+    Priv.ClientIndex = 5;
+
+    IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char *)"AutoAccept_LargePayload"};
+    IOC_DatUsageArgs_T DatArgs = {.CbRecvDat_F = __AutoAcceptCbRecvDat_F, .pCbPrivData = &Priv};
+    IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI,
+                             .Flags = IOC_SRVFLAG_AUTO_ACCEPT,
+                             .UsageCapabilites = IOC_LinkUsageDatReceiver,
+                             .UsageArgs = {.pDat = &DatArgs}};
+
+    Result = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    //===BEHAVIOR===
+    IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageDatSender};
+    Result = IOC_connectService(&LinkID, &ConnArgs, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    ASSERT_NE(IOC_ID_INVALID, LinkID);
+
+    // 128 KB payload within buffer budget (200 KB)
+    const size_t kSize = 128 * 1024;
+    std::vector<uint8_t> data(kSize);
+    for (size_t i = 0; i < kSize; ++i) data[i] = (uint8_t)((i * 131) & 0xFF);
+
+    IOC_DatDesc_T d = {0};
+    IOC_initDatDesc(&d);
+    d.Payload.pData = data.data();
+    d.Payload.PtrDataSize = data.size();
+    d.Payload.PtrDataLen = data.size();
+    Result = IOC_sendDAT(LinkID, &d, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    IOC_flushDAT(LinkID, NULL);
+
+    // Wait for full reception
+    for (int i = 0; i < 400; ++i) {
+        if (Priv.TotalReceivedSize.load() >= (ULONG_T)data.size()) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+
+    //===VERIFY===
+    ASSERT_TRUE(Priv.CallbackExecuted.load());
+    ASSERT_EQ((ULONG_T)data.size(), Priv.TotalReceivedSize.load());
+    ASSERT_EQ(0, memcmp(Priv.ReceivedContent, data.data(), data.size()));
+
+    //===CLEANUP===
+    if (LinkID != IOC_ID_INVALID) IOC_closeLink(LinkID);
+    if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
+}
+
+//======>END OF: [@AC-5,US-1]======================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF: [@AC-6,US-1]====================================================================
+/**
+ * @[Name]: verifyAutoAcceptReconnectLifecycle_byCloseAndReconnect_expectContinuedService
+ * @[Purpose]: Typical lifecycle — close a client and reconnect on same service; auto-accept keeps working.
+ */
+TEST(UT_DataTypicalAutoAccept, verifyAutoAcceptReconnectLifecycle_byCloseAndReconnect_expectContinuedService) {
+    //===SETUP===
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    IOC_LinkID_T LinkID = IOC_ID_INVALID;
+
+    __AutoAcceptDatReceiverPrivData_T Priv = {};
+    Priv.ClientIndex = 6;
+
+    IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char *)"AutoAccept_Reconnect"};
+    IOC_DatUsageArgs_T DatArgs = {.CbRecvDat_F = __AutoAcceptCbRecvDat_F, .pCbPrivData = &Priv};
+    IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI,
+                             .Flags = IOC_SRVFLAG_AUTO_ACCEPT,
+                             .UsageCapabilites = IOC_LinkUsageDatReceiver,
+                             .UsageArgs = {.pDat = &DatArgs}};
+
+    Result = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    auto connect_and_send = [&](const char *msg) {
+        IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageDatSender};
+        IOC_LinkID_T l = IOC_ID_INVALID;
+        IOC_Result_T r = IOC_connectService(&l, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, r);
+        ASSERT_NE(IOC_ID_INVALID, l);
+        IOC_DatDesc_T d = {0};
+        IOC_initDatDesc(&d);
+        d.Payload.pData = (void *)msg;
+        d.Payload.PtrDataSize = strlen(msg);
+        d.Payload.PtrDataLen = strlen(msg);
+        r = IOC_sendDAT(l, &d, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, r);
+        IOC_flushDAT(l, NULL);
+        IOC_closeLink(l);
+    };
+
+    //===BEHAVIOR===
+    const char *Msg1 = "RC-First: Hello";
+    const char *Msg2 = "RC-Second: Again";
+    connect_and_send(Msg1);
+    // Wait a moment to ensure first close is processed
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    connect_and_send(Msg2);
+
+    ULONG_T expected = (ULONG_T)strlen(Msg1) + (ULONG_T)strlen(Msg2);
+    for (int i = 0; i < 100; ++i) {
+        if (Priv.TotalReceivedSize.load() >= expected) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    //===VERIFY===
+    ASSERT_TRUE(Priv.CallbackExecuted.load());
+    ASSERT_GE(Priv.UniqueLinkCnt.load(), 1);  // could be 2 if LinkIDs differ
+    ASSERT_EQ(expected, Priv.TotalReceivedSize.load());
+    // Ensure both messages are present (order not guaranteed)
+    const char *bufBegin = Priv.ReceivedContent;
+    const char *bufEnd = Priv.ReceivedContent + Priv.TotalReceivedSize.load();
+    auto it1 = std::search(bufBegin, bufEnd, Msg1, Msg1 + strlen(Msg1));
+    auto it2 = std::search(bufBegin, bufEnd, Msg2, Msg2 + strlen(Msg2));
+    ASSERT_NE(it1, bufEnd);
+    ASSERT_NE(it2, bufEnd);
+
+    //===CLEANUP===
+    if (LinkID != IOC_ID_INVALID) IOC_closeLink(LinkID);
+    if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
+}
+
+//======>END OF: [@AC-6,US-1]======================================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF: [@AC-1,US-2]====================================================================
