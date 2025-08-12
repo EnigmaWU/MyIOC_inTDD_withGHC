@@ -1,0 +1,458 @@
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// QUICK REFERENCE GUIDE - 快速参考指南
+// 📝 用途: DAT（数据传输）典型自动接受连接场景单元测试
+// 🔄 流程: User Story → Acceptance Criteria → Test Cases → Implementation
+// 📂 分类: DataTypicalAutoAccept - 专注于IOC_SRVFLAG_AUTO_ACCEPT的典型使用场景
+// 🎯 重点: 典型的自动接受连接模式和常见自动化使用方法
+// Reference Unit Testing Templates in UT_FreelyDrafts.cxx when needed.
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF OVERVIEW OF THIS UNIT TESTING FILE===============================================
+/**
+ * @brief
+ *  验证IOC框架中DAT（数据传输）使用IOC_SRVFLAG_AUTO_ACCEPT标志的典型场景，
+ *  专注于最常见、最标准的自动接受连接模式。
+ *
+ *-------------------------------------------------------------------------------------------------
+ *++IOC_SRVFLAG_AUTO_ACCEPT是IOC框架中用于自动接受客户端连接的便利特性：
+ *
+ *  典型使用场景：
+ *  - 自动接受连接的DatReceiver服务（无需手动IOC_acceptClient）
+ *  - 自动接受连接的DatSender服务（服务端推送数据模式）
+ *  - 简化的连接管理流程（减少手动连接处理）
+ *  - 典型的回调驱动自动化处理
+ *      - 🤖 US-1: DatReceiver服务启用AUTO_ACCEPT，自动接受DatSender连接
+ *      - 🤖 US-2: DatSender服务启用AUTO_ACCEPT，自动接受DatReceiver连接
+ *
+ *  🆕 AUTO_ACCEPT 核心设计理念:
+ *  - 简化连接建立流程，减少手动IOC_acceptClient调用
+ *  - 适用于需要自动处理多客户端连接的服务场景
+ *  - 必须配合回调模式使用（CbRecvDat_F等）
+ *  - 提供更流畅的开发体验和更简洁的代码结构
+ *
+ *  包括：
+ *  - 自动连接接受的标准流程
+ *  - 回调驱动的数据处理
+ *  - 典型的多客户端自动服务场景
+ *  - 简化的连接生命周期管理
+ *
+ *  不包括：
+ *  - 手动连接接受测试（已在UT_DataTypical.cxx中覆盖）
+ *  - 复杂的状态管理（属于UT_DataState范畴）
+ *  - 性能优化场景（属于UT_DataPerformance范畴）
+ *  - 错误处理和边界条件（属于UT_DataBoundary范畴）
+ *
+ *  参考文档：
+ *  - IOC_SrvTypes.h::IOC_SRVFLAG_AUTO_ACCEPT定义
+ *  - README_UserGuide.md::ConetData自动接受示例
+ */
+//======>END OF OVERVIEW OF THIS UNIT TESTING FILE=================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF UNIT TESTING DESIGN==============================================================
+
+/**************************************************************************************************
+ * 📋 DAT TYPICAL AUTO-ACCEPT TEST FOCUS - DAT典型自动接受测试重点
+ *
+ * 🎯 DESIGN PRINCIPLE: 只验证AUTO_ACCEPT最常见、最标准的使用模式
+ * 🔄 PRIORITY: 自动化流程 → 回调驱动 → 简化代码 → 典型场景
+ *
+ * ✅ TYPICAL AUTO-ACCEPT SCENARIOS INCLUDED (包含的典型自动接受场景):
+ *    🤖 Auto Connection Accept: 服务自动接受客户端连接
+ *    📞 Callback-Driven Processing: 自动回调驱动的数据处理
+ *    🔗 Simplified Connection Flow: 简化的连接建立流程
+ *    📦 Common Data Types: 常见数据类型的自动处理
+ *    🏢 Multi-Client Service: 多客户端自动服务模式
+ *
+ * ❌ NON-TYPICAL AUTO-ACCEPT SCENARIOS EXCLUDED (排除的非典型场景):
+ *    🔧 手动连接管理（已在UT_DataTypical.cxx覆盖）
+ *    🚫 错误处理和异常场景（属于UT_DataBoundary范畴）
+ *    ⚡ 性能优化和压力测试（属于UT_DataPerformance范畴）
+ *    🔄 复杂状态管理（属于UT_DataState范畴）
+ *    🚫 轮询模式（AUTO_ACCEPT要求回调模式）
+ *************************************************************************************************/
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF USER STORY=======================================================================
+/**************************************************************************************************
+ * @brief 【User Story】
+ *
+ *  US-1: AS a DatReceiver service developer,
+ *    I WANT to enable IOC_SRVFLAG_AUTO_ACCEPT when onlining my service,
+ *   SO THAT incoming DatSender connections are automatically accepted without manual IOC_acceptClient calls,
+ *       AND I can focus on data processing logic in my CbRecvDat_F callback,
+ *       AND the connection management is simplified and automated.
+ *
+ *  US-2: AS a DatSender service developer,
+ *    I WANT to enable IOC_SRVFLAG_AUTO_ACCEPT when onlining my data push service,
+ *   SO THAT incoming DatReceiver connections are automatically accepted,
+ *      THEN I can immediately start sending data to connected receivers,
+ *       AND receivers can process data through their CbRecvDat_F callbacks automatically.
+ *
+ *************************************************************************************************/
+//======>END OF USER STORY=========================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//=======>BEGIN OF ACCEPTANCE CRITERIA=============================================================
+/**************************************************************************************************
+ * @brief 【Acceptance Criteria】
+ *
+ * 🎯 专注于 DAT TYPICAL AUTO-ACCEPT 测试 - 只验证最常见的自动接受连接使用模式
+ *
+ * [@US-1] AS a DatReceiver service developer, I WANT to enable IOC_SRVFLAG_AUTO_ACCEPT,
+ *         SO THAT incoming DatSender connections are automatically accepted.
+ *
+ * [@US-2] AS a DatSender service developer, I WANT to enable IOC_SRVFLAG_AUTO_ACCEPT,
+ *         SO THAT incoming DatReceiver connections are automatically accepted.
+ *
+ * ⭐ TYPICAL AUTO-ACCEPT SCENARIOS ONLY - 典型自动接受场景验收标准:
+ *
+ *  AC-1@US-1: GIVEN DatReceiver service onlined with IOC_SRVFLAG_AUTO_ACCEPT and CbRecvDat_F callback,
+ *         WHEN DatSender calls IOC_connectService to connect,
+ *         THEN connection is automatically accepted without manual IOC_acceptClient,
+ *          AND DatSender gets IOC_RESULT_SUCCESS and valid LinkID,
+ *          AND automatic connection establishment is transparent to DatSender.
+ *
+ *  AC-2@US-1: GIVEN auto-accept DatReceiver service with established connection,
+ *         WHEN DatSender sends typical data using IOC_sendDAT,
+ *         THEN DatReceiver automatically processes data via CbRecvDat_F callback,
+ *          AND data integrity is maintained in automatic processing workflow,
+ *          AND no manual intervention required for data reception.
+ *
+ *  AC-3@US-1: GIVEN auto-accept DatReceiver service ready to serve multiple clients,
+ *         WHEN multiple DatSenders connect simultaneously,
+ *         THEN all connections are automatically accepted in order,
+ *          AND each DatSender can independently send data,
+ *          AND DatReceiver processes all data streams via callback automatically.
+ *
+ *  AC-4@US-1: GIVEN auto-accept DatReceiver service handling typical data types,
+ *         WHEN DatSenders transmit various data types (string, binary, struct),
+ *         THEN all data types are automatically processed via callback,
+ *          AND data type handling is transparent in auto-accept mode,
+ *          AND typical application scenarios work seamlessly.
+ *
+ *  TODO:AC-5@US-1: ... (其他典型自动接受场景验收标准)
+ *--------------------------------------------------------------------------------------------------
+ *  AC-1@US-2: GIVEN DatSender service onlined with IOC_SRVFLAG_AUTO_ACCEPT (server role),
+ *         WHEN DatReceiver calls IOC_connectService with CbRecvDat_F callback,
+ *         THEN connection is automatically accepted without manual IOC_acceptClient,
+ *          AND DatReceiver gets IOC_RESULT_SUCCESS and valid LinkID,
+ *          AND automatic server-side connection acceptance works transparently.
+ *
+ *  AC-2@US-2: GIVEN auto-accept DatSender service with connected DatReceiver,
+ *         WHEN DatSender sends typical data using IOC_sendDAT,
+ *         THEN DatReceiver automatically processes data via CbRecvDat_F callback,
+ *          AND server-to-client data flow works automatically,
+ *          AND typical push-service scenarios are simplified.
+ *
+ *  AC-3@US-2: GIVEN auto-accept DatSender service serving multiple DatReceivers,
+ *         WHEN DatSender broadcasts data to all connected clients,
+ *         THEN all DatReceivers automatically process data via their callbacks,
+ *          AND multi-client push service works seamlessly,
+ *          AND typical broadcast scenarios are automated.
+ *
+ *  TODO:AC-4@US-2: ... (其他典型服务端自动接受场景验收标准)
+ *
+ */
+//=======>END OF ACCEPTANCE CRITERIA================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF TEST CASES=======================================================================
+/**************************************************************************************************
+ * @brief 【Test Cases】
+ *
+ * 🎯 专注于 DAT TYPICAL AUTO-ACCEPT 测试用例 - 基于自动接受连接的典型使用模式
+ *
+ * [@AC-1,US-1] - Automatic Connection Acceptance for DatReceiver Service
+ *  TC-1:
+ *      @[Name]: verifyAutoAcceptConnection_byDatReceiverService_expectAutomaticAcceptance
+ *      @[Purpose]: Verify AC-1@US-1 complete functionality - Auto-accept DatReceiver service
+ *          automatically accepts DatSender connections without manual intervention
+ *      @[Brief]: DatReceiver online service with IOC_SRVFLAG_AUTO_ACCEPT and CbRecvDat_F,
+ *          DatSender connect, verify automatic acceptance and no IOC_acceptClient needed
+ *
+ *  TODO:TC-2...
+ *
+ *-------------------------------------------------------------------------------------------------
+ * [@AC-2,US-1] - Automatic Data Processing with Auto-Accept
+ *  TC-1:
+ *      @[Name]: verifyAutoDataProcessing_byCallbackDriven_expectSeamlessProcessing
+ *      @[Purpose]: Verify AC-2@US-1 complete functionality - Auto-accept service automatically
+ *          processes incoming data via callback without manual connection management
+ *      @[Brief]: Establish auto-accept connection, DatSender send typical data,
+ *          verify automatic callback-driven processing and data integrity
+ *
+ *  TODO:TC-2...
+ *
+ *-------------------------------------------------------------------------------------------------
+ * [@AC-3,US-1] - Multi-Client Auto-Accept Service
+ *  TC-1:
+ *      @[Name]: verifyMultiClientAutoAccept_byConcurrentConnections_expectAllAccepted
+ *      @[Purpose]: Verify AC-3@US-1 complete functionality - Auto-accept service handles
+ *          multiple simultaneous client connections automatically
+ *      @[Brief]: Multiple DatSenders connect to auto-accept DatReceiver service concurrently,
+ *          verify all connections automatically accepted and data processed independently
+ *
+ *  TODO:TC-2...
+ *
+ *-------------------------------------------------------------------------------------------------
+ * [@AC-4,US-1] - Auto-Accept with Multiple Data Types
+ *  TC-1:
+ *      @[Name]: verifyAutoAcceptDataTypes_byTypicalTypes_expectTransparentHandling
+ *      @[Purpose]: Verify AC-4@US-1 complete functionality - Auto-accept service transparently
+ *          handles various typical data types through automatic callback processing
+ *      @[Brief]: Auto-accept connection established, send string/binary/struct data types,
+ *          verify automatic processing of all types via callback mechanism
+ *
+ *  TODO:TC-2...
+ *
+ *-------------------------------------------------------------------------------------------------
+ * [@AC-1,US-2] - DatSender Service Auto-Accept (Server Role)
+ *  TC-1:
+ *      @[Name]: verifyDatSenderAutoAccept_byServerRole_expectAutomaticClientAcceptance
+ *      @[Purpose]: Verify AC-1@US-2 complete functionality - DatSender service with auto-accept
+ *          automatically accepts DatReceiver client connections in server role
+ *      @[Brief]: DatSender online service with IOC_SRVFLAG_AUTO_ACCEPT, DatReceiver connect,
+ *          verify automatic server-side acceptance and immediate data push capability
+ *
+ *  TODO:TC-2...
+ *
+ *-------------------------------------------------------------------------------------------------
+ * [@AC-2,US-2] - Auto-Accept Server Data Push
+ *  TC-1:
+ *      @[Name]: verifyAutoAcceptDataPush_byServerToClient_expectAutomaticProcessing
+ *      @[Purpose]: Verify AC-2@US-2 complete functionality - Auto-accept DatSender service
+ *          pushes data to connected DatReceiver with automatic processing
+ *      @[Brief]: Auto-accept DatSender service accept DatReceiver connection, push typical data,
+ *          verify automatic client-side callback processing in server-to-client flow
+ *
+ *  TODO:TC-2...
+ *
+ *-------------------------------------------------------------------------------------------------
+ * [@AC-3,US-2] - Multi-Client Push Service Auto-Accept
+ *  TC-1:
+ *      @[Name]: verifyMultiClientPushService_byAutoAccept_expectBroadcastProcessing
+ *      @[Purpose]: Verify AC-3@US-2 complete functionality - Auto-accept DatSender service
+ *          serves multiple DatReceiver clients with automatic broadcast processing
+ *      @[Brief]: Auto-accept DatSender service accept multiple DatReceiver connections,
+ *          broadcast data to all clients, verify automatic processing by all receivers
+ *
+ *  TODO:TC-2...
+ *
+ *************************************************************************************************/
+//======>END OF TEST CASES=========================================================================
+//======>END OF UNIT TESTING DESIGN================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======BEGIN OF UNIT TESTING IMPLEMENTATION=======================================================
+#include <atomic>  // For std::atomic
+#include <chrono>  // For std::chrono::milliseconds
+#include <thread>  // For std::this_thread::sleep_for
+
+#include "_UT_IOC_Common.h"
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF: [@AC-1,US-1]====================================================================
+
+// Private data structure for auto-accept DAT receiver callback (TDD Design)
+typedef struct __AutoAcceptDatReceiverPrivData {
+    std::atomic<int> ReceivedDataCnt{0};
+    std::atomic<ULONG_T> TotalReceivedSize{0};
+    std::atomic<bool> CallbackExecuted{false};
+    std::atomic<bool> ConnectionAccepted{false};
+    char ReceivedContent[204800];  // Buffer for 200KB+ data
+    int ClientIndex;               // Client identifier for multi-client scenarios
+} __AutoAcceptDatReceiverPrivData_T;
+
+// Auto-accept callback function for receiving DAT data (TDD Design)
+static IOC_Result_T __AutoAcceptCbRecvDat_F(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, void *pCbPriv) {
+    __AutoAcceptDatReceiverPrivData_T *pPrivData = (__AutoAcceptDatReceiverPrivData_T *)pCbPriv;
+
+    // Signal that connection was automatically accepted (callback indicates successful auto-accept)
+    pPrivData->ConnectionAccepted = true;
+
+    // Extract data from DatDesc
+    void *pData;
+    ULONG_T DataSize;
+    IOC_Result_T result = IOC_getDatPayload(pDatDesc, &pData, &DataSize);
+    if (result != IOC_RESULT_SUCCESS) {
+        printf("AutoAccept Callback: Failed to get data payload, result=%d\n", result);
+        return result;
+    }
+
+    int currentCount = pPrivData->ReceivedDataCnt.fetch_add(1) + 1;
+    pPrivData->CallbackExecuted = true;
+
+    // Copy received data to buffer for verification (if space available)
+    ULONG_T currentTotalSize = pPrivData->TotalReceivedSize.load();
+    if (currentTotalSize + DataSize <= sizeof(pPrivData->ReceivedContent)) {
+        memcpy(pPrivData->ReceivedContent + currentTotalSize, pData, DataSize);
+    }
+
+    // Always update TotalReceivedSize for accurate tracking
+    pPrivData->TotalReceivedSize.fetch_add(DataSize);
+
+    printf("AutoAccept DAT Callback: Client[%d], LinkID=%llu, received %lu bytes, count: %d, total: %lu bytes\n",
+           pPrivData->ClientIndex, LinkID, DataSize, currentCount, pPrivData->TotalReceivedSize.load());
+    return IOC_RESULT_SUCCESS;
+}
+
+/**
+ * @[Name]: verifyAutoAcceptConnection_byDatReceiverService_expectAutomaticAcceptance
+ * @[Steps]:
+ *   1) Setup DatReceiver service with IOC_SRVFLAG_AUTO_ACCEPT and CbRecvDat_F callback AS SETUP.
+ *      |-> DatReceiver online service with IOC_LinkUsageDatReceiver + IOC_SRVFLAG_AUTO_ACCEPT
+ *      |-> Configure DatUsageArgs with __AutoAcceptCbRecvDat_F callback
+ *      |-> No manual IOC_acceptClient setup needed (auto-accept handles this)
+ *   2) DatSender connect to the auto-accept service AS BEHAVIOR.
+ *      |-> DatSender calls IOC_connectService with typical parameters
+ *      |-> Auto-accept service automatically accepts connection in background
+ *   3) Verify automatic connection acceptance AS VERIFY.
+ *      |-> IOC_connectService() returns IOC_RESULT_SUCCESS for DatSender
+ *      |-> DatSender gets valid LinkID without manual IOC_acceptClient call
+ *      |-> Connection is ready for immediate data transmission
+ *   4) Cleanup: close connection and offline service AS CLEANUP.
+ * @[Expect]: Connection established automatically without manual acceptance, demonstrating typical auto-accept usage.
+ * @[Notes]: 验证AC-1@US-1 - 自动接受连接的基本功能，无需手动IOC_acceptClient调用。
+ */
+TEST(UT_DataTypicalAutoAccept, verifyAutoAcceptConnection_byDatReceiverService_expectAutomaticAcceptance) {
+    //===SETUP===
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_SrvID_T AutoAcceptSrvID = IOC_ID_INVALID;
+    IOC_LinkID_T DatSenderLinkID = IOC_ID_INVALID;
+
+    // Private data for auto-accept callback
+    __AutoAcceptDatReceiverPrivData_T AutoAcceptPrivData = {};
+    AutoAcceptPrivData.ClientIndex = 1;  // For debugging output
+
+    // Standard SrvURI for auto-accept DAT communication
+    IOC_SrvURI_T AutoAcceptSrvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = (const char *)"AutoAccept_DatReceiver",
+    };
+
+    // Step-1: Setup DatReceiver service with AUTO_ACCEPT flag and callback
+    IOC_DatUsageArgs_T AutoAcceptDatUsageArgs = {
+        .CbRecvDat_F = __AutoAcceptCbRecvDat_F,
+        .pCbPrivData = &AutoAcceptPrivData,
+    };
+
+    IOC_SrvArgs_T AutoAcceptSrvArgs = {
+        .SrvURI = AutoAcceptSrvURI,
+        .Flags = IOC_SRVFLAG_AUTO_ACCEPT,  // 🤖 Enable automatic connection acceptance
+        .UsageCapabilites = IOC_LinkUsageDatReceiver,
+        .UsageArgs =
+            {
+                .pDat = &AutoAcceptDatUsageArgs,
+            },
+    };
+
+    Result = IOC_onlineService(&AutoAcceptSrvID, &AutoAcceptSrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint: Auto-accept service online success
+    printf("AutoAccept Service: Online with auto-accept capability\n");
+
+    // Brief pause to ensure auto-accept daemon thread is ready
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    //===BEHAVIOR===
+    printf("BEHAVIOR: verifyAutoAcceptConnection_byDatReceiverService_expectAutomaticAcceptance\n");
+
+    // Step-2: DatSender connect to auto-accept service (no manual accept needed)
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = AutoAcceptSrvURI,
+        .Usage = IOC_LinkUsageDatSender,
+    };
+
+    // Connect directly - auto-accept service will handle acceptance automatically
+    Result = IOC_connectService(&DatSenderLinkID, &ConnArgs, NULL);
+
+    //===VERIFY===
+    // KeyVerifyPoint-1: Connection should succeed automatically
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "DatSender connection to auto-accept service should succeed automatically";
+
+    // KeyVerifyPoint-2: Valid DatSender LinkID should be returned
+    ASSERT_NE(IOC_ID_INVALID, DatSenderLinkID) << "DatSender should get valid LinkID from auto-accept connection";
+
+    // KeyVerifyPoint-3: Connection should be ready for immediate use (send a test data)
+    const char *TestMessage = "AutoAccept Test Message";
+    IOC_DatDesc_T TestDatDesc = {0};
+    IOC_initDatDesc(&TestDatDesc);
+    TestDatDesc.Payload.pData = (void *)TestMessage;
+    TestDatDesc.Payload.PtrDataSize = strlen(TestMessage);
+
+    Result = IOC_sendDAT(DatSenderLinkID, &TestDatDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Data transmission should work immediately after auto-accept connection";
+
+    IOC_flushDAT(DatSenderLinkID, NULL);
+
+    // Brief wait for callback processing
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // KeyVerifyPoint-4: Auto-accept callback should be triggered
+    ASSERT_TRUE(AutoAcceptPrivData.CallbackExecuted.load())
+        << "Auto-accept callback should be executed when data is received";
+
+    ASSERT_TRUE(AutoAcceptPrivData.ConnectionAccepted.load())
+        << "Connection acceptance should be signaled through callback execution";
+
+    printf("TDD VERIFY: Auto-accept connection established and tested successfully\n");
+
+    //===CLEANUP===
+    // Close connection
+    if (DatSenderLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(DatSenderLinkID);
+    }
+    // Offline auto-accept service
+    if (AutoAcceptSrvID != IOC_ID_INVALID) {
+        IOC_offlineService(AutoAcceptSrvID);
+    }
+}
+
+//======>END OF: [@AC-1,US-1]======================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF: [@AC-2,US-1]====================================================================
+/**
+ * @[Name]: verifyAutoDataProcessing_byCallbackDriven_expectSeamlessProcessing
+ * @[Steps]:
+ *   1) Setup auto-accept DatReceiver service with callback AS SETUP.
+ *   2) Establish connection and send typical data AS BEHAVIOR.
+ *   3) Verify automatic callback-driven data processing AS VERIFY.
+ *   4) Cleanup AS CLEANUP.
+ * @[Expect]: Data automatically processed via callback without manual intervention.
+ * @[Notes]: 验证AC-2@US-1 - 自动数据处理功能，展示回调驱动的无缝处理。
+ */
+TEST(UT_DataTypicalAutoAccept, verifyAutoDataProcessing_byCallbackDriven_expectSeamlessProcessing) {
+    // TODO: Implement this test case
+    // This test will verify that once auto-accept connection is established,
+    // data processing happens automatically through callbacks
+    GTEST_SKIP() << "Test case implementation pending - designed for auto-accept data processing verification";
+}
+
+//======>END OF: [@AC-2,US-1]======================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF: [@AC-1,US-2]====================================================================
+/**
+ * @[Name]: verifyDatSenderAutoAccept_byServerRole_expectAutomaticClientAcceptance
+ * @[Steps]:
+ *   1) Setup DatSender service with IOC_SRVFLAG_AUTO_ACCEPT (server role) AS SETUP.
+ *   2) DatReceiver connect to auto-accept DatSender service AS BEHAVIOR.
+ *   3) Verify automatic server-side connection acceptance AS VERIFY.
+ *   4) Cleanup AS CLEANUP.
+ * @[Expect]: Server-side auto-accept works for DatSender service accepting DatReceiver clients.
+ * @[Notes]: 验证AC-1@US-2 - 服务端自动接受功能，DatSender作为服务器自动接受DatReceiver客户端。
+ */
+TEST(UT_DataTypicalAutoAccept, verifyDatSenderAutoAccept_byServerRole_expectAutomaticClientAcceptance) {
+    // TODO: Implement this test case
+    // This test will verify auto-accept functionality when DatSender acts as server
+    // and automatically accepts DatReceiver client connections
+    GTEST_SKIP() << "Test case implementation pending - designed for server-side auto-accept verification";
+}
+
+//======>END OF: [@AC-1,US-2]======================================================================
+
+//======END OF UNIT TESTING IMPLEMENTATION=========================================================
+///////////////////////////////////////////////////////////////////////////////////////////////////
