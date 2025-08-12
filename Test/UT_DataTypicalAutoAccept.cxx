@@ -249,6 +249,7 @@
 #include <atomic>  // For std::atomic
 #include <chrono>  // For std::chrono::milliseconds
 #include <thread>  // For std::this_thread::sleep_for
+#include <vector>
 
 #include "_UT_IOC_Common.h"
 
@@ -531,6 +532,186 @@ TEST(UT_DataTypicalAutoAccept, verifyAutoDataProcessing_byCallbackDriven_expectS
 }
 
 //======>END OF: [@AC-2,US-1]======================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF: [@AC-3,US-1]====================================================================
+/**
+ * @[Name]: verifyMultiClientAutoAccept_byConcurrentConnections_expectAllAccepted
+ * @[Steps]:
+ *   1) Start one auto-accept DatReceiver service.
+ *   2) Spawn multiple DatSender clients concurrently; each connects and sends one message.
+ *   3) Verify all messages are processed via callback automatically.
+ */
+TEST(UT_DataTypicalAutoAccept, verifyMultiClientAutoAccept_byConcurrentConnections_expectAllAccepted) {
+    //===SETUP===
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+
+    __AutoAcceptDatReceiverPrivData_T Priv = {};
+    Priv.ClientIndex = 3;
+
+    IOC_SrvURI_T SrvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = (const char *)"AutoAccept_MultiClient",
+    };
+
+    IOC_DatUsageArgs_T DatArgs = {
+        .CbRecvDat_F = __AutoAcceptCbRecvDat_F,
+        .pCbPrivData = &Priv,
+    };
+
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = SrvURI,
+        .Flags = IOC_SRVFLAG_AUTO_ACCEPT,
+        .UsageCapabilites = IOC_LinkUsageDatReceiver,
+        .UsageArgs = {.pDat = &DatArgs},
+    };
+
+    Result = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    //===BEHAVIOR===
+    const int kClients = 3;
+    const char *Msgs[kClients] = {"MC-Client-1: Hello", "MC-Client-2: World", "MC-Client-3: AutoAccept"};
+    ULONG_T expectedTotal = 0;
+    for (int i = 0; i < kClients; ++i) expectedTotal += (ULONG_T)strlen(Msgs[i]);
+
+    std::vector<std::thread> threads;
+    threads.reserve(kClients);
+    for (int i = 0; i < kClients; ++i) {
+        threads.emplace_back([&, i]() {
+            IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageDatSender};
+            IOC_LinkID_T link = IOC_ID_INVALID;
+            IOC_Result_T r = IOC_connectService(&link, &ConnArgs, NULL);
+            ASSERT_EQ(IOC_RESULT_SUCCESS, r);
+            ASSERT_NE(IOC_ID_INVALID, link);
+
+            IOC_DatDesc_T d = {0};
+            IOC_initDatDesc(&d);
+            d.Payload.pData = (void *)Msgs[i];
+            d.Payload.PtrDataSize = strlen(Msgs[i]);
+            d.Payload.PtrDataLen = strlen(Msgs[i]);
+            r = IOC_sendDAT(link, &d, NULL);
+            ASSERT_EQ(IOC_RESULT_SUCCESS, r);
+            IOC_flushDAT(link, NULL);
+            IOC_closeLink(link);
+        });
+    }
+
+    for (auto &t : threads) t.join();
+
+    // Wait for all messages (up to ~600ms)
+    for (int i = 0; i < 60; ++i) {
+        if (Priv.TotalReceivedSize.load() >= expectedTotal) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    //===VERIFY===
+    ASSERT_TRUE(Priv.CallbackExecuted.load());
+    // Allow fragmentation; we expect at least kClients callbacks overall.
+    ASSERT_GE(Priv.ReceivedDataCnt.load(), kClients);
+    ASSERT_EQ(expectedTotal, Priv.TotalReceivedSize.load());
+
+    //===CLEANUP===
+    if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
+}
+
+//======>END OF: [@AC-3,US-1]======================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF: [@AC-4,US-1]====================================================================
+/**
+ * @[Name]: verifyAutoAcceptDataTypes_byTypicalTypes_expectTransparentHandling
+ * @[Steps]:
+ *   1) Start auto-accept DatReceiver service.
+ *   2) Connect a DatSender and send string, binary, and struct data.
+ *   3) Verify data integrity and total size; allow coalescing.
+ */
+TEST(UT_DataTypicalAutoAccept, verifyAutoAcceptDataTypes_byTypicalTypes_expectTransparentHandling) {
+    //===SETUP===
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    IOC_LinkID_T LinkID = IOC_ID_INVALID;
+
+    __AutoAcceptDatReceiverPrivData_T Priv = {};
+    Priv.ClientIndex = 4;
+
+    IOC_SrvURI_T SrvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = (const char *)"AutoAccept_DataTypes",
+    };
+
+    IOC_DatUsageArgs_T DatArgs = {.CbRecvDat_F = __AutoAcceptCbRecvDat_F, .pCbPrivData = &Priv};
+    IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI,
+                             .Flags = IOC_SRVFLAG_AUTO_ACCEPT,
+                             .UsageCapabilites = IOC_LinkUsageDatReceiver,
+                             .UsageArgs = {.pDat = &DatArgs}};
+
+    Result = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    //===BEHAVIOR===
+    IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageDatSender};
+    Result = IOC_connectService(&LinkID, &ConnArgs, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    ASSERT_NE(IOC_ID_INVALID, LinkID);
+
+    // Prepare typical data types
+    const char *Str = "DT-String: Quick brown fox";
+    struct Packed {
+        int a;
+        float b;
+        uint8_t c[8];
+    } __attribute__((packed));
+    Packed S = {42, 3.14f, {1, 2, 3, 4, 5, 6, 7, 8}};
+    const int BinSize = 1024;
+    std::vector<uint8_t> Bin(BinSize);
+    for (int i = 0; i < BinSize; ++i) Bin[i] = (uint8_t)(i & 0xFF);
+
+    auto sendChunk = [&](const void *data, size_t size) {
+        IOC_DatDesc_T d = {0};
+        IOC_initDatDesc(&d);
+        d.Payload.pData = (void *)data;
+        d.Payload.PtrDataSize = size;
+        d.Payload.PtrDataLen = size;
+        IOC_Result_T r = IOC_sendDAT(LinkID, &d, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, r);
+    };
+
+    sendChunk(Str, strlen(Str));
+    sendChunk(&S, sizeof(S));
+    sendChunk(Bin.data(), Bin.size());
+
+    IOC_flushDAT(LinkID, NULL);
+
+    ULONG_T expectedTotal = (ULONG_T)strlen(Str) + (ULONG_T)sizeof(S) + (ULONG_T)Bin.size();
+    for (int i = 0; i < 80; ++i) {
+        if (Priv.TotalReceivedSize.load() >= expectedTotal) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    //===VERIFY===
+    ASSERT_TRUE(Priv.CallbackExecuted.load());
+    ASSERT_EQ(expectedTotal, Priv.TotalReceivedSize.load());
+
+    size_t offset = 0;
+    ASSERT_EQ(0, memcmp(Priv.ReceivedContent + offset, Str, strlen(Str)));
+    offset += strlen(Str);
+    ASSERT_EQ(0, memcmp(Priv.ReceivedContent + offset, &S, sizeof(S)));
+    offset += sizeof(S);
+    ASSERT_EQ(0, memcmp(Priv.ReceivedContent + offset, Bin.data(), Bin.size()));
+
+    //===CLEANUP===
+    if (LinkID != IOC_ID_INVALID) IOC_closeLink(LinkID);
+    if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
+}
+
+//======>END OF: [@AC-4,US-1]======================================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF: [@AC-1,US-2]====================================================================
