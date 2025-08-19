@@ -44,6 +44,13 @@ typedef IOC_Result_T (*IOC_CbExecCmd_F)(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmd
 typedef IOC_Result_T (*IOC_CbRecvDat_F)(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDataDesc, void *pCbPriv);
 
 /**
+ * @brief Service-level callback for new auto-accepted client links
+ *        Invoked when IOC_SRVFLAG_AUTO_ACCEPT is enabled and a new client is accepted.
+ *        Called asynchronously from the auto-accept daemon thread; keep it non-blocking.
+ */
+typedef void (*IOC_CbOnAutoAccepted_F)(IOC_SrvID_T SrvID, IOC_LinkID_T NewLinkID, void *pSrvPriv);
+
+/**
  * @brief Event usage arguments for IOC framework
  *        Contains all event-related parameters and configurations
  *        Used in both IOC_SrvArgs_T and IOC_ConnArgs_T for event capabilities
@@ -180,22 +187,64 @@ typedef enum {
     IOC_SRVFLAG_BROADCAST_EVENT = 1 << 0,
 
     /**
-     * @brief AUTO_ACCEPT flag for automatic connection acceptance
-     *  WHEN service is onlined with AUTO_ACCEPT flag,
-     *      incoming client connections are automatically accepted without manual IOC_acceptClient() calls.
-     *  This is useful for DAT services and other service types that want to automatically handle connections.
+     * @brief AUTO_ACCEPT — automatically accept clients
      *
-     *  BEHAVIOR:
-     *    - Automatically starts a daemon thread to accept incoming connections
-     *    - Works with any service type (DAT, Event, Command, etc.)
-     *    - No manual IOC_acceptClient() required, but callback in each UsageArgs must be set, such as:
-     *        - IOC_DatUsageArgs_T.CbRecvDat_F for service as DatReceiver
-     *        - IOC_EvtUsageArgs_T.CbProcEvt_F for service as EvtConsumer
-     *        - IOC_CmdUsageArgs_T.CbExecCmd_F for service as CmdExecutor
-     *    - Connections are accepted in the order they arrive
+     * Core behavior:
+     *  - Starts a background accept loop; no manual IOC_acceptClient() is needed.
+     *  - Stores accepted links inside the service; discover via IOC_getServiceLinkIDs().
+     *  - Keeps callbacks where they belong (DAT recv on receiver, CMD exec on executor, EVT consume on consumer).
      *
-     *  RESTRITIONS:
-     *.   When AutoAcceptFlagOn, service MUST be as DatReciver|EvtConsumer|CmdExecutor in callback mode.
+     * Immediate notification vs polling:
+     *  - Polling: Periodically call IOC_getServiceLinkIDs() to find new links.
+     *  - Immediate: Provide OnAutoAccepted_F(srv, link, priv) to act right after acceptance (non-blocking).
+     *
+     * Clear examples by capability
+     *  1) DAT — US-1 (Service=DatReceiver, Client=DatSender)
+     *     - Service:
+     *         Flags include IOC_SRVFLAG_AUTO_ACCEPT;
+     *         UsageCapabilites |= IOC_LinkUsageDatReceiver;
+     *         SrvArgs.UsageArgs.pDat->CbRecvDat_F = MyServiceRecvCb; // data arrives here
+     *         // Optional: OnAutoAccepted_F(srv, link) to init per-link tracking.
+     *     - Client:
+     *         Usage = IOC_LinkUsageDatSender; use IOC_sendDAT()/IOC_flushDAT() to push data.
+     *
+     *  2) DAT — US-2 (Service=DatSender, Client=DatReceiver)
+     *     - Service:
+     *         Flags include IOC_SRVFLAG_AUTO_ACCEPT;
+     *         UsageCapabilites |= IOC_LinkUsageDatSender;
+     *         OnAutoAccepted_F(srv, link): start/enable sending to 'link' using IOC_sendDAT()/IOC_flushDAT().
+     *         // Or poll IOC_getServiceLinkIDs() and send later.
+     *     - Client:
+     *         Usage = IOC_LinkUsageDatReceiver;
+     *         ConnArgs.UsageArgs.pDat->CbRecvDat_F = MyCliRecvCb; // receives
+     *
+     *  3) CMD — request/response
+     *     - Service as CmdExecutor (client initiates):
+     *         Flags include IOC_SRVFLAG_AUTO_ACCEPT;
+     *         UsageCapabilites |= IOC_LinkUsageCmdExecutor;
+     *         SrvArgs.UsageArgs.pCmd->CbExecCmd_F = MyExecCb; // executes incoming commands
+     *         OnAutoAccepted_F optional: attach per-link executor context/state.
+     *       Client: Usage = IOC_LinkUsageCmdInitiator; issue commands via the command API.
+     *
+     *     - Service as CmdInitiator (service initiates):
+     *         Flags include IOC_SRVFLAG_AUTO_ACCEPT;
+     *         UsageCapabilites |= IOC_LinkUsageCmdInitiator;
+     *         OnAutoAccepted_F(srv, link): optionally issue commands to 'link' immediately.
+     *       Client: Usage = IOC_LinkUsageCmdExecutor; set ConnArgs.UsageArgs.pCmd->CbExecCmd_F.
+     *
+     *  4) EVT — publish/subscribe
+     *     - Service as EvtProducer (service publishes):
+     *         Use IOC_SRVFLAG_BROADCAST_EVENT to turn SrvID into a broadcast sender to all ConnLinkIDs
+     *          IF OnAutoAccepted_F is set NULL, ELSE OnAutoAccepted_F(srv, link) will be called.
+     *         AUTO_ACCEPT can still run for the main service links if you also expose DAT/CMD.
+     *       Client: Usage = IOC_LinkUsageEvtConsumer; set ConnArgs.UsageArgs.pEvt->CbProcEvt_F to receive.
+     *
+     *     - Service as EvtConsumer (clients publish, service consumes):
+     *         Flags include IOC_SRVFLAG_AUTO_ACCEPT;
+     *         UsageCapabilites |= IOC_LinkUsageEvtConsumer;
+     *         SrvArgs.UsageArgs.pEvt->CbProcEvt_F = MySrvEvtCb; // receive events from producers
+     *         OnAutoAccepted_F optional: track producer link(s).
+     *       Client: Usage = IOC_LinkUsageEvtProducer; publish events via the event API.
      */
     IOC_SRVFLAG_AUTO_ACCEPT = 1 << 1,
 } IOC_SrvFlags_T;
@@ -203,6 +252,7 @@ typedef enum {
 typedef struct {
     IOC_SrvURI_T SrvURI;
     IOC_SrvFlags_T Flags;
+
     /**
      * @brief what usage capabilities the service has, which means what new links can be accepted.
      *  SUCH AS:
@@ -226,6 +276,12 @@ typedef struct {
         IOC_DatUsageArgs_pT pDat;  // Data usage arguments (sender/receiver)
         void *pGeneric;            // Generic pointer for future extensions
     } UsageArgs;
+
+    // IF: AUTO_ACCEPT flag is on and OnAutoAccepted_F is set,
+    // WHEN: after a new client is accepted,
+    // THEN: OnAutoAccepted_F will be called with the new LinkID
+    IOC_CbOnAutoAccepted_F OnAutoAccepted_F;
+    void *pSrvPriv;
 } IOC_SrvArgs_T, *IOC_SrvArgs_pT;
 
 static inline void IOC_Helper_initSrvArgs(IOC_SrvArgs_pT pSrvArgs) {
