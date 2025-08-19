@@ -514,13 +514,13 @@ TEST(UT_DataTypicalAutoAccept, verifyAutoDataProcessing_byCallbackDriven_expectS
 
     sendChunk(Chunk1, strlen(Chunk1));
     sendChunk(Chunk2, strlen(Chunk2));
-    sendChunk(Chunk3.data(), Chunk3.size());
+    sendChunk(Chunk3.data(), Chunk3Size);
 
     // Single flush after batching sends to push all data through.
     IOC_flushDAT(SenderLinkID, NULL);
 
     // Expected total length for all chunks (coalescing by transport is allowed)
-    ULONG_T expectedTotal = (ULONG_T)strlen(Chunk1) + (ULONG_T)strlen(Chunk2) + (ULONG_T)Chunk3.size();
+    ULONG_T expectedTotal = (ULONG_T)strlen(Chunk1) + (ULONG_T)strlen(Chunk2) + (ULONG_T)Chunk3Size;
 
     // Wait for total received bytes to reach expected amount (up to ~600ms)
     for (int i = 0; i < 60; ++i) {
@@ -546,8 +546,8 @@ TEST(UT_DataTypicalAutoAccept, verifyAutoDataProcessing_byCallbackDriven_expectS
     ASSERT_EQ(0, memcmp(Priv.ReceivedContent + offset, Chunk2, strlen(Chunk2)));
     offset += strlen(Chunk2);
 
-    ASSERT_GE(Priv.TotalReceivedSize.load(), (ULONG_T)(offset + Chunk3.size()));
-    ASSERT_EQ(0, memcmp(Priv.ReceivedContent + offset, Chunk3.data(), Chunk3.size()));
+    ASSERT_GE(Priv.TotalReceivedSize.load(), (ULONG_T)(offset + Chunk3Size));
+    ASSERT_EQ(0, memcmp(Priv.ReceivedContent + offset, Chunk3.data(), Chunk3Size));
 
     //===CLEANUP===
     if (SenderLinkID != IOC_ID_INVALID) IOC_closeLink(SenderLinkID);
@@ -916,3 +916,10 @@ TEST(UT_DataTypicalAutoAccept, verifyDatSenderAutoAccept_byServerRole_expectAuto
 
 //======END OF UNIT TESTING IMPLEMENTATION=========================================================
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+#include <gtest/gtest.h>
+
+// Legacy monolithic AutoAccept tests have been split into US1/US2 files.
+// This placeholder keeps the target but avoids duplicate test cases.
+TEST(UT_DataTypicalAutoAccept_Legacy, Placeholder) {
+    GTEST_SKIP() << "Legacy tests replaced by DataTypicalAutoAcceptUS1/US2";
+}

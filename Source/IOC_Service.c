@@ -65,6 +65,11 @@ static IOC_Result_T __IOC_allocSrvObj(/*ARG_INCONST*/ IOC_SrvArgs_pT pSrvArgs,
             // callback function pointers and private data needed for protocol-specific operations.
             pSrvObj->Args.UsageArgs = pSrvArgs->UsageArgs;
 
+            // Also copy service-level callback hooks and private data
+            // so the auto-accept daemon can notify immediately on new links.
+            pSrvObj->Args.OnAutoAccepted_F = pSrvArgs->OnAutoAccepted_F;
+            pSrvObj->Args.pSrvPriv = pSrvArgs->pSrvPriv;
+
             _mIOC_SrvObjTbl[i] = pSrvObj;
             *ppSrvObj = pSrvObj;
             Result = IOC_RESULT_SUCCESS;
@@ -374,6 +379,11 @@ static void *__IOC_ServiceAutoAcceptDaemonThread(void *pArg) {
                     pSrvObj->AutoAccept.AcceptedLinkCount++;
                     break;
                 }
+            }
+
+            // If a service-level OnAutoAccepted_F hook is provided, notify immediately.
+            if (pSrvObj->Args.OnAutoAccepted_F) {
+                pSrvObj->Args.OnAutoAccepted_F(pSrvObj->ID, pLinkObj->ID, pSrvObj->Args.pSrvPriv);
             }
         }
     }
