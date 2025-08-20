@@ -71,6 +71,11 @@ IOC_Result_T IOC_broadcastEVT(
  *  IOC will deliver the event to the EvtConsumer who is subscribing this event by the LinkID.
  *  Here deliver means that IOC will call the callback function of the EvtConsumer specified in the
  * IOC_SubEvtArgs_pT.
+ *
+ * @note Event subscription can be performed manually via IOC_subEVT, or (if supported) automatically via
+ * IOC_connectService if IOC_ConnArgs_T::Usage == IOC_LinkUsageEvtConsumer and UsageArgs.pEvt is set. See
+ * UT_EventTypicalAutoSubscribe.cxx for details.
+ *
  * @param LinkID: the link ID between EvtProducer and EvtConsumer.
  *    RefMore: IOC_LinkID_T in IOC_Types.h
  *    RefMore: README_ArchDesign::Object::Link
