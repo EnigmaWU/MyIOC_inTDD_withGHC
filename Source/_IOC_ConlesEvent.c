@@ -960,4 +960,14 @@ static IOC_Result_T __IOC_postEVT_inConlesModeSyncTimed(
     return Result;
 }
 
+IOC_Result_T _IOC_pullEVT_inConlesMode(
+    /*ARG_OUT*/ IOC_EvtDesc_pT pEvtDesc,
+    /*ARG_IN_OPTIONAL*/ const IOC_Options_pT pOption) {
+    // TODO: Implement pulling event functionality for ConlesMode
+    // For now, return NOT_IMPLEMENTED to allow tests to build
+    (void)pEvtDesc;
+    (void)pOption;
+    return IOC_RESULT_NOT_IMPLEMENTED;
+}
+
 //======>>>>>>END OF IMPLEMENT FOR ConlesEvent>>>>>>===================================================================

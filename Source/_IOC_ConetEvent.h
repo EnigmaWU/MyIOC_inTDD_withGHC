@@ -24,6 +24,11 @@ IOC_Result_T _IOC_postEVT_inConetMode(
     /*ARG_IN*/ const IOC_EvtDesc_pT pEvtDesc,
     /*ARG_IN_OPTIONAL*/ const IOC_Options_pT pOption);
 
+IOC_Result_T _IOC_pullEVT_inConetMode(
+    /*ARG_IN*/ IOC_LinkID_T LinkID,
+    /*ARG_OUT*/ IOC_EvtDesc_pT pEvtDesc,
+    /*ARG_IN_OPTIONAL*/ const IOC_Options_pT pOption);
+
 IOC_Result_T _IOC_getLinkState_inConetMode(
     /*ARG_IN*/ IOC_LinkID_T LinkID,
     /*ARG_OUT*/ IOC_LinkState_pT pLinkState,

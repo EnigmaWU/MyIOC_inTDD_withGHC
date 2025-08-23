@@ -58,6 +58,21 @@ void IOC_wakeupProcEVT(void) {
     // TODO: wakeupProcEvt_inConetMode
 }
 
+IOC_Result_T IOC_pullEVT(
+    /*ARG_IN*/ IOC_LinkID_T LinkID,
+    /*ARG_OUT*/ IOC_EvtDesc_pT pEvtDesc,
+    /*ARG_IN_OPTIONAL*/ IOC_Options_pT pOptions) {
+    if (NULL == pEvtDesc) {
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
+    if (IOC_RESULT_YES == _IOC_isAutoLink_inConlesMode(LinkID)) {
+        return _IOC_pullEVT_inConlesMode(pEvtDesc, pOptions);
+    } else {
+        return _IOC_pullEVT_inConetMode(LinkID, pEvtDesc, pOptions);
+    }
+}
+
 IOC_Result_T IOC_getLinkState(
     /*ARG_IN*/ IOC_LinkID_T LinkID,
     /*ARG_OUT*/ IOC_LinkState_pT pLinkState,
