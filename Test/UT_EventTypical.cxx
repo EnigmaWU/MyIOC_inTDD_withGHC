@@ -97,7 +97,8 @@ static IOC_Result_T __EvtTypical_ClientCb(const IOC_EvtDesc_pT pEvtDesc, void *p
     return IOC_RESULT_SUCCESS;
 }
 
-TEST(UT_EventTypical, verifyConetEvent_ServiceAsProducer_singleClient_expectDelivered) {
+// OLD: TEST(UT_EventTypical, verifyConetEvent_ServiceAsProducer_singleClient_expectDelivered)
+/*NEW*/ TEST(UT_ConetEventTypical, verifyServiceAsEvtProducer_bySingleClient_expectDelivered) {
     IOC_Result_T ResultValue = IOC_RESULT_BUG;
     // Service setup (Conet producer)
     IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
