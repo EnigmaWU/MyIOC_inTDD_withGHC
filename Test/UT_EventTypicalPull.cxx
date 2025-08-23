@@ -258,7 +258,7 @@ static IOC_Result_T __PullTest_CallbackHandler(const IOC_EvtDesc_pT pEvtDesc, vo
 
 // [@AC-1,US-1] TC-1: verifyPullEVT_byBasicPolling_expectEventReceived
 TEST(UT_ConetEventTypical, verifyPullEVT_byBasicPolling_expectEventReceived) {
-    IOC_Result_T R = IOC_RESULT_BUG;
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
 
     // Service setup (Conet producer)
     IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
@@ -266,22 +266,22 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byBasicPolling_expectEventReceived) {
                            .pPath = (const char *)"EvtPull_BasicPolling"};
     IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageEvtProducer};
     IOC_SrvID_T SrvID = IOC_ID_INVALID;
-    R = IOC_onlineService(&SrvID, &SrvArgs);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+    ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
 
     // Client setup (Conet consumer) - no IOC_subEVT, only IOC_pullEVT
     IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageEvtConsumer};
     IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
     std::thread CliThread([&] {
-        IOC_Result_T R_thread = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
-        ASSERT_EQ(IOC_RESULT_SUCCESS, R_thread);
+        IOC_Result_T ResultValueInThread = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValueInThread);
         ASSERT_NE(IOC_ID_INVALID, CliLinkID);
     });
 
     // Accept the client
     IOC_LinkID_T SrvLinkID = IOC_ID_INVALID;
-    R = IOC_acceptClient(SrvID, &SrvLinkID, NULL);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+    ResultValue = IOC_acceptClient(SrvID, &SrvLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
     ASSERT_NE(IOC_ID_INVALID, SrvLinkID);
 
     // Wait for client connection
@@ -291,13 +291,13 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byBasicPolling_expectEventReceived) {
     IOC_EvtDesc_T PostedEvt = {};
     PostedEvt.EvtID = IOC_EVTID_TEST_KEEPALIVE;
     PostedEvt.EvtValue = 100;
-    R = IOC_postEVT(SrvLinkID, &PostedEvt, NULL);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+    ResultValue = IOC_postEVT(SrvLinkID, &PostedEvt, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
 
     // Client pulls the event using IOC_pullEVT
     IOC_EvtDesc_T PulledEvt = {};
-    R = IOC_pullEVT(CliLinkID, &PulledEvt, NULL);  // Default non-blocking mode
-    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+    ResultValue = IOC_pullEVT(CliLinkID, &PulledEvt, NULL);  // Default non-blocking mode
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
 
     // Verify event details
     ASSERT_EQ(IOC_EVTID_TEST_KEEPALIVE, IOC_EvtDesc_getEvtID(&PulledEvt));
