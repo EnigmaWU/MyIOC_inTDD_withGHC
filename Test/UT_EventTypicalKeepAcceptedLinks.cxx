@@ -1,19 +1,122 @@
-/**
- * @file UT_EventTypicalKeepAcceptedLinks.cxx
- * @brief Unit tests for IOC_SRVFLAG_KEEP_ACCEPTED_LINK flag behavior
- *
- * This test suite verifies that the IOC_SRVFLAG_KEEP_ACCEPTED_LINK service flag
- * correctly controls whether manually accepted links are automatically closed
- * during service shutdown or kept alive for application-controlled cleanup.
- *
- * Test scenarios:
- * - Verify that manually accepted links remain open when flag is set
- * - Verify that event delivery continues after service offline when flag is set
- * - Verify that manual cleanup still works when flag is set
- * - Compare behavior with and without the flag
- */
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// Event Typical Keep Accepted Links — UT for IOC_SRVFLAG_KEEP_ACCEPTED_LINK
+//
+// Intent:
+// - Verify the IOC_SRVFLAG_KEEP_ACCEPTED_LINK service flag behavior
+// - Focus on manually accepted link lifecycle management during service shutdown
+// - Test configurable cleanup behavior vs default auto-close behavior
+// - Mirrors the UT template and US/AC structure used across this repo
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "_UT_IOC_Common.h"
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF OVERVIEW OF THIS UNIT TESTING FILE===============================================
+/**
+ * @brief Verify IOC_SRVFLAG_KEEP_ACCEPTED_LINK flag behavior in service lifecycle:
+ *  - Service flag controls whether manually accepted links are automatically closed
+ *    during service shutdown or kept alive for application-controlled cleanup
+ *  - Compare behavior with and without the flag to validate functional differences
+ *  - Ensure manual cleanup still works when links are preserved
+ *
+ * Key concepts:
+ *  - Manual accept: IOC_acceptClient() creates links that require explicit management
+ *  - Keep flag: IOC_SRVFLAG_KEEP_ACCEPTED_LINK preserves links during IOC_offlineService()
+ *  - Default behavior: Manually accepted links are auto-closed during service offline
+ *  - Resource management: Applications retain control over link cleanup timing
+ */
+//======>END OF OVERVIEW OF THIS UNIT TESTING FILE=================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF UNIT TESTING DESIGN==============================================================
+/**
+ * Design focus:
+ *  - Typical flag usage: verify keep-alive behavior vs default auto-close behavior
+ *  - Boundary conditions: service offline scenarios with and without the flag
+ *  - State management: link preservation and manual cleanup workflows
+ *  - Resource control: application-driven cleanup after service shutdown
+ */
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF USER STORY=======================================================================
+/**
+ * US-1: As a service developer, I want to control whether manually accepted links
+ *       are automatically closed during service shutdown,
+ *       so that I can manage link lifecycle according to application requirements.
+ *
+ * US-2: As a service developer, I want links to survive service restarts
+ *       when using the KEEP_ACCEPTED_LINK flag,
+ *       so that I can implement graceful shutdown and restart scenarios.
+ *
+ * US-3: As a service developer, I want to manually cleanup preserved links
+ *       after service shutdown,
+ *       so that I retain full control over resource management.
+ */
+//======>END OF USER STORY==========================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//=======>BEGIN OF ACCEPTANCE CRITERIA==============================================================
+/**
+ * [@US-1]
+ *  AC-1: GIVEN a service with IOC_SRVFLAG_KEEP_ACCEPTED_LINK flag and manually accepted links,
+ *         WHEN the service goes offline,
+ *         THEN the manually accepted links remain open and functional.
+ *  AC-2: GIVEN a service without IOC_SRVFLAG_KEEP_ACCEPTED_LINK flag and manually accepted links,
+ *         WHEN the service goes offline,
+ *         THEN the manually accepted links are automatically closed.
+ *
+ * [@US-2]
+ *  AC-1: GIVEN preserved links after service offline with the flag,
+ *         WHEN events are posted to the preserved links,
+ *         THEN events continue to be delivered (or appropriate error handling occurs).
+ *
+ * [@US-3]
+ *  AC-1: GIVEN preserved links after service offline,
+ *         WHEN IOC_closeLink() is called on the preserved links,
+ *         THEN the links are successfully closed and resources are freed.
+ */
+//=======>END OF ACCEPTANCE CRITERIA================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF TEST CASES=======================================================================
+
+// [@AC-1,US-1]
+// TC-1:
+//   @[Name]: verifyKeepAcceptedLinksFlag_byServiceOffline_expectLinksRemainOpen
+//   @[Purpose]: Validate that IOC_SRVFLAG_KEEP_ACCEPTED_LINK preserves manually accepted links during service offline
+//   @[Brief]: Service with flag → manual accept → event delivery → service offline → links preserved → continued
+//   functionality
+//   @[Steps]:
+//     1) Online service with IOC_SRVFLAG_KEEP_ACCEPTED_LINK flag and EvtProducer capability
+//     2) Connect client as EvtConsumer and manually accept the connection
+//     3) Verify initial event delivery works correctly
+//     4) Take service offline
+//     5) Verify links remain open and events can still be delivered
+
+// TC-2:
+//   @[Name]: verifyFlagDifference_compareWithDefaultBehavior_expectDifferentLifecycle
+//   @[Purpose]: Compare behavior with and without the flag to validate functional difference
+//   @[Brief]: Service without flag → manual accept → service offline → links auto-closed
+//   @[Steps]:
+//     1) Online service without IOC_SRVFLAG_KEEP_ACCEPTED_LINK flag
+//     2) Connect client and manually accept the connection
+//     3) Verify initial event delivery works correctly
+//     4) Take service offline
+//     5) Verify links are auto-closed and event delivery fails
+
+// [@AC-1,US-3]
+// TC-3:
+//   @[Name]: verifyManualCleanup_withKeepAcceptedLinksFlag_expectCleanupWorks
+//   @[Purpose]: Verify manual cleanup still works when links are preserved by the flag
+//   @[Brief]: Service with flag → service offline → links preserved → manual cleanup → links closed
+//   @[Steps]:
+//     1) Online service with IOC_SRVFLAG_KEEP_ACCEPTED_LINK flag
+//     2) Connect client and manually accept the connection
+//     3) Take service offline (links preserved)
+//     4) Verify link ID is still valid but event functionality may be limited
+//     5) Manually close the preserved link using IOC_closeLink()
+//     6) Verify manual cleanup worked and link is completely closed
 
 // Callback structure for event reception testing
 typedef struct __KeepLinksEvtRecvPriv {
@@ -34,22 +137,14 @@ static IOC_Result_T __KeepLinksTestClientCb(const IOC_EvtDesc_pT pEvtDesc, void 
     return IOC_RESULT_SUCCESS;
 }
 
-/**
- * Test suite for IOC_SRVFLAG_KEEP_ACCEPTED_LINK functionality
- */
-class UT_EventTypicalKeepAcceptedLinks : public ::testing::Test {
-   protected:
-    void SetUp() override {
-        // Common test setup
-    }
+//======>END OF TEST CASES=========================================================================
 
-    void TearDown() override {
-        // Ensure cleanup
-    }
-};
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF TEST IMPLEMENTATIONS=============================================================
 
-// [@TC-1] Verify that manually accepted links remain open when IOC_SRVFLAG_KEEP_ACCEPTED_LINK is set
-TEST_F(UT_EventTypicalKeepAcceptedLinks, verifyKeepAcceptedLinksFlag_byServiceOffline_expectLinksRemainOpen) {
+// [@AC-1,US-1]
+// TC-1: verifyKeepAcceptedLinksFlag_byServiceOffline_expectLinksRemainOpen
+TEST(UT_ConetEventTypical, verifyKeepAcceptedLinksFlag_byServiceOffline_expectLinksRemainOpen) {
     IOC_Result_T ResultValue = IOC_RESULT_BUG;
     IOC_SrvID_T SrvID = IOC_ID_INVALID;
     IOC_LinkID_T SrvLinkID = IOC_ID_INVALID;
@@ -153,8 +248,9 @@ TEST_F(UT_EventTypicalKeepAcceptedLinks, verifyKeepAcceptedLinksFlag_byServiceOf
     if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
-// [@TC-2] Verify that the flag behavior differs from default behavior
-TEST_F(UT_EventTypicalKeepAcceptedLinks, verifyFlagDifference_compareWithDefaultBehavior_expectDifferentLifecycle) {
+// [@AC-2,US-1]
+// TC-2: verifyFlagDifference_compareWithDefaultBehavior_expectDifferentLifecycle
+TEST(UT_ConetEventTypical, verifyFlagDifference_compareWithDefaultBehavior_expectDifferentLifecycle) {
     IOC_Result_T ResultValue = IOC_RESULT_BUG;
     IOC_SrvID_T SrvID = IOC_ID_INVALID;
     IOC_LinkID_T SrvLinkID = IOC_ID_INVALID;
@@ -254,8 +350,9 @@ TEST_F(UT_EventTypicalKeepAcceptedLinks, verifyFlagDifference_compareWithDefault
     if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
-// [@TC-3] Verify manual cleanup still works when flag is set
-TEST_F(UT_EventTypicalKeepAcceptedLinks, verifyManualCleanup_withKeepAcceptedLinksFlag_expectCleanupWorks) {
+// [@AC-1,US-3]
+// TC-3: verifyManualCleanup_withKeepAcceptedLinksFlag_expectCleanupWorks
+TEST(UT_ConetEventTypical, verifyManualCleanup_withKeepAcceptedLinksFlag_expectCleanupWorks) {
     IOC_Result_T ResultValue = IOC_RESULT_BUG;
     IOC_SrvID_T SrvID = IOC_ID_INVALID;
     IOC_LinkID_T SrvLinkID = IOC_ID_INVALID;
@@ -328,3 +425,5 @@ TEST_F(UT_EventTypicalKeepAcceptedLinks, verifyManualCleanup_withKeepAcceptedLin
     if (SrvLinkID != IOC_ID_INVALID) IOC_closeLink(SrvLinkID);
     if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
+
+//======>END OF TEST IMPLEMENTATIONS===============================================================
