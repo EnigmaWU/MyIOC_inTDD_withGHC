@@ -92,6 +92,7 @@ struct _IOC_SrvProtoMethodsStru {
     IOC_Result_T (*OpUnsubEvt_F)(_IOC_LinkObject_pT, const IOC_UnsubEvtArgs_pT);
 
     IOC_Result_T (*OpPostEvt_F)(_IOC_LinkObject_pT, const IOC_EvtDesc_pT, const IOC_Options_pT);
+    IOC_Result_T (*OpPullEvt_F)(_IOC_LinkObject_pT, IOC_EvtDesc_pT, const IOC_Options_pT);
 
     // 🔧 WHY ADD DAT METHODS: The original framework only supported EVT (events), but was missing
     // DAT (data transfer) protocol layer abstraction. Without these methods, DAT operations like

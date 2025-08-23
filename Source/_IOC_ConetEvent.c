@@ -223,10 +223,21 @@ IOC_Result_T _IOC_pullEVT_inConetMode(
     /*ARG_IN*/ IOC_LinkID_T LinkID,
     /*ARG_OUT*/ IOC_EvtDesc_pT pEvtDesc,
     /*ARG_IN_OPTIONAL*/ const IOC_Options_pT pOption) {
-    // TODO: Implement pulling event functionality for ConetMode
-    // For now, return NOT_IMPLEMENTED to allow tests to build
-    (void)LinkID;
-    (void)pEvtDesc;
-    (void)pOption;
-    return IOC_RESULT_NOT_IMPLEMENTED;
+    _IOC_LinkObject_pT pLinkObj = _IOC_getLinkObjByLinkID(LinkID);
+    if (pLinkObj == NULL) {
+        _IOC_LogError("Failed to get LinkObj by LinkID(%" PRIu64 ")", LinkID);
+        return IOC_RESULT_NOT_EXIST_LINK;
+    }
+
+    _IOC_LogAssert(pLinkObj->pMethods != NULL);
+    _IOC_LogAssert(pLinkObj->pMethods->OpPullEvt_F != NULL);
+
+    IOC_Result_T Result = pLinkObj->pMethods->OpPullEvt_F(pLinkObj, pEvtDesc, pOption);
+    if (Result != IOC_RESULT_SUCCESS && Result != IOC_RESULT_NO_EVENT_CONSUMER) {
+        _IOC_LogError("Link(%" PRIu64 "u): failed to pullEVT, Result=%d", pLinkObj->ID, Result);
+        return Result;
+    }
+
+    //_IOC_LogNotTested();
+    return Result;
 }

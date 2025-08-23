@@ -40,6 +40,7 @@
 #include <errno.h>  // For ETIMEDOUT
 
 #include "_IOC.h"
+#include "_IOC_EvtDescQueue.h"
 
 typedef struct _IOC_ProtoFifoLinkObjectStru _IOC_ProtoFifoLinkObject_T;
 typedef _IOC_ProtoFifoLinkObject_T *_IOC_ProtoFifoLinkObject_pT;
@@ -125,6 +126,11 @@ struct _IOC_ProtoFifoLinkObjectStru {
             bool IsPollingMode;                // True if receiver is in polling mode (no callback)
         } PollingBuffer;
     } DatReceiver;
+
+    // 🎯 EVENT POLLING SUPPORT: Queue for polling-based event consumption using IOC_pullEVT
+    // This enables events to be consumed via polling as an alternative to callback-based IOC_subEVT
+    _IOC_EvtDescQueue_T EvtPollingQueue;  // Queue for events awaiting polling consumption
+    bool IsEvtPollingActive;              // Whether this link is actively using event polling
 };
 
 /**
@@ -347,6 +353,10 @@ static IOC_Result_T __IOC_connectService_ofProtoFifo(_IOC_LinkObject_pT pLinkObj
     pthread_mutex_init(&pFifoLinkObj->Mutex, NULL);
     pFifoLinkObj->pOwnerLinkObj = pLinkObj;  // TDD FIX: Store reference to owning LinkObject
 
+    // Initialize event polling queue for IOC_pullEVT support
+    _IOC_EvtDescQueue_initOne(&pFifoLinkObj->EvtPollingQueue);
+    pFifoLinkObj->IsEvtPollingActive = false;  // Initially disabled, enabled when first pull is called
+
     // Initialize polling buffer for potential DAT operations
     IOC_Result_T BufferResult = __IOC_initPollingBuffer_ofProtoFifo(pFifoLinkObj);
     if (BufferResult != IOC_RESULT_SUCCESS) {
@@ -425,6 +435,10 @@ static IOC_Result_T __IOC_acceptClient_ofProtoFifo(_IOC_ServiceObject_pT pSrvObj
 
     pthread_mutex_init(&pAceptedFifoLinkObj->Mutex, NULL);
     pAceptedFifoLinkObj->pOwnerLinkObj = pLinkObj;  // TDD FIX: Store reference to owning LinkObject
+
+    // Initialize event polling queue for IOC_pullEVT support
+    _IOC_EvtDescQueue_initOne(&pAceptedFifoLinkObj->EvtPollingQueue);
+    pAceptedFifoLinkObj->IsEvtPollingActive = false;  // Initially disabled, enabled when first pull is called
 
     // Initialize polling buffer for potential DAT operations
     IOC_Result_T BufferResult = __IOC_initPollingBuffer_ofProtoFifo(pAceptedFifoLinkObj);
@@ -541,6 +555,9 @@ static IOC_Result_T __IOC_closeLink_ofProtoFifo(_IOC_LinkObject_pT pLinkObj) {
     // Clean up polling buffer before freeing the link object
     __IOC_cleanupPollingBuffer_ofProtoFifo(pFifoLinkObj);
 
+    // Clean up event polling queue before freeing the link object
+    _IOC_EvtDescQueue_deinitOne(&pFifoLinkObj->EvtPollingQueue);
+
     free(pFifoLinkObj);
 
     //_IOC_LogNotTested();
@@ -637,6 +654,15 @@ static IOC_Result_T __IOC_postEvt_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, const
                     ProcEvtSuberCnt++;
                 }
             }
+        } else {
+            // No callback, enqueue to polling queue for subscribed events
+            for (int i = 0; i < pPeerFifoLinkObj->SubEvtArgs.EvtNum; i++) {
+                if (pEvtDesc->EvtID == pPeerFifoLinkObj->SubEvtArgs.pEvtIDs[i]) {
+                    _IOC_EvtDescQueue_enqueueElementLast(&pPeerFifoLinkObj->EvtPollingQueue, pEvtDesc);
+                    ProcEvtSuberCnt++;
+                    break;  // Only enqueue once per event
+                }
+            }
         }
         pthread_mutex_unlock(&pPeerFifoLinkObj->Mutex);
     }
@@ -650,6 +676,42 @@ static IOC_Result_T __IOC_postEvt_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, const
 
     //_IOC_LogNotTested();
     return Result;
+}
+
+/**
+ * @brief Pull event from ProtoFifo polling queue
+ * @param pLinkObj Pointer to the link object for event polling
+ * @param pEvtDesc Pointer to event description to fill with polled event
+ * @param pOption Optional parameters for timeout control
+ * @return IOC_RESULT_SUCCESS if event retrieved, IOC_RESULT_NO_EVENT_CONSUMER if no events available,
+ *         IOC_RESULT_TIMEOUT if timeout occurred
+ */
+static IOC_Result_T __IOC_pullEvt_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_EvtDesc_pT pEvtDesc,
+                                              const IOC_Options_pT pOption) {
+    if (!pLinkObj || !pEvtDesc) {
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
+    _IOC_ProtoFifoLinkObject_pT pFifoLinkObj = (_IOC_ProtoFifoLinkObject_pT)pLinkObj->pProtoPriv;
+    if (!pFifoLinkObj) {
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
+    // Enable polling mode on first use
+    pthread_mutex_lock(&pFifoLinkObj->Mutex);
+    pFifoLinkObj->IsEvtPollingActive = true;
+
+    // Try to dequeue an event from the polling queue
+    IOC_Result_T QueueResult = _IOC_EvtDescQueue_dequeueElementFirst(&pFifoLinkObj->EvtPollingQueue, pEvtDesc);
+    pthread_mutex_unlock(&pFifoLinkObj->Mutex);
+
+    if (QueueResult == IOC_RESULT_SUCCESS) {
+        return IOC_RESULT_SUCCESS;
+    } else if (QueueResult == IOC_RESULT_EVTDESC_QUEUE_EMPTY) {
+        return IOC_RESULT_NO_EVENT_CONSUMER;
+    } else {
+        return QueueResult;  // Some other error occurred
+    }
 }
 
 //=================================================================================================
@@ -1638,6 +1700,7 @@ _IOC_SrvProtoMethods_T _gIOC_SrvProtoFifoMethods = {
     .OpUnsubEvt_F = __IOC_unsubEvt_ofProtoFifo,
 
     .OpPostEvt_F = __IOC_postEvt_ofProtoFifo,
+    .OpPullEvt_F = __IOC_pullEvt_ofProtoFifo,
 
     // 🚀 WHY ADD DAT METHODS: Completing the ProtoFifo protocol implementation to support
     // all three communication paradigms promised by the IOC framework:

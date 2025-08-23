@@ -287,12 +287,24 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byBasicPolling_expectEventReceived) {
     // Wait for client connection
     if (CliThread.joinable()) CliThread.join();
 
+    // Client subscribes to events for polling
+    IOC_EvtID_T SubEvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
+    IOC_SubEvtArgs_T SubEvtArgs = {.pEvtIDs = SubEvtIDs,
+                                   .EvtNum = sizeof(SubEvtIDs) / sizeof(SubEvtIDs[0]),
+                                   .CbProcEvt_F = nullptr,  // No callback, only polling
+                                   .pCbPrivData = nullptr};
+    ResultValue = IOC_subEVT(CliLinkID, &SubEvtArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
     // Service posts an event
     IOC_EvtDesc_T PostedEvt = {};
     PostedEvt.EvtID = IOC_EVTID_TEST_KEEPALIVE;
     PostedEvt.EvtValue = 100;
     ResultValue = IOC_postEVT(SrvLinkID, &PostedEvt, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
+    // Small delay to ensure event is processed
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
     // Client pulls the event using IOC_pullEVT
     IOC_EvtDesc_T PulledEvt = {};
