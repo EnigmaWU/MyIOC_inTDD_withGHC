@@ -709,22 +709,19 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byInfiniteTimeout_expectEventualSuccess
     if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
-// TODO: [@AC-4,US-2] TC-1: verifyPullEVT_byDefaultBlocking_expectEventualSuccess
-// TODO: This test needs debugging - currently failing with IOC_RESULT_NO_EVENT_CONSUMER (-502)
-// TODO: The infinite timeout test works fine, but default blocking (NULL options) has subscription issues
-/*
+// [@AC-4,US-2] TC-1: verifyPullEVT_byDefaultBlocking_expectEventualSuccess
 TEST(UT_ConetEventTypical, verifyPullEVT_byDefaultBlocking_expectEventualSuccess) {
-    IOC_Result_T R = IOC_RESULT_BUG;
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
     const int DelayMS = 50;  // Event will be posted after 50ms
 
-    // Service setup
+    // Service setup (Conet producer)
     IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
                            .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
                            .pPath = (const char *)"EvtPull_DefaultBlocking"};
     IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageEvtProducer};
     IOC_SrvID_T SrvID = IOC_ID_INVALID;
-    R = IOC_onlineService(&SrvID, &SrvArgs);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+    ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
 
     // Client setup (Conet consumer) - specify events to subscribe via ConnArgs
     IOC_EvtID_T SubEvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
@@ -737,51 +734,81 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byDefaultBlocking_expectEventualSuccess
 
     IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
     std::thread CliThread([&] {
-        IOC_Result_T R_thread = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
-        ASSERT_EQ(IOC_RESULT_SUCCESS, R_thread);
+        IOC_Result_T ResultValueInThread = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValueInThread);
+        ASSERT_NE(IOC_ID_INVALID, CliLinkID);
     });
 
-    // Accept client
+    // Accept the client
     IOC_LinkID_T SrvLinkID = IOC_ID_INVALID;
-    R = IOC_acceptClient(SrvID, &SrvLinkID, NULL);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+    ResultValue = IOC_acceptClient(SrvID, &SrvLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, SrvLinkID);
+
+    // Wait for client connection
     if (CliThread.joinable()) CliThread.join();
 
-    // Start thread to post event after delay
+    // Start thread to post event after delay - testing default blocking behavior
     std::atomic<bool> EventPosted{false};
+    std::atomic<bool> PullCompleted{false};
+    std::atomic<IOC_Result_T> PullResult{IOC_RESULT_BUG};
+
     std::thread PostThread([&] {
         std::this_thread::sleep_for(std::chrono::milliseconds(DelayMS));
-        IOC_EvtDesc_T EvtDesc = {};
-        EvtDesc.EvtID = IOC_EVTID_TEST_KEEPALIVE;
-        EvtDesc.EvtValue = 400;
-        IOC_Result_T R_post = IOC_postEVT(SrvLinkID, &EvtDesc, NULL);
-        ASSERT_EQ(IOC_RESULT_SUCCESS, R_post);
+        IOC_EvtDesc_T PostedEvt = {};
+        PostedEvt.EvtID = IOC_EVTID_TEST_KEEPALIVE;
+        PostedEvt.EvtValue = 400;
+        IOC_Result_T ResultValueInPostThread = IOC_postEVT(SrvLinkID, &PostedEvt, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValueInPostThread);
         EventPosted = true;
     });
 
-    // Pull with default options (NULL) - should block until event is posted
+    // Pull with default options (NULL) in separate thread to avoid blocking test forever
+    IOC_EvtDesc_T PulledEvt = {};
     auto startTime = std::chrono::high_resolution_clock::now();
 
-    IOC_EvtDesc_T PulledEvt = {};
-    R = IOC_pullEVT(CliLinkID, &PulledEvt, NULL);  // Default blocking mode (NULL options)
+    std::thread PullThread([&] {
+        IOC_Result_T ResultValueInPullThread =
+            IOC_pullEVT(CliLinkID, &PulledEvt, NULL);  // Default blocking mode (NULL options)
+        PullResult = ResultValueInPullThread;
+        PullCompleted = true;
+    });
+
+    // Wait for pull to complete with timeout protection (prevent test hanging forever)
+    const int MaxWaitMS = DelayMS * 10;  // 10x delay as safety margin
+    auto waitStart = std::chrono::high_resolution_clock::now();
+    while (!PullCompleted.load()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        auto waitDuration = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::high_resolution_clock::now() - waitStart);
+        if (waitDuration.count() > MaxWaitMS) {
+            // Force timeout to prevent hanging
+            FAIL() << "Default blocking pull took too long - potential infinite block detected";
+            break;
+        }
+    }
 
     auto endTime = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+    auto actualDuration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
 
     // Verify successful event reception with default blocking behavior
-    ASSERT_EQ(IOC_RESULT_SUCCESS, R) << "Should successfully receive event with default blocking mode";
+    ASSERT_EQ(IOC_RESULT_SUCCESS, PullResult.load()) << "Should successfully receive event with default blocking mode";
     ASSERT_EQ(IOC_EVTID_TEST_KEEPALIVE, IOC_EvtDesc_getEvtID(&PulledEvt));
     ASSERT_EQ((ULONG_T)400, IOC_EvtDesc_getEvtValue(&PulledEvt));
-    ASSERT_TRUE(EventPosted.load()) << "Event should have been posted";
-    ASSERT_GE(duration.count(), DelayMS * 0.8) << "Should have waited for event (default blocking mode)";
+    ASSERT_TRUE(EventPosted.load()) << "Event should have been posted by background thread";
+    ASSERT_GE(actualDuration.count(), (int)(DelayMS * 0.8)) << "Should have waited for delayed event";
+    ASSERT_LE(actualDuration.count(), (int)(DelayMS * 5.0)) << "Should not have waited excessively long";
+
+    // Verify sequence ID is valid
+    ASSERT_GT(IOC_EvtDesc_getSeqID(&PulledEvt), (ULONG_T)0) << "Sequence ID should be valid for received event";
 
     // Cleanup
+    if (PullThread.joinable()) PullThread.join();
     if (PostThread.joinable()) PostThread.join();
     if (CliLinkID != IOC_ID_INVALID) IOC_closeLink(CliLinkID);
     if (SrvLinkID != IOC_ID_INVALID) IOC_closeLink(SrvLinkID);
     if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
-*/
 
 // [@AC-1,US-3] TC-1: verifyPullEVT_withMixedConsumers_expectFirstComeFirstServed
 TEST(UT_ConetEventTypical, verifyPullEVT_withMixedConsumers_expectFirstComeFirstServed) {
