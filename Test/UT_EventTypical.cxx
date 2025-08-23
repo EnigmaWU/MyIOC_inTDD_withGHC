@@ -88,48 +88,48 @@ typedef struct __EvtRecvPriv {
 } __EvtRecvPriv_T;
 
 static IOC_Result_T __EvtTypical_ClientCb(const IOC_EvtDesc_pT pEvtDesc, void *pCbPriv) {
-    __EvtRecvPriv_T *P = (__EvtRecvPriv_T *)pCbPriv;
-    if (!P || !pEvtDesc) return IOC_RESULT_INVALID_PARAM;
-    P->EvtID = IOC_EvtDesc_getEvtID((IOC_EvtDesc_pT)pEvtDesc);
-    P->EvtValue = IOC_EvtDesc_getEvtValue((IOC_EvtDesc_pT)pEvtDesc);
-    P->Seq = IOC_EvtDesc_getSeqID((IOC_EvtDesc_pT)pEvtDesc);
-    P->Got = true;
+    __EvtRecvPriv_T *pPrivData = (__EvtRecvPriv_T *)pCbPriv;
+    if (!pPrivData || !pEvtDesc) return IOC_RESULT_INVALID_PARAM;
+    pPrivData->EvtID = IOC_EvtDesc_getEvtID((IOC_EvtDesc_pT)pEvtDesc);
+    pPrivData->EvtValue = IOC_EvtDesc_getEvtValue((IOC_EvtDesc_pT)pEvtDesc);
+    pPrivData->Seq = IOC_EvtDesc_getSeqID((IOC_EvtDesc_pT)pEvtDesc);
+    pPrivData->Got = true;
     return IOC_RESULT_SUCCESS;
 }
 
 TEST(UT_EventTypical, verifyConetEvent_ServiceAsProducer_singleClient_expectDelivered) {
-    IOC_Result_T R = IOC_RESULT_BUG;
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
     // Service setup (Conet producer)
     IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
                            .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
                            .pPath = (const char *)"EvtTypical_ProducerSingle"};
     IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageEvtProducer};
     IOC_SrvID_T SrvID = IOC_ID_INVALID;
-    R = IOC_onlineService(&SrvID, &SrvArgs);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+    ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
 
     // Client setup (Conet consumer) — connect in a separate thread to avoid blocking before accept
     IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageEvtConsumer};
-    IOC_LinkID_T CliLink = IOC_ID_INVALID;
+    IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
     __EvtRecvPriv_T RecvPriv = {};
     std::atomic<bool> Subscribed{false};
     std::thread CliThread([&] {
-        IOC_Result_T R2 = IOC_connectService(&CliLink, &ConnArgs, NULL);
-        ASSERT_EQ(IOC_RESULT_SUCCESS, R2);
-        ASSERT_NE(IOC_ID_INVALID, CliLink);
+        IOC_Result_T ResultValueInThread = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValueInThread);
+        ASSERT_NE(IOC_ID_INVALID, CliLinkID);
         static IOC_EvtID_T SubEvtIDs[1] = {IOC_EVTID_TEST_KEEPALIVE};
         IOC_SubEvtArgs_T Sub = {
             .CbProcEvt_F = __EvtTypical_ClientCb, .pCbPrivData = &RecvPriv, .EvtNum = 1, .pEvtIDs = &SubEvtIDs[0]};
-        R2 = IOC_subEVT(CliLink, &Sub);
-        ASSERT_EQ(IOC_RESULT_SUCCESS, R2);
+        ResultValueInThread = IOC_subEVT(CliLinkID, &Sub);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValueInThread);
         Subscribed = true;
     });
 
     // Accept the client on the service side explicitly (no AUTO_ACCEPT here)
-    IOC_LinkID_T SrvLink = IOC_ID_INVALID;
-    R = IOC_acceptClient(SrvID, &SrvLink, NULL);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
-    ASSERT_NE(IOC_ID_INVALID, SrvLink);
+    IOC_LinkID_T SrvLinkID = IOC_ID_INVALID;
+    ResultValue = IOC_acceptClient(SrvID, &SrvLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, SrvLinkID);
 
     // Wait the client finishes subscription
     for (int i = 0; i < 50 && !Subscribed.load(); ++i) {
@@ -137,11 +137,11 @@ TEST(UT_EventTypical, verifyConetEvent_ServiceAsProducer_singleClient_expectDeli
     }
 
     // Post one event from service to that link
-    IOC_EvtDesc_T E = {};
-    E.EvtID = IOC_EVTID_TEST_KEEPALIVE;
-    E.EvtValue = 42;
-    R = IOC_postEVT(SrvLink, &E, NULL);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+    IOC_EvtDesc_T EvtDesc = {};
+    EvtDesc.EvtID = IOC_EVTID_TEST_KEEPALIVE;
+    EvtDesc.EvtValue = 42;
+    ResultValue = IOC_postEVT(SrvLinkID, &EvtDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
 
     // Wait for client callback
     for (int i = 0; i < 60; ++i) {
@@ -155,7 +155,8 @@ TEST(UT_EventTypical, verifyConetEvent_ServiceAsProducer_singleClient_expectDeli
 
     // Cleanup
     if (CliThread.joinable()) CliThread.join();
-    if (CliLink != IOC_ID_INVALID) IOC_closeLink(CliLink);
+    if (CliLinkID != IOC_ID_INVALID) IOC_closeLink(CliLinkID);
+    if (SrvLinkID != IOC_ID_INVALID) IOC_closeLink(SrvLinkID);
     if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
