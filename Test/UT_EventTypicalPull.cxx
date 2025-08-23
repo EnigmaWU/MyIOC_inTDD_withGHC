@@ -812,60 +812,64 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byDefaultBlocking_expectEventualSuccess
 
 // [@AC-1,US-3] TC-1: verifyPullEVT_withMixedConsumers_expectFirstComeFirstServed
 TEST(UT_ConetEventTypical, verifyPullEVT_withMixedConsumers_expectFirstComeFirstServed) {
-    IOC_Result_T R = IOC_RESULT_BUG;
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
 
-    // Service setup
+    // Service setup (Conet producer)
     IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
                            .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
                            .pPath = (const char *)"EvtPull_MixedConsumers"};
     IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageEvtProducer};
     IOC_SrvID_T SrvID = IOC_ID_INVALID;
-    R = IOC_onlineService(&SrvID, &SrvArgs);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+    ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
 
-    // Client setup
+    // Client setup (Conet consumer) - will use mixed consumption methods
     IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageEvtConsumer};
     IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
     std::thread CliThread([&] {
-        IOC_Result_T R_thread = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
-        ASSERT_EQ(IOC_RESULT_SUCCESS, R_thread);
+        IOC_Result_T ResultValueInThread = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValueInThread);
+        ASSERT_NE(IOC_ID_INVALID, CliLinkID);
     });
 
-    // Accept client
+    // Accept the client
     IOC_LinkID_T SrvLinkID = IOC_ID_INVALID;
-    R = IOC_acceptClient(SrvID, &SrvLinkID, NULL);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+    ResultValue = IOC_acceptClient(SrvID, &SrvLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, SrvLinkID);
+
+    // Wait for client connection
     if (CliThread.joinable()) CliThread.join();
 
-    // Set up mixed consumers: callback + polling
+    // Set up mixed consumers: callback + polling for first-come-first-served testing
     __PullTestContext_T TestContext = {};
 
-    // Set up callback consumer
+    // Set up callback consumer for event subscription
     static IOC_EvtID_T SubEvtIDs[1] = {IOC_EVTID_TEST_KEEPALIVE};
-    IOC_SubEvtArgs_T Sub = {
+    IOC_SubEvtArgs_T SubEvtArgs = {
         .CbProcEvt_F = __PullTest_CallbackHandler, .pCbPrivData = &TestContext, .EvtNum = 1, .pEvtIDs = &SubEvtIDs[0]};
-    R = IOC_subEVT(CliLinkID, &Sub);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+    ResultValue = IOC_subEVT(CliLinkID, &SubEvtArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
 
-    // Post multiple events
+    // Post multiple events and test mixed consumption methods
     const int NumEvents = 10;
     for (int i = 0; i < NumEvents; ++i) {
-        IOC_EvtDesc_T EvtDesc = {};
-        EvtDesc.EvtID = IOC_EVTID_TEST_KEEPALIVE;
-        EvtDesc.EvtValue = 400 + i;
-        R = IOC_postEVT(SrvLinkID, &EvtDesc, NULL);
-        ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+        IOC_EvtDesc_T PostedEvt = {};
+        PostedEvt.EvtID = IOC_EVTID_TEST_KEEPALIVE;
+        PostedEvt.EvtValue = 500 + i;  // Sequential values: 500, 501, 502, ...
+        ResultValue = IOC_postEVT(SrvLinkID, &PostedEvt, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
 
-        // Alternate between callback processing and polling
+        // Alternate between callback processing and polling attempts
         if (i % 2 == 0) {
-            // Let callback handle this event
+            // Allow callback handler to process this event (even indices)
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
         } else {
-            // Try to pull this event
+            // Attempt to pull this event via polling (odd indices)
             IOC_EvtDesc_T PulledEvt = {};
             IOC_Options_T NonBlockingOptions[] = {{.IDs = IOC_OPTID_TIMEOUT, .Payload.TimeoutUS = 0}};
-            IOC_Result_T PullResult = IOC_pullEVT(CliLinkID, &PulledEvt, NonBlockingOptions);
-            if (PullResult == IOC_RESULT_SUCCESS) {
+            IOC_Result_T PullResultValue = IOC_pullEVT(CliLinkID, &PulledEvt, NonBlockingOptions);
+            if (PullResultValue == IOC_RESULT_SUCCESS) {
                 std::lock_guard<std::mutex> lock(TestContext.EventMutex);
                 TestContext.PullEvents.push_back(IOC_EvtDesc_getEvtID(&PulledEvt));
                 TestContext.PullEventCount++;
@@ -873,18 +877,27 @@ TEST(UT_ConetEventTypical, verifyPullEVT_withMixedConsumers_expectFirstComeFirst
         }
     }
 
-    // Wait for callback processing
+    // Wait for callback processing to complete
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    // Verify that all events were consumed (no duplicates, no losses)
-    int TotalConsumed = TestContext.CallbackEventCount.load() + TestContext.PullEventCount.load();
-    ASSERT_EQ(NumEvents, TotalConsumed) << "Not all events were consumed";
+    // Verify that all events were consumed via one method or the other (no duplicates, no losses)
+    int TotalCallbackEvents = TestContext.CallbackEventCount.load();
+    int TotalPullEvents = TestContext.PullEventCount.load();
+    int TotalConsumedEvents = TotalCallbackEvents + TotalPullEvents;
 
-    // Verify no events are left
+    ASSERT_EQ(NumEvents, TotalConsumedEvents) << "Not all events were consumed by mixed methods";
+    ASSERT_GT(TotalCallbackEvents, 0) << "Callback method should have consumed some events";
+    ASSERT_GE(TotalPullEvents, 0) << "Pull method consumption count should be non-negative";
+
+    // Verify no events are left pending
     IOC_EvtDesc_T ExtraEvt = {};
     IOC_Options_T NonBlockingOptions[] = {{.IDs = IOC_OPTID_TIMEOUT, .Payload.TimeoutUS = 0}};
-    R = IOC_pullEVT(CliLinkID, &ExtraEvt, NonBlockingOptions);
-    ASSERT_EQ(IOC_RESULT_NO_EVENT_PENDING, R) << "Unexpected remaining events";
+    ResultValue = IOC_pullEVT(CliLinkID, &ExtraEvt, NonBlockingOptions);
+    ASSERT_EQ(IOC_RESULT_NO_EVENT_PENDING, ResultValue) << "No events should remain after mixed consumption";
+
+    // Verify event distribution statistics
+    ASSERT_LE(TotalCallbackEvents, NumEvents) << "Callback method consumed too many events";
+    ASSERT_LE(TotalPullEvents, NumEvents) << "Pull method consumed too many events";
 
     // Cleanup
     if (CliLinkID != IOC_ID_INVALID) IOC_closeLink(CliLinkID);
