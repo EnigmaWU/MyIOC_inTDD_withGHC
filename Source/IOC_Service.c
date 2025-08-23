@@ -613,6 +613,37 @@ IOC_Result_T IOC_acceptClient(
             }
         }
         pthread_mutex_unlock(&pSrvObj->ManualAccept.Mutex);
+
+        // Step-5: Auto-subscribe if SrvArgs.UsageArgs.pEvt is provided for event consumer services
+        // This implements the server-side auto-subscription feature for event consumption
+        if ((pSrvObj->Args.UsageCapabilites & IOC_LinkUsageEvtConsumer) && (pSrvObj->Args.UsageArgs.pEvt != NULL)) {
+            // Convert IOC_EvtUsageArgs_T to IOC_SubEvtArgs_T for IOC_subEVT
+            IOC_SubEvtArgs_T SubEvtArgs = {.pEvtIDs = pSrvObj->Args.UsageArgs.pEvt->pEvtIDs,
+                                           .EvtNum = pSrvObj->Args.UsageArgs.pEvt->EvtNum,
+                                           .CbProcEvt_F = pSrvObj->Args.UsageArgs.pEvt->CbProcEvt_F,
+                                           .pCbPrivData = pSrvObj->Args.UsageArgs.pEvt->pCbPrivData};
+
+            // Automatically subscribe to the specified events on the accepted client link
+            IOC_Result_T SubResult = IOC_subEVT(*pLinkID, &SubEvtArgs);
+            if (IOC_RESULT_SUCCESS != SubResult) {
+                // If auto-subscription fails, close the link and return the error
+                IOC_closeLink(*pLinkID);
+                *pLinkID = IOC_ID_INVALID;
+
+                // Remove from manual accept tracking since we're failing
+                pthread_mutex_lock(&pSrvObj->ManualAccept.Mutex);
+                for (int i = 0; i < _MAX_MANUAL_ACCEPT_ACCEPTED_LINK_NUM; i++) {
+                    if (pLinkObj->ID == pSrvObj->ManualAccept.AcceptedLinkIDs[i]) {
+                        pSrvObj->ManualAccept.AcceptedLinkIDs[i] = IOC_ID_INVALID;
+                        pSrvObj->ManualAccept.AcceptedLinkCount--;
+                        break;
+                    }
+                }
+                pthread_mutex_unlock(&pSrvObj->ManualAccept.Mutex);
+
+                return SubResult;
+            }
+        }
     }
 
     //_IOC_LogNotTested();

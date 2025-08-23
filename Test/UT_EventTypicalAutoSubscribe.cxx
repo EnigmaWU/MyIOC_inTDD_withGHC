@@ -227,7 +227,7 @@
 //======>END OF TEST CASES=========================================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF TEST CASES (client-side auto-subscribe is GREEN; service-side is RED)
+//======>BEGIN OF TEST CASES (both client-side and service-side auto-subscribe are GREEN)
 
 // [@AC-1,US-1] TC-1: Client Auto-Subscribe Success
 /**
@@ -415,7 +415,7 @@ TEST(UT_ConetEventTypical, verifyAutoSubscribeFailure_byInvalidEvtIDs_expectConn
  *   2) Client connects as EvtProducer.
  *   3) Call IOC_acceptClient; expect success and automatic subscription.
  *   4) Client posts event; verify service callback receives it.
- * Status: RED (service-side auto-subscribe not implemented).
+ * Status: GREEN (service-side auto-subscribe is implemented and working).
  */
 TEST(UT_ConetEventTypical, verifyServiceAutoSubscribe_bySrvArgsUsageArgsEvt_expectClientEvtReceived) {
     IOC_Result_T ResultValue = IOC_RESULT_BUG;
@@ -515,11 +515,11 @@ TEST(UT_ConetEventTypical, verifyServiceAutoSubscribe_bySrvArgsUsageArgsEvt_expe
         DeliverySuccess = EventDelivered();
     }
 
-    // 🎯 KEY ASSERTION: This will FAIL until service-side auto-subscribe is implemented
-    // Current IOC implementation doesn't support SrvArgs.UsageArgs.pEvt auto-subscribe
+    // 🎯 KEY ASSERTION: This should now PASS because service-side auto-subscribe is implemented
+    // IOC_acceptClient automatically calls IOC_subEVT when SrvArgs.UsageArgs.pEvt is set
     ASSERT_TRUE(DeliverySuccess)
-        << "SERVICE AUTO-SUBSCRIBE FAILED: Event not received - IOC_acceptClient did not auto-subscribe "
-        << "when SrvArgs.UsageArgs.pEvt was set. Service-side auto-subscribe not implemented.";
+        << "SERVICE AUTO-SUBSCRIBE FAILED: Event not received - IOC_acceptClient should auto-subscribe "
+        << "when SrvArgs.UsageArgs.pEvt was set. Service-side auto-subscribe implementation verified.";
 
     ASSERT_EQ(1, ServiceEventData.ReceivedCount.load())
         << "Service should receive exactly one event via auto-subscribe";
