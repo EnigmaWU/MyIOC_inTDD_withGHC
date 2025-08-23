@@ -248,7 +248,28 @@ typedef enum {
      */
     IOC_SRVFLAG_AUTO_ACCEPT = 1 << 1,
 
-    // TODO: IOC_SRVFLAG_KEEP_ACCEPTED_LINKS
+    /**
+     * @brief KEEP_ACCEPTED_LINK — control accepted link lifecycle during service shutdown
+     *
+     * Default behavior (flag NOT set):
+     *  - When IOC_offlineService() is called, ALL accepted links (SrvLinkIDs) are automatically closed
+     *  - This prevents resource leaks and ensures clean shutdown
+     *  - Callbacks registered on those links will no longer be invoked
+     *  - Client-side links (CliLinkIDs) may become invalid/disconnected
+     *
+     * With IOC_SRVFLAG_KEEP_ACCEPTED_LINK:
+     *  - Accepted links survive service shutdown
+     *  - Links remain valid and functional even after service goes offline
+     *  - Developer is responsible for manual link cleanup via IOC_closeLink()
+     *  - Useful for advanced scenarios like service restart while preserving connections
+     *
+     * Example usage:
+     *  - Without flag: Automatic cleanup, safe by default
+     *    SrvArgs.Flags = IOC_SRVFLAG_AUTO_ACCEPT;
+     *  - With flag: Manual cleanup required, advanced control
+     *    SrvArgs.Flags = IOC_SRVFLAG_AUTO_ACCEPT | IOC_SRVFLAG_KEEP_ACCEPTED_LINK;
+     */
+    IOC_SRVFLAG_KEEP_ACCEPTED_LINK = 1 << 2,
 } IOC_SrvFlags_T;
 
 typedef struct {
