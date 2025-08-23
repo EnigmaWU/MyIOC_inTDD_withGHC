@@ -402,67 +402,73 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byConnArgsSubscription_expectEventRecei
 }
 
 // [@AC-2,US-1] TC-1: verifyPullEVT_byMultipleEvents_expectFIFOOrder
-// [@AC-2,US-1] TC-1: verifyPullEVT_byMultipleEvents_expectFIFOOrder
 // Status: GREEN - Auto-subscription via ConnArgs.UsageArgs.pEvt enables FIFO event polling
 TEST(UT_ConetEventTypical, verifyPullEVT_byMultipleEvents_expectFIFOOrder) {
-    IOC_Result_T R = IOC_RESULT_BUG;
-    const int NumEvents = 10;  // Reduced from 1024 to 10 for more reliable testing
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
+    const int NumEvents = 10;  // Reduced for reliable testing while validating FIFO order
 
-    // Service setup
+    // Service setup (Conet producer)
     IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
                            .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
                            .pPath = (const char *)"EvtPull_FIFOOrder"};
     IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageEvtProducer};
     IOC_SrvID_T SrvID = IOC_ID_INVALID;
-    R = IOC_onlineService(&SrvID, &SrvArgs);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+    ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
 
-    // Client setup with auto-subscription for polling
+    // Client setup (Conet consumer) - specify events to subscribe via ConnArgs
     IOC_EvtID_T SubEvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
     IOC_EvtUsageArgs_T EvtUsageArgs = {.pEvtIDs = SubEvtIDs,
                                        .EvtNum = sizeof(SubEvtIDs) / sizeof(SubEvtIDs[0]),
                                        .CbProcEvt_F = nullptr,  // No callback, only polling
                                        .pCbPrivData = nullptr};
     IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageEvtConsumer};
-    ConnArgs.UsageArgs.pEvt = &EvtUsageArgs;  // Auto-subscribe during connect
+    ConnArgs.UsageArgs.pEvt = &EvtUsageArgs;  // Specify events to subscribe during connect
 
     IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
     std::thread CliThread([&] {
-        IOC_Result_T R_thread = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
-        ASSERT_EQ(IOC_RESULT_SUCCESS, R_thread);
+        IOC_Result_T ResultValueInThread = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValueInThread);
+        ASSERT_NE(IOC_ID_INVALID, CliLinkID);
     });
 
-    // Accept client
+    // Accept the client
     IOC_LinkID_T SrvLinkID = IOC_ID_INVALID;
-    R = IOC_acceptClient(SrvID, &SrvLinkID, NULL);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+    ResultValue = IOC_acceptClient(SrvID, &SrvLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, SrvLinkID);
+
+    // Wait for client connection
     if (CliThread.joinable()) CliThread.join();
 
-    // Post multiple events in sequence
+    // Service posts multiple events in sequence for FIFO testing
     std::vector<ULONG_T> PostedValues;
     for (int i = 0; i < NumEvents; ++i) {
-        IOC_EvtDesc_T EvtDesc = {};
-        EvtDesc.EvtID = IOC_EVTID_TEST_KEEPALIVE;
-        EvtDesc.EvtValue = 200 + i;  // 200, 201, 202, 203, 204
-        PostedValues.push_back(EvtDesc.EvtValue);
+        IOC_EvtDesc_T PostedEvt = {};
+        PostedEvt.EvtID = IOC_EVTID_TEST_KEEPALIVE;
+        PostedEvt.EvtValue = 200 + i;  // Sequential values: 200, 201, 202, ...
+        PostedValues.push_back(PostedEvt.EvtValue);
 
-        R = IOC_postEVT(SrvLinkID, &EvtDesc, NULL);
-        ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+        ResultValue = IOC_postEVT(SrvLinkID, &PostedEvt, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
     }
 
-    // Pull all events and verify FIFO order
+    // Small delay to ensure all events are processed
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+    // Client pulls all events and verifies FIFO order
     std::vector<ULONG_T> PulledValues;
     std::vector<ULONG_T> PulledSequences;
     for (int i = 0; i < NumEvents; ++i) {
         IOC_EvtDesc_T PulledEvt = {};
-        R = IOC_pullEVT(CliLinkID, &PulledEvt, NULL);
-        ASSERT_EQ(IOC_RESULT_SUCCESS, R) << "Failed to pull event " << i;
+        ResultValue = IOC_pullEVT(CliLinkID, &PulledEvt, NULL);  // Default non-blocking mode
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue) << "Failed to pull event " << i;
 
         PulledValues.push_back(IOC_EvtDesc_getEvtValue(&PulledEvt));
         PulledSequences.push_back(IOC_EvtDesc_getSeqID(&PulledEvt));
     }
 
-    // Verify FIFO order
+    // Verify events received in FIFO order
     ASSERT_EQ(PostedValues, PulledValues) << "Events not received in FIFO order";
 
     // Verify sequence IDs are strictly increasing
@@ -472,8 +478,8 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byMultipleEvents_expectFIFOOrder) {
 
     // Verify no more events available
     IOC_EvtDesc_T ExtraEvt = {};
-    R = IOC_pullEVT(CliLinkID, &ExtraEvt, NULL);
-    ASSERT_EQ(IOC_RESULT_NO_EVENT_CONSUMER, R) << "Unexpected extra event found";
+    ResultValue = IOC_pullEVT(CliLinkID, &ExtraEvt, NULL);
+    ASSERT_EQ(IOC_RESULT_NO_EVENT_CONSUMER, ResultValue) << "Unexpected extra event found";
 
     // Cleanup
     if (CliLinkID != IOC_ID_INVALID) IOC_closeLink(CliLinkID);
