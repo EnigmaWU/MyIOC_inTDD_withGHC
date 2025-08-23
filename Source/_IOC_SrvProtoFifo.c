@@ -683,8 +683,8 @@ static IOC_Result_T __IOC_postEvt_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, const
  * @param pLinkObj Pointer to the link object for event polling
  * @param pEvtDesc Pointer to event description to fill with polled event
  * @param pOption Optional parameters for timeout control
- * @return IOC_RESULT_SUCCESS if event retrieved, IOC_RESULT_NO_EVENT_CONSUMER if no events available,
- *         IOC_RESULT_TIMEOUT if timeout occurred
+ * @return IOC_RESULT_SUCCESS if event retrieved, IOC_RESULT_NO_EVENT_CONSUMER if no events available (non-blocking
+ * only), IOC_RESULT_TIMEOUT if timeout occurred (explicit timeout only)
  */
 static IOC_Result_T __IOC_pullEvt_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_EvtDesc_pT pEvtDesc,
                                               const IOC_Options_pT pOption) {
@@ -695,6 +695,17 @@ static IOC_Result_T __IOC_pullEvt_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_E
     _IOC_ProtoFifoLinkObject_pT pFifoLinkObj = (_IOC_ProtoFifoLinkObject_pT)pLinkObj->pProtoPriv;
     if (!pFifoLinkObj) {
         return IOC_RESULT_INVALID_PARAM;
+    }
+
+    // Parse timeout options
+    ULONG_T TimeoutUS = IOC_TIMEOUT_INFINITE;  // Default: block indefinitely when pOption is NULL
+    bool IsNonBlocking = false;
+
+    if (pOption && (pOption->IDs & IOC_OPTID_TIMEOUT)) {
+        TimeoutUS = pOption->Payload.TimeoutUS;
+        if (TimeoutUS == 0) {
+            IsNonBlocking = true;
+        }
     }
 
     // Enable polling mode on first use
@@ -708,7 +719,38 @@ static IOC_Result_T __IOC_pullEvt_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_E
     if (QueueResult == IOC_RESULT_SUCCESS) {
         return IOC_RESULT_SUCCESS;
     } else if (QueueResult == IOC_RESULT_EVTDESC_QUEUE_EMPTY) {
-        return IOC_RESULT_NO_EVENT_CONSUMER;
+        // No events available
+        if (IsNonBlocking) {
+            return IOC_RESULT_NO_EVENT_PENDING;
+        } else {
+            // Blocking mode: wait for events with timeout
+            struct timespec StartTime, CurrentTime;
+            clock_gettime(CLOCK_REALTIME, &StartTime);
+
+            do {
+                // Small sleep before retrying
+                usleep(1000);  // 1ms
+
+                pthread_mutex_lock(&pFifoLinkObj->Mutex);
+                QueueResult = _IOC_EvtDescQueue_dequeueElementFirst(&pFifoLinkObj->EvtPollingQueue, pEvtDesc);
+                pthread_mutex_unlock(&pFifoLinkObj->Mutex);
+
+                if (QueueResult == IOC_RESULT_SUCCESS) {
+                    return IOC_RESULT_SUCCESS;
+                }
+
+                // Check timeout (if not infinite)
+                if (TimeoutUS != IOC_TIMEOUT_INFINITE) {
+                    clock_gettime(CLOCK_REALTIME, &CurrentTime);
+                    ULONG_T ElapsedUS = IOC_deltaTimeSpecInUS(&StartTime, &CurrentTime);
+                    if (ElapsedUS >= TimeoutUS) {
+                        return IOC_RESULT_TIMEOUT;
+                    }
+                }
+            } while (QueueResult == IOC_RESULT_EVTDESC_QUEUE_EMPTY);
+
+            return QueueResult;  // Return any other error
+        }
     } else {
         return QueueResult;  // Some other error occurred
     }

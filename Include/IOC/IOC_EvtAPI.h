@@ -151,11 +151,11 @@ void IOC_wakeupProcEVT(void);
  *    - IOC_OPTID_TIMEOUT with TimeoutUS=0: non-blocking mode (immediate return)
  *    - IOC_OPTID_TIMEOUT with TimeoutUS>0: blocking mode with timeout
  *    - IOC_OPTID_TIMEOUT with TimeoutUS=IOC_TIMEOUT_INFINITE: blocking mode without timeout
- *    - NULL or no IOC_OPTID_TIMEOUT: default non-blocking mode
+ *    - NULL or no IOC_OPTID_TIMEOUT: default blocking mode (infinite timeout)
  *
  * @return IOC_RESULT_SUCCESS: pullEVT successfully, event copied to pEvtDesc.
- *         IOC_RESULT_NO_EVENT_CONSUMER: no events available (non-blocking mode).
- *         IOC_RESULT_TIMEOUT: pullEVT timeout (when timeout configured).
+ *         IOC_RESULT_NO_EVENT_PENDING: no events available (non-blocking mode only).
+ *         IOC_RESULT_TIMEOUT: pullEVT timeout (when explicit timeout configured).
  *         IOC_RESULT_INVALID_PARAM: invalid parameters (pEvtDesc is NULL).
  *         IOC_RESULT_NOT_EXIST_LINK: LinkID does not exist.
  *         IOC_RESULT_XXX
