@@ -24,6 +24,7 @@ static IOC_Result_T __EvtAA_ClientCb(const IOC_EvtDesc_pT pEvtDesc, void *pCbPri
     return IOC_RESULT_SUCCESS;
 }
 
+// [@AC-1,US-1] TC-1:
 // [Polling-path]
 // GIVEN service as EvtProducer with AUTO_ACCEPT,
 // WHEN a client (EvtConsumer) connects and subscribes,

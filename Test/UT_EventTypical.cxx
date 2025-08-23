@@ -54,6 +54,9 @@
  *  AC-2: GIVEN multiple client links,
  *         WHEN the service posts distinct events to each link,
  *         THEN each client receives only its own event (isolation).
+ *  AC-3: GIVEN a Conet service with connected clients,
+ *         WHEN the service goes offline,
+ *         THEN all links are cleaned up and no further event delivery occurs.
  *
  * [@US-2]
  *  AC-1: GIVEN a Conet service (consumer) and a client producer link,
@@ -68,17 +71,54 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF TEST CASES (placeholders; to be implemented)=====================================
 
-// [@AC-1,US-1]
-// TC-1:
-//   @[Name]: verifyConetEvent_byServiceAsProducer_singleClient_expectDelivered
-//   @[Purpose]: Validate basic Conet producer→consumer delivery to a specific link.
-//   @[Brief]: Service online as EvtProducer; client connects as EvtConsumer; service posts one event to that link;
-//   client callback receives it.
-//   @[Steps]:
-//     1) Online service (Usage=EvtProducer, Conet) without broadcast flag.
-//     2) Connect one client (Usage=EvtConsumer) with CbProcEvt_F registered.
-//     3) Post event from service to accepted link.
-//     4) Expect client callback fired with matching EvtID/payload.
+/**
+ * [@AC-1,US-1] TC-1: verifyConetEvent_byServiceAsProducer_singleClient_expectDelivered
+ * Test: verifyServiceAsEvtProducer_bySingleClient_expectDelivered
+ * Purpose: Validate basic Conet producer→consumer delivery to a specific link.
+ * Steps:
+ *   1) Online service (Usage=EvtProducer, Conet) without broadcast flag.
+ *   2) Connect one client (Usage=EvtConsumer) with CbProcEvt_F registered.
+ *   3) Post event from service to accepted link.
+ *   4) Expect client callback fired with matching EvtID/payload.
+ *
+ * [@AC-2,US-1] TC-1: verifyServiceAsEvtProducer_byMultiClientIsolation_expectPerLinkDelivery
+ * Test: verifyServiceAsEvtProducer_byMultiClientIsolation_expectPerLinkDelivery
+ * Purpose: Ensure per-link isolation; each client receives only its own event.
+ * Steps:
+ *   1) Online service (EvtProducer, Conet).
+ *   2) Connect N clients (EvtConsumer), each with its own callback context.
+ *   3) Post same event to all links to verify isolation.
+ *   4) Assert each client received exactly one event with unique sequence.
+ *
+ * [@AC-1,US-2] TC-1: verifyServiceAsEvtConsumer_bySingleClient_expectProcessed
+ * Test: verifyServiceAsEvtConsumer_bySingleClient_expectProcessed
+ * Purpose: Validate service-side consumption when client posts to its link.
+ * Steps:
+ *   1) Online service (Usage=EvtConsumer, Conet).
+ *   2) Connect client (Usage=EvtProducer) and immediately accept.
+ *   3) Client posts event via IOC_postEVT(CliLinkID, ...); service callback triggered.
+ *   4) Assert service context received the expected event.
+ *
+ * [@AC-2,US-2] TC-1: verifyOrderPerLink_bySequentialEvents_expectInOrderObservation
+ * Test: verifyOrderPerLink_bySequentialEvents_expectInOrderObservation
+ * Purpose: Ensure in-order observation on the same link under sequential posts.
+ * Steps:
+ *   1) Service online (EvtConsumer); client connects (EvtProducer).
+ *   2) Client rapidly posts events with ascending sequence numbers.
+ *   3) Service callback records timestamps/order.
+ *   4) Assert received sequence matches sent sequence.
+ *
+ * [@AC-3,US-1] TC-1: verifyOfflineLifecycle_byServiceShutdown_expectCleanup
+ * Test: verifyOfflineLifecycle_byServiceShutdown_expectCleanup
+ * Purpose: Validate links and callbacks are cleaned up when service goes offline.
+ * Steps:
+ *   1) Online service; client connects.
+ *   2) Post an event (works), then offline service.
+ *   3) Further posts (if attempted) fail; no callbacks invoked; resources freed.
+ */
+//======>END OF TEST CASES=========================================================================
+
+// [@AC-1,US-1] TC-1: verifyConetEvent_byServiceAsProducer_singleClient_expectDelivered
 // Minimal callback & priv for client-side event reception
 typedef struct __EvtRecvPriv {
     std::atomic<bool> Got{false};
@@ -161,17 +201,7 @@ static IOC_Result_T __EvtTypical_ClientCb(const IOC_EvtDesc_pT pEvtDesc, void *p
     if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
-// [@AC-2,US-1]
-// TC-1:
-//   @[Name]: verifyServiceAsEvtProducer_byMultiClientIsolation_expectPerLinkDelivery
-//   @[Purpose]: Ensure per-link isolation; each client receives only its own event.
-//   @[Brief]: Two+ clients connect as EvtConsumers; service posts distinct events to each link; each client receives
-//   only its respective event.
-//   @[Steps]:
-//     1) Online service (EvtProducer, Conet).
-//     2) Connect N clients (EvtConsumer), each with its own callback context.
-//     3) Post event-A to link-1, event-B to link-2, ...
-//     4) Assert client-1 only saw event-A; client-2 only saw event-B; etc.
+// [@AC-2,US-1] TC-1: verifyServiceAsEvtProducer_byMultiClientIsolation_expectPerLinkDelivery
 TEST(UT_ConetEventTypical, verifyServiceAsEvtProducer_byMultiClientIsolation_expectPerLinkDelivery) {
     IOC_Result_T ResultValue = IOC_RESULT_BUG;
     const int NumClients = 2;
@@ -273,17 +303,7 @@ TEST(UT_ConetEventTypical, verifyServiceAsEvtProducer_byMultiClientIsolation_exp
     if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
-// [@AC-1,US-2]
-// TC-1:
-//   @[Name]: verifyServiceAsEvtConsumer_bySingleClient_expectProcessed
-//   @[Purpose]: Validate service-side consumption when client posts to its link.
-//   @[Brief]: Service online as EvtConsumer; client connects as EvtProducer; client posts one event; service callback
-//   processes it.
-//   @[Steps]:
-//     1) Online service (Usage=EvtConsumer) with CbProcEvt_F registered.
-//     2) Connect one client (Usage=EvtProducer).
-//     3) Client posts event to its link.
-//     4) Assert service callback fired and payload/ID match.
+// [@AC-1,US-2] TC-1: verifyServiceAsEvtConsumer_bySingleClient_expectProcessed
 TEST(UT_ConetEventTypical, verifyServiceAsEvtConsumer_bySingleClient_expectProcessed) {
     IOC_Result_T ResultValue = IOC_RESULT_BUG;
 
@@ -365,16 +385,7 @@ static IOC_Result_T __EvtTypical_OrderCb(const IOC_EvtDesc_pT pEvtDesc, void *pC
     return IOC_RESULT_SUCCESS;
 }
 
-// [@AC-2,US-2]
-// TC-1:
-//   @[Name]: verifyOrderPerLink_bySequentialEvents_expectInOrderObservation
-//   @[Purpose]: Ensure in-order observation on the same link under sequential posts.
-//   @[Brief]: Client posts a sequence of events (IDs/payload sequence) to one link; service records order; assert
-//   preserved order.
-//   @[Steps]:
-//     1) Online service (EvtConsumer) with callback storing sequence.
-//     2) Client (EvtProducer) posts events E1..En sequentially on same link.
-//     3) Wait for processing; verify order E1..En at service.
+// [@AC-2,US-2] TC-1: verifyOrderPerLink_bySequentialEvents_expectInOrderObservation
 TEST(UT_ConetEventTypical, verifyOrderPerLink_bySequentialEvents_expectInOrderObservation) {
     IOC_Result_T ResultValue = IOC_RESULT_BUG;
     const int NumEvents = 5;
@@ -462,15 +473,7 @@ TEST(UT_ConetEventTypical, verifyOrderPerLink_bySequentialEvents_expectInOrderOb
     if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
-// Optional lifecycle/cleanup case
-// TC-1:
-//   @[Name]: verifyOfflineLifecycle_byServiceShutdown_expectCleanup
-//   @[Purpose]: Validate links and callbacks are cleaned up when service goes offline.
-//   @[Brief]: Service online; client connects; take service offline; ensure link closed and no further event delivery.
-//   @[Steps]:
-//     1) Online service; client connects.
-//     2) Post an event (works), then offline service.
-//     3) Further posts (if attempted) fail; no callbacks invoked; resources freed.
+// [@AC-3,US-1] TC-1: verifyOfflineLifecycle_byServiceShutdown_expectCleanup
 TEST(UT_ConetEventTypical, verifyOfflineLifecycle_byServiceShutdown_expectCleanup) {
     IOC_Result_T ResultValue = IOC_RESULT_BUG;
 

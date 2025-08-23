@@ -82,7 +82,7 @@ TEST(UT_EventTypicalAutoSubscribe, verifyAutoSubscribe_byConnArgsUsageArgsEvt_ex
         << "Design proposal: IOC_connectService should auto-subscribe if UsageArgs.pEvt is set (not implemented)";
 }
 
-// [@AC-2,US-1] TC-2: Multi-client isolation via auto-subscribe
+// [@AC-2,US-1] TC-1: Multi-client isolation via auto-subscribe
 /**
  * Test: verifyAutoSubscribe_multiClientIsolation_expectPerLinkDelivery
  * Purpose: Ensure that multiple clients using UsageArgs.pEvt each receive only their own events (per-link isolation).

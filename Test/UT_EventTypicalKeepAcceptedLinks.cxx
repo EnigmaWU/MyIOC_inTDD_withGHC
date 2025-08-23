@@ -95,7 +95,7 @@
 //     5) Verify links remain open and events can still be delivered
 
 // [@AC-2,US-1]
-// TC-2:
+// TC-1:
 //   @[Name]: verifyFlagDifference_compareWithDefaultBehavior_expectDifferentLifecycle
 //   @[Purpose]: Compare behavior with and without the flag to validate functional difference
 //   @[Brief]: Service without flag → manual accept → service offline → links auto-closed
@@ -107,7 +107,7 @@
 //     5) Verify links are auto-closed and event delivery fails
 
 // [@AC-1,US-2]
-// TC-3:
+// TC-1:
 //   @[Name]: verifyPreservedLinks_byEventDelivery_expectContinuedFunctionality
 //   @[Purpose]: Validate that preserved links continue to function for event delivery after service offline
 //   @[Brief]: Service with flag → service offline → links preserved → continued event functionality
@@ -119,7 +119,7 @@
 //     5) Verify event delivery continues or appropriate error handling occurs
 
 // [@AC-1,US-3]
-// TC-4:
+// TC-1:
 //   @[Name]: verifyManualCleanup_withKeepAcceptedLinksFlag_expectCleanupWorks
 //   @[Purpose]: Verify manual cleanup still works when links are preserved by the flag
 //   @[Brief]: Service with flag → service offline → links preserved → manual cleanup → links closed
@@ -263,7 +263,7 @@ TEST(UT_ConetEventTypical, verifyKeepAcceptedLinksFlag_byServiceOffline_expectLi
 }
 
 // [@AC-2,US-1]
-// TC-2: verifyFlagDifference_compareWithDefaultBehavior_expectDifferentLifecycle
+// TC-1: verifyFlagDifference_compareWithDefaultBehavior_expectDifferentLifecycle
 TEST(UT_ConetEventTypical, verifyFlagDifference_compareWithDefaultBehavior_expectDifferentLifecycle) {
     IOC_Result_T ResultValue = IOC_RESULT_BUG;
     IOC_SrvID_T SrvID = IOC_ID_INVALID;
@@ -365,7 +365,7 @@ TEST(UT_ConetEventTypical, verifyFlagDifference_compareWithDefaultBehavior_expec
 }
 
 // [@AC-1,US-2]
-// TC-3: verifyPreservedLinks_byEventDelivery_expectContinuedFunctionality
+// TC-1: verifyPreservedLinks_byEventDelivery_expectContinuedFunctionality
 TEST(UT_ConetEventTypical, verifyPreservedLinks_byEventDelivery_expectContinuedFunctionality) {
     IOC_Result_T ResultValue = IOC_RESULT_BUG;
     IOC_SrvID_T SrvID = IOC_ID_INVALID;
@@ -473,7 +473,7 @@ TEST(UT_ConetEventTypical, verifyPreservedLinks_byEventDelivery_expectContinuedF
 }
 
 // [@AC-1,US-3]
-// TC-4: verifyManualCleanup_withKeepAcceptedLinksFlag_expectCleanupWorks
+// TC-1: verifyManualCleanup_withKeepAcceptedLinksFlag_expectCleanupWorks
 TEST(UT_ConetEventTypical, verifyManualCleanup_withKeepAcceptedLinksFlag_expectCleanupWorks) {
     IOC_Result_T ResultValue = IOC_RESULT_BUG;
     IOC_SrvID_T SrvID = IOC_ID_INVALID;
