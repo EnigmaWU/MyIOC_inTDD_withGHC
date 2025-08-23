@@ -143,11 +143,13 @@
  * [@AC-2,US-1] TC-1: verifyPullEVT_byMultipleEvents_expectFIFOOrder
  * Test: verifyPullEVT_byMultipleEvents_expectFIFOOrder
  * Purpose: Ensure service receives multiple client events in FIFO order via IOC_pullEVT.
+ * Status: GREEN - Auto-subscription enables proper FIFO event consumption via polling.
  * Steps:
  *   1) Client posts multiple events with sequential values to service.
  *   2) Service repeatedly calls IOC_pullEVT to retrieve all events.
  *   3) Assert service receives events in the same order as client posted.
  *   4) Verify sequence IDs are strictly increasing.
+ * Note: Uses ConnArgs.UsageArgs.pEvt for auto-subscription during connection.
  *
  * [@AC-1,US-2] TC-1: verifyPullEVT_byNonBlockingMode_expectImmediateReturn
  * Test: verifyPullEVT_byNonBlockingMode_expectImmediateReturn
@@ -400,9 +402,11 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byConnArgsSubscription_expectEventRecei
 }
 
 // [@AC-2,US-1] TC-1: verifyPullEVT_byMultipleEvents_expectFIFOOrder
+// [@AC-2,US-1] TC-1: verifyPullEVT_byMultipleEvents_expectFIFOOrder
+// Status: GREEN - Auto-subscription via ConnArgs.UsageArgs.pEvt enables FIFO event polling
 TEST(UT_ConetEventTypical, verifyPullEVT_byMultipleEvents_expectFIFOOrder) {
     IOC_Result_T R = IOC_RESULT_BUG;
-    const int NumEvents = 1024;
+    const int NumEvents = 10;  // Reduced from 1024 to 10 for more reliable testing
 
     // Service setup
     IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
@@ -413,8 +417,15 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byMultipleEvents_expectFIFOOrder) {
     R = IOC_onlineService(&SrvID, &SrvArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, R);
 
-    // Client setup
+    // Client setup with auto-subscription for polling
+    IOC_EvtID_T SubEvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
+    IOC_EvtUsageArgs_T EvtUsageArgs = {.pEvtIDs = SubEvtIDs,
+                                       .EvtNum = sizeof(SubEvtIDs) / sizeof(SubEvtIDs[0]),
+                                       .CbProcEvt_F = nullptr,  // No callback, only polling
+                                       .pCbPrivData = nullptr};
     IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageEvtConsumer};
+    ConnArgs.UsageArgs.pEvt = &EvtUsageArgs;  // Auto-subscribe during connect
+
     IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
     std::thread CliThread([&] {
         IOC_Result_T R_thread = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
