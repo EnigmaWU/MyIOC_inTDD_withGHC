@@ -72,6 +72,19 @@ IOC_Result_T IOC_broadcastEVT(
  *  Here deliver means that IOC will call the callback function of the EvtConsumer specified in the
  * IOC_SubEvtArgs_pT.
  *
+ * Event subscription can be performed in two ways:
+ *   1. Manual subscription: Call IOC_subEVT(LinkID, pSubEvtArgs) directly after connection.
+ *   2. Auto-subscribe (proposal): If IOC_connectService is called with IOC_ConnArgs_T::Usage ==
+ * IOC_LinkUsageEvtConsumer and UsageArgs.pEvt is set, IOC MAY automatically call IOC_subEVT(LinkID, UsageArgs.pEvt)
+ * after connect. See UT_EventTypicalAutoSubscribe.cxx for details.
+ *
+ * Usage distinction:
+ *   - DAT (Data): Use IOC_sendDAT/IOC_recvDAT with LinkID configured for data sender/receiver.
+ *   - CMD (Command): Use IOC_sendCMD/IOC_recvCMD with LinkID configured for command sender/receiver.
+ *   - EVT (Event): Use IOC_subEVT (manual) or auto-subscribe (if supported) with LinkID configured for event consumer.
+ *
+ * Ensure that the LinkID's usage matches the intended operation (see IOC_connectService documentation).
+ *
  * @note Event subscription can be performed manually via IOC_subEVT, or (if supported) automatically via
  * IOC_connectService if IOC_ConnArgs_T::Usage == IOC_LinkUsageEvtConsumer and UsageArgs.pEvt is set. See
  * UT_EventTypicalAutoSubscribe.cxx for details.
