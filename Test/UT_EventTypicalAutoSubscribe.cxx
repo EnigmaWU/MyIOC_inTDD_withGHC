@@ -240,7 +240,7 @@
  *   4) Service posts event; verify client callback receives it.
  * Status: RED (auto-subscribe not implemented in IOC core).
  */
-TEST(UT_EventTypicalAutoSubscribe, verifyClientAutoSubscribe_byConnArgsUsageArgsEvt_expectDelivered) {
+TEST(UT_ConetEventTypical, verifyClientAutoSubscribe_byConnArgsUsageArgsEvt_expectDelivered) {
     GTEST_SKIP() << "AUTO-SUBSCRIBE: Client-side ConnArgs.UsageArgs.pEvt auto-subscribe not implemented in IOC core";
 }
 
@@ -255,7 +255,7 @@ TEST(UT_EventTypicalAutoSubscribe, verifyClientAutoSubscribe_byConnArgsUsageArgs
  *   4) Manually call IOC_subEVT; verify event delivery works.
  * Status: RED (auto-subscribe not implemented; manual path should work).
  */
-TEST(UT_EventTypicalAutoSubscribe, verifyNoAutoSubscribe_byNullUsageArgsEvt_expectManualRequired) {
+TEST(UT_ConetEventTypical, verifyNoAutoSubscribe_byNullUsageArgsEvt_expectManualRequired) {
     GTEST_SKIP()
         << "AUTO-SUBSCRIBE: Baseline manual subscription behavior validation pending auto-subscribe implementation";
 }
@@ -271,7 +271,7 @@ TEST(UT_EventTypicalAutoSubscribe, verifyNoAutoSubscribe_byNullUsageArgsEvt_expe
  *   4) Verify each client receives only its subscribed events.
  * Status: RED (auto-subscribe not implemented).
  */
-TEST(UT_EventTypicalAutoSubscribe, verifyMultiClientAutoSubscribe_byDifferentEvtIDs_expectIsolation) {
+TEST(UT_ConetEventTypical, verifyMultiClientAutoSubscribe_byDifferentEvtIDs_expectIsolation) {
     GTEST_SKIP() << "AUTO-SUBSCRIBE: Multi-client auto-subscribe isolation testing pending implementation";
 }
 
@@ -286,7 +286,7 @@ TEST(UT_EventTypicalAutoSubscribe, verifyMultiClientAutoSubscribe_byDifferentEvt
  *   4) Verify no link created, no resources leaked.
  * Status: RED (auto-subscribe error handling not implemented).
  */
-TEST(UT_EventTypicalAutoSubscribe, verifyAutoSubscribeFailure_byInvalidEvtIDs_expectConnectionFails) {
+TEST(UT_ConetEventTypical, verifyAutoSubscribeFailure_byInvalidEvtIDs_expectConnectionFails) {
     GTEST_SKIP() << "AUTO-SUBSCRIBE: Error handling and cleanup validation pending implementation";
 }
 
@@ -301,7 +301,7 @@ TEST(UT_EventTypicalAutoSubscribe, verifyAutoSubscribeFailure_byInvalidEvtIDs_ex
  *   4) Client posts event; verify service callback receives it.
  * Status: RED (service-side auto-subscribe not implemented).
  */
-TEST(UT_EventTypicalAutoSubscribe, verifyServiceAutoSubscribe_bySrvArgsUsageArgsEvt_expectClientEvtReceived) {
+TEST(UT_ConetEventTypical, verifyServiceAutoSubscribe_bySrvArgsUsageArgsEvt_expectClientEvtReceived) {
     GTEST_SKIP() << "AUTO-SUBSCRIBE: Service-side SrvArgs.UsageArgs.pEvt auto-subscribe not implemented in IOC core";
 }
 
@@ -316,7 +316,7 @@ TEST(UT_EventTypicalAutoSubscribe, verifyServiceAutoSubscribe_bySrvArgsUsageArgs
  *   4) Manually call IOC_subEVT on accepted link; verify event delivery works.
  * Status: RED (service-side auto-subscribe baseline validation pending).
  */
-TEST(UT_EventTypicalAutoSubscribe, verifyNoServiceAutoSubscribe_byNullSrvUsageArgsEvt_expectManualRequired) {
+TEST(UT_ConetEventTypical, verifyNoServiceAutoSubscribe_byNullSrvUsageArgsEvt_expectManualRequired) {
     GTEST_SKIP() << "AUTO-SUBSCRIBE: Service-side baseline manual subscription behavior validation pending";
 }
 
@@ -331,7 +331,7 @@ TEST(UT_EventTypicalAutoSubscribe, verifyNoServiceAutoSubscribe_byNullSrvUsageAr
  *   4) Verify service receives all events with proper link identification.
  * Status: RED (service-side multi-client auto-subscribe not implemented).
  */
-TEST(UT_EventTypicalAutoSubscribe, verifyServiceMultiClientAutoSubscribe_byMultipleAccepts_expectAllEvtReceived) {
+TEST(UT_ConetEventTypical, verifyServiceMultiClientAutoSubscribe_byMultipleAccepts_expectAllEvtReceived) {
     GTEST_SKIP() << "AUTO-SUBSCRIBE: Service-side multi-client auto-subscribe testing pending implementation";
 }
 
@@ -346,7 +346,7 @@ TEST(UT_EventTypicalAutoSubscribe, verifyServiceMultiClientAutoSubscribe_byMulti
  *   4) Confirm both have same lifecycle (setup → auto-wire → cleanup).
  * Status: RED (pattern consistency validation pending auto-subscribe implementation).
  */
-TEST(UT_EventTypicalAutoSubscribe, verifyEvtAutoSubscribePattern_matchesDatAutoWiring_expectConsistentAPI) {
+TEST(UT_ConetEventTypical, verifyEvtAutoSubscribePattern_matchesDatAutoWiring_expectConsistentAPI) {
     GTEST_SKIP() << "API-CONSISTENCY: Event auto-subscribe API pattern validation pending implementation";
 }
 
@@ -361,7 +361,7 @@ TEST(UT_EventTypicalAutoSubscribe, verifyEvtAutoSubscribePattern_matchesDatAutoW
  *   4) Confirm all leave system in same clean state after error.
  * Status: RED (cross-capability error handling consistency pending implementation).
  */
-TEST(UT_EventTypicalAutoSubscribe, verifyConsistentErrorHandling_acrossEvtDatCmd_expectSameErrorCodes) {
+TEST(UT_ConetEventTypical, verifyConsistentErrorHandling_acrossEvtDatCmd_expectSameErrorCodes) {
     GTEST_SKIP() << "API-CONSISTENCY: Cross-capability error handling validation pending implementation";
 }
 
@@ -376,7 +376,7 @@ TEST(UT_EventTypicalAutoSubscribe, verifyConsistentErrorHandling_acrossEvtDatCmd
  *   4) Verify each auto-wiring works independently without interference.
  * Status: RED (mixed capability independence validation pending implementation).
  */
-TEST(UT_EventTypicalAutoSubscribe, verifyMixedCapabilityIndependence_byMultipleUsageArgs_expectIsolatedBehavior) {
+TEST(UT_ConetEventTypical, verifyMixedCapabilityIndependence_byMultipleUsageArgs_expectIsolatedBehavior) {
     GTEST_SKIP() << "API-CONSISTENCY: Mixed capability independence validation pending implementation";
 }
 
@@ -391,7 +391,7 @@ TEST(UT_EventTypicalAutoSubscribe, verifyMixedCapabilityIndependence_byMultipleU
  *   4) Verify manual setup APIs work consistently for all capabilities.
  * Status: RED (NULL UsageArgs consistency validation pending implementation).
  */
-TEST(UT_EventTypicalAutoSubscribe, verifyNullUsageArgsConsistency_acrossAllCapabilities_expectUniformManualSetup) {
+TEST(UT_ConetEventTypical, verifyNullUsageArgsConsistency_acrossAllCapabilities_expectUniformManualSetup) {
     GTEST_SKIP() << "API-CONSISTENCY: NULL UsageArgs behavior consistency validation pending implementation";
 }
 
