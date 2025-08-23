@@ -44,6 +44,20 @@ static IOC_Result_T __IOC_allocSrvObj(/*ARG_INCONST*/ IOC_SrvArgs_pT pSrvArgs,
                 goto _RetResult;
             }
 
+            // Initialize manual accept tracking mutex
+            if (pthread_mutex_init(&pSrvObj->ManualAccept.Mutex, NULL) != 0) {
+                free(pSrvObj);
+                Result = IOC_RESULT_POSIX_ENOMEM;
+                _IOC_LogNotTested();
+                goto _RetResult;
+            }
+
+            // Initialize manual accept tracking array
+            for (int j = 0; j < _MAX_MANUAL_ACCEPT_ACCEPTED_LINK_NUM; j++) {
+                pSrvObj->ManualAccept.AcceptedLinkIDs[j] = IOC_ID_INVALID;
+            }
+            pSrvObj->ManualAccept.AcceptedLinkCount = 0;
+
             pSrvObj->ID = i;
             pSrvObj->Args.SrvURI.pProtocol = strdup(pSrvArgs->SrvURI.pProtocol);
             pSrvObj->Args.SrvURI.pHost = strdup(pSrvArgs->SrvURI.pHost);
@@ -93,6 +107,9 @@ static void __IOC_freeSrvObj(_IOC_ServiceObject_pT pSrvObj) {
     ___IOC_lockSrvObjTbl();
     _mIOC_SrvObjTbl[pSrvObj->ID] = NULL;
     ___IOC_unlockSrvObjTbl();
+
+    // Clean up manual accept tracking mutex
+    pthread_mutex_destroy(&pSrvObj->ManualAccept.Mutex);
 
     free((char *)pSrvObj->Args.SrvURI.pProtocol);
     free((char *)pSrvObj->Args.SrvURI.pHost);
@@ -497,9 +514,12 @@ IOC_Result_T IOC_offlineService(
         pthread_cancel(pSrvObj->BroadcastEvent.DaemonThreadID);
         pthread_join(pSrvObj->BroadcastEvent.DaemonThreadID, NULL);
 
-        for (int i = 0; i < _MAX_BROADCAST_EVENT_ACCEPTED_LINK_NUM; i++) {
-            if (NULL != pSrvObj->BroadcastEvent.pAcceptedLinks[i]) {
-                pSrvObj->pMethods->OpCloseLink_F(pSrvObj->BroadcastEvent.pAcceptedLinks[i]);
+        // Auto-close accepted links unless KEEP_ACCEPTED_LINK flag is set
+        if (!(pSrvObj->Args.Flags & IOC_SRVFLAG_KEEP_ACCEPTED_LINK)) {
+            for (int i = 0; i < _MAX_BROADCAST_EVENT_ACCEPTED_LINK_NUM; i++) {
+                if (NULL != pSrvObj->BroadcastEvent.pAcceptedLinks[i]) {
+                    pSrvObj->pMethods->OpCloseLink_F(pSrvObj->BroadcastEvent.pAcceptedLinks[i]);
+                }
             }
         }
     }
@@ -508,11 +528,28 @@ IOC_Result_T IOC_offlineService(
         pthread_cancel(pSrvObj->AutoAccept.DaemonThreadID);
         pthread_join(pSrvObj->AutoAccept.DaemonThreadID, NULL);
 
-        for (int i = 0; i < _MAX_AUTO_ACCEPT_ACCEPTED_LINK_NUM; i++) {
-            if (NULL != pSrvObj->AutoAccept.pAcceptedLinks[i]) {
-                pSrvObj->pMethods->OpCloseLink_F(pSrvObj->AutoAccept.pAcceptedLinks[i]);
+        // Auto-close accepted links unless KEEP_ACCEPTED_LINK flag is set
+        if (!(pSrvObj->Args.Flags & IOC_SRVFLAG_KEEP_ACCEPTED_LINK)) {
+            for (int i = 0; i < _MAX_AUTO_ACCEPT_ACCEPTED_LINK_NUM; i++) {
+                if (NULL != pSrvObj->AutoAccept.pAcceptedLinks[i]) {
+                    pSrvObj->pMethods->OpCloseLink_F(pSrvObj->AutoAccept.pAcceptedLinks[i]);
+                }
             }
         }
+    }
+
+    // Cleanup manually accepted links (from IOC_acceptClient) unless KEEP_ACCEPTED_LINK flag is set
+    if (!(pSrvObj->Args.Flags & IOC_SRVFLAG_KEEP_ACCEPTED_LINK)) {
+        pthread_mutex_lock(&pSrvObj->ManualAccept.Mutex);
+        for (int i = 0; i < _MAX_MANUAL_ACCEPT_ACCEPTED_LINK_NUM; i++) {
+            if (IOC_ID_INVALID != pSrvObj->ManualAccept.AcceptedLinkIDs[i]) {
+                // Try to close the link - it may already be closed, which is fine
+                IOC_closeLink(pSrvObj->ManualAccept.AcceptedLinkIDs[i]);
+                pSrvObj->ManualAccept.AcceptedLinkIDs[i] = IOC_ID_INVALID;
+                pSrvObj->ManualAccept.AcceptedLinkCount--;
+            }
+        }
+        pthread_mutex_unlock(&pSrvObj->ManualAccept.Mutex);
     }
 
     IOC_Result_T Result = pSrvObj->pMethods->OpOfflineService_F(pSrvObj);
@@ -564,6 +601,17 @@ IOC_Result_T IOC_acceptClient(
         return Result;
     } else {
         *pLinkID = pLinkObj->ID;
+
+        // Step-4: Track manually accepted link for cleanup during service shutdown
+        pthread_mutex_lock(&pSrvObj->ManualAccept.Mutex);
+        for (int i = 0; i < _MAX_MANUAL_ACCEPT_ACCEPTED_LINK_NUM; i++) {
+            if (IOC_ID_INVALID == pSrvObj->ManualAccept.AcceptedLinkIDs[i]) {
+                pSrvObj->ManualAccept.AcceptedLinkIDs[i] = pLinkObj->ID;
+                pSrvObj->ManualAccept.AcceptedLinkCount++;
+                break;
+            }
+        }
+        pthread_mutex_unlock(&pSrvObj->ManualAccept.Mutex);
     }
 
     //_IOC_LogNotTested();

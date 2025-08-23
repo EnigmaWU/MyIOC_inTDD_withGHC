@@ -41,6 +41,15 @@ typedef struct {
         int AcceptedLinkCount;
     } AutoAccept;
 
+    // Tracking for manually accepted links (via IOC_acceptClient)
+    struct {
+        pthread_mutex_t Mutex;  // Thread-safe access
+
+#define _MAX_MANUAL_ACCEPT_ACCEPTED_LINK_NUM 32                              // Support for manual link tracking
+        IOC_LinkID_T AcceptedLinkIDs[_MAX_MANUAL_ACCEPT_ACCEPTED_LINK_NUM];  // Store IDs not pointers
+        int AcceptedLinkCount;
+    } ManualAccept;
+
     void *pProtoPriv;
 } _IOC_ServiceObject_T, *_IOC_ServiceObject_pT;
 
