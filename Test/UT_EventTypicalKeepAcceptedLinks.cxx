@@ -94,6 +94,7 @@
 //     4) Take service offline
 //     5) Verify links remain open and events can still be delivered
 
+// [@AC-2,US-1]
 // TC-2:
 //   @[Name]: verifyFlagDifference_compareWithDefaultBehavior_expectDifferentLifecycle
 //   @[Purpose]: Compare behavior with and without the flag to validate functional difference
@@ -105,8 +106,20 @@
 //     4) Take service offline
 //     5) Verify links are auto-closed and event delivery fails
 
-// [@AC-1,US-3]
+// [@AC-1,US-2]
 // TC-3:
+//   @[Name]: verifyPreservedLinks_byEventDelivery_expectContinuedFunctionality
+//   @[Purpose]: Validate that preserved links continue to function for event delivery after service offline
+//   @[Brief]: Service with flag → service offline → links preserved → continued event functionality
+//   @[Steps]:
+//     1) Online service with IOC_SRVFLAG_KEEP_ACCEPTED_LINK flag
+//     2) Connect client and manually accept the connection
+//     3) Take service offline (links preserved)
+//     4) Verify event posting still works on preserved links
+//     5) Verify event delivery continues or appropriate error handling occurs
+
+// [@AC-1,US-3]
+// TC-4:
 //   @[Name]: verifyManualCleanup_withKeepAcceptedLinksFlag_expectCleanupWorks
 //   @[Purpose]: Verify manual cleanup still works when links are preserved by the flag
 //   @[Brief]: Service with flag → service offline → links preserved → manual cleanup → links closed
@@ -117,6 +130,7 @@
 //     4) Verify link ID is still valid but event functionality may be limited
 //     5) Manually close the preserved link using IOC_closeLink()
 //     6) Verify manual cleanup worked and link is completely closed
+//=================================================================================================
 
 // Callback structure for event reception testing
 typedef struct __KeepLinksEvtRecvPriv {
@@ -350,8 +364,116 @@ TEST(UT_ConetEventTypical, verifyFlagDifference_compareWithDefaultBehavior_expec
     if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
+// [@AC-1,US-2]
+// TC-3: verifyPreservedLinks_byEventDelivery_expectContinuedFunctionality
+TEST(UT_ConetEventTypical, verifyPreservedLinks_byEventDelivery_expectContinuedFunctionality) {
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    IOC_LinkID_T SrvLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
+    std::thread CliThread;
+
+    // Test data for event communication
+    __KeepLinksEvtRecvPriv_T RecvPriv = {};
+
+    try {
+        // Step-1: Create service with KEEP_ACCEPTED_LINK flag
+        IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                               .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                               .pPath = (const char *)"PreservedLinks_Test3"};
+        IOC_SrvArgs_T SrvArgs = {
+            .SrvURI = SrvURI, .Flags = IOC_SRVFLAG_KEEP_ACCEPTED_LINK, .UsageCapabilites = IOC_LinkUsageEvtProducer};
+
+        ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+        ASSERT_NE(IOC_ID_INVALID, SrvID);
+
+        // Step-2: Start client connection thread
+        std::atomic<bool> Subscribed{false};
+        CliThread = std::thread([&]() {
+            IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageEvtConsumer};
+            IOC_Result_T ResultValueInThread = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
+            ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValueInThread);
+            ASSERT_NE(IOC_ID_INVALID, CliLinkID);
+
+            // Subscribe to events
+            static IOC_EvtID_T SubEvtIDs[1] = {IOC_EVTID_TEST_KEEPALIVE};
+            IOC_SubEvtArgs_T Sub = {.CbProcEvt_F = __KeepLinksTestClientCb,
+                                    .pCbPrivData = &RecvPriv,
+                                    .EvtNum = 1,
+                                    .pEvtIDs = &SubEvtIDs[0]};
+            ResultValueInThread = IOC_subEVT(CliLinkID, &Sub);
+            ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValueInThread);
+            Subscribed = true;
+        });
+
+        // Step-3: Wait and manually accept the connection
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        ResultValue = IOC_acceptClient(SrvID, &SrvLinkID, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+        ASSERT_NE(IOC_ID_INVALID, SrvLinkID);
+
+        // Wait for client subscription
+        for (int i = 0; i < 50 && !Subscribed.load(); ++i) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+
+        // Step-4: Take service offline (key test point - links should be preserved)
+        ResultValue = IOC_offlineService(SrvID);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+        SrvID = IOC_ID_INVALID;
+
+        // Step-5: Verify that preserved links continue to function for event delivery
+        // This is the main focus of US-2: event delivery continues after service restart scenarios
+        IOC_EvtDesc_T EvtDesc = {};
+        EvtDesc.EvtID = IOC_EVTID_TEST_KEEPALIVE;
+        EvtDesc.EvtValue = 123;
+
+        // Reset callback state for clean test
+        RecvPriv.Got = false;
+        RecvPriv.EvtValue = 0;
+
+        // Post event on preserved link - this should work
+        IOC_Result_T PostResult = IOC_postEVT(SrvLinkID, &EvtDesc, NULL);
+        EXPECT_EQ(IOC_RESULT_SUCCESS, PostResult)
+            << "Event posting should work on preserved links when IOC_SRVFLAG_KEEP_ACCEPTED_LINK is set";
+
+        // Wait and verify event was delivered
+        for (int i = 0; i < 60; ++i) {
+            if (RecvPriv.Got.load()) break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        EXPECT_TRUE(RecvPriv.Got.load()) << "Event delivery should continue on preserved links";
+        EXPECT_EQ((ULONG_T)123, RecvPriv.EvtValue) << "Event data should be correctly delivered";
+
+        // Step-6: Test multiple event deliveries to ensure continued functionality
+        RecvPriv.Got = false;
+        RecvPriv.EvtValue = 0;
+        EvtDesc.EvtValue = 456;
+
+        PostResult = IOC_postEVT(SrvLinkID, &EvtDesc, NULL);
+        EXPECT_EQ(IOC_RESULT_SUCCESS, PostResult) << "Multiple events should work on preserved links";
+
+        for (int i = 0; i < 60; ++i) {
+            if (RecvPriv.Got.load()) break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        EXPECT_TRUE(RecvPriv.Got.load()) << "Multiple event deliveries should work";
+        EXPECT_EQ((ULONG_T)456, RecvPriv.EvtValue) << "Second event should be delivered correctly";
+
+    } catch (...) {
+        // Ensure proper cleanup even on exceptions
+    }
+
+    // Cleanup
+    if (CliThread.joinable()) CliThread.join();
+    if (CliLinkID != IOC_ID_INVALID) IOC_closeLink(CliLinkID);
+    if (SrvLinkID != IOC_ID_INVALID) IOC_closeLink(SrvLinkID);  // Manual cleanup of preserved link
+    if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
+}
+
 // [@AC-1,US-3]
-// TC-3: verifyManualCleanup_withKeepAcceptedLinksFlag_expectCleanupWorks
+// TC-4: verifyManualCleanup_withKeepAcceptedLinksFlag_expectCleanupWorks
 TEST(UT_ConetEventTypical, verifyManualCleanup_withKeepAcceptedLinksFlag_expectCleanupWorks) {
     IOC_Result_T ResultValue = IOC_RESULT_BUG;
     IOC_SrvID_T SrvID = IOC_ID_INVALID;
