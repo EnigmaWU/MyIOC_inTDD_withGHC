@@ -227,7 +227,7 @@
 //======>END OF TEST CASES=========================================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF TEST CASES (implementation placeholders; RED state until auto-subscribe is implemented)
+//======>BEGIN OF TEST CASES (client-side auto-subscribe is GREEN; service-side is RED)
 
 // [@AC-1,US-1] TC-1: Client Auto-Subscribe Success
 /**
@@ -238,10 +238,127 @@
  *   2) Prepare ConnArgs with Usage=EvtConsumer and UsageArgs.pEvt set.
  *   3) Call IOC_connectService; expect success and automatic subscription.
  *   4) Service posts event; verify client callback receives it.
- * Status: RED (auto-subscribe not implemented in IOC core).
+ * Status: GREEN (client-side auto-subscribe is implemented and working).
  */
 TEST(UT_ConetEventTypical, verifyClientAutoSubscribe_byConnArgsUsageArgsEvt_expectDelivered) {
-    GTEST_SKIP() << "AUTO-SUBSCRIBE: Client-side ConnArgs.UsageArgs.pEvt auto-subscribe not implemented in IOC core";
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
+
+    // 📋 Test data setup
+    IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char*)"EvtAutoSubscribe_ClientTest"};
+
+    // 🔧 Setup service as EvtProducer (will send events to clients)
+    IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageEvtProducer};
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue) << "Service should come online successfully";
+    ASSERT_NE(IOC_ID_INVALID, SrvID) << "Service ID should be valid";
+
+    // 🎯 Setup client event reception tracking
+    struct {
+        std::atomic<bool> EventReceived{false};
+        std::atomic<int> ReceivedCount{0};
+        IOC_EvtID_T ExpectedEvtID = IOC_EVTID_TEST_KEEPALIVE;
+        IOC_EvtID_T ReceivedEvtID = 0;
+        ULONG_T ReceivedEvtValue = 0;
+    } ClientEventData;
+
+    // Client event callback function
+    auto ClientEventCallback = [](const IOC_EvtDesc_pT pEvtDesc, void* pPrivData) -> IOC_Result_T {
+        auto* pEventData = static_cast<decltype(ClientEventData)*>(pPrivData);
+        pEventData->EventReceived = true;
+        pEventData->ReceivedCount++;
+        pEventData->ReceivedEvtID = pEvtDesc->EvtID;
+        pEventData->ReceivedEvtValue = pEvtDesc->EvtValue;
+        printf("📨 Client received event: EvtID=%" PRIu64 ", EvtValue=%lu\n", pEvtDesc->EvtID, pEvtDesc->EvtValue);
+        return IOC_RESULT_SUCCESS;
+    };
+
+    // 🚀 CRITICAL: Setup client with auto-subscribe via ConnArgs.UsageArgs.pEvt
+    // This is the core functionality being tested - auto-subscribe should happen during IOC_connectService
+    IOC_EvtID_T SubscribeEvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
+    IOC_EvtUsageArgs_T ClientEvtArgs = {
+        .CbProcEvt_F = ClientEventCallback, .pCbPrivData = &ClientEventData, .EvtNum = 1, .pEvtIDs = SubscribeEvtIDs};
+
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = SrvURI,
+        .Usage = IOC_LinkUsageEvtConsumer  // Client as event consumer
+    };
+    ConnArgs.UsageArgs.pEvt = &ClientEvtArgs;  // 🎯 AUTO-SUBSCRIBE: This should trigger automatic IOC_subEVT
+
+    // Connect client in a separate thread to avoid blocking before accept
+    IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
+    std::atomic<bool> ClientConnected{false};
+    std::atomic<bool> AutoSubscribeExpected{false};
+
+    std::thread ClientThread([&] {
+        printf("🔗 Client connecting with auto-subscribe...\n");
+        IOC_Result_T ThreadResult = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
+
+        // 🎯 EXPECTED BEHAVIOR: IOC_connectService should automatically call IOC_subEVT internally
+        // when ConnArgs.Usage == IOC_LinkUsageEvtConsumer && ConnArgs.UsageArgs.pEvt != NULL
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ThreadResult) << "Client connection with auto-subscribe should succeed";
+        ASSERT_NE(IOC_ID_INVALID, CliLinkID) << "Client link ID should be valid";
+
+        ClientConnected = true;
+        AutoSubscribeExpected = true;  // We expect auto-subscribe to have occurred
+        printf("✅ Client connected with LinkID=%" PRIu64 " (auto-subscribe expected)\n", CliLinkID);
+    });
+
+    // Accept the client on service side
+    IOC_LinkID_T SrvLinkID = IOC_ID_INVALID;
+    ResultValue = IOC_acceptClient(SrvID, &SrvLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue) << "Service should accept client successfully";
+    ASSERT_NE(IOC_ID_INVALID, SrvLinkID) << "Service link ID should be valid";
+
+    // Wait for client connection to complete
+    ClientThread.join();
+    ASSERT_TRUE(ClientConnected.load()) << "Client should be connected";
+
+    // 🎯 CRITICAL TEST: Verify auto-subscribe worked by posting event and checking delivery
+    // If auto-subscribe worked, the client should receive this event WITHOUT manual IOC_subEVT
+    printf("📤 Service posting event to test auto-subscribe...\n");
+    IOC_EvtDesc_T EventToSend = {};
+    EventToSend.EvtID = IOC_EVTID_TEST_KEEPALIVE;
+    EventToSend.EvtValue = 12345;  // Test value
+
+    ResultValue = IOC_postEVT(SrvLinkID, &EventToSend, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue) << "Service should post event successfully";
+
+    // Wait for event delivery (auto-subscribe should have made this possible)
+    printf("⏳ Waiting for auto-subscribed event delivery...\n");
+    bool EventDelivered = false;
+    for (int i = 0; i < 100 && !ClientEventData.EventReceived.load(); ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    EventDelivered = ClientEventData.EventReceived.load();
+
+    // 🎯 KEY ASSERTION: This should PASS because client-side auto-subscribe is already implemented
+    // IOC_connectService automatically calls IOC_subEVT when ConnArgs.UsageArgs.pEvt is set
+    ASSERT_TRUE(EventDelivered)
+        << "CLIENT AUTO-SUBSCRIBE FAILED: Event not received - IOC_connectService should auto-subscribe "
+        << "when ConnArgs.UsageArgs.pEvt was set. Auto-subscribe feature may be broken.";
+
+    ASSERT_EQ(1, ClientEventData.ReceivedCount.load()) << "Client should receive exactly one event via auto-subscribe";
+
+    ASSERT_EQ(IOC_EVTID_TEST_KEEPALIVE, ClientEventData.ReceivedEvtID)
+        << "Received event ID should match sent event ID";
+
+    ASSERT_EQ(12345U, ClientEventData.ReceivedEvtValue) << "Received event value should match sent event value";
+
+    printf("✅ AUTO-SUBSCRIBE SUCCESS: Client received event via automatic subscription\n");
+
+    // Cleanup
+    if (CliLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(CliLinkID);
+    }
+    if (SrvLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(SrvLinkID);
+    }
+    if (SrvID != IOC_ID_INVALID) {
+        IOC_offlineService(SrvID);
+    }
 }
 
 // [@AC-2,US-1] TC-1: No Auto-Subscribe When UsageArgs.pEvt is NULL
@@ -253,11 +370,10 @@ TEST(UT_ConetEventTypical, verifyClientAutoSubscribe_byConnArgsUsageArgsEvt_expe
  *   2) Connect client with Usage=EvtConsumer but UsageArgs.pEvt=NULL.
  *   3) Service posts event; verify no delivery (no subscription).
  *   4) Manually call IOC_subEVT; verify event delivery works.
- * Status: RED (auto-subscribe not implemented; manual path should work).
+ * Status: READY (can be implemented since client-side auto-subscribe is working).
  */
 TEST(UT_ConetEventTypical, verifyNoAutoSubscribe_byNullUsageArgsEvt_expectManualRequired) {
-    GTEST_SKIP()
-        << "AUTO-SUBSCRIBE: Baseline manual subscription behavior validation pending auto-subscribe implementation";
+    GTEST_SKIP() << "AUTO-SUBSCRIBE: Baseline manual subscription behavior validation ready to implement";
 }
 
 // [@AC-3,US-1] TC-1: Multi-Client Auto-Subscribe Isolation
@@ -269,10 +385,10 @@ TEST(UT_ConetEventTypical, verifyNoAutoSubscribe_byNullUsageArgsEvt_expectManual
  *   2) Connect N clients, each with different event IDs in UsageArgs.pEvt.
  *   3) Service posts multiple event types.
  *   4) Verify each client receives only its subscribed events.
- * Status: RED (auto-subscribe not implemented).
+ * Status: READY (can be implemented since client-side auto-subscribe is working).
  */
 TEST(UT_ConetEventTypical, verifyMultiClientAutoSubscribe_byDifferentEvtIDs_expectIsolation) {
-    GTEST_SKIP() << "AUTO-SUBSCRIBE: Multi-client auto-subscribe isolation testing pending implementation";
+    GTEST_SKIP() << "AUTO-SUBSCRIBE: Multi-client auto-subscribe isolation testing ready to implement";
 }
 
 // [@AC-4,US-1] TC-1: Auto-Subscribe Failure Cleanup
@@ -284,10 +400,10 @@ TEST(UT_ConetEventTypical, verifyMultiClientAutoSubscribe_byDifferentEvtIDs_expe
  *   2) Prepare ConnArgs with invalid event IDs in UsageArgs.pEvt.
  *   3) Call IOC_connectService; expect failure.
  *   4) Verify no link created, no resources leaked.
- * Status: RED (auto-subscribe error handling not implemented).
+ * Status: READY (can be implemented since client-side auto-subscribe is working).
  */
 TEST(UT_ConetEventTypical, verifyAutoSubscribeFailure_byInvalidEvtIDs_expectConnectionFails) {
-    GTEST_SKIP() << "AUTO-SUBSCRIBE: Error handling and cleanup validation pending implementation";
+    GTEST_SKIP() << "AUTO-SUBSCRIBE: Error handling and cleanup validation ready to implement";
 }
 
 // [@AC-1,US-2] TC-1: Service Auto-Subscribe Success
@@ -302,7 +418,129 @@ TEST(UT_ConetEventTypical, verifyAutoSubscribeFailure_byInvalidEvtIDs_expectConn
  * Status: RED (service-side auto-subscribe not implemented).
  */
 TEST(UT_ConetEventTypical, verifyServiceAutoSubscribe_bySrvArgsUsageArgsEvt_expectClientEvtReceived) {
-    GTEST_SKIP() << "AUTO-SUBSCRIBE: Service-side SrvArgs.UsageArgs.pEvt auto-subscribe not implemented in IOC core";
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
+
+    // 📋 Test data setup for service as event consumer
+    IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char*)"EvtAutoSubscribe_ServiceTest"};
+
+    // 🎯 Setup service event reception tracking
+    struct {
+        std::atomic<bool> EventReceived{false};
+        std::atomic<int> ReceivedCount{0};
+        IOC_EvtID_T ExpectedEvtID = IOC_EVTID_TEST_KEEPALIVE;
+        IOC_EvtID_T ReceivedEvtID = 0;
+        ULONG_T ReceivedEvtValue = 0;
+    } ServiceEventData;
+
+    // Service event callback function
+    auto ServiceEventCallback = [](const IOC_EvtDesc_pT pEvtDesc, void* pPrivData) -> IOC_Result_T {
+        auto* pEventData = static_cast<decltype(ServiceEventData)*>(pPrivData);
+        pEventData->EventReceived = true;
+        pEventData->ReceivedCount++;
+        pEventData->ReceivedEvtID = pEvtDesc->EvtID;
+        pEventData->ReceivedEvtValue = pEvtDesc->EvtValue;
+        printf("📨 Service received event: EvtID=%" PRIu64 ", EvtValue=%lu\n", pEvtDesc->EvtID, pEvtDesc->EvtValue);
+        return IOC_RESULT_SUCCESS;
+    };
+
+    // 🚀 CRITICAL: Setup service with auto-subscribe via SrvArgs.UsageArgs.pEvt
+    IOC_EvtID_T SubscribeEvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
+    IOC_EvtUsageArgs_T ServiceEvtArgs = {
+        .CbProcEvt_F = ServiceEventCallback, .pCbPrivData = &ServiceEventData, .EvtNum = 1, .pEvtIDs = SubscribeEvtIDs};
+
+    // 🔧 Setup service as EvtConsumer with auto-subscribe configuration
+    IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageEvtConsumer};
+    SrvArgs.UsageArgs.pEvt =
+        &ServiceEvtArgs;  // 🎯 AUTO-SUBSCRIBE: This should trigger automatic IOC_subEVT during accept
+
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue) << "Service should come online successfully";
+    ASSERT_NE(IOC_ID_INVALID, SrvID) << "Service ID should be valid";
+
+    // Accept client connection in a separate thread
+    IOC_LinkID_T SrvLinkID = IOC_ID_INVALID;
+    std::atomic<bool> ClientAccepted{false};
+    std::atomic<bool> AutoSubscribeExpected{false};
+
+    std::thread ServiceThread([&] {
+        printf("📞 Service waiting to accept client...\n");
+        IOC_Result_T ThreadResult = IOC_acceptClient(SrvID, &SrvLinkID, NULL);
+
+        // 🎯 EXPECTED BEHAVIOR: IOC_acceptClient should automatically call IOC_subEVT internally
+        // when SrvArgs.UsageCapabilites has EvtConsumer && SrvArgs.UsageArgs.pEvt != NULL
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ThreadResult) << "Service should accept client with auto-subscribe";
+        ASSERT_NE(IOC_ID_INVALID, SrvLinkID) << "Service link ID should be valid";
+
+        ClientAccepted = true;
+        AutoSubscribeExpected = true;  // We expect auto-subscribe to have occurred
+        printf("✅ Service accepted client with LinkID=%" PRIu64 " (auto-subscribe expected)\n", SrvLinkID);
+    });
+
+    // Give service thread time to start waiting
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // Connect as client EvtProducer
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = SrvURI,
+        .Usage = IOC_LinkUsageEvtProducer  // Client as event producer
+    };
+
+    IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
+    printf("🔗 Client connecting as event producer...\n");
+    ResultValue = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue) << "Client connection should succeed";
+    ASSERT_NE(IOC_ID_INVALID, CliLinkID) << "Client link ID should be valid";
+    printf("✅ Client connected with LinkID=%" PRIu64 "\n", CliLinkID);
+
+    // Wait for accept to complete
+    ServiceThread.join();
+    ASSERT_TRUE(ClientAccepted) << "Service should have accepted the client";
+
+    // Client posts event to test auto-subscribe
+    IOC_EvtDesc_T EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE, .EvtValue = 67890};
+    printf("📤 Client posting event to test service auto-subscribe...\n");
+    ResultValue = IOC_postEVT(CliLinkID, &EvtDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue) << "Client should be able to post event";
+
+    // Wait for event delivery via auto-subscribe
+    printf("⏳ Waiting for auto-subscribed event delivery to service...\n");
+    auto EventDelivered = [&ServiceEventData]() { return ServiceEventData.EventReceived.load(); };
+
+    bool DeliverySuccess = false;
+    for (int i = 0; i < 100 && !DeliverySuccess; i++) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        DeliverySuccess = EventDelivered();
+    }
+
+    // 🎯 KEY ASSERTION: This will FAIL until service-side auto-subscribe is implemented
+    // Current IOC implementation doesn't support SrvArgs.UsageArgs.pEvt auto-subscribe
+    ASSERT_TRUE(DeliverySuccess)
+        << "SERVICE AUTO-SUBSCRIBE FAILED: Event not received - IOC_acceptClient did not auto-subscribe "
+        << "when SrvArgs.UsageArgs.pEvt was set. Service-side auto-subscribe not implemented.";
+
+    ASSERT_EQ(1, ServiceEventData.ReceivedCount.load())
+        << "Service should receive exactly one event via auto-subscribe";
+
+    ASSERT_EQ(IOC_EVTID_TEST_KEEPALIVE, ServiceEventData.ReceivedEvtID)
+        << "Received event ID should match sent event ID";
+
+    ASSERT_EQ(67890U, ServiceEventData.ReceivedEvtValue) << "Received event value should match sent event value";
+
+    printf("✅ AUTO-SUBSCRIBE SUCCESS: Service received event via automatic subscription\n");
+
+    // Cleanup
+    if (CliLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(CliLinkID);
+    }
+    if (SrvLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(SrvLinkID);
+    }
+    if (SrvID != IOC_ID_INVALID) {
+        IOC_offlineService(SrvID);
+    }
 }
 
 // [@AC-2,US-2] TC-1: No Service Auto-Subscribe When UsageArgs.pEvt is NULL
