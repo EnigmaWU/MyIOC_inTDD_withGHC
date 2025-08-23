@@ -46,6 +46,15 @@
  *
  * US-3: As a service EvtConsumer, I want to mix polling and callback-based consumption
  *       so that I can use the most appropriate method for different event types.
+ *
+ * US-4: As a client EvtConsumer, I want to pull events using polling mode from services
+ *       so that I can decouple event consumption from service production patterns.
+ *
+ * US-5: As a client EvtConsumer, I want to poll events from multiple services simultaneously
+ *       so that I can consume events from different sources at my own pace.
+ *
+ * US-6: As a client EvtConsumer, I want polling to coexist with callback-based consumption
+ *       so that I can use the most appropriate method for different service event types.
  */
 //======>END OF USER STORY==========================================================================
 
@@ -53,31 +62,55 @@
 //=======>BEGIN OF ACCEPTANCE CRITERIA==============================================================
 /**
  * [@US-1]
- *  AC-1: GIVEN a Conet service (producer) and a client (consumer) with no IOC_subEVT subscription,
- *        WHEN the service posts an event and client calls IOC_pullEVT,
- *        THEN the client successfully receives the event via polling.
- *  AC-2: GIVEN multiple events posted by service,
- *        WHEN client repeatedly calls IOC_pullEVT,
- *        THEN client receives events in FIFO order.
+ *  AC-1: GIVEN a service (consumer) and a client (producer) posting events,
+ *        WHEN the service calls IOC_pullEVT instead of using IOC_subEVT callbacks,
+ *        THEN the service successfully receives events via polling from the client.
+ *  AC-2: GIVEN multiple events posted by client to service,
+ *        WHEN service repeatedly calls IOC_pullEVT,
+ *        THEN service receives events in FIFO order.
  *
  * [@US-2]
- *  AC-1: GIVEN no events available,
- *        WHEN client calls IOC_pullEVT with non-blocking mode (timeout=0),
- *        THEN IOC_RESULT_NO_EVENT_CONSUMER is returned immediately.
- *  AC-2: GIVEN events posted after a delay,
- *        WHEN client calls IOC_pullEVT with blocking timeout,
- *        THEN client receives event within timeout or gets IOC_RESULT_TIMEOUT.
- *  AC-3: GIVEN events posted after a delay,
- *        WHEN client calls IOC_pullEVT with infinite timeout,
- *        THEN client waits indefinitely until event is received.
+ *  AC-1: GIVEN no events available from clients,
+ *        WHEN service calls IOC_pullEVT with non-blocking mode (timeout=0),
+ *        THEN IOC_RESULT_NO_EVENT_CONSUMER is returned immediately to service.
+ *  AC-2: GIVEN clients post events after a delay,
+ *        WHEN service calls IOC_pullEVT with blocking timeout,
+ *        THEN service receives event within timeout or gets IOC_RESULT_TIMEOUT.
+ *  AC-3: GIVEN clients post events after a delay,
+ *        WHEN service calls IOC_pullEVT with infinite timeout,
+ *        THEN service waits indefinitely until event is received from clients.
  *
  * [@US-3]
- *  AC-1: GIVEN both IOC_subEVT callback and IOC_pullEVT polling on same LinkID,
- *        WHEN service posts events,
- *        THEN each event is delivered to only one consumer (first-come-first-served).
- *  AC-2: GIVEN mixed polling and callback consumers,
- *        WHEN service posts multiple events,
- *        THEN events are distributed fairly between consumers.
+ *  AC-1: GIVEN service has both IOC_subEVT callback and IOC_pullEVT polling for client events,
+ *        WHEN clients post events to service,
+ *        THEN each event is delivered to service via only one method (first-come-first-served).
+ *  AC-2: GIVEN service uses mixed polling and callback consumption from multiple clients,
+ *        WHEN multiple clients post events to service,
+ *        THEN service receives events correctly via both consumption methods.
+ *
+ * [@US-4]
+ *  AC-1: GIVEN services (producers) posting events and a client (consumer) using IOC_pullEVT,
+ *        WHEN client polls events from services,
+ *        THEN client successfully receives events via polling without affecting service performance.
+ *  AC-2: GIVEN services post events at high frequency,
+ *        WHEN client consumes at its own rate using IOC_pullEVT,
+ *        THEN services continue to operate normally without blocking on slow client consumption.
+ *
+ * [@US-5]
+ *  AC-1: GIVEN client using IOC_pullEVT to connect to multiple services,
+ *        WHEN multiple services post events to client,
+ *        THEN client receives events from all services independently without interference.
+ *  AC-2: GIVEN client polling services at different intervals,
+ *        WHEN services post events continuously,
+ *        THEN client eventually receives all events from all services regardless of polling frequency.
+ *
+ * [@US-6]
+ *  AC-1: GIVEN client has both polling (IOC_pullEVT) and callback (IOC_subEVT) connections to services,
+ *        WHEN services post events,
+ *        THEN client receives events according to the consumption method configured for each service.
+ *  AC-2: GIVEN client uses mixed consumption methods for different service event types,
+ *        WHEN services post events with different priorities or types,
+ *        THEN client's event distribution works correctly for both polling and callback connections.
  */
 //=======>END OF ACCEPTANCE CRITERIA================================================================
 
@@ -85,68 +118,122 @@
 //======>BEGIN OF TEST CASES=======================================================================
 
 /**
- * [@AC-1,US-1] TC-1: verifyPullEVT_byBasicPolling_expectEventReceived
- * Test: verifyPullEVT_byBasicPolling_expectEventReceived
- * Purpose: Validate basic IOC_pullEVT functionality for polling-based event consumption.
+ * [@AC-1,US-1] TC-1: verifyPullEVT_byServiceAsConsumer_expectEventReceived
+ * Test: verifyPullEVT_byServiceAsConsumer_expectEventReceived
+ * Purpose: Validate service using IOC_pullEVT to consume events from clients.
  * Steps:
- *   1) Online service (EvtProducer); client connects (EvtConsumer) without IOC_subEVT.
- *   2) Service posts an event to the client link.
- *   3) Client calls IOC_pullEVT to retrieve the event.
- *   4) Assert event details match what was posted.
+ *   1) Online service (EvtConsumer); client connects (EvtProducer).
+ *   2) Client posts an event to the service.
+ *   3) Service calls IOC_pullEVT to retrieve the event instead of using callbacks.
+ *   4) Assert event details match what client posted.
  *
- * [@AC-2,US-1] TC-1: verifyPullEVT_byMultipleEvents_expectFIFOOrder
- * Test: verifyPullEVT_byMultipleEvents_expectFIFOOrder
- * Purpose: Ensure IOC_pullEVT delivers multiple events in FIFO order.
+ * [@AC-2,US-1] TC-1: verifyPullEVT_byServiceMultipleEvents_expectFIFOOrder
+ * Test: verifyPullEVT_byServiceMultipleEvents_expectFIFOOrder
+ * Purpose: Ensure service receives multiple client events in FIFO order via IOC_pullEVT.
  * Steps:
- *   1) Service posts multiple events with sequential values.
- *   2) Client calls IOC_pullEVT repeatedly to retrieve all events.
- *   3) Assert events are received in the same order as posted.
+ *   1) Client posts multiple events with sequential values to service.
+ *   2) Service repeatedly calls IOC_pullEVT to retrieve all events.
+ *   3) Assert service receives events in the same order as client posted.
  *   4) Verify sequence IDs are strictly increasing.
  *
- * [@AC-1,US-2] TC-1: verifyPullEVT_byNonBlockingMode_expectImmediateReturn
- * Test: verifyPullEVT_byNonBlockingMode_expectImmediateReturn
- * Purpose: Validate non-blocking IOC_pullEVT behavior when no events are available.
+ * [@AC-1,US-2] TC-1: verifyPullEVT_byServiceNonBlocking_expectImmediateReturn
+ * Test: verifyPullEVT_byServiceNonBlocking_expectImmediateReturn
+ * Purpose: Validate service non-blocking IOC_pullEVT behavior when no client events available.
  * Steps:
- *   1) Client connects without any events posted.
- *   2) Client calls IOC_pullEVT with timeout=0 (non-blocking).
- *   3) Assert IOC_RESULT_NO_EVENT_CONSUMER returned immediately.
- *   4) Measure response time to ensure it's truly non-blocking.
+ *   1) Service connects with client but no events posted by client.
+ *   2) Service calls IOC_pullEVT with timeout=0 (non-blocking).
+ *   3) Assert IOC_RESULT_NO_EVENT_CONSUMER returned immediately to service.
+ *   4) Measure response time to ensure service doesn't block.
  *
- * [@AC-2,US-2] TC-1: verifyPullEVT_byBlockingTimeout_expectTimeoutBehavior
- * Test: verifyPullEVT_byBlockingTimeout_expectTimeoutBehavior
- * Purpose: Validate IOC_pullEVT timeout behavior in blocking mode.
+ * [@AC-2,US-2] TC-1: verifyPullEVT_byServiceBlockingTimeout_expectTimeoutBehavior
+ * Test: verifyPullEVT_byServiceBlockingTimeout_expectTimeoutBehavior
+ * Purpose: Validate service IOC_pullEVT timeout behavior when waiting for client events.
  * Steps:
- *   1) Client calls IOC_pullEVT with specific timeout value.
- *   2) No events are posted during timeout period.
- *   3) Assert IOC_RESULT_TIMEOUT returned after timeout expires.
+ *   1) Service calls IOC_pullEVT with specific timeout value.
+ *   2) Client doesn't post events during timeout period.
+ *   3) Assert IOC_RESULT_TIMEOUT returned to service after timeout expires.
  *   4) Verify actual timeout duration matches expected duration.
  *
- * [@AC-3,US-2] TC-1: verifyPullEVT_byInfiniteTimeout_expectEventualSuccess
- * Test: verifyPullEVT_byInfiniteTimeout_expectEventualSuccess
- * Purpose: Validate IOC_pullEVT infinite blocking behavior.
+ * [@AC-3,US-2] TC-1: verifyPullEVT_byServiceInfiniteTimeout_expectEventualSuccess
+ * Test: verifyPullEVT_byServiceInfiniteTimeout_expectEventualSuccess
+ * Purpose: Validate service IOC_pullEVT infinite blocking behavior waiting for client events.
  * Steps:
- *   1) Client calls IOC_pullEVT with infinite timeout in separate thread.
- *   2) Service posts event after a delay.
- *   3) Assert client receives event successfully.
- *   4) Verify client waited until event was available.
+ *   1) Service calls IOC_pullEVT with infinite timeout in separate thread.
+ *   2) Client posts event after a delay.
+ *   3) Assert service receives event successfully.
+ *   4) Verify service waited until client event was available.
  *
- * [@AC-1,US-3] TC-1: verifyPullEVT_withMixedConsumers_expectFirstComeFirstServed
- * Test: verifyPullEVT_withMixedConsumers_expectFirstComeFirstServed
- * Purpose: Validate event distribution when mixing IOC_pullEVT and IOC_subEVT consumers.
+ * [@AC-1,US-3] TC-1: verifyPullEVT_byServiceMixedConsumption_expectFirstComeFirstServed
+ * Test: verifyPullEVT_byServiceMixedConsumption_expectFirstComeFirstServed
+ * Purpose: Validate service event consumption when mixing IOC_pullEVT and IOC_subEVT for client events.
  * Steps:
- *   1) Set up both callback-based (IOC_subEVT) and polling-based (IOC_pullEVT) consumers.
- *   2) Service posts events while both consumers are active.
- *   3) Assert each event is delivered to only one consumer.
- *   4) Verify no events are duplicated or lost.
+ *   1) Service sets up both callback-based (IOC_subEVT) and polling-based (IOC_pullEVT) for client events.
+ *   2) Client posts events while service has both consumption methods active.
+ *   3) Assert each client event is delivered to service via only one method.
+ *   4) Verify no events are duplicated or lost by service.
  *
- * [@AC-2,US-3] TC-1: verifyPullEVT_withMultiplePollingConsumers_expectFairDistribution
- * Test: verifyPullEVT_withMultiplePollingConsumers_expectFairDistribution
- * Purpose: Validate fair event distribution among multiple IOC_pullEVT consumers.
+ * [@AC-2,US-3] TC-1: verifyPullEVT_byServiceFromMultipleClients_expectCorrectDistribution
+ * Test: verifyPullEVT_byServiceFromMultipleClients_expectCorrectDistribution
+ * Purpose: Validate service consuming events from multiple clients using mixed methods.
  * Steps:
- *   1) Set up multiple clients using IOC_pullEVT on different links.
- *   2) Service posts events to all links.
- *   3) All clients poll simultaneously for events.
- *   4) Assert events are distributed fairly and completely.
+ *   1) Service connects to multiple clients using both polling and callback consumption.
+ *   2) Multiple clients post events to service.
+ *   3) Service processes events using both IOC_pullEVT and callback mechanisms.
+ *   4) Assert service receives all events correctly from all clients.
+ *
+ * [@AC-1,US-4] TC-1: verifyPullEVT_byClientAsConsumer_expectNonBlockingServices
+ * Test: verifyPullEVT_byClientAsConsumer_expectNonBlockingServices
+ * Purpose: Validate that client polling doesn't block service operations.
+ * Steps:
+ *   1) Multiple services accept client as polling consumer (no IOC_subEVT).
+ *   2) Services post events continuously while monitoring their performance.
+ *   3) Client pulls events at its own pace using IOC_pullEVT from all services.
+ *   4) Assert services maintain performance and don't block on slow client consumption.
+ *
+ * [@AC-2,US-4] TC-1: verifyPullEVT_byClientWithHighFrequencyServices_expectStability
+ * Test: verifyPullEVT_byClientWithHighFrequencyServices_expectStability
+ * Purpose: Ensure client stability when services post events at high frequency.
+ * Steps:
+ *   1) Client connects to multiple services posting at high frequency.
+ *   2) Client polls events using IOC_pullEVT at its own rate (slower than posting).
+ *   3) Monitor client resource usage and response times.
+ *   4) Assert client remains stable regardless of service posting rates.
+ *
+ * [@AC-1,US-5] TC-1: verifyPullEVT_byClientFromMultipleServices_expectIndependentConsumption
+ * Test: verifyPullEVT_byClientFromMultipleServices_expectIndependentConsumption
+ * Purpose: Validate independent event consumption by client from multiple services.
+ * Steps:
+ *   1) Client establishes connections with multiple services as polling consumer.
+ *   2) Each service posts events to client independently.
+ *   3) Client polls events from each service at different intervals.
+ *   4) Assert client receives events from each service without interference.
+ *
+ * [@AC-2,US-5] TC-1: verifyPullEVT_byClientVariablePollingRates_expectEventualConsistency
+ * Test: verifyPullEVT_byClientVariablePollingRates_expectEventualConsistency
+ * Purpose: Ensure client eventually receives events from all services despite variable polling.
+ * Steps:
+ *   1) Client polls different services at fast, medium, and slow intervals.
+ *   2) All services post events continuously over time.
+ *   3) Monitor event consumption by client from each service type.
+ *   4) Assert client eventually receives all posted events from all services.
+ *
+ * [@AC-1,US-6] TC-1: verifyPullEVT_byClientMixedConsumptionMethods_expectBothWork
+ * Test: verifyPullEVT_byClientMixedConsumptionMethods_expectBothWork
+ * Purpose: Validate that client can use both polling and callback methods for different services.
+ * Steps:
+ *   1) Client connects to some services using polling and others using callbacks.
+ *   2) All services post events using standard IOC_postEVT.
+ *   3) Verify client receives events via IOC_pullEVT from polling services.
+ *   4) Verify client receives events via registered callbacks from callback services.
+ *
+ * [@AC-2,US-6] TC-1: verifyPullEVT_byClientMixedEventTypes_expectCorrectRouting
+ * Test: verifyPullEVT_byClientMixedEventTypes_expectCorrectRouting
+ * Purpose: Ensure correct event routing when client uses mixed consumption for different event types.
+ * Steps:
+ *   1) Client sets up polling for EventType-A services and callbacks for EventType-B services.
+ *   2) Services post both EventType-A and EventType-B events.
+ *   3) Verify client receives EventType-A via IOC_pullEVT only.
+ *   4) Verify client receives EventType-B via callbacks only.
  */
 //======>END OF TEST CASES=========================================================================
 
