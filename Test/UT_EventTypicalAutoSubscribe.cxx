@@ -58,8 +58,9 @@
  * US-2: As a service EvtConsumer, I want to auto-subscribe to client events upon accept
  *       so that server-side event handling is automatically configured per connection.
  *
- * US-3: As a developer using both roles, I want consistent auto-subscribe behavior
- *       so that event subscription follows the same pattern as DAT/CMD auto-wiring.
+ * US-3: As a developer working with multiple IOC capabilities (Events, Data, Commands),
+ *       I want Event auto-subscribe to follow the same UsageArgs pattern as DAT/CMD auto-wiring
+ *       so that I can apply consistent knowledge across all IOC features and reduce learning curve.
  *
  * US-4: As a system integrator, I want auto-subscribe failures to prevent connection establishment
  *       so that partially configured links don't cause runtime issues.
@@ -97,13 +98,19 @@
  *         WHEN accept is attempted,
  *         THEN IOC_acceptClient returns error AND link is cleaned up AND no partial state.
  *
- * [@US-3] Consistency and API Symmetry
- *  AC-1: GIVEN both client and service use UsageArgs.pEvt,
+ * [@US-3] API Consistency and Pattern Unification
+ *  AC-1: GIVEN a developer familiar with DAT auto-wiring (SrvArgs.UsageArgs.pDat),
+ *         WHEN they use Event auto-subscribe (SrvArgs.UsageArgs.pEvt),
+ *         THEN the configuration pattern, error handling, and lifecycle should be identical.
+ *  AC-2: GIVEN both client and service use UsageArgs.pEvt for auto-subscribe,
  *         WHEN auto-subscribe occurs,
- *         THEN both follow identical error handling and state management patterns.
- *  AC-2: GIVEN service has both EvtProducer and EvtConsumer capabilities,
+ *         THEN both follow the same error codes, cleanup behavior, and state management as DAT/CMD.
+ *  AC-3: GIVEN a service with mixed capabilities (EvtProducer + DatReceiver + CmdExecutor),
  *         WHEN clients connect with different Usage types,
- *         THEN auto-subscribe works correctly for EvtConsumer clients only.
+ *         THEN each UsageArgs (pEvt, pDat, pCmd) works independently with consistent patterns.
+ *  AC-4: GIVEN NULL UsageArgs across different capabilities,
+ *         WHEN connections are established,
+ *         THEN all capabilities (EVT, DAT, CMD) consistently require manual setup when UsageArgs is NULL.
  *
  * [@US-4] Error Handling and Robustness
  *  AC-1: GIVEN invalid event IDs in UsageArgs.pEvt,
@@ -181,23 +188,41 @@
  *    3) Each client posts unique events.
  *    4) Verify service receives all events with proper link identification.
  *
- * [@AC-1,US-3] TC-1: Bidirectional Auto-Subscribe
- *  Test: verifyBidirectionalAutoSubscribe_byBothSides_expectBothDirections
- *  Purpose: Validate auto-subscribe works when both sides use it.
+ * [@AC-1,US-3] TC-1: Event Auto-Subscribe Follows DAT Pattern
+ *  Test: verifyEvtAutoSubscribePattern_matchesDatAutoWiring_expectConsistentAPI
+ *  Purpose: Ensure Event auto-subscribe follows the exact same API pattern as DAT auto-wiring.
  *  Steps:
- *    1) Online service with both EvtProducer+EvtConsumer capabilities and SrvArgs.UsageArgs.pEvt set.
- *    2) Client connects with EvtConsumer Usage and ConnArgs.UsageArgs.pEvt set.
- *    3) Verify service auto-subscribes to client events, client auto-subscribes to service events.
- *    4) Test bidirectional event flow.
+ *    1) Compare SrvArgs.UsageArgs.pDat setup with SrvArgs.UsageArgs.pEvt setup.
+ *    2) Verify both use identical configuration approach (callback + private data + capability-specific args).
+ *    3) Verify both return identical error codes for similar failure scenarios.
+ *    4) Confirm both have same lifecycle (setup → auto-wire → cleanup).
  *
- * [@AC-2,US-3] TC-1: Mixed Capability Auto-Subscribe
- *  Test: verifyMixedCapabilityAutoSubscribe_byDifferentUsageTypes_expectCorrectBehavior
- *  Purpose: Ensure auto-subscribe only applies to appropriate Usage types.
+ * [@AC-2,US-3] TC-1: Consistent Error Handling Across Capabilities
+ *  Test: verifyConsistentErrorHandling_acrossEvtDatCmd_expectSameErrorCodes
+ *  Purpose: Validate that Event auto-subscribe uses same error patterns as DAT/CMD.
  *  Steps:
- *    1) Online service with EvtProducer+EvtConsumer capabilities.
- *    2) Connect clients with different Usage types (EvtConsumer, EvtProducer, DatSender).
- *    3) Verify auto-subscribe occurs only for EvtConsumer clients.
- *    4) Verify other Usage types require manual subscription.
+ *    1) Test invalid UsageArgs scenarios for EVT, DAT, and CMD capabilities.
+ *    2) Verify all return same error codes (e.g., IOC_RESULT_INVALID_PARAM).
+ *    3) Verify all perform same cleanup actions on failure.
+ *    4) Confirm all leave system in same clean state after error.
+ *
+ * [@AC-3,US-3] TC-1: Mixed Capability Independence
+ *  Test: verifyMixedCapabilityIndependence_byMultipleUsageArgs_expectIsolatedBehavior
+ *  Purpose: Ensure different UsageArgs work independently but consistently.
+ *  Steps:
+ *    1) Online service with EvtProducer + DatReceiver + CmdExecutor capabilities.
+ *    2) Set up SrvArgs.UsageArgs.pEvt, pDat, and pCmd simultaneously.
+ *    3) Connect clients with different Usage types.
+ *    4) Verify each auto-wiring works independently without interference.
+ *
+ * [@AC-4,US-3] TC-1: Consistent NULL UsageArgs Behavior
+ *  Test: verifyNullUsageArgsConsistency_acrossAllCapabilities_expectUniformManualSetup
+ *  Purpose: Ensure NULL UsageArgs behavior is consistent across EVT, DAT, CMD.
+ *  Steps:
+ *    1) Online service with mixed capabilities but all UsageArgs set to NULL.
+ *    2) Connect clients for each capability type.
+ *    3) Verify all connections succeed but require manual setup.
+ *    4) Verify manual setup APIs work consistently for all capabilities.
  */
 //======>END OF TEST CASES=========================================================================
 
@@ -310,34 +335,64 @@ TEST(UT_EventTypicalAutoSubscribe, verifyServiceMultiClientAutoSubscribe_byMulti
     GTEST_SKIP() << "AUTO-SUBSCRIBE: Service-side multi-client auto-subscribe testing pending implementation";
 }
 
-// [@AC-1,US-3] TC-1: Bidirectional Auto-Subscribe
+// [@AC-1,US-3] TC-1: Event Auto-Subscribe Follows DAT Pattern
 /**
- * Test: verifyBidirectionalAutoSubscribe_byBothSides_expectBothDirections
- * Purpose: Validate auto-subscribe works when both sides use it.
+ * Test: verifyEvtAutoSubscribePattern_matchesDatAutoWiring_expectConsistentAPI
+ * Purpose: Ensure Event auto-subscribe follows the exact same API pattern as DAT auto-wiring.
  * Steps:
- *   1) Online service with both EvtProducer+EvtConsumer capabilities and SrvArgs.UsageArgs.pEvt set.
- *   2) Client connects with EvtConsumer Usage and ConnArgs.UsageArgs.pEvt set.
- *   3) Verify service auto-subscribes to client events, client auto-subscribes to service events.
- *   4) Test bidirectional event flow.
- * Status: RED (bidirectional auto-subscribe not implemented).
+ *   1) Compare SrvArgs.UsageArgs.pDat setup with SrvArgs.UsageArgs.pEvt setup.
+ *   2) Verify both use identical configuration approach (callback + private data + capability-specific args).
+ *   3) Verify both return identical error codes for similar failure scenarios.
+ *   4) Confirm both have same lifecycle (setup → auto-wire → cleanup).
+ * Status: RED (pattern consistency validation pending auto-subscribe implementation).
  */
-TEST(UT_EventTypicalAutoSubscribe, verifyBidirectionalAutoSubscribe_byBothSides_expectBothDirections) {
-    GTEST_SKIP() << "AUTO-SUBSCRIBE: Bidirectional auto-subscribe testing pending implementation";
+TEST(UT_EventTypicalAutoSubscribe, verifyEvtAutoSubscribePattern_matchesDatAutoWiring_expectConsistentAPI) {
+    GTEST_SKIP() << "API-CONSISTENCY: Event auto-subscribe API pattern validation pending implementation";
 }
 
-// [@AC-2,US-3] TC-1: Mixed Capability Auto-Subscribe
+// [@AC-2,US-3] TC-1: Consistent Error Handling Across Capabilities
 /**
- * Test: verifyMixedCapabilityAutoSubscribe_byDifferentUsageTypes_expectCorrectBehavior
- * Purpose: Ensure auto-subscribe only applies to appropriate Usage types.
+ * Test: verifyConsistentErrorHandling_acrossEvtDatCmd_expectSameErrorCodes
+ * Purpose: Validate that Event auto-subscribe uses same error patterns as DAT/CMD.
  * Steps:
- *   1) Online service with EvtProducer+EvtConsumer capabilities.
- *   2) Connect clients with different Usage types (EvtConsumer, EvtProducer, DatSender).
- *   3) Verify auto-subscribe occurs only for EvtConsumer clients.
- *   4) Verify other Usage types require manual subscription.
- * Status: RED (mixed capability auto-subscribe logic not implemented).
+ *   1) Test invalid UsageArgs scenarios for EVT, DAT, and CMD capabilities.
+ *   2) Verify all return same error codes (e.g., IOC_RESULT_INVALID_PARAM).
+ *   3) Verify all perform same cleanup actions on failure.
+ *   4) Confirm all leave system in same clean state after error.
+ * Status: RED (cross-capability error handling consistency pending implementation).
  */
-TEST(UT_EventTypicalAutoSubscribe, verifyMixedCapabilityAutoSubscribe_byDifferentUsageTypes_expectCorrectBehavior) {
-    GTEST_SKIP() << "AUTO-SUBSCRIBE: Mixed capability auto-subscribe validation pending implementation";
+TEST(UT_EventTypicalAutoSubscribe, verifyConsistentErrorHandling_acrossEvtDatCmd_expectSameErrorCodes) {
+    GTEST_SKIP() << "API-CONSISTENCY: Cross-capability error handling validation pending implementation";
+}
+
+// [@AC-3,US-3] TC-1: Mixed Capability Independence
+/**
+ * Test: verifyMixedCapabilityIndependence_byMultipleUsageArgs_expectIsolatedBehavior
+ * Purpose: Ensure different UsageArgs work independently but consistently.
+ * Steps:
+ *   1) Online service with EvtProducer + DatReceiver + CmdExecutor capabilities.
+ *   2) Set up SrvArgs.UsageArgs.pEvt, pDat, and pCmd simultaneously.
+ *   3) Connect clients with different Usage types.
+ *   4) Verify each auto-wiring works independently without interference.
+ * Status: RED (mixed capability independence validation pending implementation).
+ */
+TEST(UT_EventTypicalAutoSubscribe, verifyMixedCapabilityIndependence_byMultipleUsageArgs_expectIsolatedBehavior) {
+    GTEST_SKIP() << "API-CONSISTENCY: Mixed capability independence validation pending implementation";
+}
+
+// [@AC-4,US-3] TC-1: Consistent NULL UsageArgs Behavior
+/**
+ * Test: verifyNullUsageArgsConsistency_acrossAllCapabilities_expectUniformManualSetup
+ * Purpose: Ensure NULL UsageArgs behavior is consistent across EVT, DAT, CMD.
+ * Steps:
+ *   1) Online service with mixed capabilities but all UsageArgs set to NULL.
+ *   2) Connect clients for each capability type.
+ *   3) Verify all connections succeed but require manual setup.
+ *   4) Verify manual setup APIs work consistently for all capabilities.
+ * Status: RED (NULL UsageArgs consistency validation pending implementation).
+ */
+TEST(UT_EventTypicalAutoSubscribe, verifyNullUsageArgsConsistency_acrossAllCapabilities_expectUniformManualSetup) {
+    GTEST_SKIP() << "API-CONSISTENCY: NULL UsageArgs behavior consistency validation pending implementation";
 }
 
 //======>END OF TEST CASES=========================================================================
