@@ -63,92 +63,167 @@ IOC_Result_T IOC_acceptClient(
     /*ARG_IN_OPTIONAL*/ const IOC_Options_pT pOption);
 
 /**
- * @brief Establishes a connection to the IOC service.
-
- * This function connects to an IOC service and creates a communication link for data transfer or event/command usage.
- * The connection behavior can be configured through the pOption parameter.
-
+ * @brief Establishes a client connection to an IOC service.
+ *
+ * This function creates a communication link between a client and an IOC service, enabling
+ * data transfer, event messaging, or command execution based on the specified usage type.
+ * The resulting link's capabilities are strictly determined by the pConnArgs->Usage field.
+ *
  * @param[out] pLinkID    Pointer to store the resulting link identifier upon successful connection.
- *                        🎯 **LINK USAGE**: The returned LinkID's capabilities are determined by
- *                        pConnArgs->Usage field:
- *                        - IOC_LinkUsageDatSender → LinkID can call IOC_sendDAT()
- *                        - IOC_LinkUsageDatReceiver → LinkID can call IOC_recvDAT()
- *                        - IOC_LinkUsageEvtConsumer → LinkID can subscribe to events
- *                        - IOC_LinkUsageEvtProducer → LinkID can publish events
- *                        This LinkID will be used for subsequent operations matching its usage.
-
- * @param[in]  pConnArgs  Pointer to the connection arguments required for establishing the service.
- *                        🔑 **KEY FIELD**: pConnArgs->Usage determines what the resulting Link can do!
- *                        Contains service URI, usage type, and other connection parameters.
- *                        The service must have compatible UsageCapabilites for connection to succeed.
- *                        🚩 **EVENT AUTO-SUBSCRIBE PROPOSAL**: If Usage == IOC_LinkUsageEvtConsumer and UsageArgs.pEvt
- is set,
- *                        IOC_connectService MAY (future: WILL) automatically call IOC_subEVT(LinkID, UsageArgs.pEvt)
- after connect.
- *                        This enables one-step connect+subscribe for event consumers. See
- UT_EventTypicalAutoSubscribe.cxx for details.
-
- * @param[in]  pOption    (Optional) Pointer to additional options for configuring the connection.
- *                        ⚠️  **DEFAULT BEHAVIOR**: When pOption is NULL, the connection operates in
- *                        **SYNCHRONOUS MODE** by default, meaning:
- *                        - IOC_sendDAT() calls will BLOCK until data is transmitted
- *                        - IOC_recvDAT() calls will BLOCK until data is received
- *                        - Connection establishment will BLOCK until completed
-
- *                        To enable ASYNCHRONOUS MODE, pass valid IOC_Options with appropriate flags.
-
- * @return IOC_Result_T   The result of the connection attempt, indicating success or the type of failure.
- *                        - IOC_RESULT_SUCCESS: Connection established successfully, NEW Link created
- *                                              with capabilities determined by pConnArgs->Usage
- *                        - IOC_RESULT_INVALID_ARG: Invalid arguments provided
- *                        - IOC_RESULT_CONNECTION_FAILED: Unable to connect to service
- *                        - IOC_RESULT_INCOMPATIBLE_USAGE: Service doesn't support requested Usage
- *                        - IOC_RESULT_TIMEOUT: Connection attempt timed out (in sync mode)
- *                        - Other error codes as defined in IOC_Result_T
-
- * @note 🎯 Link Usage: The resulting Link's usage capabilities are determined by pConnArgs->Usage
- * @note Default Connection Mode: SYNCHRONOUS (when pOption = NULL)
- * @note For performance testing: Consider async mode for high-throughput scenarios
- * @note Thread Safety: This function is thread-safe and can be called concurrently
-
- * @example Link Usage Examples
+ *                        ⚠️  **CRITICAL**: The returned LinkID can ONLY be used for operations
+ *                        matching its Usage capability:
+ *                        - IOC_LinkUsageDatSender    → Can call IOC_sendDAT() only
+ *                        - IOC_LinkUsageDatReceiver  → Can call IOC_recvDAT() only
+ *                        - IOC_LinkUsageEvtConsumer  → Can subscribe to events via IOC_subEVT()
+ *                        - IOC_LinkUsageEvtProducer  → Can publish events via IOC_postEVT()
+ *                        - IOC_LinkUsageCmdInitiator → Can initiate commands via IOC_execCMD()
+ *                        - IOC_LinkUsageCmdExecutor  → Can execute commands via callback
+ *
+ * @param[in]  pConnArgs  Connection arguments specifying service details and link usage.
+ *                        **REQUIRED FIELDS**:
+ *                        - SrvURI: Service address (protocol, host, path)
+ *                        - Usage: Determines link capabilities (see pLinkID description)
+ *
+ *                        **OPTIONAL FIELDS**:
+ *                        - UsageArgs: Usage-specific configuration
+ *                          - .pEvt: Event callback/subscription config (for event usage)
+ *                          - .pCmd: Command execution config (for command usage)
+ *                          - .pDat: Data transfer config (for data usage)
+ *
+ *                        **SERVICE COMPATIBILITY**: The target service must support the
+ *                        complementary usage capability:
+ *                        | Client Usage             | Required Service Capability    |
+ *                        |-------------------------|-------------------------------|
+ *                        | IOC_LinkUsageDatSender   | IOC_LinkUsageDatReceiver      |
+ *                        | IOC_LinkUsageDatReceiver | IOC_LinkUsageDatSender        |
+ *                        | IOC_LinkUsageEvtConsumer | IOC_LinkUsageEvtProducer      |
+ *                        | IOC_LinkUsageEvtProducer | IOC_LinkUsageEvtConsumer      |
+ *                        | IOC_LinkUsageCmdInitiator| IOC_LinkUsageCmdExecutor      |
+ *                        | IOC_LinkUsageCmdExecutor | IOC_LinkUsageCmdInitiator     |
+ *
+ *                        🚩 **FUTURE FEATURE - AUTO-SUBSCRIBE**: When Usage == IOC_LinkUsageEvtConsumer
+ *                        and UsageArgs.pEvt is provided, the function may automatically subscribe
+ *                        to specified events after connection. See UT_EventTypicalAutoSubscribe.cxx.
+ *
+ * @param[in]  pOption    Optional connection configuration. Pass NULL for default behavior.
+ *                        **DEFAULT (pOption = NULL)**: SYNCHRONOUS mode where:
+ *                        - Connection establishment blocks until completed
+ *                        - Subsequent IOC_sendDAT()/IOC_recvDAT() calls block until completion
+ *                        - Timeout behavior follows system defaults
+ *
+ *                        **CUSTOM OPTIONS**: Set IOC_Options to configure:
+ *                        - Timeout values (IOC_OPTID_TIMEOUT)
+ *                        - Asynchronous operation modes
+ *                        - Protocol-specific parameters
+ *
+ * @retval IOC_RESULT_SUCCESS          Connection established successfully. Link created with
+ *                                     capabilities matching pConnArgs->Usage.
+ * @retval IOC_RESULT_INVALID_PARAM    Invalid arguments (NULL pointers, malformed URI, etc.)
+ * @retval IOC_RESULT_CONNECTION_FAILED Unable to reach service or establish connection
+ * @retval IOC_RESULT_INCOMPATIBLE_USAGE Service doesn't support the requested Usage type
+ * @retval IOC_RESULT_POSIX_ENOMEM     Insufficient memory to create link object
+ * @retval IOC_RESULT_TIMEOUT          Connection attempt timed out (in synchronous mode)
+ * @retval IOC_RESULT_TOO_MANY_CLIENTS Service has reached maximum client limit
+ *
+ * @note **Thread Safety**: This function is thread-safe and supports concurrent connections.
+ * @note **Resource Management**: Use IOC_closeLink() to properly release the connection.
+ * @note **Performance**: For high-throughput scenarios, consider asynchronous mode via pOption.
+ * @note **Debugging**: Use IOC_getLinkState() to verify connection state after successful connection.
+ *
+ * @warning **Protocol Dependency**: Connection behavior varies by protocol (FIFO, TCP, etc.).
+ *          Some protocols may require the service to be online before connection attempts.
+ *
+ * @see IOC_onlineService() - Create a service that clients can connect to
+ * @see IOC_acceptClient() - Server-side function to accept incoming connections
+ * @see IOC_closeLink() - Close an established connection
+ * @see IOC_getLinkState() - Check connection status and sub-states
+ * @see IOC_SrvTypes.h - Data types and constants used in connection arguments
+ *
+ * @example Data Transfer Client (Sender)
  * @code
- * // Example 1: Create a SENDER link for data transmission
+ * // Create a client that SENDS data to a service
  * IOC_LinkID_T senderLinkID;
+ * IOC_ConnArgs_T connArgs = {};
+ * IOC_Helper_initConnArgs(&connArgs);
+ *
+ * // Configure service location
+ * connArgs.SrvURI.pProtocol = IOC_SRV_PROTO_FIFO;
+ * connArgs.SrvURI.pHost = IOC_SRV_HOST_LOCAL_PROCESS;
+ * connArgs.SrvURI.pPath = "data/processing/service";
+ *
+ * // Set usage: this link will SEND data
+ * connArgs.Usage = IOC_LinkUsageDatSender;
+ *
+ * // Connect in default SYNC mode
+ * IOC_Result_T result = IOC_connectService(&senderLinkID, &connArgs, NULL);
+ * if (result == IOC_RESULT_SUCCESS) {
+ *     // ✅ Now senderLinkID can SEND data
+ *     IOC_DatDesc_T dataDesc = { .DatLen = strlen("Hello"), .pDat = "Hello" };
+ *     IOC_sendDAT(senderLinkID, &dataDesc, NULL);  // This works
+ *
+ *     // ❌ senderLinkID CANNOT receive data
+ *     // IOC_recvDAT(senderLinkID, &dataDesc, NULL);  // Would return error
+ *
+ *     IOC_closeLink(senderLinkID);  // Clean up
+ * }
+ * @endcode
+ *
+ * @example Event Consumer Client with Custom Callback
+ * @code
+ * // Create a client that CONSUMES events from a service
+ * IOC_LinkID_T consumerLinkID;
+ * IOC_ConnArgs_T connArgs = {};
+ * IOC_Helper_initConnArgs(&connArgs);
+ *
+ * // Service that produces events
+ * connArgs.SrvURI.pProtocol = IOC_SRV_PROTO_FIFO;
+ * connArgs.SrvURI.pHost = IOC_SRV_HOST_LOCAL_PROCESS;
+ * connArgs.SrvURI.pPath = "monitoring/alerts";
+ * connArgs.Usage = IOC_LinkUsageEvtConsumer;  // This link will CONSUME events
+ *
+ * // Connect and then manually subscribe to specific events
+ * IOC_Result_T result = IOC_connectService(&consumerLinkID, &connArgs, NULL);
+ * if (result == IOC_RESULT_SUCCESS) {
+ *     // Setup event subscription
+ *     IOC_EvtID_T events[] = { IOC_EVTID_TEST_KEEPALIVE, IOC_EVTID_TEST_ERROR };
+ *     IOC_SubEvtArgs_T subArgs = {
+ *         .CbProcEvt_F = MyEventCallback,
+ *         .pCbPrivData = &myPrivateData,
+ *         .EvtNum = 2,
+ *         .pEvtIDs = events
+ *     };
+ *
+ *     IOC_subEVT(consumerLinkID, &subArgs);  // Subscribe to events
+ *
+ *     // Events will now be delivered to MyEventCallback()
+ *     // ... application logic ...
+ *
+ *     IOC_closeLink(consumerLinkID);
+ * }
+ * @endcode
+ *
+ * @example Connection with Timeout Configuration
+ * @code
+ * // Connect with custom timeout settings
+ * IOC_Options_T options = {};
+ * options.IDs = IOC_OPTID_TIMEOUT;
+ * options.Payload.TimeoutUS = 5000000;  // 5 second timeout
+ *
  * IOC_ConnArgs_T connArgs = {};
  * IOC_Helper_initConnArgs(&connArgs);
  * connArgs.SrvURI.pProtocol = IOC_SRV_PROTO_FIFO;
  * connArgs.SrvURI.pHost = IOC_SRV_HOST_LOCAL_PROCESS;
- * connArgs.SrvURI.pPath = "test/data/service";
- * connArgs.Usage = IOC_LinkUsageDatSender;  // 🎯 This determines Link capability
-
- * // SYNC mode (default) - operations will block
- * IOC_Result_T result = IOC_connectService(&senderLinkID, &connArgs, NULL);
- * if (result == IOC_RESULT_SUCCESS) {
- *     // ✅ Now senderLinkID can SEND data (because Usage = DatSender)
- *     IOC_sendDAT(senderLinkID, &datDesc, NULL);
- *     // ❌ But senderLinkID CANNOT receive data
- *     // IOC_recvDAT(senderLinkID, &datDesc, NULL);  // This would fail
+ * connArgs.SrvURI.pPath = "slow/service";
+ * connArgs.Usage = IOC_LinkUsageDatSender;
+ *
+ * IOC_LinkID_T linkID;
+ * IOC_Result_T result = IOC_connectService(&linkID, &connArgs, &options);
+ * if (result == IOC_RESULT_TIMEOUT) {
+ *     printf("Service took too long to respond\n");
+ * } else if (result == IOC_RESULT_SUCCESS) {
+ *     printf("Connected successfully within timeout\n");
+ *     IOC_closeLink(linkID);
  * }
-
- * // Example 2: Create a RECEIVER link for data reception
- * IOC_LinkID_T receiverLinkID;
- * connArgs.Usage = IOC_LinkUsageDatReceiver;  // 🎯 Different usage = different capability
- * result = IOC_connectService(&receiverLinkID, &connArgs, NULL);
- * if (result == IOC_RESULT_SUCCESS) {
- *     // ✅ Now receiverLinkID can RECEIVE data (because Usage = DatReceiver)
- *     IOC_recvDAT(receiverLinkID, &datDesc, NULL);
- *     // ❌ But receiverLinkID CANNOT send data
- *     // IOC_sendDAT(receiverLinkID, &datDesc, NULL);  // This would fail
- * }
-
- * // Example 3: Create an EVENT CONSUMER link with auto-subscribe (proposal)
- * IOC_LinkID_T evtConsumerLinkID;
- * IOC_EvtUsageArgs_T evtArgs = { .CbProcEvt_F = MyCb, .pCbPrivData = &priv, .EvtNum = 1, .pEvtIDs = &evtID };
- * connArgs.Usage = IOC_LinkUsageEvtConsumer;
- * connArgs.UsageArgs.pEvt = &evtArgs;
- * result = IOC_connectService(&evtConsumerLinkID, &connArgs, NULL);
- * // If supported, evtConsumerLinkID will be auto-subscribed to events via evtArgs
  * @endcode
  */
 IOC_Result_T IOC_connectService(
