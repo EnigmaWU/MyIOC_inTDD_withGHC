@@ -163,7 +163,7 @@ static IOC_Result_T __EvtTypical_ClientCb(const IOC_EvtDesc_pT pEvtDesc, void *p
 
 // [@AC-2,US-1]
 // TC-1:
-//   @[Name]: verifyConetEvent_byServiceAsProducer_multiClientIsolation_expectPerLinkDelivery
+//   @[Name]: verifyServiceAsEvtProducer_byMultiClientIsolation_expectPerLinkDelivery
 //   @[Purpose]: Ensure per-link isolation; each client receives only its own event.
 //   @[Brief]: Two+ clients connect as EvtConsumers; service posts distinct events to each link; each client receives
 //   only its respective event.
@@ -172,8 +172,8 @@ static IOC_Result_T __EvtTypical_ClientCb(const IOC_EvtDesc_pT pEvtDesc, void *p
 //     2) Connect N clients (EvtConsumer), each with its own callback context.
 //     3) Post event-A to link-1, event-B to link-2, ...
 //     4) Assert client-1 only saw event-A; client-2 only saw event-B; etc.
-TEST(UT_EventTypical, verifyConetEvent_ServiceAsProducer_multiClientIsolation_expectPerLinkDelivery) {
-    IOC_Result_T R = IOC_RESULT_BUG;
+TEST(UT_ConetEventTypical, verifyServiceAsEvtProducer_byMultiClientIsolation_expectPerLinkDelivery) {
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
     const int NumClients = 2;
 
     // Service setup (Conet producer)
@@ -182,40 +182,40 @@ TEST(UT_EventTypical, verifyConetEvent_ServiceAsProducer_multiClientIsolation_ex
                            .pPath = (const char *)"EvtTypical_ProducerMulti"};
     IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageEvtProducer};
     IOC_SrvID_T SrvID = IOC_ID_INVALID;
-    R = IOC_onlineService(&SrvID, &SrvArgs);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+    ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
 
     // Client contexts and threads
     __EvtRecvPriv_T RecvPrivs[NumClients] = {};
     std::thread CliThreads[NumClients];
-    IOC_LinkID_T CliLinks[NumClients] = {IOC_ID_INVALID, IOC_ID_INVALID};
+    IOC_LinkID_T CliLinkIDs[NumClients] = {IOC_ID_INVALID, IOC_ID_INVALID};
     std::atomic<int> SubscribedCount{0};
 
     // Start client threads
     for (int i = 0; i < NumClients; ++i) {
         CliThreads[i] = std::thread([&, i] {
             IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageEvtConsumer};
-            IOC_Result_T R2 = IOC_connectService(&CliLinks[i], &ConnArgs, NULL);
-            ASSERT_EQ(IOC_RESULT_SUCCESS, R2);
-            ASSERT_NE(IOC_ID_INVALID, CliLinks[i]);
+            IOC_Result_T ResultValueInThread = IOC_connectService(&CliLinkIDs[i], &ConnArgs, NULL);
+            ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValueInThread);
+            ASSERT_NE(IOC_ID_INVALID, CliLinkIDs[i]);
 
             static IOC_EvtID_T SubEvtIDs[1] = {IOC_EVTID_TEST_KEEPALIVE};
             IOC_SubEvtArgs_T Sub = {.CbProcEvt_F = __EvtTypical_ClientCb,
                                     .pCbPrivData = &RecvPrivs[i],
                                     .EvtNum = 1,
                                     .pEvtIDs = &SubEvtIDs[0]};
-            R2 = IOC_subEVT(CliLinks[i], &Sub);
-            ASSERT_EQ(IOC_RESULT_SUCCESS, R2);
+            ResultValueInThread = IOC_subEVT(CliLinkIDs[i], &Sub);
+            ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValueInThread);
             SubscribedCount++;
         });
     }
 
     // Accept clients on service side
-    IOC_LinkID_T SrvLinks[NumClients] = {IOC_ID_INVALID, IOC_ID_INVALID};
+    IOC_LinkID_T SrvLinkIDs[NumClients] = {IOC_ID_INVALID, IOC_ID_INVALID};
     for (int i = 0; i < NumClients; ++i) {
-        R = IOC_acceptClient(SrvID, &SrvLinks[i], NULL);
-        ASSERT_EQ(IOC_RESULT_SUCCESS, R);
-        ASSERT_NE(IOC_ID_INVALID, SrvLinks[i]);
+        ResultValue = IOC_acceptClient(SrvID, &SrvLinkIDs[i], NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+        ASSERT_NE(IOC_ID_INVALID, SrvLinkIDs[i]);
     }
 
     // Wait for all clients to subscribe
@@ -227,13 +227,13 @@ TEST(UT_EventTypical, verifyConetEvent_ServiceAsProducer_multiClientIsolation_ex
     // Post the SAME event to ALL links to verify isolation
     // If isolation works, each client should receive exactly ONE event
     // If isolation fails, some clients might receive multiple events or wrong events
-    IOC_EvtDesc_T E = {};
-    E.EvtID = IOC_EVTID_TEST_KEEPALIVE;
-    E.EvtValue = 42;  // Same value for all
+    IOC_EvtDesc_T EvtDesc = {};
+    EvtDesc.EvtID = IOC_EVTID_TEST_KEEPALIVE;
+    EvtDesc.EvtValue = 42;  // Same value for all
 
     for (int i = 0; i < NumClients; ++i) {
-        R = IOC_postEVT(SrvLinks[i], &E, NULL);
-        ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+        ResultValue = IOC_postEVT(SrvLinkIDs[i], &EvtDesc, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
     }
 
     // Wait for all callbacks
@@ -267,14 +267,14 @@ TEST(UT_EventTypical, verifyConetEvent_ServiceAsProducer_multiClientIsolation_ex
     // Cleanup
     for (int i = 0; i < NumClients; ++i) {
         if (CliThreads[i].joinable()) CliThreads[i].join();
-        if (CliLinks[i] != IOC_ID_INVALID) IOC_closeLink(CliLinks[i]);
+        if (CliLinkIDs[i] != IOC_ID_INVALID) IOC_closeLink(CliLinkIDs[i]);
     }
     if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
 // [@AC-1,US-2]
 // TC-1:
-//   @[Name]: verifyConetEvent_byServiceAsConsumer_singleClient_expectProcessed
+//   @[Name]: verifyServiceAsEvtConsumer_bySingleClient_expectProcessed
 //   @[Purpose]: Validate service-side consumption when client posts to its link.
 //   @[Brief]: Service online as EvtConsumer; client connects as EvtProducer; client posts one event; service callback
 //   processes it.
@@ -283,8 +283,8 @@ TEST(UT_EventTypical, verifyConetEvent_ServiceAsProducer_multiClientIsolation_ex
 //     2) Connect one client (Usage=EvtProducer).
 //     3) Client posts event to its link.
 //     4) Assert service callback fired and payload/ID match.
-TEST(UT_EventTypical, verifyConetEvent_ServiceAsConsumer_singleClient_expectProcessed) {
-    IOC_Result_T R = IOC_RESULT_BUG;
+TEST(UT_ConetEventTypical, verifyServiceAsEvtConsumer_bySingleClient_expectProcessed) {
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
 
     // Service setup (Conet consumer with callback)
     __EvtRecvPriv_T SrvRecvPriv = {};
@@ -293,39 +293,39 @@ TEST(UT_EventTypical, verifyConetEvent_ServiceAsConsumer_singleClient_expectProc
                            .pPath = (const char *)"EvtTypical_ConsumerSingle"};
     IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageEvtConsumer};
     IOC_SrvID_T SrvID = IOC_ID_INVALID;
-    R = IOC_onlineService(&SrvID, &SrvArgs);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+    ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
 
     // Client setup (Conet producer) — connect in a separate thread
     IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageEvtProducer};
-    IOC_LinkID_T CliLink = IOC_ID_INVALID;
+    IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
     std::thread CliThread([&] {
-        IOC_Result_T R2 = IOC_connectService(&CliLink, &ConnArgs, NULL);
-        ASSERT_EQ(IOC_RESULT_SUCCESS, R2);
-        ASSERT_NE(IOC_ID_INVALID, CliLink);
+        IOC_Result_T ResultValueInThread = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValueInThread);
+        ASSERT_NE(IOC_ID_INVALID, CliLinkID);
     });
 
     // Accept the client and setup service-side subscription
-    IOC_LinkID_T SrvLink = IOC_ID_INVALID;
-    R = IOC_acceptClient(SrvID, &SrvLink, NULL);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
-    ASSERT_NE(IOC_ID_INVALID, SrvLink);
+    IOC_LinkID_T SrvLinkID = IOC_ID_INVALID;
+    ResultValue = IOC_acceptClient(SrvID, &SrvLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, SrvLinkID);
 
     static IOC_EvtID_T SubEvtIDs[1] = {IOC_EVTID_TEST_KEEPALIVE};
     IOC_SubEvtArgs_T Sub = {
         .CbProcEvt_F = __EvtTypical_ClientCb, .pCbPrivData = &SrvRecvPriv, .EvtNum = 1, .pEvtIDs = &SubEvtIDs[0]};
-    R = IOC_subEVT(SrvLink, &Sub);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+    ResultValue = IOC_subEVT(SrvLinkID, &Sub);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
 
     // Wait for client thread completion
     if (CliThread.joinable()) CliThread.join();
 
     // Client posts event to service
-    IOC_EvtDesc_T E = {};
-    E.EvtID = IOC_EVTID_TEST_KEEPALIVE;
-    E.EvtValue = 123;
-    R = IOC_postEVT(CliLink, &E, NULL);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+    IOC_EvtDesc_T EvtDesc = {};
+    EvtDesc.EvtID = IOC_EVTID_TEST_KEEPALIVE;
+    EvtDesc.EvtValue = 123;
+    ResultValue = IOC_postEVT(CliLinkID, &EvtDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
 
     // Wait for service callback
     for (int i = 0; i < 60; ++i) {
@@ -338,13 +338,14 @@ TEST(UT_EventTypical, verifyConetEvent_ServiceAsConsumer_singleClient_expectProc
     ASSERT_EQ((ULONG_T)123, SrvRecvPriv.EvtValue);
 
     // Cleanup
-    if (CliLink != IOC_ID_INVALID) IOC_closeLink(CliLink);
+    if (CliLinkID != IOC_ID_INVALID) IOC_closeLink(CliLinkID);
+    if (SrvLinkID != IOC_ID_INVALID) IOC_closeLink(SrvLinkID);
     if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
 // [@AC-2,US-2]
 // TC-1:
-//   @[Name]: verifyConetEvent_byOrderPerLink_expectInOrderObservation
+//   @[Name]: verifyOrderPerLink_bySequentialEvents_expectInOrderObservation
 //   @[Purpose]: Ensure in-order observation on the same link under sequential posts.
 //   @[Brief]: Client posts a sequence of events (IDs/payload sequence) to one link; service records order; assert
 //   preserved order.
@@ -352,20 +353,20 @@ TEST(UT_EventTypical, verifyConetEvent_ServiceAsConsumer_singleClient_expectProc
 //     1) Online service (EvtConsumer) with callback storing sequence.
 //     2) Client (EvtProducer) posts events E1..En sequentially on same link.
 //     3) Wait for processing; verify order E1..En at service.
-TEST(UT_EventTypical, verifyConetEvent_OrderPerLink_placeholder) {
+TEST(UT_ConetEventTypical, verifyOrderPerLink_bySequentialEvents_expectInOrderObservation) {
     GTEST_SKIP() << "Pending: Conet per-link in-order event observation";
 }
 
 // Optional lifecycle/cleanup case
 // TC-1:
-//   @[Name]: verifyConetEvent_byOfflineLifecycle_expectCleanup
+//   @[Name]: verifyOfflineLifecycle_byServiceShutdown_expectCleanup
 //   @[Purpose]: Validate links and callbacks are cleaned up when service goes offline.
 //   @[Brief]: Service online; client connects; take service offline; ensure link closed and no further event delivery.
 //   @[Steps]:
 //     1) Online service; client connects.
 //     2) Post an event (works), then offline service.
 //     3) Further posts (if attempted) fail; no callbacks invoked; resources freed.
-TEST(UT_EventTypical, verifyConetEvent_OfflineLifecycle_placeholder) {
+TEST(UT_ConetEventTypical, verifyOfflineLifecycle_byServiceShutdown_expectCleanup) {
     GTEST_SKIP() << "Pending: Conet offline lifecycle and cleanup";
 }
 
