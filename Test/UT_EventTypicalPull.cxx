@@ -568,17 +568,17 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byNonBlockingMode_expectImmediateReturn
 
 // [@AC-2,US-2] TC-1: verifyPullEVT_byBlockingTimeout_expectTimeoutBehavior
 TEST(UT_ConetEventTypical, verifyPullEVT_byBlockingTimeout_expectTimeoutBehavior) {
-    IOC_Result_T R = IOC_RESULT_BUG;
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
     const ULONG_T TimeoutUS = 100000;  // 100ms timeout
 
-    // Service setup
+    // Service setup (Conet producer)
     IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
                            .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
                            .pPath = (const char *)"EvtPull_BlockingTimeout"};
     IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageEvtProducer};
     IOC_SrvID_T SrvID = IOC_ID_INVALID;
-    R = IOC_onlineService(&SrvID, &SrvArgs);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+    ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
 
     // Client setup (Conet consumer) - specify events to subscribe via ConnArgs
     IOC_EvtID_T SubEvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
@@ -591,30 +591,38 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byBlockingTimeout_expectTimeoutBehavior
 
     IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
     std::thread CliThread([&] {
-        IOC_Result_T R_thread = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
-        ASSERT_EQ(IOC_RESULT_SUCCESS, R_thread);
+        IOC_Result_T ResultValueInThread = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValueInThread);
+        ASSERT_NE(IOC_ID_INVALID, CliLinkID);
     });
 
-    // Accept client
+    // Accept the client
     IOC_LinkID_T SrvLinkID = IOC_ID_INVALID;
-    R = IOC_acceptClient(SrvID, &SrvLinkID, NULL);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+    ResultValue = IOC_acceptClient(SrvID, &SrvLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, SrvLinkID);
+
+    // Wait for client connection
     if (CliThread.joinable()) CliThread.join();
 
-    // Try to pull with timeout (no events posted)
+    // Pull with timeout when no events are available - measure timing behavior
     auto startTime = std::chrono::high_resolution_clock::now();
 
     IOC_EvtDesc_T PulledEvt = {};
     IOC_Options_T Options[] = {{.IDs = IOC_OPTID_TIMEOUT, .Payload.TimeoutUS = TimeoutUS}};
-    R = IOC_pullEVT(CliLinkID, &PulledEvt, Options);
+    ResultValue = IOC_pullEVT(CliLinkID, &PulledEvt, Options);
 
     auto endTime = std::chrono::high_resolution_clock::now();
     auto actualDuration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
 
-    // Verify timeout behavior
-    ASSERT_EQ(IOC_RESULT_TIMEOUT, R) << "Should return TIMEOUT when no events within timeout";
-    ASSERT_GE(actualDuration.count(), TimeoutUS * 0.8) << "Timeout occurred too early";
-    ASSERT_LE(actualDuration.count(), TimeoutUS * 1.5) << "Timeout occurred too late";
+    // Verify timeout behavior and timing accuracy
+    ASSERT_EQ(IOC_RESULT_TIMEOUT, ResultValue) << "Should return TIMEOUT when no events within timeout";
+    ASSERT_GE(actualDuration.count(), (ULONG_T)(TimeoutUS * 0.8)) << "Timeout occurred too early";
+    ASSERT_LE(actualDuration.count(), (ULONG_T)(TimeoutUS * 1.5)) << "Timeout occurred too late";
+
+    // Verify no partial event data was retrieved
+    ASSERT_EQ((IOC_EvtID_T)0, IOC_EvtDesc_getEvtID(&PulledEvt)) << "Event ID should be 0 for timeout";
+    ASSERT_EQ((ULONG_T)0, IOC_EvtDesc_getEvtValue(&PulledEvt)) << "Event value should be 0 for timeout";
 
     // Cleanup
     if (CliLinkID != IOC_ID_INVALID) IOC_closeLink(CliLinkID);
