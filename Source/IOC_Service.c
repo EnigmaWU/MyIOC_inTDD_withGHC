@@ -1,5 +1,6 @@
 #include <pthread.h>
 
+#include "IOC/IOC_EvtAPI.h"  // For IOC_subEVT auto-subscription
 #include "_IOC.h"
 
 //=================================================================================================
@@ -710,6 +711,25 @@ IOC_Result_T IOC_connectService(
         return Result;
     } else {
         *pLinkID = pLinkObj->ID;
+    }
+
+    // Step4-: Auto-subscribe if ConnArgs.UsageArgs.pEvt is provided for event consumers
+    // This implements the auto-subscription feature for polling-based event consumption
+    if (pConnArgs->Usage == IOC_LinkUsageEvtConsumer && pConnArgs->UsageArgs.pEvt != NULL) {
+        // Convert IOC_EvtUsageArgs_T to IOC_SubEvtArgs_T for IOC_subEVT
+        IOC_SubEvtArgs_T SubEvtArgs = {.pEvtIDs = pConnArgs->UsageArgs.pEvt->pEvtIDs,
+                                       .EvtNum = pConnArgs->UsageArgs.pEvt->EvtNum,
+                                       .CbProcEvt_F = pConnArgs->UsageArgs.pEvt->CbProcEvt_F,
+                                       .pCbPrivData = pConnArgs->UsageArgs.pEvt->pCbPrivData};
+
+        // Automatically subscribe to the specified events
+        IOC_Result_T SubResult = IOC_subEVT(*pLinkID, &SubEvtArgs);
+        if (IOC_RESULT_SUCCESS != SubResult) {
+            // If auto-subscription fails, close the link and return the error
+            IOC_closeLink(*pLinkID);
+            *pLinkID = IOC_ID_INVALID;
+            return SubResult;
+        }
     }
 
     //_IOC_LogNotTested();

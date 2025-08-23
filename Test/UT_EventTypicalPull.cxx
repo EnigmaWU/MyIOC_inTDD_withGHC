@@ -130,19 +130,15 @@
  *
  * [@AC-1,US-1] TC-2: verifyPullEVT_byConnArgsSubscription_expectEventReceived
  * Test: verifyPullEVT_byConnArgsSubscription_expectEventReceived
- * Purpose: Validate service using IOC_pullEVT with ConnArgs-based event subscription.
+ * Purpose: Validate service using IOC_pullEVT with ConnArgs-based auto-subscription.
+ * Status: GREEN - Auto-subscription feature is implemented and working in IOC_connectService.
  * Steps:
  *   1) Online service (EvtConsumer); client specifies events to subscribe via ConnArgs.UsageArgs.pEvt.
  *   2) Client connects (EvtProducer) with auto-subscription via ConnArgs.
  *   3) Client posts an event to the service.
  *   4) Service calls IOC_pullEVT to retrieve the event (no manual IOC_subEVT needed).
  *   5) Assert event details match what client posted.
- *
- * TODO: [@AC-1,US-1] TC-2: verifyPullEVT_byConnArgsSubscription_expectEventReceived
- * Test: verifyPullEVT_byConnArgsSubscription_expectEventReceived
- * Purpose: Validate auto-subscription via ConnArgs.UsageArgs.pEvt for polling consumption.
- * Status: TODO - Requires implementation of auto-subscribe feature in IOC_connectService.
- * Note: Auto-subscription via ConnArgs.UsageArgs.pEvt is a design proposal (see UT_EventTypicalAutoSubscribe.cxx).
+ * Note: Auto-subscription via ConnArgs.UsageArgs.pEvt is fully implemented and tested.
  *
  * [@AC-2,US-1] TC-1: verifyPullEVT_byMultipleEvents_expectFIFOOrder
  * Test: verifyPullEVT_byMultipleEvents_expectFIFOOrder
@@ -339,7 +335,7 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byBasicPolling_expectEventReceived) {
 }
 
 // [@AC-1,US-1] TC-2: verifyPullEVT_byConnArgsSubscription_expectEventReceived
-// Status: RED - Demonstrates that auto-subscription via ConnArgs.UsageArgs.pEvt is not yet implemented
+// Status: GREEN - Auto-subscription via ConnArgs.UsageArgs.pEvt is implemented and working
 TEST(UT_ConetEventTypical, verifyPullEVT_byConnArgsSubscription_expectEventReceived) {
     IOC_Result_T ResultValue = IOC_RESULT_BUG;
 
@@ -388,7 +384,7 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byConnArgsSubscription_expectEventRecei
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
     // Client pulls the event using IOC_pullEVT (no manual IOC_subEVT needed)
-    // This should work when auto-subscription is implemented, but will fail now
+    // Auto-subscription works as expected - event successfully retrieved via polling
     IOC_EvtDesc_T PulledEvt = {};
     ResultValue = IOC_pullEVT(CliLinkID, &PulledEvt, NULL);  // Default non-blocking mode
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
