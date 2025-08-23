@@ -370,10 +370,157 @@ TEST(UT_ConetEventTypical, verifyClientAutoSubscribe_byConnArgsUsageArgsEvt_expe
  *   2) Connect client with Usage=EvtConsumer but UsageArgs.pEvt=NULL.
  *   3) Service posts event; verify no delivery (no subscription).
  *   4) Manually call IOC_subEVT; verify event delivery works.
- * Status: READY (can be implemented since client-side auto-subscribe is working).
+ * Status: GREEN (backward compatibility validated - manual subscription works when auto-subscribe disabled).
  */
 TEST(UT_ConetEventTypical, verifyNoAutoSubscribe_byNullUsageArgsEvt_expectManualRequired) {
-    GTEST_SKIP() << "AUTO-SUBSCRIBE: Baseline manual subscription behavior validation ready to implement";
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
+
+    // 📋 Test data setup
+    IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char*)"EvtNoAutoSubscribe_BackwardCompatTest"};
+
+    // 🔧 Setup service as EvtProducer (will send events to clients)
+    IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageEvtProducer};
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue) << "Service should come online successfully";
+    ASSERT_NE(IOC_ID_INVALID, SrvID) << "Service ID should be valid";
+
+    // 🎯 Setup client event reception tracking
+    struct {
+        std::atomic<bool> EventReceived{false};
+        std::atomic<int> ReceivedCount{0};
+        IOC_EvtID_T ReceivedEvtID = 0;
+        ULONG_T ReceivedEvtValue = 0;
+    } ClientEventData;
+
+    // Client event callback function
+    auto ClientEventCallback = [](const IOC_EvtDesc_pT pEvtDesc, void* pPrivData) -> IOC_Result_T {
+        auto* pEventData = static_cast<decltype(ClientEventData)*>(pPrivData);
+        pEventData->EventReceived = true;
+        pEventData->ReceivedCount++;
+        pEventData->ReceivedEvtID = pEvtDesc->EvtID;
+        pEventData->ReceivedEvtValue = pEvtDesc->EvtValue;
+        printf("📨 Client received event: EvtID=%" PRIu64 ", EvtValue=%lu\n", pEvtDesc->EvtID, pEvtDesc->EvtValue);
+        return IOC_RESULT_SUCCESS;
+    };
+
+    // 🚀 CRITICAL: Setup client WITHOUT auto-subscribe (UsageArgs.pEvt = NULL)
+    // This tests backward compatibility - no auto-subscribe should occur
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = SrvURI,
+        .Usage = IOC_LinkUsageEvtConsumer  // Client as event consumer
+    };
+    // 🎯 KEY: ConnArgs.UsageArgs.pEvt is NOT set (remains NULL)
+    // This should mean NO auto-subscribe occurs during IOC_connectService
+
+    // Connect client in a separate thread to avoid blocking before accept
+    IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
+    std::atomic<bool> ClientConnected{false};
+
+    std::thread ClientThread([&] {
+        printf("🔗 Client connecting WITHOUT auto-subscribe (UsageArgs.pEvt=NULL)...\n");
+        IOC_Result_T ThreadResult = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
+
+        // 🎯 EXPECTED BEHAVIOR: IOC_connectService should succeed but NOT call IOC_subEVT
+        // because ConnArgs.UsageArgs.pEvt == NULL (backward compatibility mode)
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ThreadResult) << "Client connection should succeed even without auto-subscribe";
+        ASSERT_NE(IOC_ID_INVALID, CliLinkID) << "Client link ID should be valid";
+
+        ClientConnected = true;
+        printf("✅ Client connected with LinkID=%" PRIu64 " (NO auto-subscribe expected)\n", CliLinkID);
+    });
+
+    // Accept the client on service side
+    IOC_LinkID_T SrvLinkID = IOC_ID_INVALID;
+    ResultValue = IOC_acceptClient(SrvID, &SrvLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue) << "Service should accept client successfully";
+    ASSERT_NE(IOC_ID_INVALID, SrvLinkID) << "Service link ID should be valid";
+
+    // Wait for client connection to complete
+    ClientThread.join();
+    ASSERT_TRUE(ClientConnected.load()) << "Client should be connected";
+
+    // 🎯 CRITICAL TEST PHASE 1: Verify NO auto-subscribe occurred
+    // Post event without manual subscription - should NOT be delivered
+    printf("📤 Service posting event to verify NO auto-subscribe occurred...\n");
+    IOC_EvtDesc_T EventToSend = {};
+    EventToSend.EvtID = IOC_EVTID_TEST_KEEPALIVE;
+    EventToSend.EvtValue = 11111;  // Test value
+
+    ResultValue = IOC_postEVT(SrvLinkID, &EventToSend, NULL);
+    // 🎯 KEY EXPECTATION: This should return IOC_RESULT_NO_EVENT_CONSUMER because no subscription exists
+    ASSERT_EQ(IOC_RESULT_NO_EVENT_CONSUMER, ResultValue)
+        << "Expected IOC_RESULT_NO_EVENT_CONSUMER when no subscription exists (no auto-subscribe occurred)";
+
+    // Wait briefly to ensure no event delivery (no subscription should exist)
+    printf("⏳ Waiting to verify NO event delivery (no auto-subscribe)...\n");
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));  // Longer wait to be sure
+
+    // 🎯 KEY ASSERTION: Event should NOT be received because no auto-subscribe occurred
+    ASSERT_FALSE(ClientEventData.EventReceived.load())
+        << "BACKWARD-COMPATIBILITY FAILURE: Event was received even though UsageArgs.pEvt=NULL. "
+        << "Auto-subscribe should NOT occur when UsageArgs.pEvt is NULL.";
+
+    ASSERT_EQ(0, ClientEventData.ReceivedCount.load())
+        << "Client should not receive any events without manual subscription";
+
+    printf("✅ BACKWARD-COMPATIBILITY SUCCESS: No auto-subscribe occurred when UsageArgs.pEvt=NULL\n");
+
+    // 🎯 CRITICAL TEST PHASE 2: Verify manual subscription still works
+    // Manually subscribe and verify event delivery works as expected
+    printf("🔧 Manually subscribing client to events...\n");
+    IOC_EvtID_T SubscribeEvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
+    IOC_SubEvtArgs_T ManualSubArgs = {
+        .CbProcEvt_F = ClientEventCallback, .pCbPrivData = &ClientEventData, .EvtNum = 1, .pEvtIDs = SubscribeEvtIDs};
+
+    ResultValue = IOC_subEVT(CliLinkID, &ManualSubArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue) << "Manual IOC_subEVT should succeed";
+
+    // Reset event tracking for manual subscription test
+    ClientEventData.EventReceived = false;
+    ClientEventData.ReceivedCount = 0;
+
+    // Post another event to verify manual subscription works
+    printf("📤 Service posting event to verify manual subscription works...\n");
+    EventToSend.EvtValue = 22222;  // Different test value
+    ResultValue = IOC_postEVT(SrvLinkID, &EventToSend, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue) << "Service should post event successfully";
+
+    // Wait for event delivery via manual subscription
+    printf("⏳ Waiting for event delivery via manual subscription...\n");
+    bool EventDelivered = false;
+    for (int i = 0; i < 100 && !ClientEventData.EventReceived.load(); ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    EventDelivered = ClientEventData.EventReceived.load();
+
+    // 🎯 KEY ASSERTION: Manual subscription should work perfectly
+    ASSERT_TRUE(EventDelivered) << "MANUAL SUBSCRIPTION FAILURE: Event not received after manual IOC_subEVT. "
+                                << "Manual subscription should work when auto-subscribe is disabled.";
+
+    ASSERT_EQ(1, ClientEventData.ReceivedCount.load())
+        << "Client should receive exactly one event via manual subscription";
+
+    ASSERT_EQ(IOC_EVTID_TEST_KEEPALIVE, ClientEventData.ReceivedEvtID)
+        << "Received event ID should match sent event ID";
+
+    ASSERT_EQ(22222U, ClientEventData.ReceivedEvtValue) << "Received event value should match sent event value";
+
+    printf("✅ MANUAL SUBSCRIPTION SUCCESS: Event received after manual IOC_subEVT\n");
+    printf("✅ BACKWARD-COMPATIBILITY VERIFIED: UsageArgs.pEvt=NULL → manual subscription required\n");
+
+    // Cleanup
+    if (CliLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(CliLinkID);
+    }
+    if (SrvLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(SrvLinkID);
+    }
+    if (SrvID != IOC_ID_INVALID) {
+        IOC_offlineService(SrvID);
+    }
 }
 
 // [@AC-3,US-1] TC-1: Multi-Client Auto-Subscribe Isolation
@@ -388,7 +535,170 @@ TEST(UT_ConetEventTypical, verifyNoAutoSubscribe_byNullUsageArgsEvt_expectManual
  * Status: READY (can be implemented since client-side auto-subscribe is working).
  */
 TEST(UT_ConetEventTypical, verifyMultiClientAutoSubscribe_byDifferentEvtIDs_expectIsolation) {
-    GTEST_SKIP() << "AUTO-SUBSCRIBE: Multi-client auto-subscribe isolation testing ready to implement";
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
+
+    // 📋 Test data setup - unique service path for this test
+    IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char*)"EvtAutoSubscribe_MultiClientTest"};
+
+    // 1) Online service (EvtProducer capability) with AUTO_ACCEPT for simplicity
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = SrvURI, .Flags = IOC_SRVFLAG_AUTO_ACCEPT, .UsageCapabilites = IOC_LinkUsageEvtProducer};
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue) << "Service should come online successfully";
+    ASSERT_NE(IOC_ID_INVALID, SrvID) << "Service ID should be valid";
+
+    // 2) Setup tracking for multiple clients
+    struct ClientEventData {
+        std::atomic<bool> EventReceived{false};
+        std::atomic<int> ReceivedCount{0};
+        IOC_EvtID_T ExpectedEvtID = 0;
+        IOC_EvtID_T ReceivedEvtID = 0;
+        ULONG_T ReceivedEvtValue = 0;
+        std::string ClientName;
+    } Client1Data, Client2Data, Client3Data;
+
+    Client1Data.ClientName = "Client1";
+    Client1Data.ExpectedEvtID = IOC_EVTID_TEST_KEEPALIVE;
+    Client2Data.ClientName = "Client2";
+    Client2Data.ExpectedEvtID = IOC_EVTID_TEST_MOVE_STARTED;  // Use different event ID
+    Client3Data.ClientName = "Client3";
+
+    // Event callback functions for each client
+    auto Client1EventCallback = [](const IOC_EvtDesc_pT pEvtDesc, void* pPrivData) -> IOC_Result_T {
+        auto* pEventData = static_cast<ClientEventData*>(pPrivData);
+        pEventData->EventReceived = true;
+        pEventData->ReceivedCount++;
+        pEventData->ReceivedEvtID = pEvtDesc->EvtID;
+        pEventData->ReceivedEvtValue = pEvtDesc->EvtValue;
+        printf("📨 %s received event: EvtID=%" PRIu64 ", EvtValue=%lu\n", pEventData->ClientName.c_str(),
+               pEvtDesc->EvtID, pEvtDesc->EvtValue);
+        return IOC_RESULT_SUCCESS;
+    };
+
+    auto Client2EventCallback = [](const IOC_EvtDesc_pT pEvtDesc, void* pPrivData) -> IOC_Result_T {
+        auto* pEventData = static_cast<ClientEventData*>(pPrivData);
+        pEventData->EventReceived = true;
+        pEventData->ReceivedCount++;
+        pEventData->ReceivedEvtID = pEvtDesc->EvtID;
+        pEventData->ReceivedEvtValue = pEvtDesc->EvtValue;
+        printf("📨 %s received event: EvtID=%" PRIu64 ", EvtValue=%lu\n", pEventData->ClientName.c_str(),
+               pEvtDesc->EvtID, pEvtDesc->EvtValue);
+        return IOC_RESULT_SUCCESS;
+    };
+
+    auto Client3EventCallback = [](const IOC_EvtDesc_pT pEvtDesc, void* pPrivData) -> IOC_Result_T {
+        auto* pEventData = static_cast<ClientEventData*>(pPrivData);
+        pEventData->EventReceived = true;
+        pEventData->ReceivedCount++;
+        pEventData->ReceivedEvtID = pEvtDesc->EvtID;
+        pEventData->ReceivedEvtValue = pEvtDesc->EvtValue;
+        printf("📨 %s received event: EvtID=%" PRIu64 ", EvtValue=%lu\n", pEventData->ClientName.c_str(),
+               pEvtDesc->EvtID, pEvtDesc->EvtValue);
+        return IOC_RESULT_SUCCESS;
+    };
+
+    // Connect multiple clients with different auto-subscribe configurations
+    IOC_LinkID_T ClientLink1 = IOC_ID_INVALID, ClientLink2 = IOC_ID_INVALID, ClientLink3 = IOC_ID_INVALID;
+
+    // Client 1: Auto-subscribe to KEEPALIVE events
+    printf("🔗 Client1 connecting with auto-subscribe to KEEPALIVE events...\n");
+    IOC_EvtID_T Client1EvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
+    IOC_EvtUsageArgs_T Client1EvtArgs = {
+        .CbProcEvt_F = Client1EventCallback, .pCbPrivData = &Client1Data, .EvtNum = 1, .pEvtIDs = Client1EvtIDs};
+
+    IOC_ConnArgs_T Client1ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageEvtConsumer};
+    Client1ConnArgs.UsageArgs.pEvt = &Client1EvtArgs;
+
+    ResultValue = IOC_connectService(&ClientLink1, &Client1ConnArgs, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue) << "Client1 should connect successfully";
+    ASSERT_NE(IOC_ID_INVALID, ClientLink1) << "Client1 LinkID should be valid";
+    printf("✅ Client1 connected with LinkID=%" PRIu64 " (auto-subscribe to KEEPALIVE)\n", ClientLink1);
+
+    // Client 2: Auto-subscribe to MOVE_STARTED events
+    printf("🔗 Client2 connecting with auto-subscribe to MOVE_STARTED events...\n");
+    IOC_EvtID_T Client2EvtIDs[] = {IOC_EVTID_TEST_MOVE_STARTED};
+    IOC_EvtUsageArgs_T Client2EvtArgs = {
+        .CbProcEvt_F = Client2EventCallback, .pCbPrivData = &Client2Data, .EvtNum = 1, .pEvtIDs = Client2EvtIDs};
+
+    IOC_ConnArgs_T Client2ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageEvtConsumer};
+    Client2ConnArgs.UsageArgs.pEvt = &Client2EvtArgs;
+
+    ResultValue = IOC_connectService(&ClientLink2, &Client2ConnArgs, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue) << "Client2 should connect successfully";
+    ASSERT_NE(IOC_ID_INVALID, ClientLink2) << "Client2 LinkID should be valid";
+    printf("✅ Client2 connected with LinkID=%" PRIu64 " (auto-subscribe to MOVE_STARTED)\n", ClientLink2);
+
+    // Client 3: No auto-subscribe (NULL UsageArgs.pEvt)
+    printf("🔗 Client3 connecting without auto-subscribe...\n");
+    IOC_ConnArgs_T Client3ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageEvtConsumer};
+    Client3ConnArgs.UsageArgs.pEvt = NULL;  // No auto-subscribe
+
+    ResultValue = IOC_connectService(&ClientLink3, &Client3ConnArgs, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue) << "Client3 should connect successfully";
+    ASSERT_NE(IOC_ID_INVALID, ClientLink3) << "Client3 LinkID should be valid";
+    printf("✅ Client3 connected with LinkID=%" PRIu64 " (no auto-subscribe)\n", ClientLink3);
+
+    // Give connections time to be auto-accepted and establish
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    // Get the service-side LinkIDs for posting events
+    IOC_LinkID_T SrvLinkIDs[10];
+    uint16_t MaxLinks = 10;
+    uint16_t LinkCount = 0;
+    ResultValue = IOC_getServiceLinkIDs(SrvID, SrvLinkIDs, MaxLinks, &LinkCount);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue) << "Should get service link IDs";
+    ASSERT_EQ(3U, LinkCount) << "Should have 3 connected clients";
+
+    // 3) Service posts multiple event types
+    printf("📤 Service posting KEEPALIVE event (should only reach Client1)...\n");
+    IOC_EvtDesc_T keepaliveEvt = {};
+    keepaliveEvt.EvtID = IOC_EVTID_TEST_KEEPALIVE;
+    keepaliveEvt.EvtValue = 11111;
+
+    // Post to all service links (broadcast)
+    for (uint16_t i = 0; i < LinkCount; ++i) {
+        IOC_postEVT(SrvLinkIDs[i], &keepaliveEvt, NULL);
+    }
+
+    printf("📤 Service posting MOVE_STARTED event (should only reach Client2)...\n");
+    IOC_EvtDesc_T moveEvt = {};
+    moveEvt.EvtID = IOC_EVTID_TEST_MOVE_STARTED;
+    moveEvt.EvtValue = 22222;
+
+    // Post to all service links (broadcast)
+    for (uint16_t i = 0; i < LinkCount; ++i) {
+        IOC_postEVT(SrvLinkIDs[i], &moveEvt, NULL);
+    }
+
+    // 4) Verify isolation - each client receives only its subscribed events
+    printf("⏳ Waiting for event delivery and isolation verification...\n");
+
+    // Wait for events to be delivered
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+
+    // Client1 should receive KEEPALIVE only
+    ASSERT_TRUE(Client1Data.EventReceived.load()) << "Client1 should receive KEEPALIVE event";
+    ASSERT_EQ(1, Client1Data.ReceivedCount.load()) << "Client1 should receive exactly one event";
+    ASSERT_EQ(IOC_EVTID_TEST_KEEPALIVE, Client1Data.ReceivedEvtID) << "Client1 should receive KEEPALIVE";
+    ASSERT_EQ(11111U, Client1Data.ReceivedEvtValue) << "Client1 should receive correct KEEPALIVE value";
+    printf("✅ Client1 correctly received KEEPALIVE event\n");
+
+    // Client2 should receive MOVE_STARTED only
+    ASSERT_TRUE(Client2Data.EventReceived.load()) << "Client2 should receive MOVE_STARTED event";
+    ASSERT_EQ(1, Client2Data.ReceivedCount.load()) << "Client2 should receive exactly one event";
+    ASSERT_EQ(IOC_EVTID_TEST_MOVE_STARTED, Client2Data.ReceivedEvtID) << "Client2 should receive MOVE_STARTED";
+    ASSERT_EQ(22222U, Client2Data.ReceivedEvtValue) << "Client2 should receive correct MOVE_STARTED value";
+    printf("✅ Client2 correctly received MOVE_STARTED event\n");
+
+    // Client3 should receive NO events (no auto-subscribe)
+    ASSERT_FALSE(Client3Data.EventReceived.load()) << "Client3 should receive no events (no auto-subscribe)";
+    ASSERT_EQ(0, Client3Data.ReceivedCount.load()) << "Client3 should receive zero events";
+    printf("✅ Client3 correctly isolated - no auto-subscribed events received\n");
+
+    printf("✅ MULTI-CLIENT ISOLATION SUCCESS: Each client receives only its subscribed events\n");
 }
 
 // [@AC-4,US-1] TC-1: Auto-Subscribe Failure Cleanup
