@@ -268,6 +268,7 @@ TEST(UT_ConetEventTypical, verifyServiceAsEvtProducer_byMultiClientIsolation_exp
     for (int i = 0; i < NumClients; ++i) {
         if (CliThreads[i].joinable()) CliThreads[i].join();
         if (CliLinkIDs[i] != IOC_ID_INVALID) IOC_closeLink(CliLinkIDs[i]);
+        if (SrvLinkIDs[i] != IOC_ID_INVALID) IOC_closeLink(SrvLinkIDs[i]);
     }
     if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
