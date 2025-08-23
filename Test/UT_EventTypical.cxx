@@ -170,8 +170,104 @@ TEST(UT_EventTypical, verifyConetEvent_ServiceAsProducer_singleClient_expectDeli
 //     2) Connect N clients (EvtConsumer), each with its own callback context.
 //     3) Post event-A to link-1, event-B to link-2, ...
 //     4) Assert client-1 only saw event-A; client-2 only saw event-B; etc.
-TEST(UT_EventTypical, verifyConetEvent_ServiceAsProducer_multiClientIsolation_placeholder) {
-    GTEST_SKIP() << "Pending: Conet producer → per-link isolation across clients";
+TEST(UT_EventTypical, verifyConetEvent_ServiceAsProducer_multiClientIsolation_expectPerLinkDelivery) {
+    IOC_Result_T R = IOC_RESULT_BUG;
+    const int NumClients = 2;
+
+    // Service setup (Conet producer)
+    IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char *)"EvtTypical_ProducerMulti"};
+    IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageEvtProducer};
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    R = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+
+    // Client contexts and threads
+    __EvtRecvPriv_T RecvPrivs[NumClients] = {};
+    std::thread CliThreads[NumClients];
+    IOC_LinkID_T CliLinks[NumClients] = {IOC_ID_INVALID, IOC_ID_INVALID};
+    std::atomic<int> SubscribedCount{0};
+
+    // Start client threads
+    for (int i = 0; i < NumClients; ++i) {
+        CliThreads[i] = std::thread([&, i] {
+            IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageEvtConsumer};
+            IOC_Result_T R2 = IOC_connectService(&CliLinks[i], &ConnArgs, NULL);
+            ASSERT_EQ(IOC_RESULT_SUCCESS, R2);
+            ASSERT_NE(IOC_ID_INVALID, CliLinks[i]);
+
+            static IOC_EvtID_T SubEvtIDs[1] = {IOC_EVTID_TEST_KEEPALIVE};
+            IOC_SubEvtArgs_T Sub = {.CbProcEvt_F = __EvtTypical_ClientCb,
+                                    .pCbPrivData = &RecvPrivs[i],
+                                    .EvtNum = 1,
+                                    .pEvtIDs = &SubEvtIDs[0]};
+            R2 = IOC_subEVT(CliLinks[i], &Sub);
+            ASSERT_EQ(IOC_RESULT_SUCCESS, R2);
+            SubscribedCount++;
+        });
+    }
+
+    // Accept clients on service side
+    IOC_LinkID_T SrvLinks[NumClients] = {IOC_ID_INVALID, IOC_ID_INVALID};
+    for (int i = 0; i < NumClients; ++i) {
+        R = IOC_acceptClient(SrvID, &SrvLinks[i], NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+        ASSERT_NE(IOC_ID_INVALID, SrvLinks[i]);
+    }
+
+    // Wait for all clients to subscribe
+    for (int i = 0; i < 100 && SubscribedCount.load() < NumClients; ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    ASSERT_EQ(NumClients, SubscribedCount.load());
+
+    // Post the SAME event to ALL links to verify isolation
+    // If isolation works, each client should receive exactly ONE event
+    // If isolation fails, some clients might receive multiple events or wrong events
+    IOC_EvtDesc_T E = {};
+    E.EvtID = IOC_EVTID_TEST_KEEPALIVE;
+    E.EvtValue = 42;  // Same value for all
+
+    for (int i = 0; i < NumClients; ++i) {
+        R = IOC_postEVT(SrvLinks[i], &E, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+    }
+
+    // Wait for all callbacks
+    for (int retries = 0; retries < 60; ++retries) {
+        bool allReceived = true;
+        for (int i = 0; i < NumClients; ++i) {
+            if (!RecvPrivs[i].Got.load()) {
+                allReceived = false;
+                break;
+            }
+        }
+        if (allReceived) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    // Assert each client received exactly ONE event (isolation)
+    for (int i = 0; i < NumClients; ++i) {
+        ASSERT_TRUE(RecvPrivs[i].Got.load()) << "Client " << i << " did not receive event";
+        ASSERT_EQ(IOC_EVTID_TEST_KEEPALIVE, RecvPrivs[i].EvtID) << "Client " << i << " wrong event ID";
+        ASSERT_EQ((ULONG_T)42, RecvPrivs[i].EvtValue) << "Client " << i << " received wrong event value";
+    }
+
+    // Verify each client got exactly 1 sequence (no cross-talk)
+    // If isolation failed, clients might get events from multiple links
+    std::set<ULONG_T> uniqueSeqIDs;
+    for (int i = 0; i < NumClients; ++i) {
+        uniqueSeqIDs.insert(RecvPrivs[i].Seq);
+    }
+    ASSERT_EQ(NumClients, uniqueSeqIDs.size()) << "Isolation failed: clients received duplicate/cross-wired events";
+
+    // Cleanup
+    for (int i = 0; i < NumClients; ++i) {
+        if (CliThreads[i].joinable()) CliThreads[i].join();
+        if (CliLinks[i] != IOC_ID_INVALID) IOC_closeLink(CliLinks[i]);
+    }
+    if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
 // [@AC-1,US-2]
@@ -185,8 +281,63 @@ TEST(UT_EventTypical, verifyConetEvent_ServiceAsProducer_multiClientIsolation_pl
 //     2) Connect one client (Usage=EvtProducer).
 //     3) Client posts event to its link.
 //     4) Assert service callback fired and payload/ID match.
-TEST(UT_EventTypical, verifyConetEvent_ServiceAsConsumer_singleClient_placeholder) {
-    GTEST_SKIP() << "Pending: Conet consumer on service ← client producer link";
+TEST(UT_EventTypical, verifyConetEvent_ServiceAsConsumer_singleClient_expectProcessed) {
+    IOC_Result_T R = IOC_RESULT_BUG;
+
+    // Service setup (Conet consumer with callback)
+    __EvtRecvPriv_T SrvRecvPriv = {};
+    IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char *)"EvtTypical_ConsumerSingle"};
+    IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageEvtConsumer};
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    R = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+
+    // Client setup (Conet producer) — connect in a separate thread
+    IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageEvtProducer};
+    IOC_LinkID_T CliLink = IOC_ID_INVALID;
+    std::thread CliThread([&] {
+        IOC_Result_T R2 = IOC_connectService(&CliLink, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, R2);
+        ASSERT_NE(IOC_ID_INVALID, CliLink);
+    });
+
+    // Accept the client and setup service-side subscription
+    IOC_LinkID_T SrvLink = IOC_ID_INVALID;
+    R = IOC_acceptClient(SrvID, &SrvLink, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+    ASSERT_NE(IOC_ID_INVALID, SrvLink);
+
+    static IOC_EvtID_T SubEvtIDs[1] = {IOC_EVTID_TEST_KEEPALIVE};
+    IOC_SubEvtArgs_T Sub = {
+        .CbProcEvt_F = __EvtTypical_ClientCb, .pCbPrivData = &SrvRecvPriv, .EvtNum = 1, .pEvtIDs = &SubEvtIDs[0]};
+    R = IOC_subEVT(SrvLink, &Sub);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+
+    // Wait for client thread completion
+    if (CliThread.joinable()) CliThread.join();
+
+    // Client posts event to service
+    IOC_EvtDesc_T E = {};
+    E.EvtID = IOC_EVTID_TEST_KEEPALIVE;
+    E.EvtValue = 123;
+    R = IOC_postEVT(CliLink, &E, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+
+    // Wait for service callback
+    for (int i = 0; i < 60; ++i) {
+        if (SrvRecvPriv.Got.load()) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    ASSERT_TRUE(SrvRecvPriv.Got.load());
+    ASSERT_EQ(IOC_EVTID_TEST_KEEPALIVE, SrvRecvPriv.EvtID);
+    ASSERT_EQ((ULONG_T)123, SrvRecvPriv.EvtValue);
+
+    // Cleanup
+    if (CliLink != IOC_ID_INVALID) IOC_closeLink(CliLink);
+    if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
 // [@AC-2,US-2]
