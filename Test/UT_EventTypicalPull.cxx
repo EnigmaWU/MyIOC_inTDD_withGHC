@@ -123,9 +123,26 @@
  * Purpose: Validate service using IOC_pullEVT to consume events from clients.
  * Steps:
  *   1) Online service (EvtConsumer); client connects (EvtProducer).
- *   2) Client posts an event to the service.
- *   3) Service calls IOC_pullEVT to retrieve the event instead of using callbacks.
- *   4) Assert event details match what client posted.
+ *   2) Client subscribes to events using IOC_subEVT with null callback.
+ *   3) Client posts an event to the service.
+ *   4) Service calls IOC_pullEVT to retrieve the event instead of using callbacks.
+ *   5) Assert event details match what client posted.
+ *
+ * [@AC-1,US-1] TC-2: verifyPullEVT_byConnArgsSubscription_expectEventReceived
+ * Test: verifyPullEVT_byConnArgsSubscription_expectEventReceived
+ * Purpose: Validate service using IOC_pullEVT with ConnArgs-based event subscription.
+ * Steps:
+ *   1) Online service (EvtConsumer); client specifies events to subscribe via ConnArgs.UsageArgs.pEvt.
+ *   2) Client connects (EvtProducer) with auto-subscription via ConnArgs.
+ *   3) Client posts an event to the service.
+ *   4) Service calls IOC_pullEVT to retrieve the event (no manual IOC_subEVT needed).
+ *   5) Assert event details match what client posted.
+ *
+ * TODO: [@AC-1,US-1] TC-2: verifyPullEVT_byConnArgsSubscription_expectEventReceived
+ * Test: verifyPullEVT_byConnArgsSubscription_expectEventReceived
+ * Purpose: Validate auto-subscription via ConnArgs.UsageArgs.pEvt for polling consumption.
+ * Status: TODO - Requires implementation of auto-subscribe feature in IOC_connectService.
+ * Note: Auto-subscription via ConnArgs.UsageArgs.pEvt is a design proposal (see UT_EventTypicalAutoSubscribe.cxx).
  *
  * [@AC-2,US-1] TC-1: verifyPullEVT_byMultipleEvents_expectFIFOOrder
  * Test: verifyPullEVT_byMultipleEvents_expectFIFOOrder
@@ -287,7 +304,7 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byBasicPolling_expectEventReceived) {
     // Wait for client connection
     if (CliThread.joinable()) CliThread.join();
 
-    // Client subscribes to events for polling
+    // Client subscribes to events for polling (manual IOC_subEVT approach)
     IOC_EvtID_T SubEvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
     IOC_SubEvtArgs_T SubEvtArgs = {.pEvtIDs = SubEvtIDs,
                                    .EvtNum = sizeof(SubEvtIDs) / sizeof(SubEvtIDs[0]),
@@ -321,10 +338,75 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byBasicPolling_expectEventReceived) {
     if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
+// [@AC-1,US-1] TC-2: verifyPullEVT_byConnArgsSubscription_expectEventReceived
+// Status: RED - Demonstrates that auto-subscription via ConnArgs.UsageArgs.pEvt is not yet implemented
+TEST(UT_ConetEventTypical, verifyPullEVT_byConnArgsSubscription_expectEventReceived) {
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
+
+    // Service setup (Conet producer)
+    IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char *)"EvtPull_ConnArgsSubscription"};
+    IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageEvtProducer};
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
+    // Client setup (Conet consumer) - specify events to subscribe via ConnArgs
+    IOC_EvtID_T SubEvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
+    IOC_EvtUsageArgs_T EvtUsageArgs = {.pEvtIDs = SubEvtIDs,
+                                       .EvtNum = sizeof(SubEvtIDs) / sizeof(SubEvtIDs[0]),
+                                       .CbProcEvt_F = nullptr,  // No callback, only polling
+                                       .pCbPrivData = nullptr};
+    IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageEvtConsumer};
+    ConnArgs.UsageArgs.pEvt = &EvtUsageArgs;  // Specify events to subscribe during connect
+
+    IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
+    std::thread CliThread([&] {
+        IOC_Result_T ResultValueInThread = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValueInThread);
+        ASSERT_NE(IOC_ID_INVALID, CliLinkID);
+    });
+
+    // Accept the client
+    IOC_LinkID_T SrvLinkID = IOC_ID_INVALID;
+    ResultValue = IOC_acceptClient(SrvID, &SrvLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, SrvLinkID);
+
+    // Wait for client connection
+    if (CliThread.joinable()) CliThread.join();
+
+    // Service posts an event
+    IOC_EvtDesc_T PostedEvt = {};
+    PostedEvt.EvtID = IOC_EVTID_TEST_KEEPALIVE;
+    PostedEvt.EvtValue = 101;  // Different value from TC-1 to distinguish
+    ResultValue = IOC_postEVT(SrvLinkID, &PostedEvt, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
+    // Small delay to ensure event is processed
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+    // Client pulls the event using IOC_pullEVT (no manual IOC_subEVT needed)
+    // This should work when auto-subscription is implemented, but will fail now
+    IOC_EvtDesc_T PulledEvt = {};
+    ResultValue = IOC_pullEVT(CliLinkID, &PulledEvt, NULL);  // Default non-blocking mode
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
+    // Verify event details
+    ASSERT_EQ(IOC_EVTID_TEST_KEEPALIVE, IOC_EvtDesc_getEvtID(&PulledEvt));
+    ASSERT_EQ((ULONG_T)101, IOC_EvtDesc_getEvtValue(&PulledEvt));
+
+    // Cleanup
+    if (CliLinkID != IOC_ID_INVALID) IOC_closeLink(CliLinkID);
+    if (SrvLinkID != IOC_ID_INVALID) IOC_closeLink(SrvLinkID);
+    if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
+}
+
 // [@AC-2,US-1] TC-1: verifyPullEVT_byMultipleEvents_expectFIFOOrder
 TEST(UT_ConetEventTypical, verifyPullEVT_byMultipleEvents_expectFIFOOrder) {
     IOC_Result_T R = IOC_RESULT_BUG;
-    const int NumEvents = 5;
+    const int NumEvents = 1024;
 
     // Service setup
     IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
