@@ -502,29 +502,40 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byMultipleEvents_expectFIFOOrder) {
 
 // [@AC-1,US-2] TC-1: verifyPullEVT_byNonBlockingMode_expectImmediateReturn
 TEST(UT_ConetEventTypical, verifyPullEVT_byNonBlockingMode_expectImmediateReturn) {
-    IOC_Result_T R = IOC_RESULT_BUG;
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
 
-    // Service setup
+    // Service setup (Conet producer)
     IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
                            .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
                            .pPath = (const char *)"EvtPull_NonBlocking"};
     IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageEvtProducer};
     IOC_SrvID_T SrvID = IOC_ID_INVALID;
-    R = IOC_onlineService(&SrvID, &SrvArgs);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+    ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
 
-    // Client setup
+    // Client setup (Conet consumer) - specify events to subscribe via ConnArgs
+    IOC_EvtID_T SubEvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
+    IOC_EvtUsageArgs_T EvtUsageArgs = {.pEvtIDs = SubEvtIDs,
+                                       .EvtNum = sizeof(SubEvtIDs) / sizeof(SubEvtIDs[0]),
+                                       .CbProcEvt_F = nullptr,  // No callback, only polling
+                                       .pCbPrivData = nullptr};
     IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageEvtConsumer};
+    ConnArgs.UsageArgs.pEvt = &EvtUsageArgs;  // Specify events to subscribe during connect
+
     IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
     std::thread CliThread([&] {
-        IOC_Result_T R_thread = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
-        ASSERT_EQ(IOC_RESULT_SUCCESS, R_thread);
+        IOC_Result_T ResultValueInThread = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValueInThread);
+        ASSERT_NE(IOC_ID_INVALID, CliLinkID);
     });
 
-    // Accept client
+    // Accept the client
     IOC_LinkID_T SrvLinkID = IOC_ID_INVALID;
-    R = IOC_acceptClient(SrvID, &SrvLinkID, NULL);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+    ResultValue = IOC_acceptClient(SrvID, &SrvLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, SrvLinkID);
+
+    // Wait for client connection
     if (CliThread.joinable()) CliThread.join();
 
     // Try to pull event when none are available (non-blocking mode)
@@ -532,14 +543,22 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byNonBlockingMode_expectImmediateReturn
 
     IOC_EvtDesc_T PulledEvt = {};
     IOC_Options_T Options[] = {{.IDs = IOC_OPTID_TIMEOUT, .Payload.TimeoutUS = 0}};  // Non-blocking
-    R = IOC_pullEVT(CliLinkID, &PulledEvt, Options);
+    ResultValue = IOC_pullEVT(CliLinkID, &PulledEvt, Options);
 
     auto endTime = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
 
     // Verify immediate return with correct result
-    ASSERT_EQ(IOC_RESULT_NO_EVENT_PENDING, R) << "Should return NO_EVENT_PENDING when no events available";
+    ASSERT_EQ(IOC_RESULT_NO_EVENT_PENDING, ResultValue) << "Should return NO_EVENT_PENDING when no events available";
     ASSERT_LT(duration.count(), 50) << "Non-blocking call took too long: " << duration.count() << "ms";
+
+    // Multiple consecutive calls should behave consistently
+    for (int i = 0; i < 5; ++i) {
+        IOC_EvtDesc_T ExtraEvt = {};
+        ResultValue = IOC_pullEVT(CliLinkID, &ExtraEvt, Options);
+        ASSERT_EQ(IOC_RESULT_NO_EVENT_PENDING, ResultValue)
+            << "Repeated call #" << (i + 1) << " should return NO_EVENT_PENDING";
+    }
 
     // Cleanup
     if (CliLinkID != IOC_ID_INVALID) IOC_closeLink(CliLinkID);
