@@ -247,6 +247,8 @@ typedef enum {
      *       Client: Usage = IOC_LinkUsageEvtProducer; publish events via the event API.
      */
     IOC_SRVFLAG_AUTO_ACCEPT = 1 << 1,
+
+    // TODO: IOC_SRVFLAG_KEEP_ACCEPTED_LINKS
 } IOC_SrvFlags_T;
 
 typedef struct {
