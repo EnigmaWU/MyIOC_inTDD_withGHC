@@ -113,7 +113,7 @@ struct _IOC_SrvProtoMethodsStru {
     //
     // 🎯 ROLES:
     // - OpExecCmd_F: Command initiator (CmdInitiator) - synchronous request-response
-    // - OpWaitCmd_F: Command executor (CmdExecutor) - receive command requests  
+    // - OpWaitCmd_F: Command executor (CmdExecutor) - receive command requests
     // - OpAckCmd_F: Command executor (CmdExecutor) - send command responses
     IOC_Result_T (*OpExecCmd_F)(_IOC_LinkObject_pT, IOC_CmdDesc_pT, const IOC_Options_pT);
     IOC_Result_T (*OpWaitCmd_F)(_IOC_LinkObject_pT, IOC_CmdDesc_pT, const IOC_Options_pT);

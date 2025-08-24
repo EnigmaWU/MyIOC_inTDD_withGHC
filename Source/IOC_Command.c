@@ -167,7 +167,7 @@ static IOC_Result_T __IOC_findDestinationLink(IOC_LinkID_T SrcLinkID, _IOC_LinkO
  * @param pCmdDesc Command descriptor
  * @param pOption Execution options
  * @return IOC_RESULT_SUCCESS on successful execution
- * 
+ *
  * @note This is the original implementation that bypasses the protocol layer.
  *       Used as fallback when protocol doesn't implement OpExecCmd_F.
  */

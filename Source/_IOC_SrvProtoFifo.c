@@ -138,8 +138,8 @@ struct _IOC_ProtoFifoLinkObjectStru {
     struct {
         // TODO: Implement command queue similar to EvtDescQueue for polling support
         // For now, ProtoFifo uses direct callback execution for maximum performance
-        bool IsCmdPollingActive;         // Whether this link is actively using command polling
-        pthread_mutex_t CmdPollingMutex; // Mutex for command polling operations
+        bool IsCmdPollingActive;          // Whether this link is actively using command polling
+        pthread_mutex_t CmdPollingMutex;  // Mutex for command polling operations
     } CmdPolling;
 };
 
@@ -1746,7 +1746,7 @@ static bool __IOC_shouldOpenBatchWindow(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj
 }
 
 //=================================================================================================
-// ProtoFifo Command Methods Implementation  
+// ProtoFifo Command Methods Implementation
 //=================================================================================================
 
 /**
@@ -1756,7 +1756,7 @@ static bool __IOC_shouldOpenBatchWindow(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj
  * @param pOption Options for command execution
  * @return IOC_RESULT_SUCCESS on successful execution
  */
-static IOC_Result_T __IOC_execCmd_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_CmdDesc_pT pCmdDesc, 
+static IOC_Result_T __IOC_execCmd_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_CmdDesc_pT pCmdDesc,
                                               const IOC_Options_pT pOption) {
     if (!pLinkObj || !pCmdDesc) {
         return IOC_RESULT_INVALID_PARAM;
@@ -1857,14 +1857,14 @@ static IOC_Result_T __IOC_ackCmd_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, const 
         return IOC_RESULT_INVALID_PARAM;
     }
 
-    // Verify link is CmdExecutor  
+    // Verify link is CmdExecutor
     if (pLinkObj->Args.Usage != IOC_LinkUsageCmdExecutor) {
         return IOC_RESULT_INVALID_PARAM;
     }
 
     // ProtoFifo uses synchronous callback mode, not explicit ack mode
     // Response is sent automatically when callback returns
-    // For now, return NOT_SUPPORT to indicate explicit ack mode not implemented  
+    // For now, return NOT_SUPPORT to indicate explicit ack mode not implemented
     return IOC_RESULT_NOT_SUPPORT;
 }
 
@@ -1905,7 +1905,7 @@ _IOC_SrvProtoMethods_T _gIOC_SrvProtoFifoMethods = {
 
     // 🎯 CMD METHODS: ProtoFifo command implementation using peer link pattern
     // - OpExecCmd_F: Find peer link and execute command via callback (CmdInitiator → CmdExecutor)
-    // - OpWaitCmd_F: Wait for incoming command requests (CmdExecutor polling mode)  
+    // - OpWaitCmd_F: Wait for incoming command requests (CmdExecutor polling mode)
     // - OpAckCmd_F: Send command response back to initiator (CmdExecutor → CmdInitiator)
     .OpExecCmd_F = __IOC_execCmd_ofProtoFifo,
     .OpWaitCmd_F = __IOC_waitCmd_ofProtoFifo,
