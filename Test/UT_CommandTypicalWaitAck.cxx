@@ -155,20 +155,20 @@
  *      @[Status]: ✅ PASSED - Non-blocking polling validation implemented and working
  *
  * [@AC-4,US-1] Multi-client polling and independent acknowledgment tracking
- *  🔴 TC-1: verifyServiceMultiClientPolling_byIndependentAck_expectProperTracking
+ *  � TC-1: verifyServiceMultiClientPolling_byIndependentAck_expectProperTracking
  *      @[Purpose]: Validate independent command tracking and acknowledgment for multiple clients
  *      @[Brief]: Multiple clients send commands, service polls and tracks each independently
- *      @[Status]: 🔴 RED - Implementing multi-client polling patterns with SYNC guarantees
+ *      @[Status]: ✅ PASSED - Multi-client polling with independent tracking implemented and working
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * 📋 [US-2]: Service as CmdInitiator (Server→Client Polling Command Patterns)
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  *
  * [@AC-1,US-2] Service interaction with polling-based client executors
- *  ⚪ TC-1: verifyServiceToPollingClient_byStandardFlow_expectProperResponse
+ *  🟢 TC-1: verifyServiceToPollingClient_byStandardFlow_expectProperResponse
  *      @[Purpose]: Validate service command sending to polling-based client
  *      @[Brief]: Service sends command, client polls and acknowledges, service receives response
- *      @[Status]: TODO - Implement service-to-polling-client integration
+ *      @[Status]: ✅ PASSED - Service-to-polling-client integration implemented and working
  *
  * [@AC-2,US-2] Service orchestration of multiple polling clients
  *  ⚪ TC-1: verifyServiceOrchestration_byPollingClients_expectReliableCollection
@@ -1134,14 +1134,245 @@ TEST(UT_ConetCommandWaitAck, verifyServiceMultiClientPolling_byIndependentAck_ex
     if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
-// TODO: Implement service-to-polling-client test
+// Service-to-polling-client data structure
+typedef struct __ServiceToPollingClientPriv {
+    std::atomic<bool> ClientPollingStarted{false};
+    std::atomic<bool> ClientPollingComplete{false};
+    std::atomic<bool> ShouldStop{false};
+    std::atomic<int> CommandsProcessed{0};
+
+    // Client-side tracking
+    std::atomic<bool> CommandReceived{false};
+    std::atomic<bool> CommandAcknowledged{false};
+    IOC_CmdID_T ReceivedCmdID{0};
+    IOC_CmdDesc_T ReceivedCmdDesc{};
+    std::string ActualResponse;
+    std::chrono::steady_clock::time_point ReceiveTime;
+    std::chrono::steady_clock::time_point AckTime;
+
+    // Service-side tracking
+    std::atomic<bool> CommandSent{false};
+    std::atomic<IOC_Result_T> ServiceResult{IOC_RESULT_BUG};
+    IOC_CmdID_T SentCmdID{0};
+    std::string ExpectedResponse{"CLIENT_PONG"};
+    std::string ServiceReceivedResponse;
+    std::chrono::steady_clock::time_point SendTime;
+    std::chrono::steady_clock::time_point ResponseTime;
+
+    IOC_LinkID_T SrvLinkID{IOC_ID_INVALID};  // Service-side link for command sending
+    IOC_LinkID_T CliLinkID{IOC_ID_INVALID};  // Client-side link for polling
+
+    std::mutex ProcessingMutex;
+    std::condition_variable ProcessingCV;
+} __ServiceToPollingClientPriv_T;
+
+// Implement service-to-polling-client test
 TEST(UT_ConetCommandWaitAck, verifyServiceToPollingClient_byStandardFlow_expectProperResponse) {
-    // TODO: Implement service setup as CmdInitiator
-    // TODO: Implement client setup with polling capability (IOC_waitCMD + IOC_ackCMD)
-    // TODO: Implement service command sending via IOC_execCMD
-    // TODO: Verify client polls, processes, and acknowledges correctly
-    // TODO: Validate service receives proper response through SYNC completion
-    GTEST_SKIP() << "TODO: Implement service-to-polling-client integration";
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
+
+    // Private data for tracking test state
+    __ServiceToPollingClientPriv_T TestPriv = {};
+    TestPriv.SentCmdID = IOC_CMDID_TEST_PING;
+
+    // Service setup as CmdInitiator (reversed role)
+    IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char *)"CmdWaitAck_ServiceToPollingClient"};
+
+    // Service configured as CmdInitiator (NO command support, only sends commands)
+    IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI,
+                             .Flags = IOC_SRVFLAG_NONE,
+                             .UsageCapabilites = IOC_LinkUsageCmdInitiator,  // Service as initiator
+                             .UsageArgs = {.pCmd = nullptr}};                // No command processing needed
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
+    // Client setup with polling capability (CmdExecutor with polling)
+    static IOC_CmdID_T ClientSupportedCmdIDs[] = {IOC_CMDID_TEST_PING, IOC_CMDID_TEST_ECHO};
+    IOC_CmdUsageArgs_T ClientCmdUsageArgs = {.CbExecCmd_F = nullptr,  // NO CALLBACK - polling mode
+                                             .pCbPrivData = nullptr,
+                                             .CmdNum = 2,  // PING and ECHO commands
+                                             .pCmdIDs = ClientSupportedCmdIDs};
+
+    IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI,
+                               .Usage = IOC_LinkUsageCmdExecutor,  // Client as executor
+                               .UsageArgs = {.pCmd = &ClientCmdUsageArgs}};
+
+    // Client connection thread
+    std::thread ClientThread([&] {
+        IOC_Result_T ResultValueInThread = IOC_connectService(&TestPriv.CliLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValueInThread);
+        ASSERT_NE(IOC_ID_INVALID, TestPriv.CliLinkID);
+    });
+
+    // Service accepts client connection
+    ResultValue = IOC_acceptClient(SrvID, &TestPriv.SrvLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, TestPriv.SrvLinkID);
+
+    if (ClientThread.joinable()) ClientThread.join();
+
+    // Start client polling thread (client side uses IOC_waitCMD + IOC_ackCMD)
+    std::thread ClientPollingThread([&] {
+        TestPriv.ClientPollingStarted = true;
+
+        printf("[DEBUG] Client polling started, waiting for commands from service\n");
+
+        while (!TestPriv.ShouldStop.load()) {
+            IOC_CMDDESC_DECLARE_VAR(CmdDesc);
+
+            // Use non-blocking polling to avoid infinite wait
+            IOC_Option_defineNonBlock(NonBlockOption);
+            IOC_Result_T PollingResult = IOC_waitCMD(TestPriv.CliLinkID, &CmdDesc, &NonBlockOption);
+
+            if (PollingResult == IOC_RESULT_SUCCESS) {
+                // Command received from service
+                TestPriv.ReceiveTime = std::chrono::steady_clock::now();
+                TestPriv.CommandReceived = true;
+                TestPriv.ReceivedCmdID = IOC_CmdDesc_getCmdID(&CmdDesc);
+                TestPriv.ReceivedCmdDesc = CmdDesc;  // Save command descriptor
+
+                printf("[DEBUG] Client received command %llu from service\n", TestPriv.ReceivedCmdID);
+
+                // Process the command (client-side logic)
+                if (TestPriv.ReceivedCmdID == IOC_CMDID_TEST_PING) {
+                    // Client responds with "CLIENT_PONG"
+                    const char *response = TestPriv.ExpectedResponse.c_str();
+                    IOC_Result_T AckResult =
+                        IOC_CmdDesc_setOutPayload(&TestPriv.ReceivedCmdDesc, (void *)response, strlen(response));
+                    EXPECT_EQ(IOC_RESULT_SUCCESS, AckResult);
+
+                    TestPriv.ActualResponse = std::string(response);
+                } else {
+                    // Handle other commands if needed
+                    const char *response = "CLIENT_UNKNOWN";
+                    IOC_CmdDesc_setOutPayload(&TestPriv.ReceivedCmdDesc, (void *)response, strlen(response));
+                    TestPriv.ActualResponse = std::string(response);
+                }
+
+                // Set command status to success
+                IOC_CmdDesc_setStatus(&TestPriv.ReceivedCmdDesc, IOC_CMD_STATUS_SUCCESS);
+                IOC_CmdDesc_setResult(&TestPriv.ReceivedCmdDesc, IOC_RESULT_SUCCESS);
+
+                // Send acknowledgment back to service
+                TestPriv.AckTime = std::chrono::steady_clock::now();
+                IOC_Result_T SendResult = IOC_ackCMD(TestPriv.CliLinkID, &TestPriv.ReceivedCmdDesc, NULL);
+                EXPECT_EQ(IOC_RESULT_SUCCESS, SendResult);
+
+                TestPriv.CommandAcknowledged = true;
+                TestPriv.CommandsProcessed++;
+
+                printf("[DEBUG] Client acknowledged command %llu with response: %s\n", TestPriv.ReceivedCmdID,
+                       TestPriv.ActualResponse.c_str());
+
+                // Signal processing complete
+                {
+                    std::lock_guard<std::mutex> lock(TestPriv.ProcessingMutex);
+                    TestPriv.ProcessingCV.notify_one();
+                }
+
+                break;  // Exit after processing one command
+            } else if (PollingResult != IOC_RESULT_NO_CMD_PENDING) {
+                printf("[ERROR] Client polling failed with result: %d\n", PollingResult);
+                break;
+            }
+
+            // Brief wait before next polling attempt
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+
+        TestPriv.ClientPollingComplete = true;
+        printf("[DEBUG] Client polling completed\n");
+    });
+
+    // Wait for client polling to start
+    while (!TestPriv.ClientPollingStarted.load()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));  // Let client polling be ready
+
+    // Service sends command to polling client (service as CmdInitiator)
+    printf("[DEBUG] Service sending command to polling client\n");
+
+    IOC_CMDDESC_DECLARE_VAR(ServiceCmdDesc);
+    ServiceCmdDesc.CmdID = TestPriv.SentCmdID;
+
+    TestPriv.SendTime = std::chrono::steady_clock::now();
+    TestPriv.CommandSent = true;
+
+    // Service executes command on client (SYNC operation)
+    ResultValue = IOC_execCMD(TestPriv.SrvLinkID, &ServiceCmdDesc, NULL);
+
+    TestPriv.ResponseTime = std::chrono::steady_clock::now();
+    TestPriv.ServiceResult = ResultValue;
+
+    printf("[DEBUG] Service command execution completed with result: %d\n", ResultValue);
+
+    // Wait for client processing to complete
+    {
+        std::unique_lock<std::mutex> lock(TestPriv.ProcessingMutex);
+        TestPriv.ProcessingCV.wait_for(lock, std::chrono::seconds(5),
+                                       [&] { return TestPriv.CommandAcknowledged.load(); });
+    }
+
+    TestPriv.ShouldStop = true;
+    if (ClientPollingThread.joinable()) ClientPollingThread.join();
+
+    // Verify service command execution results
+    ASSERT_EQ(IOC_RESULT_SUCCESS, TestPriv.ServiceResult.load()) << "Service command execution should succeed";
+
+    // Verify command status from service perspective
+    IOC_CmdStatus_E ServiceCmdStatus = IOC_CmdDesc_getStatus(&ServiceCmdDesc);
+    ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, ServiceCmdStatus) << "Service should receive successful command status";
+
+    IOC_Result_T ServiceCmdResult = IOC_CmdDesc_getResult(&ServiceCmdDesc);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ServiceCmdResult) << "Service should receive successful command result";
+
+    // Verify response payload received by service
+    void *serviceResponseData = IOC_CmdDesc_getOutData(&ServiceCmdDesc);
+    ULONG_T serviceResponseSize = IOC_CmdDesc_getOutDataSize(&ServiceCmdDesc);
+    ASSERT_TRUE(serviceResponseData != nullptr) << "Service should receive response data";
+    ASSERT_EQ(TestPriv.ExpectedResponse.length(), serviceResponseSize) << "Service response size should match expected";
+
+    TestPriv.ServiceReceivedResponse = std::string((char *)serviceResponseData, serviceResponseSize);
+    ASSERT_STREQ(TestPriv.ExpectedResponse.c_str(), TestPriv.ServiceReceivedResponse.c_str())
+        << "Service should receive expected response content";
+
+    // Verify client-side processing
+    ASSERT_TRUE(TestPriv.CommandReceived.load()) << "Client should have received command from service";
+    ASSERT_TRUE(TestPriv.CommandAcknowledged.load()) << "Client should have acknowledged the command";
+    ASSERT_EQ(TestPriv.SentCmdID, TestPriv.ReceivedCmdID)
+        << "Client should receive the same command ID that service sent";
+    ASSERT_EQ(1, TestPriv.CommandsProcessed.load()) << "Client should have processed exactly one command";
+
+    // Verify response consistency
+    ASSERT_EQ(TestPriv.ExpectedResponse, TestPriv.ActualResponse) << "Client response should match expected";
+    ASSERT_EQ(TestPriv.ActualResponse, TestPriv.ServiceReceivedResponse)
+        << "Service should receive the same response that client sent";
+
+    // Verify timing (SYNC guarantee)
+    auto TotalDuration =
+        std::chrono::duration_cast<std::chrono::milliseconds>(TestPriv.ResponseTime - TestPriv.SendTime);
+    auto ProcessingDuration =
+        std::chrono::duration_cast<std::chrono::milliseconds>(TestPriv.AckTime - TestPriv.ReceiveTime);
+
+    printf("[DEBUG] Total service command duration: %lld ms\n", TotalDuration.count());
+    printf("[DEBUG] Client processing duration: %lld ms\n", ProcessingDuration.count());
+
+    // SYNC guarantee: service waits for client processing to complete
+    ASSERT_GE(TotalDuration.count(), ProcessingDuration.count() - 50)
+        << "Service should wait for client processing (SYNC guarantee)";
+
+    // Reasonable timing bounds
+    ASSERT_LE(TotalDuration.count(), 5000) << "Service command should complete within reasonable time";
+
+    printf("[DEBUG] Service-to-polling-client test completed successfully\n");
+
+    // Cleanup
+    if (TestPriv.CliLinkID != IOC_ID_INVALID) IOC_closeLink(TestPriv.CliLinkID);
+    if (TestPriv.SrvLinkID != IOC_ID_INVALID) IOC_closeLink(TestPriv.SrvLinkID);
+    if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
 // TODO: Implement service orchestration test with polling clients
