@@ -752,6 +752,10 @@ static IOC_Result_T __IOC_pullEvt_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_E
         if (TimeoutUS == 0) {
             IsNonBlocking = true;
         }
+        printf("[DEBUG waitCmd_ofProtoFifo] TIMEOUT: TimeoutUS=%lu, IsNonBlocking=%s\n", TimeoutUS,
+               IsNonBlocking ? "true" : "false");
+    } else {
+        printf("[DEBUG waitCmd_ofProtoFifo] TIMEOUT: No timeout specified (infinite blocking)\n");
     }
 
     // Enable polling mode on first use
@@ -789,7 +793,10 @@ static IOC_Result_T __IOC_pullEvt_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_E
                 if (TimeoutUS != IOC_TIMEOUT_INFINITE) {
                     clock_gettime(CLOCK_REALTIME, &CurrentTime);
                     ULONG_T ElapsedUS = IOC_deltaTimeSpecInUS(&StartTime, &CurrentTime);
+                    printf("[DEBUG waitCmd_ofProtoFifo] TIMEOUT CHECK: ElapsedUS=%lu, TimeoutUS=%lu\n", ElapsedUS,
+                           TimeoutUS);
                     if (ElapsedUS >= TimeoutUS) {
+                        printf("[DEBUG waitCmd_ofProtoFifo] TIMEOUT REACHED: Returning IOC_RESULT_TIMEOUT\n");
                         return IOC_RESULT_TIMEOUT;
                     }
                 }
@@ -1967,12 +1974,57 @@ static IOC_Result_T __IOC_waitCmd_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_C
         printf("[DEBUG waitCmd_ofProtoFifo] POLLING MODE: Activated command polling\n");
     }
 
+    // Parse timeout options
+    ULONG_T TimeoutUS = IOC_TIMEOUT_INFINITE;  // Default: block indefinitely when pOption is NULL
+    bool IsNonBlocking = false;
+
+    if (pOption && (pOption->IDs & IOC_OPTID_TIMEOUT)) {
+        TimeoutUS = pOption->Payload.TimeoutUS;
+        if (TimeoutUS == 0) {
+            IsNonBlocking = true;
+        }
+        printf("[DEBUG waitCmd_ofProtoFifo] TIMEOUT: TimeoutUS=%lu, IsNonBlocking=%s\n", TimeoutUS,
+               IsNonBlocking ? "true" : "false");
+    } else {
+        printf("[DEBUG waitCmd_ofProtoFifo] TIMEOUT: No timeout specified (infinite blocking)\n");
+    }
+
     // Check if there are available commands
     while (pFifoLinkObj->CmdPolling.QueuedCmdNum == pFifoLinkObj->CmdPolling.ProcedCmdNum) {
         printf("[DEBUG waitCmd_ofProtoFifo] POLLING MODE: No commands available, waiting...\n");
 
-        // TODO: Handle timeout from pOption
-        pthread_cond_wait(&pFifoLinkObj->CmdPolling.CmdAvailableCond, &pFifoLinkObj->CmdPolling.CmdPollingMutex);
+        if (IsNonBlocking) {
+            // Non-blocking mode: return immediately if no commands available
+            pthread_mutex_unlock(&pFifoLinkObj->CmdPolling.CmdPollingMutex);
+            return IOC_RESULT_NO_EVENT_PENDING;
+        } else if (TimeoutUS == IOC_TIMEOUT_INFINITE) {
+            // Infinite timeout: block indefinitely
+            pthread_cond_wait(&pFifoLinkObj->CmdPolling.CmdAvailableCond, &pFifoLinkObj->CmdPolling.CmdPollingMutex);
+        } else {
+            // Timed wait
+            struct timespec TimeOut = {0};
+            clock_gettime(CLOCK_REALTIME, &TimeOut);
+
+            // Add timeout in microseconds
+            TimeOut.tv_sec += TimeoutUS / 1000000;
+            TimeOut.tv_nsec += (TimeoutUS % 1000000) * 1000;
+
+            // Handle nanosecond overflow
+            if (TimeOut.tv_nsec >= 1000000000) {
+                TimeOut.tv_sec++;
+                TimeOut.tv_nsec -= 1000000000;
+            }
+
+            printf("[DEBUG waitCmd_ofProtoFifo] TIMEOUT: Waiting with timeout %lu us\n", TimeoutUS);
+            int WaitResult = pthread_cond_timedwait(&pFifoLinkObj->CmdPolling.CmdAvailableCond,
+                                                    &pFifoLinkObj->CmdPolling.CmdPollingMutex, &TimeOut);
+
+            if (WaitResult == ETIMEDOUT) {
+                printf("[DEBUG waitCmd_ofProtoFifo] TIMEOUT: Timed out waiting for command\n");
+                pthread_mutex_unlock(&pFifoLinkObj->CmdPolling.CmdPollingMutex);
+                return IOC_RESULT_TIMEOUT;
+            }
+        }
     }
 
     // Dequeue command

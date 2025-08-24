@@ -20,6 +20,7 @@
 #include <chrono>
 #include <thread>
 
+#include "IOC/IOC_Option.h"
 #include "_UT_IOC_Common.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -143,10 +144,10 @@
  *      @[Status]: ✅ PASSED - Delayed acknowledgment with controlled timing implemented and working
  *
  * [@AC-3,US-1] Polling timeout behavior and queue management
- *  ⚪ TC-1: verifyServicePollingTimeout_byEmptyQueue_expectTimeoutHandling
+ *  🔴 TC-1: verifyServicePollingTimeout_byEmptyQueue_expectTimeoutHandling
  *      @[Purpose]: Validate IOC_waitCMD timeout behavior when no commands available
  *      @[Brief]: Service polls with timeout, handles empty queue gracefully
- *      @[Status]: TODO - Implement polling timeout validation
+ *      @[Status]: 🔴 RED - Implementing polling timeout validation
  *
  * [@AC-4,US-1] Multi-client polling and independent acknowledgment tracking
  *  ⚪ TC-1: verifyServiceMultiClientPolling_byIndependentAck_expectProperTracking
@@ -198,6 +199,18 @@ typedef struct __CmdDelayedProcessingPriv {
     std::atomic<int> DelayMs{500};           // Configurable delay
     IOC_LinkID_T SrvLinkID{IOC_ID_INVALID};  // For delayed ack
 } __CmdDelayedProcessingPriv_T;
+
+// Structure for timeout testing
+typedef struct __CmdTimeoutTestPriv {
+    std::atomic<bool> PollingStarted{false};
+    std::atomic<bool> PollingComplete{false};
+    std::atomic<IOC_Result_T> PollingResult{IOC_RESULT_BUG};
+    std::chrono::steady_clock::time_point PollingStartTime;
+    std::chrono::steady_clock::time_point PollingEndTime;
+    std::atomic<int> TimeoutMs{1000};  // Configurable timeout
+    std::atomic<int> PollingAttempts{0};
+    IOC_LinkID_T SrvLinkID{IOC_ID_INVALID};
+} __CmdTimeoutTestPriv_T;
 
 // TODO: Implement basic polling pattern test
 TEST(UT_ConetCommandWaitAck, verifyServicePolling_bySingleClient_expectWaitAckPattern) {
@@ -477,12 +490,177 @@ TEST(UT_ConetCommandWaitAck, verifyServiceAsyncProcessing_byDelayedAck_expectCon
     if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
-// TODO: Implement polling timeout test
+// Implement polling timeout test
 TEST(UT_ConetCommandWaitAck, verifyServicePollingTimeout_byEmptyQueue_expectTimeoutHandling) {
-    // TODO: Implement service polling with no incoming commands
-    // TODO: Verify IOC_waitCMD timeout behavior
-    // TODO: Test different timeout values and queue states
-    GTEST_SKIP() << "TODO: Implement polling timeout validation";
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
+
+    // Service setup with timeout testing capabilities
+    __CmdTimeoutTestPriv_T SrvTimeoutPriv = {};
+    IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char *)"CmdWaitAck_TimeoutTest"};
+
+    // Define supported commands for timeout testing
+    static IOC_CmdID_T SupportedCmdIDs[] = {IOC_CMDID_TEST_PING};
+    IOC_CmdUsageArgs_T CmdUsageArgs = {.CbExecCmd_F = nullptr,  // NO CALLBACK - polling mode
+                                       .pCbPrivData = nullptr,
+                                       .CmdNum = 1,  // Only PING command
+                                       .pCmdIDs = SupportedCmdIDs};
+
+    IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI,
+                             .Flags = IOC_SRVFLAG_NONE,
+                             .UsageCapabilites = IOC_LinkUsageCmdExecutor,
+                             .UsageArgs = {.pCmd = &CmdUsageArgs}};
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
+    // Client setup and connection
+    IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageCmdInitiator};
+    IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
+    std::thread CliThread([&] {
+        IOC_Result_T ResultValueInThread = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValueInThread);
+        ASSERT_NE(IOC_ID_INVALID, CliLinkID);
+    });
+
+    IOC_LinkID_T SrvLinkID = IOC_ID_INVALID;
+    ResultValue = IOC_acceptClient(SrvID, &SrvLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, SrvLinkID);
+
+    if (CliThread.joinable()) CliThread.join();
+
+    SrvTimeoutPriv.SrvLinkID = SrvLinkID;
+
+    // Start service polling thread with timeout testing
+    std::thread SrvTimeoutPollingThread([&] {
+        SrvTimeoutPriv.PollingStarted = true;
+
+        // Create timeout option with specific timeout value (convert ms to us)
+        IOC_Options_T TimeoutOption;
+        TimeoutOption.IDs = IOC_OPTID_TIMEOUT;
+        TimeoutOption.Payload.TimeoutUS = SrvTimeoutPriv.TimeoutMs.load() * 1000;  // Convert ms to us
+
+        IOC_CMDDESC_DECLARE_VAR(CmdDesc);
+
+        // Record polling start time
+        SrvTimeoutPriv.PollingStartTime = std::chrono::steady_clock::now();
+
+        printf("[DEBUG] Starting polling with timeout %d ms\n", SrvTimeoutPriv.TimeoutMs.load());
+
+        // Attempt polling with timeout - should timeout because no commands will be sent
+        IOC_Result_T PollingResult = IOC_waitCMD(SrvLinkID, &CmdDesc, &TimeoutOption);
+
+        // Record polling end time
+        SrvTimeoutPriv.PollingEndTime = std::chrono::steady_clock::now();
+
+        // Store the result for verification
+        SrvTimeoutPriv.PollingResult = PollingResult;
+        SrvTimeoutPriv.PollingAttempts++;
+        SrvTimeoutPriv.PollingComplete = true;
+
+        printf("[DEBUG] Polling completed with result: %d\n", PollingResult);
+    });
+
+    // Wait for polling to start
+    while (!SrvTimeoutPriv.PollingStarted.load()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    printf("[DEBUG] Polling started, waiting for timeout...\n");
+
+    // Wait for polling to complete (should timeout)
+    while (!SrvTimeoutPriv.PollingComplete.load()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+
+    // Join the polling thread
+    if (SrvTimeoutPollingThread.joinable()) SrvTimeoutPollingThread.join();
+
+    // Verify timeout behavior
+    auto ActualDuration = std::chrono::duration_cast<std::chrono::milliseconds>(SrvTimeoutPriv.PollingEndTime -
+                                                                                SrvTimeoutPriv.PollingStartTime);
+
+    printf("[DEBUG] Actual polling duration: %lld ms (expected ~%d ms)\n", ActualDuration.count(),
+           SrvTimeoutPriv.TimeoutMs.load());
+
+    // Verify that polling returned with timeout result
+    IOC_Result_T ExpectedTimeoutResult = IOC_RESULT_TIMEOUT;  // or whatever timeout result is expected
+    ASSERT_EQ(ExpectedTimeoutResult, SrvTimeoutPriv.PollingResult.load())
+        << "Expected timeout result, got: " << SrvTimeoutPriv.PollingResult.load();
+
+    // Verify that the timeout was respected (allow some variance for timing)
+    int ExpectedTimeoutMs = SrvTimeoutPriv.TimeoutMs.load();
+    ASSERT_GE(ActualDuration.count(), ExpectedTimeoutMs - 100)  // At least timeout minus variance
+        << "Polling completed too early: " << ActualDuration.count() << "ms < " << (ExpectedTimeoutMs - 100) << "ms";
+
+    ASSERT_LE(ActualDuration.count(), ExpectedTimeoutMs + 200)  // At most timeout plus variance
+        << "Polling took too long: " << ActualDuration.count() << "ms > " << (ExpectedTimeoutMs + 200) << "ms";
+
+    // Verify polling attempts and completion state
+    ASSERT_EQ(1, SrvTimeoutPriv.PollingAttempts.load());
+    ASSERT_TRUE(SrvTimeoutPriv.PollingComplete.load());
+
+    // Test multiple timeout cycles to ensure consistency
+    printf("[DEBUG] Testing second timeout cycle...\n");
+
+    // Reset for second test
+    SrvTimeoutPriv.PollingStarted = false;
+    SrvTimeoutPriv.PollingComplete = false;
+    SrvTimeoutPriv.PollingResult = IOC_RESULT_BUG;
+    SrvTimeoutPriv.TimeoutMs = 500;  // Shorter timeout for second test
+
+    std::thread SrvSecondTimeoutThread([&] {
+        SrvTimeoutPriv.PollingStarted = true;
+
+        IOC_Options_T TimeoutOption;
+        TimeoutOption.IDs = IOC_OPTID_TIMEOUT;
+        TimeoutOption.Payload.TimeoutUS = SrvTimeoutPriv.TimeoutMs.load() * 1000;  // Convert ms to us
+
+        IOC_CMDDESC_DECLARE_VAR(CmdDesc);
+
+        SrvTimeoutPriv.PollingStartTime = std::chrono::steady_clock::now();
+        IOC_Result_T PollingResult = IOC_waitCMD(SrvLinkID, &CmdDesc, &TimeoutOption);
+        SrvTimeoutPriv.PollingEndTime = std::chrono::steady_clock::now();
+
+        SrvTimeoutPriv.PollingResult = PollingResult;
+        SrvTimeoutPriv.PollingAttempts++;
+        SrvTimeoutPriv.PollingComplete = true;
+    });
+
+    // Wait for second polling cycle
+    while (!SrvTimeoutPriv.PollingStarted.load()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    while (!SrvTimeoutPriv.PollingComplete.load()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+
+    if (SrvSecondTimeoutThread.joinable()) SrvSecondTimeoutThread.join();
+
+    // Verify second timeout
+    auto SecondDuration = std::chrono::duration_cast<std::chrono::milliseconds>(SrvTimeoutPriv.PollingEndTime -
+                                                                                SrvTimeoutPriv.PollingStartTime);
+
+    printf("[DEBUG] Second polling duration: %lld ms (expected ~%d ms)\n", SecondDuration.count(),
+           SrvTimeoutPriv.TimeoutMs.load());
+
+    ASSERT_EQ(ExpectedTimeoutResult, SrvTimeoutPriv.PollingResult.load());
+    ASSERT_EQ(2, SrvTimeoutPriv.PollingAttempts.load());
+
+    // Verify second timeout timing
+    int SecondExpectedTimeoutMs = SrvTimeoutPriv.TimeoutMs.load();
+    ASSERT_GE(SecondDuration.count(), SecondExpectedTimeoutMs - 100);
+    ASSERT_LE(SecondDuration.count(), SecondExpectedTimeoutMs + 200);
+
+    printf("[DEBUG] Timeout test completed successfully\n");
+
+    // Cleanup
+    if (CliLinkID != IOC_ID_INVALID) IOC_closeLink(CliLinkID);
+    if (SrvLinkID != IOC_ID_INVALID) IOC_closeLink(SrvLinkID);
+    if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
 // TODO: Implement multi-client polling test with SYNC guarantees
