@@ -227,8 +227,8 @@ TEST(UT_ConetCommandWaitAck, verifyServicePolling_bySingleClient_expectWaitAckPa
     // Start service polling thread FIRST - uses IOC_waitCMD + IOC_ackCMD
     std::atomic<bool> PollingStarted{false};
     std::thread SrvPollingThread([&] {
-        PollingStarted = true;  // Signal that polling has started
-        IOC_CmdDesc_T CmdDesc = {};
+        PollingStarted = true;             // Signal that polling has started
+        IOC_CMDDESC_DECLARE_VAR(CmdDesc);  // Better initialization
         IOC_Result_T PollingResult = IOC_waitCMD(SrvLinkID, &CmdDesc, NULL);
 
         if (PollingResult == IOC_RESULT_SUCCESS) {
@@ -260,11 +260,10 @@ TEST(UT_ConetCommandWaitAck, verifyServicePolling_bySingleClient_expectWaitAckPa
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(100));  // Extra time for polling setup
 
-    // Client command sending - standard IOC_execCMD
-    IOC_CmdDesc_T CmdDesc = {};
+    // Client command sending - using new initialization macro
+    IOC_CMDDESC_DECLARE_VAR(CmdDesc);
     CmdDesc.CmdID = IOC_CMDID_TEST_PING;
-    CmdDesc.TimeoutMs = 3000;
-    CmdDesc.Status = IOC_CMD_STATUS_PENDING;
+    // Status already initialized to IOC_CMD_STATUS_PENDING by macro
 
     printf("[DEBUG] About to call IOC_execCMD with CliLinkID=%llu, CmdID=%llu\n", CliLinkID, CmdDesc.CmdID);
     ResultValue = IOC_execCMD(CliLinkID, &CmdDesc, NULL);

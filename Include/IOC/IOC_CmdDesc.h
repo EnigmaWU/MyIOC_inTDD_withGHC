@@ -54,10 +54,29 @@ typedef struct {
 
     // Execution context
     ULONG_T TimeoutMs;   // Command timeout in milliseconds (0 = no timeout)
+                         // IOC tell CmdExecutor, you MUST execute current CmdID in TimeoutMs
     void *pExecContext;  // Execution context data (optional)
 
     // TODO(@W): +More..., such as priority, retry count, etc.
 } IOC_CmdDesc_T, *IOC_CmdDesc_pT;
+
+// Initialization macros and functions for command description
+#define IOC_CMDDESC_DECLARE_VAR(VarName) IOC_CmdDesc_T VarName = IOC_CMDDESC_INIT_VALUE
+
+#define IOC_CMDDESC_INIT_VALUE                                                                                        \
+    {                                                                                                                 \
+        .MsgDesc = {0}, .CmdID = 0, .Status = IOC_CMD_STATUS_PENDING, .Result = IOC_RESULT_SUCCESS, .InPayload = {0}, \
+        .OutPayload = {0}, .TimeoutMs = 0, .pExecContext = NULL                                                       \
+    }
+
+// Inline initialization function for command description
+static inline void IOC_CmdDesc_initVar(IOC_CmdDesc_pT pCmdDesc) {
+    if (!pCmdDesc) return;
+
+    memset(pCmdDesc, 0, sizeof(IOC_CmdDesc_T));
+    pCmdDesc->Status = IOC_CMD_STATUS_PENDING;
+    pCmdDesc->Result = IOC_RESULT_SUCCESS;
+}
 
 // Inline getter functions for command description
 static inline ULONG_T IOC_CmdDesc_getSeqID(IOC_CmdDesc_pT pCmdDesc) { return pCmdDesc->MsgDesc.SeqID; }
