@@ -8,10 +8,10 @@
 // - Default mode: accept+callback (IOC_acceptClient + CbExecCmd_F)
 // - Consider: UT_CommandTypicalWaitAck.cxx, UT_CommandTypicalAutoAccept.cxx as future extensions
 //
-// ⚠️  IMPLEMENTATION STATUS:
-//     Command API is DEFINED but NOT YET IMPLEMENTED in the IOC framework.
-//     Functions like IOC_execCMD, IOC_waitCMD, IOC_ackCMD are declared but missing implementation.
-//     This skeleton provides the COMPLETE TEST DESIGN ready for implementation.
+// ✅ IMPLEMENTATION STATUS:
+//     🟢 GREEN: Command API fully implemented and all tests passing!
+//     Functions IOC_execCMD, IOC_waitCMD, IOC_ackCMD now working correctly.
+//     TDD Red→Green transition completed successfully with service link configuration fixes.
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "_UT_IOC_Common.h"

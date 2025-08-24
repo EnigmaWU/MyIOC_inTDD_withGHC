@@ -588,6 +588,23 @@ IOC_Result_T IOC_acceptClient(
         return IOC_RESULT_POSIX_ENOMEM;
     } else {
         pLinkObj->pMethods = pSrvObj->pMethods;
+
+        // 🔧 TDD FIX: Inherit service configuration into the accepted client link
+        // This ensures that the server-side link has the correct Usage and URI information
+        // for proper command routing and path matching
+        pLinkObj->Args.Usage = pSrvObj->Args.UsageCapabilites;
+        pLinkObj->Args.SrvURI = pSrvObj->Args.SrvURI;  // Copy service URI including path
+
+        // Copy usage-specific arguments based on the inherited capabilities
+        if (pSrvObj->Args.UsageCapabilites & IOC_LinkUsageEvtConsumer) {
+            pLinkObj->Args.UsageArgs.pEvt = pSrvObj->Args.UsageArgs.pEvt;
+        }
+        if (pSrvObj->Args.UsageCapabilites & IOC_LinkUsageCmdExecutor) {
+            pLinkObj->Args.UsageArgs.pCmd = pSrvObj->Args.UsageArgs.pCmd;
+        }
+        if (pSrvObj->Args.UsageCapabilites & IOC_LinkUsageDatReceiver) {
+            pLinkObj->Args.UsageArgs.pDat = pSrvObj->Args.UsageArgs.pDat;
+        }
     }
 
     // Step-3: Accept Client by Protocol
