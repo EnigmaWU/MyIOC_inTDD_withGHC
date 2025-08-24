@@ -131,10 +131,10 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  *
  * [@AC-1,US-1] Basic polling command detection and acknowledgment
- *  ⚪ TC-1: verifyServicePolling_bySingleClient_expectWaitAckPattern
+ *  🟢 TC-1: verifyServicePolling_bySingleClient_expectWaitAckPattern
  *      @[Purpose]: Validate basic IOC_waitCMD detection and IOC_ackCMD response pattern
  *      @[Brief]: Service polls for PING command, processes, and acknowledges with PONG
- *      @[Status]: TODO - Implement basic polling vs callback pattern comparison
+ *      @[Status]: ✅ PASSED - Basic polling pattern with IOC_waitCMD + IOC_ackCMD implemented and working
  *
  * [@AC-2,US-1] Delayed response processing with manual acknowledgment
  *  ⚪ TC-1: verifyServiceAsyncProcessing_byDelayedAck_expectControlledTiming
