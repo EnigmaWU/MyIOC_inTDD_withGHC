@@ -107,7 +107,7 @@ TEST(UT_ConetEventTypical, verifyServiceAutoAccept_byPollingPath_expectEventDeli
     // │                                🔧 SETUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
     printf("🔧 SETUP: Service with AUTO_ACCEPT and client connection\n");
-    IOC_Result_T R = IOC_RESULT_BUG;
+    IOC_Result_T Result = IOC_RESULT_BUG;
 
     // 1. Service online with AUTO_ACCEPT
     IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
@@ -117,21 +117,21 @@ TEST(UT_ConetEventTypical, verifyServiceAutoAccept_byPollingPath_expectEventDeli
                              .Flags = (IOC_SrvFlags_T)(IOC_SRVFLAG_AUTO_ACCEPT),
                              .UsageCapabilites = IOC_LinkUsageEvtProducer};
     IOC_SrvID_T SrvID = IOC_ID_INVALID;
-    R = IOC_onlineService(&SrvID, &SrvArgs);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+    Result = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
 
     // 2. Client connect as consumer and subscribe
     IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageEvtConsumer};
-    IOC_LinkID_T CliLink = IOC_ID_INVALID;
-    R = IOC_connectService(&CliLink, &ConnArgs, NULL);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+    IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
+    Result = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
 
     __EvtRecvPrivAA_T RecvPriv = {};
     static IOC_EvtID_T EIDs[1] = {IOC_EVTID_TEST_KEEPALIVE};
     IOC_SubEvtArgs_T Sub = {
         .CbProcEvt_F = __EvtAA_ClientCb, .pCbPrivData = &RecvPriv, .EvtNum = 1, .pEvtIDs = &EIDs[0]};
-    R = IOC_subEVT(CliLink, &Sub);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+    Result = IOC_subEVT(CliLinkID, &Sub);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               🎯 BEHAVIOR PHASE                                       │
@@ -142,20 +142,20 @@ TEST(UT_ConetEventTypical, verifyServiceAutoAccept_byPollingPath_expectEventDeli
     IOC_LinkID_T SrvLinks[2] = {IOC_ID_INVALID, IOC_ID_INVALID};
     uint16_t actual = 0;
     for (int i = 0; i < 100; ++i) {
-        R = IOC_getServiceLinkIDs(SrvID, SrvLinks, 2, &actual);
-        if ((R == IOC_RESULT_SUCCESS || R == IOC_RESULT_BUFFER_TOO_SMALL) && actual >= 1) break;
+        Result = IOC_getServiceLinkIDs(SrvID, SrvLinks, 2, &actual);
+        if ((Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_BUFFER_TOO_SMALL) && actual >= 1) break;
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     ASSERT_GE(actual, 1);
-    IOC_LinkID_T SrvLink = SrvLinks[0];
+    IOC_LinkID_T SrvLinkID = SrvLinks[0];
 
     // 4. Post event
     printf("📤 Service posting KEEPALIVE event to auto-accepted client\n");
-    IOC_EvtDesc_T E = {};
-    E.EvtID = IOC_EVTID_TEST_KEEPALIVE;
-    E.EvtValue = 7;
-    R = IOC_postEVT(SrvLink, &E, NULL);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, R);
+    IOC_EvtDesc_T EvtDesc = {};
+    EvtDesc.EvtID = IOC_EVTID_TEST_KEEPALIVE;
+    EvtDesc.EvtValue = 7;
+    Result = IOC_postEVT(SrvLinkID, &EvtDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                ✅ VERIFY PHASE                                        │
@@ -177,6 +177,6 @@ TEST(UT_ConetEventTypical, verifyServiceAutoAccept_byPollingPath_expectEventDeli
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               🧹 CLEANUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
-    if (CliLink != IOC_ID_INVALID) IOC_closeLink(CliLink);
-    if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
+    if (CliLinkID != IOC_ID_INVALID) IOC_closeLink(CliLinkID);
+    if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);  // This will cleanup SrvLinkID automatically
 }
