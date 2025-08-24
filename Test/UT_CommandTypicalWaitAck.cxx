@@ -144,10 +144,15 @@
  *      @[Status]: ✅ PASSED - Delayed acknowledgment with controlled timing implemented and working
  *
  * [@AC-3,US-1] Polling timeout behavior and queue management
- *  🔴 TC-1: verifyServicePollingTimeout_byEmptyQueue_expectTimeoutHandling
+ *  🟢 TC-1: verifyServicePollingTimeout_byEmptyQueue_expectTimeoutHandling
  *      @[Purpose]: Validate IOC_waitCMD timeout behavior when no commands available
  *      @[Brief]: Service polls with timeout, handles empty queue gracefully
- *      @[Status]: 🔴 RED - Implementing polling timeout validation
+ *      @[Status]: ✅ PASSED - Polling timeout validation implemented and working
+ *
+ *  � TC-2: verifyServicePollingNonblock_byEmptyQueue_expectImmediateReturn
+ *      @[Purpose]: Validate IOC_waitCMD non-blocking behavior when no commands available
+ *      @[Brief]: Service polls with NONBLOCK mode, returns immediately with NO_CMD_PENDING
+ *      @[Status]: ✅ PASSED - Non-blocking polling validation implemented and working
  *
  * [@AC-4,US-1] Multi-client polling and independent acknowledgment tracking
  *  ⚪ TC-1: verifyServiceMultiClientPolling_byIndependentAck_expectProperTracking
@@ -656,6 +661,166 @@ TEST(UT_ConetCommandWaitAck, verifyServicePollingTimeout_byEmptyQueue_expectTime
     ASSERT_LE(SecondDuration.count(), SecondExpectedTimeoutMs + 200);
 
     printf("[DEBUG] Timeout test completed successfully\n");
+
+    // Cleanup
+    if (CliLinkID != IOC_ID_INVALID) IOC_closeLink(CliLinkID);
+    if (SrvLinkID != IOC_ID_INVALID) IOC_closeLink(SrvLinkID);
+    if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
+}
+
+// Implement non-blocking polling test
+TEST(UT_ConetCommandWaitAck, verifyServicePollingNonblock_byEmptyQueue_expectImmediateReturn) {
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
+
+    // Service setup with non-blocking polling capabilities
+    __CmdTimeoutTestPriv_T SrvNonblockPriv = {};
+    IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char *)"CmdWaitAck_NonblockTest"};
+
+    // Define supported commands for non-blocking testing
+    static IOC_CmdID_T SupportedCmdIDs[] = {IOC_CMDID_TEST_PING};
+    IOC_CmdUsageArgs_T CmdUsageArgs = {.CbExecCmd_F = nullptr,  // NO CALLBACK - polling mode
+                                       .pCbPrivData = nullptr,
+                                       .CmdNum = 1,  // Only PING command
+                                       .pCmdIDs = SupportedCmdIDs};
+
+    IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI,
+                             .Flags = IOC_SRVFLAG_NONE,
+                             .UsageCapabilites = IOC_LinkUsageCmdExecutor,
+                             .UsageArgs = {.pCmd = &CmdUsageArgs}};
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
+    // Client setup and connection
+    IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageCmdInitiator};
+    IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
+    std::thread CliThread([&] {
+        IOC_Result_T ResultValueInThread = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValueInThread);
+        ASSERT_NE(IOC_ID_INVALID, CliLinkID);
+    });
+
+    IOC_LinkID_T SrvLinkID = IOC_ID_INVALID;
+    ResultValue = IOC_acceptClient(SrvID, &SrvLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, SrvLinkID);
+
+    if (CliThread.joinable()) CliThread.join();
+
+    SrvNonblockPriv.SrvLinkID = SrvLinkID;
+
+    // Start service non-blocking polling thread
+    std::thread SrvNonblockPollingThread([&] {
+        SrvNonblockPriv.PollingStarted = true;
+
+        // Create non-blocking option using macro
+        IOC_Option_defineNonBlock(NonBlockOption);
+
+        IOC_CMDDESC_DECLARE_VAR(CmdDesc);
+
+        // Record polling start time
+        SrvNonblockPriv.PollingStartTime = std::chrono::steady_clock::now();
+
+        printf("[DEBUG] Starting non-blocking polling (should return immediately)\n");
+
+        // Attempt non-blocking polling - should return immediately with NO_DATA
+        IOC_Result_T PollingResult = IOC_waitCMD(SrvLinkID, &CmdDesc, &NonBlockOption);
+
+        // Record polling end time
+        SrvNonblockPriv.PollingEndTime = std::chrono::steady_clock::now();
+
+        // Store the result for verification
+        SrvNonblockPriv.PollingResult = PollingResult;
+        SrvNonblockPriv.PollingAttempts++;
+        SrvNonblockPriv.PollingComplete = true;
+
+        printf("[DEBUG] Non-blocking polling completed with result: %d\n", PollingResult);
+    });
+
+    // Wait for polling to start
+    while (!SrvNonblockPriv.PollingStarted.load()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    printf("[DEBUG] Non-blocking polling started, should complete immediately...\n");
+
+    // Wait for polling to complete (should be very quick)
+    while (!SrvNonblockPriv.PollingComplete.load()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    // Join the polling thread
+    if (SrvNonblockPollingThread.joinable()) SrvNonblockPollingThread.join();
+
+    // Verify non-blocking behavior
+    auto ActualDuration = std::chrono::duration_cast<std::chrono::milliseconds>(SrvNonblockPriv.PollingEndTime -
+                                                                                SrvNonblockPriv.PollingStartTime);
+
+    printf("[DEBUG] Actual non-blocking polling duration: %lld ms (expected ~0 ms)\n", ActualDuration.count());
+
+    // Verify that polling returned with NO_CMD_PENDING result (since no commands were sent)
+    // Note: The IOC framework currently uses IOC_RESULT_NOT_EXIST for command polling non-blocking mode
+    IOC_Result_T ExpectedNonblockResult = IOC_RESULT_NO_CMD_PENDING;
+    ASSERT_EQ(ExpectedNonblockResult, SrvNonblockPriv.PollingResult.load())
+        << "Expected NO_CMD_PENDING result for non-blocking call, got: " << SrvNonblockPriv.PollingResult.load();
+
+    // Verify that the polling returned immediately (should be < 50ms)
+    ASSERT_LE(ActualDuration.count(), 50)
+        << "Non-blocking polling took too long: " << ActualDuration.count() << "ms > 50ms";
+
+    // Verify polling attempts and completion state
+    ASSERT_EQ(1, SrvNonblockPriv.PollingAttempts.load());
+    ASSERT_TRUE(SrvNonblockPriv.PollingComplete.load());
+
+    // Test multiple non-blocking cycles to ensure consistency
+    printf("[DEBUG] Testing second non-blocking cycle...\n");
+
+    // Reset for second test
+    SrvNonblockPriv.PollingStarted = false;
+    SrvNonblockPriv.PollingComplete = false;
+    SrvNonblockPriv.PollingResult = IOC_RESULT_BUG;
+
+    std::thread SrvSecondNonblockThread([&] {
+        SrvNonblockPriv.PollingStarted = true;
+
+        IOC_Option_defineNonBlock(NonBlockOption);
+        IOC_CMDDESC_DECLARE_VAR(CmdDesc);
+
+        SrvNonblockPriv.PollingStartTime = std::chrono::steady_clock::now();
+        IOC_Result_T PollingResult = IOC_waitCMD(SrvLinkID, &CmdDesc, &NonBlockOption);
+        SrvNonblockPriv.PollingEndTime = std::chrono::steady_clock::now();
+
+        SrvNonblockPriv.PollingResult = PollingResult;
+        SrvNonblockPriv.PollingAttempts++;
+        SrvNonblockPriv.PollingComplete = true;
+    });
+
+    // Wait for second polling cycle
+    while (!SrvNonblockPriv.PollingStarted.load()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    while (!SrvNonblockPriv.PollingComplete.load()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    if (SrvSecondNonblockThread.joinable()) SrvSecondNonblockThread.join();
+
+    // Verify second non-blocking call
+    auto SecondDuration = std::chrono::duration_cast<std::chrono::milliseconds>(SrvNonblockPriv.PollingEndTime -
+                                                                                SrvNonblockPriv.PollingStartTime);
+
+    printf("[DEBUG] Second non-blocking polling duration: %lld ms (expected ~0 ms)\n", SecondDuration.count());
+
+    ASSERT_EQ(ExpectedNonblockResult, SrvNonblockPriv.PollingResult.load());
+    ASSERT_EQ(2, SrvNonblockPriv.PollingAttempts.load());
+
+    // Verify second non-blocking timing
+    ASSERT_LE(SecondDuration.count(), 50);
+
+    printf("[DEBUG] Non-blocking test completed successfully\n");
 
     // Cleanup
     if (CliLinkID != IOC_ID_INVALID) IOC_closeLink(CliLinkID);
