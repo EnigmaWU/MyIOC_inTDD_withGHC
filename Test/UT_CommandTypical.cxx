@@ -150,13 +150,13 @@
  *      @[Status]: IMPLEMENTED/GREEN ✅ - Complete bidirectional command flow, test passing
  *
  * [@AC-2,US-2] Service orchestrating multiple client operations
- *  ⚪ TC-1: verifyServiceAsCmdInitiator_byMultipleClients_expectOrchestration
+ *  ✅ TC-1: verifyServiceAsCmdInitiator_byMultipleClients_expectOrchestration
  *      @[Purpose]: Validate service orchestrating commands across multiple clients
  *      @[Brief]: Service sends different commands to different clients independently
  *      @[Status]: IMPLEMENTED/GREEN ✅ - Multi-client orchestration pattern with different command types
  *
  * [@AC-3,US-2] Command result aggregation from multiple clients
- *  ⚪ TC-1: verifyServiceAsCmdInitiator_byResultAggregation_expectCompleteCollection
+ *  ✅ TC-1: verifyServiceAsCmdInitiator_byResultAggregation_expectCompleteCollection
  *      @[Purpose]: Validate service collecting results from multiple clients for same command
  *      @[Brief]: Service sends GET_STATUS to all clients, aggregates responses
  *      @[Status]: IMPLEMENTED/GREEN ✅ - Result aggregation pattern with multi-client status collection
@@ -1019,20 +1019,22 @@ TEST(UT_ConetCommandTypical, verifyServiceAsCmdInitiator_byResultAggregation_exp
 // ✅ IMPLEMENTATION STATUS TRACKING - All Core Tests Now GREEN!
 // Command APIs fully implemented and working with proper protocol delegation
 //
-// ✅ CURRENT GREEN TESTS (All implemented and passing):
-//   4 core tests complete and PASSING: IOC_execCMD/IOC_waitCMD/IOC_ackCMD fully working
-//   Architecture refactoring success: Commands now properly call ProtoFifo methods
+// ✅ CURRENT GREEN TESTS (All 7 tests implemented and passing):
+//   ✅ All US-1 tests: Service as CmdExecutor patterns working perfectly
+//   ✅ All US-2 tests: Service as CmdInitiator patterns working perfectly
+//   ✅ Architecture success: Proper callback role separation and Service↔Client command flows
 //
-// ⚪ PLANNED IMPLEMENTATION ROADMAP:
-//   1. AC-4,US-1 TC-1: Command timeout testing (need DELAY command support)
-//   2. AC-2,US-2 TC-1: Multi-client orchestration patterns
-//   3. AC-3,US-2 TC-1: Result aggregation mechanisms
-//   4. Performance testing: Command throughput and latency
-//   5. Boundary testing: Max payload sizes, concurrent limits
-//   6. Error scenarios: Network failures, invalid commands
+// 🎯 COMPLETED IMPLEMENTATION ITEMS:
+//   ✅ AC-1,US-1: Basic P2P command execution with callback processing
+//   ✅ AC-2,US-1: Multiple command type support and payload handling
+//   ✅ AC-3,US-1: Multi-client isolation and concurrent command processing
+//   ✅ AC-4,US-1: Command timeout and timing constraint validation
+//   ✅ AC-1,US-2: Reversed command flow from service to client
+//   ✅ AC-2,US-2: Service orchestrating multiple client operations
+//   ✅ AC-3,US-2: Command result aggregation from multiple clients
 //
-// 🎯 ACHIEVEMENT: TDD Red→Green transition completed successfully!
-//    All command functionality now working with proper layered architecture.
+// 🎯 ACHIEVEMENT: Complete TDD Red→Green transition with proper architecture!
+//    All command functionality working with correct Service↔Client role separation.
 
 //======>END OF TEST CASES==========================================================================
 
