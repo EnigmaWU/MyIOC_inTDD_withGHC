@@ -93,71 +93,70 @@
 //=======>END OF ACCEPTANCE CRITERIA================================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF TEST CASES (placeholders; to be implemented)=====================================
-
-/**
- * [@AC-1,US-1] TC-1: verifyCmdExecutorService_byClientInitiator_expectCallbackExecution
- * Test: verifyServiceAsCmdExecutor_bySingleClient_expectSynchronousResponse
- * Purpose: Validate basic Conet CmdExecutor→callback execution from client initiator.
- * Steps:
- *   1) Online service (Usage=CmdExecutor, Conet) with CbExecCmd_F registered.
- *   2) Connect one client (Usage=CmdInitiator) and accept manually.
- *   3) Client sends PING command via IOC_execCMD; service callback processes.
- *   4) Expect IOC_execCMD returns IOC_RESULT_SUCCESS with response payload.
+//======>BEGIN OF TEST CASES=======================================================================
+/**************************************************************************************************
+ * @brief 【Command Test Cases】
  *
- * [@AC-2,US-1] TC-1: verifyCmdMultipleTypes_byTestCommands_expectCorrectResults
- * Test: verifyServiceAsCmdExecutor_byMultipleCommandTypes_expectProperExecution
- * Purpose: Ensure service can handle multiple command types correctly.
- * Steps:
- *   1) Online service (CmdExecutor) with support for PING, ECHO, CALC commands.
- *   2) Connect client (CmdInitiator) and establish link.
- *   3) Client sequentially sends PING (no payload), ECHO (text payload), CALC (numeric payload).
- *   4) Verify each command returns expected result type and content.
+ * ORGANIZATION STRATEGIES:
+ *  - By Feature/Component: Service as CmdExecutor vs CmdInitiator patterns
+ *  - By Test Category: Typical → Boundary → State → Error → Performance
+ *  - By Coverage Matrix: Systematic coverage of command execution flows
+ *  - By Priority: Basic P2P commands first, complex orchestration second
  *
- * [@AC-3,US-1] TC-1: verifyCmdMultipleClients_byIndependentExecution_expectNoInterference
- * Test: verifyServiceAsCmdExecutor_byMultipleClients_expectIsolatedExecution
- * Purpose: Validate command isolation between multiple clients.
- * Steps:
- *   1) Online service (CmdExecutor) supporting test commands.
- *   2) Connect multiple clients (CmdInitiators) simultaneously.
- *   3) Clients send commands concurrently with unique payloads.
- *   4) Assert each client receives correct response without cross-talk.
+ * STATUS TRACKING: 🟢 = Implemented, 🔴 = TODO/RED, ⚪ = Planned, ⚠️ = Issues
  *
- * [@AC-4,US-1] TC-1: verifyCmdTimeout_byTimedExecution_expectTimeoutHandling
- * Test: verifyServiceAsCmdExecutor_byTimeoutConstraints_expectProperTiming
- * Purpose: Validate command timeout behavior for time-bounded operations.
- * Steps:
- *   1) Online service (CmdExecutor) with DELAY command handler.
- *   2) Connect client and send DELAY command with specific timeout.
- *   3) Verify command completes within expected time bounds.
- *   4) Test both successful completion and timeout scenarios.
+ * ⚠️ FRAMEWORK STATUS: Command APIs (IOC_execCMD, IOC_waitCMD, IOC_ackCMD) are DECLARED but NOT IMPLEMENTED
+ *    These tests provide complete design specification ready for implementation.
  *
- * [@AC-1,US-2] TC-1: verifyCmdInitiatorService_byClientExecutor_expectServerToClientCommand
- * Test: verifyServiceAsCmdInitiator_bySingleClient_expectClientExecution
- * Purpose: Validate reversed command flow from service to client.
- * Steps:
- *   1) Online service (Usage=CmdInitiator, Conet).
- *   2) Connect client (Usage=CmdExecutor) with CbExecCmd_F callback.
- *   3) Service sends command to client via IOC_execCMD on accepted link.
- *   4) Expect client callback processes command and service receives result.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ * 📋 [US-1]: Service as CmdExecutor (Client→Server Command Patterns)
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
  *
- * [@AC-2,US-2] TC-1: verifyCmdOrchestration_byMultipleClients_expectDistributedExecution
- * Test: verifyServiceAsCmdInitiator_byMultipleClients_expectOrchestration
- * Purpose: Validate service orchestrating commands across multiple clients.
- * Steps:
- *   1) Online service (CmdInitiator) and connect multiple clients (CmdExecutor).
- *   2) Service sends different commands to different clients.
- *   3) Each client executes assigned command independently.
- *   4) Service collects results from all clients successfully.
+ * [@AC-1,US-1] Basic P2P command execution with callback processing
+ *  🟢 TC-1: verifyServiceAsCmdExecutor_bySingleClient_expectSynchronousResponse
+ *      @[Purpose]: Validate fundamental Conet CmdExecutor→callback execution from client initiator
+ *      @[Brief]: Service accepts client, processes PING command via callback, returns PONG response
+ *      @[Status]: IMPLEMENTED ✅ - Complete test with proper cleanup and verification
  *
- * [@AC-3,US-2] TC-1: verifyCmdAggregation_bySameCommandMultipleClients_expectCollectedResults
- * Test: verifyServiceAsCmdInitiator_byResultAggregation_expectCompleteCollection
- * Purpose: Validate service collecting results from multiple clients for same command.
- * Steps:
- *   1) Online service (CmdInitiator) and connect multiple clients (CmdExecutor).
- *   2) Service sends same command (e.g., GET_STATUS) to all clients.
- *   3) All clients execute command and return their individual results.
- *   4) Service aggregates all results for complete system status.
+ * [@AC-2,US-1] Multiple command type support and payload handling
+ *  🟢 TC-1: verifyServiceAsCmdExecutor_byMultipleCommandTypes_expectProperExecution
+ *      @[Purpose]: Ensure service can handle different command types with appropriate payloads
+ *      @[Brief]: Tests PING (no payload), ECHO (text), CALC (numeric) commands sequentially
+ *      @[Status]: IMPLEMENTED ✅ - Comprehensive command type coverage with validation
+ *
+ * [@AC-3,US-1] Multi-client isolation and concurrent command processing
+ *  🟢 TC-1: verifyServiceAsCmdExecutor_byMultipleClients_expectIsolatedExecution
+ *      @[Purpose]: Validate command isolation between multiple clients without interference
+ *      @[Brief]: 3 clients send unique ECHO commands concurrently, verify response isolation
+ *      @[Status]: IMPLEMENTED ✅ - Thread-safe multi-client testing with atomics
+ *
+ * [@AC-4,US-1] Command timeout and timing constraint validation
+ *  🔴 TC-1: verifyServiceAsCmdExecutor_byTimeoutConstraints_expectProperTiming
+ *      @[Purpose]: Validate command timeout behavior for time-bounded operations
+ *      @[Brief]: Test DELAY command with timeouts, verify completion and timeout scenarios
+ *      @[Status]: TODO - Need DELAY command implementation and timeout testing logic
+ *
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ * 📋 [US-2]: Service as CmdInitiator (Server→Client Command Patterns)
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * [@AC-1,US-2] Reversed command flow from service to client
+ *  🟢 TC-1: verifyServiceAsCmdInitiator_bySingleClient_expectClientExecution
+ *      @[Purpose]: Validate reversed command flow from service to client executor
+ *      @[Brief]: Service sends PING to client, client processes via callback, service gets PONG
+ *      @[Status]: IMPLEMENTED ✅ - Complete bidirectional command flow verification
+ *
+ * [@AC-2,US-2] Service orchestrating multiple client operations
+ *  🔴 TC-1: verifyServiceAsCmdInitiator_byMultipleClients_expectOrchestration
+ *      @[Purpose]: Validate service orchestrating commands across multiple clients
+ *      @[Brief]: Service sends different commands to different clients independently
+ *      @[Status]: TODO - Multi-client orchestration pattern needs implementation
+ *
+ * [@AC-3,US-2] Command result aggregation from multiple clients
+ *  🔴 TC-1: verifyServiceAsCmdInitiator_byResultAggregation_expectCompleteCollection
+ *      @[Purpose]: Validate service collecting results from multiple clients for same command
+ *      @[Brief]: Service sends GET_STATUS to all clients, aggregates responses
+ *      @[Status]: TODO - Result aggregation logic and GET_STATUS command type needed
  */
 //======>END OF TEST CASES=========================================================================
 
@@ -585,6 +584,14 @@ TEST(UT_ConetCommandTypical, verifyServiceAsCmdInitiator_bySingleClient_expectCl
 
 // TODO: Additional test cases for AC-2, AC-3, AC-4 of US-1 and AC-2, AC-3 of US-2
 // These will be implemented following the same pattern with increasing complexity
+//
+// 🔴 IMPLEMENTATION ROADMAP:
+//   1. AC-4,US-1 TC-1: Command timeout testing (need DELAY command support)
+//   2. AC-2,US-2 TC-1: Multi-client orchestration patterns
+//   3. AC-3,US-2 TC-1: Result aggregation mechanisms
+//   4. Performance testing: Command throughput and latency
+//   5. Boundary testing: Max payload sizes, concurrent limits
+//   6. Error scenarios: Network failures, invalid commands
 
 //======>END OF TEST CASES==========================================================================
 
