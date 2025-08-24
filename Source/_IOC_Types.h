@@ -105,6 +105,19 @@ struct _IOC_SrvProtoMethodsStru {
     // method naming pattern where operations are prefixed with "Op" and suffixed with "_F".
     IOC_Result_T (*OpSendData_F)(_IOC_LinkObject_pT, const IOC_DatDesc_pT, const IOC_Options_pT);
     IOC_Result_T (*OpRecvData_F)(_IOC_LinkObject_pT, IOC_DatDesc_pT, const IOC_Options_pT);
+
+    // 🚀 WHY ADD CMD METHODS: Completing the protocol layer abstraction for command operations.
+    // Following the architecture pattern where high-level APIs (IOC_execCMD, IOC_waitCMD, IOC_ackCMD)
+    // delegate to protocol-specific implementations. This enables different protocols to implement
+    // command communication in their optimal way (FIFO uses direct callbacks, TCP would use sockets).
+    //
+    // 🎯 ROLES:
+    // - OpExecCmd_F: Command initiator (CmdInitiator) - synchronous request-response
+    // - OpWaitCmd_F: Command executor (CmdExecutor) - receive command requests  
+    // - OpAckCmd_F: Command executor (CmdExecutor) - send command responses
+    IOC_Result_T (*OpExecCmd_F)(_IOC_LinkObject_pT, IOC_CmdDesc_pT, const IOC_Options_pT);
+    IOC_Result_T (*OpWaitCmd_F)(_IOC_LinkObject_pT, IOC_CmdDesc_pT, const IOC_Options_pT);
+    IOC_Result_T (*OpAckCmd_F)(_IOC_LinkObject_pT, const IOC_CmdDesc_pT, const IOC_Options_pT);
 };
 
 //_gIOC_XYZ is the global variable used intra-IOC module.

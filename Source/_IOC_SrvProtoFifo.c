@@ -131,6 +131,16 @@ struct _IOC_ProtoFifoLinkObjectStru {
     // This enables events to be consumed via polling as an alternative to callback-based IOC_subEVT
     _IOC_EvtDescQueue_T EvtPollingQueue;  // Queue for events awaiting polling consumption
     bool IsEvtPollingActive;              // Whether this link is actively using event polling
+
+    // 🎯 COMMAND POLLING SUPPORT: Queue for polling-based command consumption using IOC_waitCMD
+    // This enables commands to be consumed via polling as an alternative to callback-based execution
+    // Note: Currently not fully implemented - ProtoFifo uses callback mode for optimal performance
+    struct {
+        // TODO: Implement command queue similar to EvtDescQueue for polling support
+        // For now, ProtoFifo uses direct callback execution for maximum performance
+        bool IsCmdPollingActive;         // Whether this link is actively using command polling
+        pthread_mutex_t CmdPollingMutex; // Mutex for command polling operations
+    } CmdPolling;
 };
 
 /**
@@ -357,6 +367,10 @@ static IOC_Result_T __IOC_connectService_ofProtoFifo(_IOC_LinkObject_pT pLinkObj
     _IOC_EvtDescQueue_initOne(&pFifoLinkObj->EvtPollingQueue);
     pFifoLinkObj->IsEvtPollingActive = false;  // Initially disabled, enabled when first pull is called
 
+    // Initialize command polling support for IOC_waitCMD support
+    pFifoLinkObj->CmdPolling.IsCmdPollingActive = false;  // Initially disabled
+    pthread_mutex_init(&pFifoLinkObj->CmdPolling.CmdPollingMutex, NULL);
+
     // Initialize polling buffer for potential DAT operations
     IOC_Result_T BufferResult = __IOC_initPollingBuffer_ofProtoFifo(pFifoLinkObj);
     if (BufferResult != IOC_RESULT_SUCCESS) {
@@ -439,6 +453,10 @@ static IOC_Result_T __IOC_acceptClient_ofProtoFifo(_IOC_ServiceObject_pT pSrvObj
     // Initialize event polling queue for IOC_pullEVT support
     _IOC_EvtDescQueue_initOne(&pAceptedFifoLinkObj->EvtPollingQueue);
     pAceptedFifoLinkObj->IsEvtPollingActive = false;  // Initially disabled, enabled when first pull is called
+
+    // Initialize command polling support for IOC_waitCMD support
+    pAceptedFifoLinkObj->CmdPolling.IsCmdPollingActive = false;  // Initially disabled
+    pthread_mutex_init(&pAceptedFifoLinkObj->CmdPolling.CmdPollingMutex, NULL);
 
     // Initialize polling buffer for potential DAT operations
     IOC_Result_T BufferResult = __IOC_initPollingBuffer_ofProtoFifo(pAceptedFifoLinkObj);
@@ -1727,6 +1745,133 @@ static bool __IOC_shouldOpenBatchWindow(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj
     return callbackDurationMs >= pFifoLinkObj->DatReceiver.CallbackBatch.SlowCallbackThresholdMs;
 }
 
+//=================================================================================================
+// ProtoFifo Command Methods Implementation  
+//=================================================================================================
+
+/**
+ * @brief Execute command via ProtoFifo protocol (CmdInitiator → CmdExecutor)
+ * @param pLinkObj Source link object (CmdInitiator)
+ * @param pCmdDesc Command descriptor (input/output parameters)
+ * @param pOption Options for command execution
+ * @return IOC_RESULT_SUCCESS on successful execution
+ */
+static IOC_Result_T __IOC_execCmd_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_CmdDesc_pT pCmdDesc, 
+                                              const IOC_Options_pT pOption) {
+    if (!pLinkObj || !pCmdDesc) {
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
+    // Verify link is CmdInitiator
+    if (pLinkObj->Args.Usage != IOC_LinkUsageCmdInitiator) {
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
+    _IOC_ProtoFifoLinkObject_pT pLocalFifoLinkObj = (_IOC_ProtoFifoLinkObject_pT)pLinkObj->pProtoPriv;
+    if (!pLocalFifoLinkObj) {
+        return IOC_RESULT_NOT_EXIST_LINK;
+    }
+
+    // Find peer link (CmdExecutor)
+    pthread_mutex_lock(&pLocalFifoLinkObj->Mutex);
+    _IOC_ProtoFifoLinkObject_pT pPeerFifoLinkObj = pLocalFifoLinkObj->pPeer;
+    pthread_mutex_unlock(&pLocalFifoLinkObj->Mutex);
+
+    if (!pPeerFifoLinkObj) {
+        return IOC_RESULT_NOT_EXIST_LINK;
+    }
+
+    // Get peer's link object to verify it's CmdExecutor
+    _IOC_LinkObject_pT pPeerLinkObj = pPeerFifoLinkObj->pOwnerLinkObj;
+    if (!pPeerLinkObj || pPeerLinkObj->Args.Usage != IOC_LinkUsageCmdExecutor) {
+        return IOC_RESULT_NO_CMD_EXECUTOR;
+    }
+
+    // Get command execution callback from peer
+    IOC_CmdUsageArgs_pT pCmdUsageArgs = pPeerLinkObj->Args.UsageArgs.pCmd;
+    if (!pCmdUsageArgs || !pCmdUsageArgs->CbExecCmd_F) {
+        return IOC_RESULT_NO_CMD_EXECUTOR;
+    }
+
+    // Check if command is supported
+    bool CmdSupported = false;
+    for (int i = 0; i < pCmdUsageArgs->CmdNum; i++) {
+        if (pCmdUsageArgs->pCmdIDs[i] == pCmdDesc->CmdID) {
+            CmdSupported = true;
+            break;
+        }
+    }
+
+    if (!CmdSupported) {
+        return IOC_RESULT_NOT_SUPPORT;
+    }
+
+    // Execute command via callback (synchronous in ProtoFifo)
+    pCmdDesc->Status = IOC_CMD_STATUS_PROCESSING;
+    IOC_Result_T Result = pCmdUsageArgs->CbExecCmd_F(pPeerLinkObj->ID, pCmdDesc, pCmdUsageArgs->pCbPrivData);
+
+    // Update command status based on result
+    if (Result == IOC_RESULT_SUCCESS) {
+        pCmdDesc->Status = IOC_CMD_STATUS_SUCCESS;
+    } else {
+        pCmdDesc->Status = IOC_CMD_STATUS_FAILED;
+    }
+
+    return Result;
+}
+
+/**
+ * @brief Wait for command requests via ProtoFifo protocol (CmdExecutor polling mode)
+ * @param pLinkObj Destination link object (CmdExecutor)
+ * @param pCmdDesc Buffer to receive command descriptor
+ * @param pOption Options for waiting
+ * @return IOC_RESULT_SUCCESS when command received
+ */
+static IOC_Result_T __IOC_waitCmd_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_CmdDesc_pT pCmdDesc,
+                                              const IOC_Options_pT pOption) {
+    if (!pLinkObj || !pCmdDesc) {
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
+    // Verify link is CmdExecutor
+    if (pLinkObj->Args.Usage != IOC_LinkUsageCmdExecutor) {
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
+    // ProtoFifo uses callback mode, not polling mode for commands
+    // This would require a command queue similar to event polling
+    // For now, return NOT_SUPPORT to indicate polling mode not implemented
+    return IOC_RESULT_NOT_SUPPORT;
+}
+
+/**
+ * @brief Acknowledge command execution via ProtoFifo protocol (CmdExecutor response)
+ * @param pLinkObj Source link object (CmdExecutor)
+ * @param pCmdDesc Command descriptor with execution results
+ * @param pOption Options for acknowledgment
+ * @return IOC_RESULT_SUCCESS on successful acknowledgment
+ */
+static IOC_Result_T __IOC_ackCmd_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, const IOC_CmdDesc_pT pCmdDesc,
+                                             const IOC_Options_pT pOption) {
+    if (!pLinkObj || !pCmdDesc) {
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
+    // Verify link is CmdExecutor  
+    if (pLinkObj->Args.Usage != IOC_LinkUsageCmdExecutor) {
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
+    // ProtoFifo uses synchronous callback mode, not explicit ack mode
+    // Response is sent automatically when callback returns
+    // For now, return NOT_SUPPORT to indicate explicit ack mode not implemented  
+    return IOC_RESULT_NOT_SUPPORT;
+}
+
+//=================================================================================================
+// ProtoFifo Protocol Method Table
+//=================================================================================================
+
 _IOC_SrvProtoMethods_T _gIOC_SrvProtoFifoMethods = {
     .pProtocol = IOC_SRV_PROTO_FIFO,
 
@@ -1747,8 +1892,8 @@ _IOC_SrvProtoMethods_T _gIOC_SrvProtoFifoMethods = {
     // 🚀 WHY ADD DAT METHODS: Completing the ProtoFifo protocol implementation to support
     // all three communication paradigms promised by the IOC framework:
     // ✅ EVT (Events): Publisher/Subscriber - already implemented
-    // ✅ CMD (Commands): Request/Response - TODO (future implementation)
-    // ✅ DAT (Data): Stream/Transfer - NOW IMPLEMENTED
+    // ✅ CMD (Commands): Request/Response - NOW IMPLEMENTED
+    // ✅ DAT (Data): Stream/Transfer - already implemented
     //
     // 🎯 IMPLEMENTATION STRATEGY: ProtoFifo optimizes for intra-process communication:
     // - OpSendData_F: Zero-copy, immediate callback delivery
@@ -1757,6 +1902,14 @@ _IOC_SrvProtoMethods_T _gIOC_SrvProtoFifoMethods = {
     // 📈 PERFORMANCE BENEFITS: Direct memory access, no serialization, no buffering
     .OpSendData_F = __IOC_sendData_ofProtoFifo,
     .OpRecvData_F = __IOC_recvData_ofProtoFifo,
+
+    // 🎯 CMD METHODS: ProtoFifo command implementation using peer link pattern
+    // - OpExecCmd_F: Find peer link and execute command via callback (CmdInitiator → CmdExecutor)
+    // - OpWaitCmd_F: Wait for incoming command requests (CmdExecutor polling mode)  
+    // - OpAckCmd_F: Send command response back to initiator (CmdExecutor → CmdInitiator)
+    .OpExecCmd_F = __IOC_execCmd_ofProtoFifo,
+    .OpWaitCmd_F = __IOC_waitCmd_ofProtoFifo,
+    .OpAckCmd_F = __IOC_ackCmd_ofProtoFifo,
 };
 
 /**

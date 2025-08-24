@@ -158,23 +158,24 @@ static IOC_Result_T __IOC_findDestinationLink(IOC_LinkID_T SrcLinkID, _IOC_LinkO
 }
 
 //=================================================================================================
-// Public Command API Implementation
+// Legacy Command Implementation (Fallback)
 //=================================================================================================
 
-IOC_Result_T IOC_execCMD(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, IOC_Options_pT pOption) {
-    if (!pCmdDesc) {
-        return IOC_RESULT_INVALID_PARAM;
-    }
-
+/**
+ * @brief Legacy command execution implementation (bypass protocol layer)
+ * @param LinkID Source link ID (CmdInitiator)
+ * @param pCmdDesc Command descriptor
+ * @param pOption Execution options
+ * @return IOC_RESULT_SUCCESS on successful execution
+ * 
+ * @note This is the original implementation that bypasses the protocol layer.
+ *       Used as fallback when protocol doesn't implement OpExecCmd_F.
+ */
+static IOC_Result_T __IOC_execCMD_legacy(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, IOC_Options_pT pOption) {
     // Get source link
     _IOC_LinkObject_pT pSrcLink = _IOC_getLinkObjByLinkID(LinkID);
     if (!pSrcLink) {
         return IOC_RESULT_NOT_EXIST_LINK;
-    }
-
-    // Verify that source link can initiate commands
-    if (pSrcLink->Args.Usage != IOC_LinkUsageCmdInitiator) {
-        return IOC_RESULT_INVALID_PARAM;
     }
 
     // Find destination link (the command executor)
@@ -211,9 +212,44 @@ IOC_Result_T IOC_execCMD(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, IOC_Optio
     return ExecResult;
 }
 
+//=================================================================================================
+// Public Command API Implementation
+//=================================================================================================
+
+IOC_Result_T IOC_execCMD(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, IOC_Options_pT pOption) {
+    if (!pCmdDesc) {
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
+    // Get source link
+    _IOC_LinkObject_pT pSrcLink = _IOC_getLinkObjByLinkID(LinkID);
+    if (!pSrcLink) {
+        return IOC_RESULT_NOT_EXIST_LINK;
+    }
+
+    // Verify that source link can initiate commands
+    if (pSrcLink->Args.Usage != IOC_LinkUsageCmdInitiator) {
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
+    // 🚀 PROPER ARCHITECTURE: Delegate to protocol-specific implementation
+    // This is how the layered architecture should work:
+    // IOC_execCMD() → pLink->pMethods->OpExecCmd_F() → __IOC_execCmd_ofProtoFifo()
+    //
+    // 🔧 BENEFITS:
+    // - Protocol abstraction: Different protocols can implement commands differently
+    // - Extensibility: New protocols just implement the OpExecCmd_F method
+    // - Consistency: All IOC APIs follow the same delegation pattern
+    if (!pSrcLink->pMethods || !pSrcLink->pMethods->OpExecCmd_F) {
+        // Fallback: Protocol doesn't implement commands, use legacy direct approach
+        return __IOC_execCMD_legacy(LinkID, pCmdDesc, pOption);
+    }
+
+    // Use protocol-specific command execution
+    return pSrcLink->pMethods->OpExecCmd_F(pSrcLink, pCmdDesc, pOption);
+}
+
 IOC_Result_T IOC_waitCMD(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, IOC_Options_pT pOption) {
-    // Polling mode implementation - for future enhancement
-    // Current tests use callback mode, so this is a placeholder
     if (!pCmdDesc) {
         return IOC_RESULT_INVALID_PARAM;
     }
@@ -227,13 +263,17 @@ IOC_Result_T IOC_waitCMD(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, IOC_Optio
         return IOC_RESULT_INVALID_PARAM;
     }
 
-    // For now, return NOT_SUPPORT to indicate polling mode is not yet implemented
-    return IOC_RESULT_NOT_SUPPORT;
+    // 🚀 PROPER ARCHITECTURE: Delegate to protocol-specific implementation
+    if (!pLink->pMethods || !pLink->pMethods->OpWaitCmd_F) {
+        // Protocol doesn't implement command waiting - return NOT_SUPPORT
+        return IOC_RESULT_NOT_SUPPORT;
+    }
+
+    // Use protocol-specific command waiting
+    return pLink->pMethods->OpWaitCmd_F(pLink, pCmdDesc, pOption);
 }
 
 IOC_Result_T IOC_ackCMD(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, IOC_Options_pT pOption) {
-    // Explicit acknowledgment implementation - for future enhancement
-    // Current tests use synchronous callback mode, so this is a placeholder
     if (!pCmdDesc) {
         return IOC_RESULT_INVALID_PARAM;
     }
@@ -243,6 +283,12 @@ IOC_Result_T IOC_ackCMD(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, IOC_Option
         return IOC_RESULT_NOT_EXIST_LINK;
     }
 
-    // For now, return NOT_SUPPORT to indicate explicit ack mode is not yet implemented
-    return IOC_RESULT_NOT_SUPPORT;
+    // 🚀 PROPER ARCHITECTURE: Delegate to protocol-specific implementation
+    if (!pLink->pMethods || !pLink->pMethods->OpAckCmd_F) {
+        // Protocol doesn't implement command acknowledgment - return NOT_SUPPORT
+        return IOC_RESULT_NOT_SUPPORT;
+    }
+
+    // Use protocol-specific command acknowledgment
+    return pLink->pMethods->OpAckCmd_F(pLink, pCmdDesc, pOption);
 }
