@@ -38,7 +38,7 @@
  * ⭐ TYPICAL (典型用例):
  *    💭 Purpose: Verify main usage scenarios and happy paths
  *    🎯 Focus: Core functionality, standard workflows
- *    📝 Examples: IOC service registration/lookup, event subscription/publishing
+ *    📝 Examples: IOC service registration/lookup, event subscription/publishing, auto-accept behaviors
  *    ⏰ When: First priority, fundamental behavior verification
  *
  * 🏆 CAPABILITY (能力验证):
@@ -137,17 +137,23 @@
 /**************************************************************************************************
  * @brief 【User Story】
  *
- *  US-1: AS: ...,
- *    I WANT: ...,
- *   SO THAT: ...
+ * DESIGN PRINCIPLES: Define clear coverage strategy and scope
+ * EXAMPLES:
+ *  - Service Role × Client Role × Mode combinations (like Producer/Consumer × Callback/Pull)
+ *  - Component State × Operation × Boundary conditions
+ *  - Multi-threading × Resource limits × Error scenarios
  *
- *  US-2: AS: ...,
- *    I WANT: ...,
- *   SO THAT: ...
+ *  US-1: AS a [role/user type],
+ *    I WANT [specific capability or feature],
+ *   SO THAT [business value or benefit].
  *
- *  US-n: AS: ...,
- *    I WANT: ...,
- *   SO THAT: ...
+ *  US-2: AS a [role/user type],
+ *    I WANT [specific capability or feature],
+ *   SO THAT [business value or benefit].
+ *
+ *  US-n: AS a [role/user type],
+ *    I WANT [specific capability or feature],
+ *   SO THAT [business value or benefit].
  *
  *************************************************************************************************/
 //======>END OF USER STORY=========================================================================
@@ -157,31 +163,44 @@
 /**************************************************************************************************
  * @brief 【Acceptance Criteria】
  *
- * [@US-1]
- *  AC-1: GIVEN: ...,
- *         WHEN: ...,
- *         THEN: ...
+ * COVERAGE STRATEGY: Define systematic test coverage approach
+ * EXAMPLES:
+ *  - Matrix approach: Component A × Operation B × Condition C
+ *  - Boundary coverage: Min/Max/Normal values × Success/Failure paths
+ *  - State coverage: State transitions × External events × Error conditions
  *
- *  AC-2: GIVEN: ...,
- *         WHEN: ...,
- *         THEN: ...
+ * TEMPLATE PATTERNS:
+ * ┌─────────────────┬─────────────┬─────────────┬──────────────────────────────┐
+ * │ Dimension 1     │ Dimension 2 │ Dimension 3 │ Key Scenarios                │
+ * ├─────────────────┼─────────────┼─────────────┼──────────────────────────────┤
+ * │ [Example values]│ [Example]   │ [Example]   │ [US-X: Description]         │
+ * └─────────────────┴─────────────┴─────────────┴──────────────────────────────┘
  *
- *  AC-n: GIVEN: ...,
- *         WHEN: ...,
- *         THEN: ...
+ * [@US-1] [Brief description of User Story focus]
+ *  AC-1: GIVEN [preconditions and context],
+ *         WHEN [trigger/action/event],
+ *         THEN [expected outcome/behavior].
+ *
+ *  AC-2: GIVEN [preconditions and context],
+ *         WHEN [trigger/action/event],
+ *         THEN [expected outcome/behavior].
+ *
+ *  AC-n: GIVEN [preconditions and context],
+ *         WHEN [trigger/action/event],
+ *         THEN [expected outcome/behavior].
  *---------------------------------------------------------------------------------------------------
- *  [@US-2]
- *  AC-1: GIVEN: ...,
- *         WHEN: ...,
- *         THEN: ...
+ *  [@US-2] [Brief description of User Story focus]
+ *  AC-1: GIVEN [preconditions and context],
+ *         WHEN [trigger/action/event],
+ *         THEN [expected outcome/behavior].
  *
- *  AC-2: GIVEN: ...,
- *         WHEN: ...,
- *         THEN: ...
+ *  AC-2: GIVEN [preconditions and context],
+ *         WHEN [trigger/action/event],
+ *         THEN [expected outcome/behavior].
  *
- *  AC-n: GIVEN: ...,
- *         WHEN: ...,
- *         THEN: ...
+ *  AC-n: GIVEN [preconditions and context],
+ *         WHEN [trigger/action/event],
+ *         THEN [expected outcome/behavior].
  */
 //=======>END OF ACCEPTANCE CRITERIA================================================================
 
@@ -189,6 +208,42 @@
 //======>BEGIN OF TEST CASES=======================================================================
 /**************************************************************************************************
  * @brief 【Test Cases】
+ *
+ * ORGANIZATION STRATEGIES:
+ *  - By Feature/Component: Group related functionality tests together
+ *  - By Test Category: Typical → Boundary → State → Error → Performance
+ *  - By Coverage Matrix: Systematic coverage of identified dimensions
+ *  - By Priority: Critical functionality first, edge cases second
+ *
+ * STATUS TRACKING: 🟢 = Implemented, 🔴 = TODO/RED, ⚪ = Planned, ⚠️ = Issues
+ *
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ * 📋 [CATEGORY 1]: [Brief description of test category]
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * [@AC-1,US-1] [Brief AC description]
+ *  🟢 TC-1: verifyBehaviorX_byConditionA_expectOutcomeY
+ *      @[Purpose]: [Why this test is important and what it validates]
+ *      @[Brief]: [What the test does in simple terms]
+ *      @[Status]: IMPLEMENTED ✅ / TODO - [What needs to be done]
+ *
+ *  🔴 TC-2: verifyBehaviorX_byConditionB_expectOutcomeZ
+ *      @[Purpose]: [Why this test is important and what it validates]
+ *      @[Brief]: [What the test does in simple terms]
+ *      @[Status]: TODO - [What needs to be implemented]
+ *
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ * 📋 [CATEGORY 2]: [Brief description of test category]
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * [@AC-2,US-1] [Brief AC description]
+ *  ⚪ TC-1: verifyBehaviorY_byConditionC_expectOutcomeW
+ *      @[Purpose]: [Why this test is important and what it validates]
+ *      @[Brief]: [What the test does in simple terms]
+ *      @[Status]: PLANNED - [When this will be implemented]
+ *
+ *---------------------------------------------------------------------------------------------------
+ * CLASSIC FORMAT (for simpler cases):
  *
  * [@AC-1,US-1]
  *  TC-1:
@@ -310,6 +365,42 @@ TEST(UT_NameOfCategory, verifyBehaviorZ_byDoC_expectSomething) {
     // └──────────────────────────────────────────────────────────────────────────────────────┘
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF TODO/IMPLEMENTATION TRACKING SECTION=========================================
+// 🔴 IMPLEMENTATION STATUS TRACKING - Organized by Priority and Category
+// Use this section to track implementation progress and maintain clear TODO lists
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 🥇 HIGH PRIORITY - CORE FUNCTIONALITY (Implement First)
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+// TODO: 🔴 [@AC-1,US-1] TC-1: verifyCoreFunctionality_byBasicOperation_expectSuccess
+// Purpose: [Core functionality validation]
+// Implementation: [Brief implementation approach]
+// Status: RED - [Specific implementation details needed]
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 🥈 MEDIUM PRIORITY - BOUNDARY CONDITIONS (Implement Second)
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+// TODO: 🔴 [@AC-2,US-1] TC-1: verifyBoundaryCondition_byEdgeCase_expectProperHandling
+// Purpose: [Boundary condition validation]
+// Implementation: [Brief implementation approach]
+// Status: RED - [Specific implementation details needed]
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 🥉 LOW PRIORITY - ADVANCED SCENARIOS (Implement Third)
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+// TODO: 🔴 [@AC-3,US-2] TC-1: verifyAdvancedScenario_byComplexOperation_expectFullFunctionality
+// Purpose: [Advanced scenario validation]
+// Implementation: [Brief implementation approach]
+// Status: RED - [Specific implementation details needed]
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>END OF TODO/IMPLEMENTATION TRACKING SECTION=======================================
+
 //---------------------------------------------------------------------------------------------------------------------
 class UT_NameofCategoryFixture : public ::testing::Test {
    protected:
@@ -408,70 +499,107 @@ TEST_F(UT_NameofCategoryFixture, verifyBehaviorZ_byDoC_expectSomething) {
 
 /**
  * ╔══════════════════════════════════════════════════════════════════════════════════════════╗
- * ║                              📝 EXAMPLE USER STORY                                       ║
+ * ║                              📝 ENHANCED EXAMPLE USER STORY                              ║
  * ╠══════════════════════════════════════════════════════════════════════════════════════════╣
- * ║ US-Example: AS a developer using IOC framework,                                         ║
- * ║    I WANT to easily create and register a service,                                      ║
- * ║   SO THAT I can provide functionality to other components.                              ║
+ * ║ DESIGN PRINCIPLES: Cover Service Role × Client Role × Operation Mode matrix             ║
+ * ║                                                                                          ║
+ * ║ US-Example-1: AS a service developer using IOC framework with AUTO_ACCEPT,              ║
+ * ║    I WANT clients to automatically connect and receive events via callbacks,            ║
+ * ║   SO THAT I can broadcast events to multiple consumers without manual link acceptance.  ║
+ * ║                                                                                          ║
+ * ║ US-Example-2: AS a service developer using IOC framework with AUTO_ACCEPT,              ║
+ * ║    I WANT to handle multiple auto-accepted clients with isolated event streams,         ║
+ * ║   SO THAT each client communication is independent without cross-interference.          ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
 
 /**
  * ╔══════════════════════════════════════════════════════════════════════════════════════════╗
- * ║                           ✅ EXAMPLE ACCEPTANCE CRITERIA                                 ║
+ * ║                           ✅ ENHANCED ACCEPTANCE CRITERIA                                ║
  * ╠══════════════════════════════════════════════════════════════════════════════════════════╣
- * ║ AC-Example: GIVEN an IOC container is initialized,                                      ║
- * ║              WHEN I register a service with a unique ID,                                ║
- * ║              THEN the service should be successfully stored and retrievable.            ║
+ * ║ COVERAGE MATRIX: Service Role × Client Role × Mode                                      ║
+ * ║ ┌─────────────────┬─────────────┬─────────────┬──────────────────────────────┐         ║
+ * ║ │ Service Role    │ Client Role │ Mode        │ Key Scenarios                │         ║
+ * ║ ├─────────────────┼─────────────┼─────────────┼──────────────────────────────┤         ║
+ * ║ │ EvtProducer     │ EvtConsumer │ Callback    │ US-1: Service → Client       │         ║
+ * ║ │ EvtConsumer     │ EvtProducer │ Callback    │ US-2: Client → Service       │         ║
+ * ║ └─────────────────┴─────────────┴─────────────┴──────────────────────────────┘         ║
+ * ║                                                                                          ║
+ * ║ AC-Example-1: GIVEN service with AUTO_ACCEPT + EvtProducer capability,                  ║
+ * ║                WHEN client connects as EvtConsumer with callback subscription,          ║
+ * ║                THEN service auto-accepts and discovers link to send events.             ║
+ * ║                                                                                          ║
+ * ║ AC-Example-2: GIVEN multiple clients with different event subscriptions,                ║
+ * ║                WHEN service broadcasts events,                                           ║
+ * ║                THEN each client receives only their subscribed events independently.    ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
 
 /**
  * ╔══════════════════════════════════════════════════════════════════════════════════════════╗
- * ║                             🧪 EXAMPLE TEST CASE                                        ║
+ * ║                             🧪 ENHANCED TEST CASE EXAMPLES                              ║
  * ╠══════════════════════════════════════════════════════════════════════════════════════════╣
- * ║ TC-Example: verifyServiceRegistration_byRegisteringValidService_expectSuccess           ║
+ * ║ ORGANIZED BY: Feature Category → Implementation Status → Priority                       ║
+ * ║ STATUS: 🟢 = Implemented, 🔴 = TODO/RED, ⚪ = Planned                                   ║
+ * ║                                                                                          ║
+ * ║ ═══════════════════════════════════════════════════════════════════════════════════════ ║
+ * ║ 📤 SERVICE AS PRODUCER (Service → Client Event Flow)                                   ║
+ * ║ ═══════════════════════════════════════════════════════════════════════════════════════ ║
+ * ║                                                                                          ║
+ * ║ 🟢 TC-Example-1: verifyServiceAutoAccept_byPollingPath_expectEventDelivered            ║
+ * ║     @[Purpose]: Basic auto-accept with polling-based link discovery                    ║
+ * ║     @[Brief]: Service polls IOC_getServiceLinkIDs, then posts events                   ║
+ * ║     @[Status]: IMPLEMENTED ✅                                                           ║
+ * ║                                                                                          ║
+ * ║ 🔴 TC-Example-2: verifyServiceAutoAccept_byDirectPosting_expectEventDelivered          ║
+ * ║     @[Purpose]: Auto-accept with immediate posting without explicit discovery          ║
+ * ║     @[Brief]: Service posts events immediately after client subscription               ║
+ * ║     @[Status]: TODO - Verify posting works without manual link discovery              ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
 
 // 🎨 示例：快速草稿测试 - 这里可以自由写下任何想法
-TEST(UT_FreelyDrafts_Example, quickDraft_serviceRegistration) {
+TEST(UT_FreelyDrafts_Example, quickDraft_autoAcceptScenario) {
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                          💭 QUICK DRAFT - 快速草稿                                    │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
-    printf("💭 DRAFT: Testing service registration concept\n");
+    printf("💭 DRAFT: Testing auto-accept scenario with multiple clients\n");
 
     // TODO: 实现具体的测试逻辑
-    // 1. 创建IOC容器
-    // 2. 注册一个服务
-    // 3. 验证服务可以被检索
+    // 1. 设置服务与AUTO_ACCEPT标志
+    // 2. 多个客户端连接
+    // 3. 验证自动接受和事件传递
+    // 4. 检查客户端隔离
 
+    // 🔴 STATUS: RED - Need to implement service setup and client connections
     ASSERT_TRUE(true);  // 占位符断言
 }
 
-// 🔄 示例：从草稿到正式测试的演进
-TEST(UT_FreelyDrafts_Example, refined_serviceRegistration_expectSuccess) {
+// 🔄 示例：从草稿到正式测试的演进 - 带状态跟踪
+TEST(UT_FreelyDrafts_Example, refined_autoAcceptMultiClient_expectIsolation) {
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                🔧 SETUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
-    //  TODO: 初始化IOC容器
+    printf("🔧 SETUP: Service with AUTO_ACCEPT and multiple client connections\n");
+    //  TODO: 初始化IOC服务和客户端
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               🎯 BEHAVIOR PHASE                                       │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
-    printf("🎯 BEHAVIOR: Register a service and verify it's accessible\n");
-    // TODO: 执行服务注册逻辑
+    printf("🎯 BEHAVIOR: Multiple clients with different subscriptions\n");
+    // TODO: 设置不同的客户端订阅和事件发送
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                ✅ VERIFY PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
-    //  TODO: 验证服务注册成功
+    printf("✅ VERIFY: Each client receives only subscribed events\n");
+    //  TODO: 验证事件隔离和正确路由
     ASSERT_TRUE(true);  // 替换为实际验证
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               🧹 CLEANUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
-    //  TODO: 清理资源
+    //  TODO: 清理资源和连接
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
