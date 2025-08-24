@@ -215,7 +215,7 @@
  *  - By Coverage Matrix: Systematic coverage of identified dimensions
  *  - By Priority: Critical functionality first, edge cases second
  *
- * STATUS TRACKING: 🟢 = Implemented, 🔴 = TODO/RED, ⚪ = Planned, ⚠️ = Issues
+ * STATUS TRACKING: ⚪ = Planned/TODO，🔴 = Implemented/RED, 🟢 = Passed/GREEN, ⚠️ = Issues
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * 📋 [CATEGORY 1]: [Brief description of test category]
@@ -225,12 +225,12 @@
  *  🟢 TC-1: verifyBehaviorX_byConditionA_expectOutcomeY
  *      @[Purpose]: [Why this test is important and what it validates]
  *      @[Brief]: [What the test does in simple terms]
- *      @[Status]: IMPLEMENTED ✅ / TODO - [What needs to be done]
+ *      @[Status]: PASSED/GREEN ✅  - [What needs to be done]
  *
  *  🔴 TC-2: verifyBehaviorX_byConditionB_expectOutcomeZ
  *      @[Purpose]: [Why this test is important and what it validates]
  *      @[Brief]: [What the test does in simple terms]
- *      @[Status]: TODO - [What needs to be implemented]
+ *      @[Status]: IMPLEMENTED/RED - [What needs to be implemented]
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * 📋 [CATEGORY 2]: [Brief description of test category]
@@ -240,7 +240,7 @@
  *  ⚪ TC-1: verifyBehaviorY_byConditionC_expectOutcomeW
  *      @[Purpose]: [Why this test is important and what it validates]
  *      @[Brief]: [What the test does in simple terms]
- *      @[Status]: PLANNED - [When this will be implemented]
+ *      @[Status]: PLANNED/TODO - [When this will be implemented]
  *
  *---------------------------------------------------------------------------------------------------
  * CLASSIC FORMAT (for simpler cases):
@@ -378,7 +378,7 @@ TEST(UT_NameOfCategory, verifyBehaviorZ_byDoC_expectSomething) {
 // TODO: 🔴 [@AC-1,US-1] TC-1: verifyCoreFunctionality_byBasicOperation_expectSuccess
 // Purpose: [Core functionality validation]
 // Implementation: [Brief implementation approach]
-// Status: RED - [Specific implementation details needed]
+// Status: IMPLEMENTED/RED - [Specific implementation details needed]
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 // 🥈 MEDIUM PRIORITY - BOUNDARY CONDITIONS (Implement Second)
@@ -387,7 +387,7 @@ TEST(UT_NameOfCategory, verifyBehaviorZ_byDoC_expectSomething) {
 // TODO: 🔴 [@AC-2,US-1] TC-1: verifyBoundaryCondition_byEdgeCase_expectProperHandling
 // Purpose: [Boundary condition validation]
 // Implementation: [Brief implementation approach]
-// Status: RED - [Specific implementation details needed]
+// Status: IMPLEMENTED/RED - [Specific implementation details needed]
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 // 🥉 LOW PRIORITY - ADVANCED SCENARIOS (Implement Third)
@@ -396,7 +396,7 @@ TEST(UT_NameOfCategory, verifyBehaviorZ_byDoC_expectSomething) {
 // TODO: 🔴 [@AC-3,US-2] TC-1: verifyAdvancedScenario_byComplexOperation_expectFullFunctionality
 // Purpose: [Advanced scenario validation]
 // Implementation: [Brief implementation approach]
-// Status: RED - [Specific implementation details needed]
+// Status: IMPLEMENTED/RED - [Specific implementation details needed]
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>END OF TODO/IMPLEMENTATION TRACKING SECTION=======================================
@@ -540,7 +540,7 @@ TEST_F(UT_NameofCategoryFixture, verifyBehaviorZ_byDoC_expectSomething) {
  * ║                             🧪 ENHANCED TEST CASE EXAMPLES                              ║
  * ╠══════════════════════════════════════════════════════════════════════════════════════════╣
  * ║ ORGANIZED BY: Feature Category → Implementation Status → Priority                       ║
- * ║ STATUS: 🟢 = Implemented, 🔴 = TODO/RED, ⚪ = Planned                                   ║
+ * ║ STATUS: ⚪ = Planned/TODO，� = Implemented/RED, 🟢 = Passed/GREEN, ⚠️ = Issues       ║
  * ║                                                                                          ║
  * ║ ═══════════════════════════════════════════════════════════════════════════════════════ ║
  * ║ 📤 SERVICE AS PRODUCER (Service → Client Event Flow)                                   ║
@@ -549,12 +549,12 @@ TEST_F(UT_NameofCategoryFixture, verifyBehaviorZ_byDoC_expectSomething) {
  * ║ 🟢 TC-Example-1: verifyServiceAutoAccept_byPollingPath_expectEventDelivered            ║
  * ║     @[Purpose]: Basic auto-accept with polling-based link discovery                    ║
  * ║     @[Brief]: Service polls IOC_getServiceLinkIDs, then posts events                   ║
- * ║     @[Status]: IMPLEMENTED ✅                                                           ║
+ * ║     @[Status]: PASSED/GREEN ✅                                                          ║
  * ║                                                                                          ║
  * ║ 🔴 TC-Example-2: verifyServiceAutoAccept_byDirectPosting_expectEventDelivered          ║
  * ║     @[Purpose]: Auto-accept with immediate posting without explicit discovery          ║
  * ║     @[Brief]: Service posts events immediately after client subscription               ║
- * ║     @[Status]: TODO - Verify posting works without manual link discovery              ║
+ * ║     @[Status]: IMPLEMENTED/RED - Verify posting works without manual link discovery   ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
 
@@ -571,7 +571,7 @@ TEST(UT_FreelyDrafts_Example, quickDraft_autoAcceptScenario) {
     // 3. 验证自动接受和事件传递
     // 4. 检查客户端隔离
 
-    // 🔴 STATUS: RED - Need to implement service setup and client connections
+    // 🔴 STATUS: IMPLEMENTED/RED - Need to implement service setup and client connections
     ASSERT_TRUE(true);  // 占位符断言
 }
 
