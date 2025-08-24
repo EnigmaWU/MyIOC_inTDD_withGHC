@@ -134,12 +134,19 @@ struct _IOC_ProtoFifoLinkObjectStru {
 
     // 🎯 COMMAND POLLING SUPPORT: Queue for polling-based command consumption using IOC_waitCMD
     // This enables commands to be consumed via polling as an alternative to callback-based execution
-    // Note: Currently not fully implemented - ProtoFifo uses callback mode for optimal performance
     struct {
-        // TODO: Implement command queue similar to EvtDescQueue for polling support
-        // For now, ProtoFifo uses direct callback execution for maximum performance
         bool IsCmdPollingActive;          // Whether this link is actively using command polling
         pthread_mutex_t CmdPollingMutex;  // Mutex for command polling operations
+        pthread_cond_t CmdAvailableCond;  // Condition variable for blocking waits
+
+        // Command queue similar to EvtDescQueue
+        ULONG_T QueuedCmdNum, ProcedCmdNum;  // Queue counters
+        IOC_CmdDesc_T QueuedCmdDescs[64];    // Circular buffer for commands
+
+        // Response handling for command initiators
+        pthread_cond_t ResponseAvailableCond;  // Condition variable for waiting responses
+        ULONG_T QueuedRespNum, ProcedRespNum;  // Response queue counters
+        IOC_CmdDesc_T QueuedRespDescs[64];     // Circular buffer for responses
     } CmdPolling;
 };
 
@@ -370,6 +377,14 @@ static IOC_Result_T __IOC_connectService_ofProtoFifo(_IOC_LinkObject_pT pLinkObj
     // Initialize command polling support for IOC_waitCMD support
     pFifoLinkObj->CmdPolling.IsCmdPollingActive = false;  // Initially disabled
     pthread_mutex_init(&pFifoLinkObj->CmdPolling.CmdPollingMutex, NULL);
+    pthread_cond_init(&pFifoLinkObj->CmdPolling.CmdAvailableCond, NULL);
+    pthread_cond_init(&pFifoLinkObj->CmdPolling.ResponseAvailableCond, NULL);
+    pFifoLinkObj->CmdPolling.QueuedCmdNum = 0;
+    pFifoLinkObj->CmdPolling.ProcedCmdNum = 0;
+    pFifoLinkObj->CmdPolling.QueuedRespNum = 0;
+    pFifoLinkObj->CmdPolling.ProcedRespNum = 0;
+    memset(pFifoLinkObj->CmdPolling.QueuedCmdDescs, 0, sizeof(pFifoLinkObj->CmdPolling.QueuedCmdDescs));
+    memset(pFifoLinkObj->CmdPolling.QueuedRespDescs, 0, sizeof(pFifoLinkObj->CmdPolling.QueuedRespDescs));
 
     // Initialize polling buffer for potential DAT operations
     IOC_Result_T BufferResult = __IOC_initPollingBuffer_ofProtoFifo(pFifoLinkObj);
@@ -457,6 +472,14 @@ static IOC_Result_T __IOC_acceptClient_ofProtoFifo(_IOC_ServiceObject_pT pSrvObj
     // Initialize command polling support for IOC_waitCMD support
     pAceptedFifoLinkObj->CmdPolling.IsCmdPollingActive = false;  // Initially disabled
     pthread_mutex_init(&pAceptedFifoLinkObj->CmdPolling.CmdPollingMutex, NULL);
+    pthread_cond_init(&pAceptedFifoLinkObj->CmdPolling.CmdAvailableCond, NULL);
+    pthread_cond_init(&pAceptedFifoLinkObj->CmdPolling.ResponseAvailableCond, NULL);
+    pAceptedFifoLinkObj->CmdPolling.QueuedCmdNum = 0;
+    pAceptedFifoLinkObj->CmdPolling.ProcedCmdNum = 0;
+    pAceptedFifoLinkObj->CmdPolling.QueuedRespNum = 0;
+    pAceptedFifoLinkObj->CmdPolling.ProcedRespNum = 0;
+    memset(pAceptedFifoLinkObj->CmdPolling.QueuedCmdDescs, 0, sizeof(pAceptedFifoLinkObj->CmdPolling.QueuedCmdDescs));
+    memset(pAceptedFifoLinkObj->CmdPolling.QueuedRespDescs, 0, sizeof(pAceptedFifoLinkObj->CmdPolling.QueuedRespDescs));
 
     // Initialize polling buffer for potential DAT operations
     IOC_Result_T BufferResult = __IOC_initPollingBuffer_ofProtoFifo(pAceptedFifoLinkObj);
@@ -575,6 +598,11 @@ static IOC_Result_T __IOC_closeLink_ofProtoFifo(_IOC_LinkObject_pT pLinkObj) {
 
     // Clean up event polling queue before freeing the link object
     _IOC_EvtDescQueue_deinitOne(&pFifoLinkObj->EvtPollingQueue);
+
+    // Clean up command polling structures before freeing the link object
+    pthread_mutex_destroy(&pFifoLinkObj->CmdPolling.CmdPollingMutex);
+    pthread_cond_destroy(&pFifoLinkObj->CmdPolling.CmdAvailableCond);
+    pthread_cond_destroy(&pFifoLinkObj->CmdPolling.ResponseAvailableCond);
 
     free(pFifoLinkObj);
 
@@ -1758,17 +1786,22 @@ static bool __IOC_shouldOpenBatchWindow(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj
  */
 static IOC_Result_T __IOC_execCmd_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_CmdDesc_pT pCmdDesc,
                                               const IOC_Options_pT pOption) {
+    printf("[DEBUG execCmd_ofProtoFifo] Entry\n");
+
     if (!pLinkObj || !pCmdDesc) {
+        printf("[DEBUG execCmd_ofProtoFifo] INVALID_PARAM: NULL inputs\n");
         return IOC_RESULT_INVALID_PARAM;
     }
 
     // Verify link is CmdInitiator
     if (pLinkObj->Args.Usage != IOC_LinkUsageCmdInitiator) {
+        printf("[DEBUG execCmd_ofProtoFifo] INVALID_PARAM: Not CmdInitiator (usage=%d)\n", pLinkObj->Args.Usage);
         return IOC_RESULT_INVALID_PARAM;
     }
 
     _IOC_ProtoFifoLinkObject_pT pLocalFifoLinkObj = (_IOC_ProtoFifoLinkObject_pT)pLinkObj->pProtoPriv;
     if (!pLocalFifoLinkObj) {
+        printf("[DEBUG execCmd_ofProtoFifo] NOT_EXIST_LINK: No local proto priv\n");
         return IOC_RESULT_NOT_EXIST_LINK;
     }
 
@@ -1778,19 +1811,96 @@ static IOC_Result_T __IOC_execCmd_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_C
     pthread_mutex_unlock(&pLocalFifoLinkObj->Mutex);
 
     if (!pPeerFifoLinkObj) {
+        printf("[DEBUG execCmd_ofProtoFifo] NOT_EXIST_LINK: No peer fifo link\n");
         return IOC_RESULT_NOT_EXIST_LINK;
     }
 
     // Get peer's link object to verify it's CmdExecutor
     _IOC_LinkObject_pT pPeerLinkObj = pPeerFifoLinkObj->pOwnerLinkObj;
     if (!pPeerLinkObj || pPeerLinkObj->Args.Usage != IOC_LinkUsageCmdExecutor) {
+        printf("[DEBUG execCmd_ofProtoFifo] NO_CMD_EXECUTOR: Peer not CmdExecutor (pPeerLinkObj=%p, usage=%d)\n",
+               pPeerLinkObj, pPeerLinkObj ? pPeerLinkObj->Args.Usage : -1);
         return IOC_RESULT_NO_CMD_EXECUTOR;
     }
 
     // Get command execution callback from peer
     IOC_CmdUsageArgs_pT pCmdUsageArgs = pPeerLinkObj->Args.UsageArgs.pCmd;
-    if (!pCmdUsageArgs || !pCmdUsageArgs->CbExecCmd_F) {
+    if (!pCmdUsageArgs) {
+        printf("[DEBUG execCmd_ofProtoFifo] NO_CMD_EXECUTOR: No CmdUsageArgs\n");
         return IOC_RESULT_NO_CMD_EXECUTOR;
+    }
+
+    printf("[DEBUG execCmd_ofProtoFifo] CmdUsageArgs: pCmdUsageArgs=%p, CbExecCmd_F=%p\n", pCmdUsageArgs,
+           pCmdUsageArgs->CbExecCmd_F);
+
+    if (!pCmdUsageArgs->CbExecCmd_F) {
+        printf("[DEBUG execCmd_ofProtoFifo] POLLING MODE: No callback, queuing command\n");
+
+        // 🎯 POLLING MODE: Queue command and wait for response
+        // Generate unique sequence ID for this command
+        static ULONG_T sequenceCounter = 1;
+        pCmdDesc->MsgDesc.SeqID = __sync_fetch_and_add(&sequenceCounter, 1);
+
+        pthread_mutex_lock(&pPeerFifoLinkObj->CmdPolling.CmdPollingMutex);
+
+        // Enable polling mode if not already active
+        if (!pPeerFifoLinkObj->CmdPolling.IsCmdPollingActive) {
+            pPeerFifoLinkObj->CmdPolling.IsCmdPollingActive = true;
+            printf("[DEBUG execCmd_ofProtoFifo] POLLING MODE: Activated command polling\n");
+        }
+
+        // Check if queue is full
+        ULONG_T queuedCount = pPeerFifoLinkObj->CmdPolling.QueuedCmdNum - pPeerFifoLinkObj->CmdPolling.ProcedCmdNum;
+        if (queuedCount >= 64) {  // Queue size limit
+            pthread_mutex_unlock(&pPeerFifoLinkObj->CmdPolling.CmdPollingMutex);
+            printf("[DEBUG execCmd_ofProtoFifo] ERROR: Command queue is full\n");
+            return IOC_RESULT_TOO_MANY_QUEUING_EVTDESC;
+        }
+
+        // Enqueue command
+        ULONG_T queueIndex = pPeerFifoLinkObj->CmdPolling.QueuedCmdNum % 64;
+        pPeerFifoLinkObj->CmdPolling.QueuedCmdDescs[queueIndex] = *pCmdDesc;  // Copy command
+        pPeerFifoLinkObj->CmdPolling.QueuedCmdNum++;
+
+        printf("[DEBUG execCmd_ofProtoFifo] POLLING MODE: Command queued at index %lu (total=%lu) with SeqID=%lu\n",
+               queueIndex, pPeerFifoLinkObj->CmdPolling.QueuedCmdNum, pCmdDesc->MsgDesc.SeqID);
+
+        // Signal waiting threads
+        pthread_cond_signal(&pPeerFifoLinkObj->CmdPolling.CmdAvailableCond);
+        pthread_mutex_unlock(&pPeerFifoLinkObj->CmdPolling.CmdPollingMutex);
+
+        // Now wait for response on the initiator side (local link)
+        pthread_mutex_lock(&pLocalFifoLinkObj->CmdPolling.CmdPollingMutex);
+
+        // Wait for response with matching SeqID
+        bool responseFound = false;
+        while (!responseFound) {
+            // Check if response is available
+            for (ULONG_T i = pLocalFifoLinkObj->CmdPolling.ProcedRespNum;
+                 i < pLocalFifoLinkObj->CmdPolling.QueuedRespNum; i++) {
+                ULONG_T respIndex = i % 64;
+                if (pLocalFifoLinkObj->CmdPolling.QueuedRespDescs[respIndex].MsgDesc.SeqID == pCmdDesc->MsgDesc.SeqID) {
+                    // Found matching response, copy it back
+                    *pCmdDesc = pLocalFifoLinkObj->CmdPolling.QueuedRespDescs[respIndex];
+                    pLocalFifoLinkObj->CmdPolling.ProcedRespNum = i + 1;  // Mark as processed
+                    responseFound = true;
+                    printf("[DEBUG execCmd_ofProtoFifo] POLLING MODE: Found response for SeqID=%lu\n",
+                           pCmdDesc->MsgDesc.SeqID);
+                    break;
+                }
+            }
+
+            if (!responseFound) {
+                printf("[DEBUG execCmd_ofProtoFifo] POLLING MODE: Waiting for response SeqID=%lu\n",
+                       pCmdDesc->MsgDesc.SeqID);
+                pthread_cond_wait(&pLocalFifoLinkObj->CmdPolling.ResponseAvailableCond,
+                                  &pLocalFifoLinkObj->CmdPolling.CmdPollingMutex);
+            }
+        }
+
+        pthread_mutex_unlock(&pLocalFifoLinkObj->CmdPolling.CmdPollingMutex);
+
+        return IOC_RESULT_SUCCESS;
     }
 
     // Check if command is supported
@@ -1829,19 +1939,53 @@ static IOC_Result_T __IOC_execCmd_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_C
  */
 static IOC_Result_T __IOC_waitCmd_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_CmdDesc_pT pCmdDesc,
                                               const IOC_Options_pT pOption) {
+    printf("[DEBUG waitCmd_ofProtoFifo] Entry\n");
+
     if (!pLinkObj || !pCmdDesc) {
         return IOC_RESULT_INVALID_PARAM;
     }
 
     // Verify link is CmdExecutor
     if (pLinkObj->Args.Usage != IOC_LinkUsageCmdExecutor) {
+        printf("[DEBUG waitCmd_ofProtoFifo] INVALID_PARAM: Not CmdExecutor (usage=%d)\n", pLinkObj->Args.Usage);
         return IOC_RESULT_INVALID_PARAM;
     }
 
-    // ProtoFifo uses callback mode, not polling mode for commands
-    // This would require a command queue similar to event polling
-    // For now, return NOT_SUPPORT to indicate polling mode not implemented
-    return IOC_RESULT_NOT_SUPPORT;
+    // Get the protocol-specific link object
+    _IOC_ProtoFifoLinkObject_pT pFifoLinkObj = (_IOC_ProtoFifoLinkObject_pT)pLinkObj->pProtoPriv;
+    if (!pFifoLinkObj) {
+        printf("[DEBUG waitCmd_ofProtoFifo] NOT_EXIST_LINK: No proto priv\n");
+        return IOC_RESULT_NOT_EXIST_LINK;
+    }
+
+    // 🎯 POLLING MODE: Retrieve command from queue
+    pthread_mutex_lock(&pFifoLinkObj->CmdPolling.CmdPollingMutex);
+
+    // Enable polling mode if not already active
+    if (!pFifoLinkObj->CmdPolling.IsCmdPollingActive) {
+        pFifoLinkObj->CmdPolling.IsCmdPollingActive = true;
+        printf("[DEBUG waitCmd_ofProtoFifo] POLLING MODE: Activated command polling\n");
+    }
+
+    // Check if there are available commands
+    while (pFifoLinkObj->CmdPolling.QueuedCmdNum == pFifoLinkObj->CmdPolling.ProcedCmdNum) {
+        printf("[DEBUG waitCmd_ofProtoFifo] POLLING MODE: No commands available, waiting...\n");
+
+        // TODO: Handle timeout from pOption
+        pthread_cond_wait(&pFifoLinkObj->CmdPolling.CmdAvailableCond, &pFifoLinkObj->CmdPolling.CmdPollingMutex);
+    }
+
+    // Dequeue command
+    ULONG_T queueIndex = pFifoLinkObj->CmdPolling.ProcedCmdNum % 64;
+    *pCmdDesc = pFifoLinkObj->CmdPolling.QueuedCmdDescs[queueIndex];  // Copy command
+    pFifoLinkObj->CmdPolling.ProcedCmdNum++;
+
+    printf("[DEBUG waitCmd_ofProtoFifo] POLLING MODE: Command dequeued from index %lu (processed=%lu)\n", queueIndex,
+           pFifoLinkObj->CmdPolling.ProcedCmdNum);
+
+    pthread_mutex_unlock(&pFifoLinkObj->CmdPolling.CmdPollingMutex);
+
+    return IOC_RESULT_SUCCESS;
 }
 
 /**
@@ -1853,19 +1997,59 @@ static IOC_Result_T __IOC_waitCmd_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_C
  */
 static IOC_Result_T __IOC_ackCmd_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, const IOC_CmdDesc_pT pCmdDesc,
                                              const IOC_Options_pT pOption) {
+    printf("[DEBUG ackCmd_ofProtoFifo] Entry\n");
+
     if (!pLinkObj || !pCmdDesc) {
         return IOC_RESULT_INVALID_PARAM;
     }
 
     // Verify link is CmdExecutor
     if (pLinkObj->Args.Usage != IOC_LinkUsageCmdExecutor) {
+        printf("[DEBUG ackCmd_ofProtoFifo] INVALID_PARAM: Not CmdExecutor (usage=%d)\n", pLinkObj->Args.Usage);
         return IOC_RESULT_INVALID_PARAM;
     }
 
-    // ProtoFifo uses synchronous callback mode, not explicit ack mode
-    // Response is sent automatically when callback returns
-    // For now, return NOT_SUPPORT to indicate explicit ack mode not implemented
-    return IOC_RESULT_NOT_SUPPORT;
+    // Get the protocol-specific link object
+    _IOC_ProtoFifoLinkObject_pT pFifoLinkObj = (_IOC_ProtoFifoLinkObject_pT)pLinkObj->pProtoPriv;
+    if (!pFifoLinkObj) {
+        printf("[DEBUG ackCmd_ofProtoFifo] NOT_EXIST_LINK: No proto priv\n");
+        return IOC_RESULT_NOT_EXIST_LINK;
+    }
+
+    // Find peer link (CmdInitiator)
+    pthread_mutex_lock(&pFifoLinkObj->Mutex);
+    _IOC_ProtoFifoLinkObject_pT pPeerFifoLinkObj = pFifoLinkObj->pPeer;
+    pthread_mutex_unlock(&pFifoLinkObj->Mutex);
+
+    if (!pPeerFifoLinkObj) {
+        printf("[DEBUG ackCmd_ofProtoFifo] NOT_EXIST_LINK: No peer fifo link\n");
+        return IOC_RESULT_NOT_EXIST_LINK;
+    }
+
+    // 🎯 POLLING MODE: Send response back to command initiator
+    pthread_mutex_lock(&pPeerFifoLinkObj->CmdPolling.CmdPollingMutex);
+
+    // Check if response queue is full
+    ULONG_T respQueuedCount = pPeerFifoLinkObj->CmdPolling.QueuedRespNum - pPeerFifoLinkObj->CmdPolling.ProcedRespNum;
+    if (respQueuedCount >= 64) {  // Response queue size limit
+        pthread_mutex_unlock(&pPeerFifoLinkObj->CmdPolling.CmdPollingMutex);
+        printf("[DEBUG ackCmd_ofProtoFifo] ERROR: Response queue is full\n");
+        return IOC_RESULT_TOO_MANY_QUEUING_EVTDESC;
+    }
+
+    // Enqueue response
+    ULONG_T respQueueIndex = pPeerFifoLinkObj->CmdPolling.QueuedRespNum % 64;
+    pPeerFifoLinkObj->CmdPolling.QueuedRespDescs[respQueueIndex] = *pCmdDesc;  // Copy response
+    pPeerFifoLinkObj->CmdPolling.QueuedRespNum++;
+
+    printf("[DEBUG ackCmd_ofProtoFifo] POLLING MODE: Response queued at index %lu (total=%lu) with SeqID=%lu\n",
+           respQueueIndex, pPeerFifoLinkObj->CmdPolling.QueuedRespNum, pCmdDesc->MsgDesc.SeqID);
+
+    // Signal waiting threads on peer (command initiator)
+    pthread_cond_signal(&pPeerFifoLinkObj->CmdPolling.ResponseAvailableCond);
+    pthread_mutex_unlock(&pPeerFifoLinkObj->CmdPolling.CmdPollingMutex);
+
+    return IOC_RESULT_SUCCESS;
 }
 
 //=================================================================================================

@@ -73,8 +73,15 @@ static IOC_Result_T __IOC_executeCommandViaCallback(_IOC_LinkObject_pT pDestLink
         pCmdUsageArgs = pDestLink->Args.UsageArgs.pCmd;
     }
 
-    if (!pCmdUsageArgs || !pCmdUsageArgs->CbExecCmd_F) {
+    if (!pCmdUsageArgs) {
         return IOC_RESULT_NO_CMD_EXECUTOR;
+    }
+
+    // 🚀 POLLING SUPPORT: Allow services without callbacks for polling-based command execution
+    if (!pCmdUsageArgs->CbExecCmd_F) {
+        // No callback - this service uses polling mode (IOC_waitCMD + IOC_ackCMD)
+        // Continue with command validation for polling mode
+        printf("[DEBUG] Polling mode detected, no callback, continuing with command validation\n");
     }
 
     // Check if this command ID is supported
@@ -217,18 +224,25 @@ static IOC_Result_T __IOC_execCMD_legacy(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCm
 //=================================================================================================
 
 IOC_Result_T IOC_execCMD(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, IOC_Options_pT pOption) {
+    printf("[DEBUG IOC_execCMD] Entry: LinkID=%llu\n", LinkID);
+
     if (!pCmdDesc) {
+        printf("[DEBUG IOC_execCMD] INVALID_PARAM: pCmdDesc is NULL\n");
         return IOC_RESULT_INVALID_PARAM;
     }
 
     // Get source link
     _IOC_LinkObject_pT pSrcLink = _IOC_getLinkObjByLinkID(LinkID);
     if (!pSrcLink) {
+        printf("[DEBUG IOC_execCMD] NOT_EXIST_LINK: LinkID=%llu not found\n", LinkID);
         return IOC_RESULT_NOT_EXIST_LINK;
     }
 
+    printf("[DEBUG IOC_execCMD] Found src link: Usage=%d\n", pSrcLink->Args.Usage);
+
     // Verify that source link can initiate commands
     if (pSrcLink->Args.Usage != IOC_LinkUsageCmdInitiator) {
+        printf("[DEBUG IOC_execCMD] INVALID_PARAM: Link usage is not CmdInitiator (usage=%d)\n", pSrcLink->Args.Usage);
         return IOC_RESULT_INVALID_PARAM;
     }
 
@@ -240,12 +254,19 @@ IOC_Result_T IOC_execCMD(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, IOC_Optio
     // - Protocol abstraction: Different protocols can implement commands differently
     // - Extensibility: New protocols just implement the OpExecCmd_F method
     // - Consistency: All IOC APIs follow the same delegation pattern
+    printf("[DEBUG IOC_execCMD] Checking protocol methods: pMethods=%p\n", pSrcLink->pMethods);
+    if (pSrcLink->pMethods) {
+        printf("[DEBUG IOC_execCMD] OpExecCmd_F=%p\n", pSrcLink->pMethods->OpExecCmd_F);
+    }
+
     if (!pSrcLink->pMethods || !pSrcLink->pMethods->OpExecCmd_F) {
         // Fallback: Protocol doesn't implement commands, use legacy direct approach
+        printf("[DEBUG IOC_execCMD] Using legacy approach\n");
         return __IOC_execCMD_legacy(LinkID, pCmdDesc, pOption);
     }
 
     // Use protocol-specific command execution
+    printf("[DEBUG IOC_execCMD] Using protocol-specific method\n");
     return pSrcLink->pMethods->OpExecCmd_F(pSrcLink, pCmdDesc, pOption);
 }
 

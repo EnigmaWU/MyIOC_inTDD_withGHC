@@ -17,6 +17,9 @@
 //     Focus on IOC_waitCMD, IOC_ackCMD workflows vs CbExecCmd_F callback patterns
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
+#include <chrono>
+#include <thread>
+
 #include "_UT_IOC_Common.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -182,12 +185,118 @@ typedef struct __CmdPollingPriv {
 
 // TODO: Implement basic polling pattern test
 TEST(UT_ConetCommandWaitAck, verifyServicePolling_bySingleClient_expectWaitAckPattern) {
-    // TODO: Implement service setup with polling capability (no callback)
-    // TODO: Implement client connection and command sending
-    // TODO: Implement service IOC_waitCMD polling loop
-    // TODO: Implement command processing and IOC_ackCMD response
-    // TODO: Verify client receives proper response from polling service
-    GTEST_SKIP() << "TODO: Implement basic polling vs callback pattern";
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
+
+    // Service setup (Conet CmdExecutor with polling - NO CALLBACK)
+    __CmdPollingPriv_T SrvPollingPriv = {};
+    IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char *)"CmdWaitAck_PollingBasic"};
+
+    // Define supported commands for polling
+    static IOC_CmdID_T SupportedCmdIDs[] = {IOC_CMDID_TEST_PING};
+    IOC_CmdUsageArgs_T CmdUsageArgs = {.CbExecCmd_F = nullptr,  // NO CALLBACK - polling mode
+                                       .pCbPrivData = nullptr,
+                                       .CmdNum = sizeof(SupportedCmdIDs) / sizeof(SupportedCmdIDs[0]),
+                                       .pCmdIDs = SupportedCmdIDs};
+
+    IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI,
+                             .Flags = IOC_SRVFLAG_NONE,
+                             .UsageCapabilites = IOC_LinkUsageCmdExecutor,
+                             .UsageArgs = {.pCmd = &CmdUsageArgs}};
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
+    // Client setup and connection
+    IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageCmdInitiator};
+    IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
+    std::thread CliThread([&] {
+        IOC_Result_T ResultValueInThread = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValueInThread);
+        ASSERT_NE(IOC_ID_INVALID, CliLinkID);
+    });
+
+    IOC_LinkID_T SrvLinkID = IOC_ID_INVALID;
+    ResultValue = IOC_acceptClient(SrvID, &SrvLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, SrvLinkID);
+
+    if (CliThread.joinable()) CliThread.join();
+
+    // Start service polling thread FIRST - uses IOC_waitCMD + IOC_ackCMD
+    std::atomic<bool> PollingStarted{false};
+    std::thread SrvPollingThread([&] {
+        PollingStarted = true;  // Signal that polling has started
+        IOC_CmdDesc_T CmdDesc = {};
+        IOC_Result_T PollingResult = IOC_waitCMD(SrvLinkID, &CmdDesc, NULL);
+
+        if (PollingResult == IOC_RESULT_SUCCESS) {
+            // Command detected via polling
+            SrvPollingPriv.CommandDetected = true;
+            SrvPollingPriv.CommandCount++;
+            SrvPollingPriv.LastCmdID = IOC_CmdDesc_getCmdID(&CmdDesc);
+
+            // Process PING command - simple response with "PONG"
+            if (SrvPollingPriv.LastCmdID == IOC_CMDID_TEST_PING) {
+                const char *response = "PONG";
+                IOC_Result_T AckResult = IOC_CmdDesc_setOutPayload(&CmdDesc, (void *)response, strlen(response));
+                EXPECT_EQ(IOC_RESULT_SUCCESS, AckResult);
+
+                // Set command status to success
+                IOC_CmdDesc_setStatus(&CmdDesc, IOC_CMD_STATUS_SUCCESS);
+                IOC_CmdDesc_setResult(&CmdDesc, IOC_RESULT_SUCCESS);
+
+                // Explicit acknowledgment via IOC_ackCMD
+                IOC_Result_T SendResult = IOC_ackCMD(SrvLinkID, &CmdDesc, NULL);
+                EXPECT_EQ(IOC_RESULT_SUCCESS, SendResult);
+            }
+        }
+    });
+
+    // Wait for polling to start before sending command
+    while (!PollingStarted.load()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));  // Extra time for polling setup
+
+    // Client command sending - standard IOC_execCMD
+    IOC_CmdDesc_T CmdDesc = {};
+    CmdDesc.CmdID = IOC_CMDID_TEST_PING;
+    CmdDesc.TimeoutMs = 3000;
+    CmdDesc.Status = IOC_CMD_STATUS_PENDING;
+
+    printf("[DEBUG] About to call IOC_execCMD with CliLinkID=%llu, CmdID=%llu\n", CliLinkID, CmdDesc.CmdID);
+    ResultValue = IOC_execCMD(CliLinkID, &CmdDesc, NULL);
+    printf("[DEBUG] IOC_execCMD returned: %d\n", ResultValue);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
+    // Verify command status
+    IOC_CmdStatus_E Status = IOC_CmdDesc_getStatus(&CmdDesc);
+    ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, Status);
+
+    IOC_Result_T CmdResult = IOC_CmdDesc_getResult(&CmdDesc);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, CmdResult);
+
+    // Verify response payload
+    void *responseData = IOC_CmdDesc_getOutData(&CmdDesc);
+    ULONG_T responseSize = IOC_CmdDesc_getOutDataSize(&CmdDesc);
+    ASSERT_TRUE(responseData != nullptr);
+    ASSERT_EQ(4, responseSize);  // "PONG" length
+    ASSERT_STREQ("PONG", (char *)responseData);
+
+    // Wait for polling thread to complete
+    if (SrvPollingThread.joinable()) SrvPollingThread.join();
+
+    // Verify polling detection worked
+    ASSERT_TRUE(SrvPollingPriv.CommandDetected);
+    ASSERT_EQ(1, SrvPollingPriv.CommandCount.load());
+    ASSERT_EQ(IOC_CMDID_TEST_PING, SrvPollingPriv.LastCmdID);
+
+    // Cleanup
+    if (CliLinkID != IOC_ID_INVALID) IOC_closeLink(CliLinkID);
+    if (SrvLinkID != IOC_ID_INVALID) IOC_closeLink(SrvLinkID);
+    if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
 // TODO: Implement delayed response processing test
