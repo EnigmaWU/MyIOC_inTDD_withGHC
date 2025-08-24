@@ -137,10 +137,10 @@
  *      @[Status]: ✅ PASSED - Basic polling pattern with IOC_waitCMD + IOC_ackCMD implemented and working
  *
  * [@AC-2,US-1] Delayed response processing with manual acknowledgment
- *  ⚪ TC-1: verifyServiceAsyncProcessing_byDelayedAck_expectControlledTiming
+ *  🟢 TC-1: verifyServiceAsyncProcessing_byDelayedAck_expectControlledTiming
  *      @[Purpose]: Validate delayed response processing with manual acknowledgment control
  *      @[Brief]: Service receives command, processes in background, acknowledges when complete
- *      @[Status]: TODO - Implement delayed acknowledgment patterns within SYNC framework
+ *      @[Status]: ✅ PASSED - Delayed acknowledgment with controlled timing implemented and working
  *
  * [@AC-3,US-1] Polling timeout behavior and queue management
  *  ⚪ TC-1: verifyServicePollingTimeout_byEmptyQueue_expectTimeoutHandling
@@ -182,6 +182,22 @@ typedef struct __CmdPollingPriv {
     std::mutex PollingMutex;
     int ClientIndex{0};  // For multi-client scenarios
 } __CmdPollingPriv_T;
+
+// Extended structure for delayed processing
+typedef struct __CmdDelayedProcessingPriv {
+    std::atomic<bool> CommandDetected{false};
+    std::atomic<int> CommandCount{0};
+    IOC_CmdID_T LastCmdID{0};
+    IOC_CmdDesc_T LastCmdDesc{};
+    std::atomic<bool> ShouldStop{false};
+    std::mutex ProcessingMutex;
+    std::condition_variable ProcessingCV;
+    std::atomic<bool> ProcessingComplete{false};
+    std::chrono::steady_clock::time_point CommandReceiveTime;
+    std::chrono::steady_clock::time_point CommandAckTime;
+    std::atomic<int> DelayMs{500};           // Configurable delay
+    IOC_LinkID_T SrvLinkID{IOC_ID_INVALID};  // For delayed ack
+} __CmdDelayedProcessingPriv_T;
 
 // TODO: Implement basic polling pattern test
 TEST(UT_ConetCommandWaitAck, verifyServicePolling_bySingleClient_expectWaitAckPattern) {
@@ -298,13 +314,167 @@ TEST(UT_ConetCommandWaitAck, verifyServicePolling_bySingleClient_expectWaitAckPa
     if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
-// TODO: Implement delayed response processing test
+// Implement delayed response processing test
 TEST(UT_ConetCommandWaitAck, verifyServiceAsyncProcessing_byDelayedAck_expectControlledTiming) {
-    // TODO: Implement service with delayed response processing (not async command execution)
-    // TODO: Implement IOC_waitCMD detection with delayed IOC_ackCMD response
-    // TODO: Verify timing control and response quality within SYNC execution framework
-    // TODO: Compare with immediate callback patterns
-    GTEST_SKIP() << "TODO: Implement delayed acknowledgment patterns within SYNC framework";
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
+
+    // Service setup with delayed processing capabilities
+    __CmdDelayedProcessingPriv_T SrvDelayedPriv = {};
+    IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char *)"CmdWaitAck_DelayedProcessing"};
+
+    // Define supported commands for delayed processing
+    static IOC_CmdID_T SupportedCmdIDs[] = {IOC_CMDID_TEST_PING};
+    IOC_CmdUsageArgs_T CmdUsageArgs = {.CbExecCmd_F = nullptr,  // NO CALLBACK - polling mode
+                                       .pCbPrivData = nullptr,
+                                       .CmdNum = 1,  // Only PING command
+                                       .pCmdIDs = SupportedCmdIDs};
+
+    IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI,
+                             .Flags = IOC_SRVFLAG_NONE,
+                             .UsageCapabilites = IOC_LinkUsageCmdExecutor,
+                             .UsageArgs = {.pCmd = &CmdUsageArgs}};
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
+    // Client setup and connection
+    IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageCmdInitiator};
+    IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
+    std::thread CliThread([&] {
+        IOC_Result_T ResultValueInThread = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValueInThread);
+        ASSERT_NE(IOC_ID_INVALID, CliLinkID);
+    });
+
+    IOC_LinkID_T SrvLinkID = IOC_ID_INVALID;
+    ResultValue = IOC_acceptClient(SrvID, &SrvLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, SrvLinkID);
+
+    if (CliThread.joinable()) CliThread.join();
+
+    SrvDelayedPriv.SrvLinkID = SrvLinkID;  // Store for delayed ack
+
+    // Start service polling thread with delayed processing
+    std::atomic<bool> PollingStarted{false};
+    std::thread SrvPollingThread([&] {
+        PollingStarted = true;
+        IOC_CMDDESC_DECLARE_VAR(CmdDesc);
+        IOC_Result_T PollingResult = IOC_waitCMD(SrvLinkID, &CmdDesc, NULL);
+
+        if (PollingResult == IOC_RESULT_SUCCESS) {
+            // Command detected via polling - record receive time
+            SrvDelayedPriv.CommandReceiveTime = std::chrono::steady_clock::now();
+            SrvDelayedPriv.CommandDetected = true;
+            SrvDelayedPriv.CommandCount++;
+            SrvDelayedPriv.LastCmdID = IOC_CmdDesc_getCmdID(&CmdDesc);
+
+            // Copy command for delayed processing
+            SrvDelayedPriv.LastCmdDesc = CmdDesc;  // Save command descriptor
+
+            // Signal that command is received and processing can start
+            {
+                std::lock_guard<std::mutex> lock(SrvDelayedPriv.ProcessingMutex);
+                SrvDelayedPriv.ProcessingCV.notify_one();
+            }
+        }
+    });
+
+    // Start delayed processing thread
+    std::thread DelayedProcessingThread([&] {
+        std::unique_lock<std::mutex> lock(SrvDelayedPriv.ProcessingMutex);
+
+        // Wait for command to arrive
+        SrvDelayedPriv.ProcessingCV.wait(lock, [&] { return SrvDelayedPriv.CommandDetected.load(); });
+
+        // Simulate processing delay
+        std::this_thread::sleep_for(std::chrono::milliseconds(SrvDelayedPriv.DelayMs.load()));
+
+        // Process the command with delay
+        if (SrvDelayedPriv.LastCmdID == IOC_CMDID_TEST_PING) {
+            const char *response = "DELAYED_PONG";
+            IOC_Result_T AckResult =
+                IOC_CmdDesc_setOutPayload(&SrvDelayedPriv.LastCmdDesc, (void *)response, strlen(response));
+            EXPECT_EQ(IOC_RESULT_SUCCESS, AckResult);
+        }
+
+        // Set command status to success
+        IOC_CmdDesc_setStatus(&SrvDelayedPriv.LastCmdDesc, IOC_CMD_STATUS_SUCCESS);
+        IOC_CmdDesc_setResult(&SrvDelayedPriv.LastCmdDesc, IOC_RESULT_SUCCESS);
+
+        // Record acknowledgment time
+        SrvDelayedPriv.CommandAckTime = std::chrono::steady_clock::now();
+
+        // Send delayed acknowledgment
+        IOC_Result_T SendResult = IOC_ackCMD(SrvLinkID, &SrvDelayedPriv.LastCmdDesc, NULL);
+        EXPECT_EQ(IOC_RESULT_SUCCESS, SendResult);
+
+        SrvDelayedPriv.ProcessingComplete = true;
+    });
+
+    // Wait for polling to start
+    while (!PollingStarted.load()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // Record client command start time
+    auto CommandStartTime = std::chrono::steady_clock::now();
+
+    // Client sends command - this should block until delayed ack arrives
+    IOC_CMDDESC_DECLARE_VAR(CmdDesc);
+    CmdDesc.CmdID = IOC_CMDID_TEST_PING;
+
+    printf("[DEBUG] Client sending command with delayed processing...\n");
+    ResultValue = IOC_execCMD(CliLinkID, &CmdDesc, NULL);
+
+    auto CommandEndTime = std::chrono::steady_clock::now();
+    printf("[DEBUG] Client command completed after delay\n");
+
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
+    // Verify command status
+    IOC_CmdStatus_E Status = IOC_CmdDesc_getStatus(&CmdDesc);
+    ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, Status);
+
+    IOC_Result_T CmdResult = IOC_CmdDesc_getResult(&CmdDesc);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, CmdResult);
+
+    // Verify delayed response payload
+    void *responseData = IOC_CmdDesc_getOutData(&CmdDesc);
+    ULONG_T responseSize = IOC_CmdDesc_getOutDataSize(&CmdDesc);
+    ASSERT_TRUE(responseData != nullptr);
+    ASSERT_EQ(12, responseSize);  // "DELAYED_PONG" length
+    ASSERT_STREQ("DELAYED_PONG", (char *)responseData);
+
+    // Wait for threads to complete
+    if (SrvPollingThread.joinable()) SrvPollingThread.join();
+    if (DelayedProcessingThread.joinable()) DelayedProcessingThread.join();
+
+    // Verify timing constraints - delayed processing should take at least the configured delay
+    auto TotalDuration = std::chrono::duration_cast<std::chrono::milliseconds>(CommandEndTime - CommandStartTime);
+    auto ProcessingDuration = std::chrono::duration_cast<std::chrono::milliseconds>(SrvDelayedPriv.CommandAckTime -
+                                                                                    SrvDelayedPriv.CommandReceiveTime);
+
+    printf("[DEBUG] Total command duration: %lld ms\n", TotalDuration.count());
+    printf("[DEBUG] Processing duration: %lld ms\n", ProcessingDuration.count());
+
+    // Verify the delay was respected (allow some timing variance)
+    ASSERT_GE(TotalDuration.count(), SrvDelayedPriv.DelayMs.load() - 50);  // At least delay minus variance
+    ASSERT_GE(ProcessingDuration.count(), SrvDelayedPriv.DelayMs.load() - 10);
+
+    // Verify delayed processing detection worked
+    ASSERT_TRUE(SrvDelayedPriv.CommandDetected);
+    ASSERT_TRUE(SrvDelayedPriv.ProcessingComplete);
+    ASSERT_EQ(1, SrvDelayedPriv.CommandCount.load());
+    ASSERT_EQ(IOC_CMDID_TEST_PING, SrvDelayedPriv.LastCmdID);
+
+    // Cleanup
+    if (CliLinkID != IOC_ID_INVALID) IOC_closeLink(CliLinkID);
+    if (SrvLinkID != IOC_ID_INVALID) IOC_closeLink(SrvLinkID);
+    if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
 // TODO: Implement polling timeout test
