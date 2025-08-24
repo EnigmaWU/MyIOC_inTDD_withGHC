@@ -149,16 +149,16 @@
  *      @[Brief]: Service polls with timeout, handles empty queue gracefully
  *      @[Status]: ✅ PASSED - Polling timeout validation implemented and working
  *
- *  � TC-2: verifyServicePollingNonblock_byEmptyQueue_expectImmediateReturn
+ *  🟢 TC-2: verifyServicePollingNonblock_byEmptyQueue_expectImmediateReturn
  *      @[Purpose]: Validate IOC_waitCMD non-blocking behavior when no commands available
  *      @[Brief]: Service polls with NONBLOCK mode, returns immediately with NO_CMD_PENDING
  *      @[Status]: ✅ PASSED - Non-blocking polling validation implemented and working
  *
  * [@AC-4,US-1] Multi-client polling and independent acknowledgment tracking
- *  ⚪ TC-1: verifyServiceMultiClientPolling_byIndependentAck_expectProperTracking
+ *  🔴 TC-1: verifyServiceMultiClientPolling_byIndependentAck_expectProperTracking
  *      @[Purpose]: Validate independent command tracking and acknowledgment for multiple clients
  *      @[Brief]: Multiple clients send commands, service polls and tracks each independently
- *      @[Status]: TODO - Implement multi-client polling patterns with SYNC guarantees
+ *      @[Status]: 🔴 RED - Implementing multi-client polling patterns with SYNC guarantees
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * 📋 [US-2]: Service as CmdInitiator (Server→Client Polling Command Patterns)
@@ -828,13 +828,310 @@ TEST(UT_ConetCommandWaitAck, verifyServicePollingNonblock_byEmptyQueue_expectImm
     if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
-// TODO: Implement multi-client polling test with SYNC guarantees
+// Multi-client polling data structure
+typedef struct __CmdMultiClientPollingPriv {
+    std::atomic<bool> PollingStarted{false};
+    std::atomic<bool> PollingComplete{false};
+    std::atomic<bool> ShouldStop{false};
+    std::atomic<int> TotalCommandsProcessed{0};
+    std::atomic<int> ExpectedCommands{0};
+
+    // Per-client tracking
+    struct ClientInfo {
+        IOC_LinkID_T LinkID{IOC_ID_INVALID};     // Client-side link ID
+        IOC_LinkID_T SrvLinkID{IOC_ID_INVALID};  // Server-side P2P link ID
+        std::atomic<bool> CommandSent{false};
+        std::atomic<bool> CommandReceived{false};
+        std::atomic<bool> CommandAcknowledged{false};
+        IOC_CmdID_T SentCmdID{0};
+        IOC_CmdID_T ReceivedCmdID{0};
+        std::string ExpectedResponse;
+        std::string ActualResponse;
+        std::chrono::steady_clock::time_point SendTime;
+        std::chrono::steady_clock::time_point ReceiveTime;
+        std::chrono::steady_clock::time_point AckTime;
+        std::atomic<IOC_Result_T> CommandResult{IOC_RESULT_BUG};
+        int ClientIndex{0};
+    };
+
+    static const int MAX_CLIENTS = 3;
+    ClientInfo Clients[MAX_CLIENTS];
+
+    std::mutex PollingMutex;
+    std::condition_variable PollingCV;
+} __CmdMultiClientPollingPriv_T;
+
+// Implement multi-client polling test with SYNC guarantees
 TEST(UT_ConetCommandWaitAck, verifyServiceMultiClientPolling_byIndependentAck_expectProperTracking) {
-    // TODO: Implement multi-client command sending with synchronous wait
-    // TODO: Implement service polling loop for multiple command sources
-    // TODO: Verify independent command tracking and acknowledgment with SYNC guarantees
-    // TODO: Validate each client gets proper response through IOC_execCMD completion
-    GTEST_SKIP() << "TODO: Implement multi-client polling patterns with SYNC guarantees";
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
+
+    // Service setup with multi-client polling capabilities
+    __CmdMultiClientPollingPriv_T MultiPriv = {};
+    MultiPriv.ExpectedCommands = 3;  // Test with 3 clients
+
+    IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char *)"CmdWaitAck_MultiClientTest"};
+
+    // Define supported commands for multi-client testing
+    static IOC_CmdID_T SupportedCmdIDs[] = {IOC_CMDID_TEST_PING, IOC_CMDID_TEST_ECHO};
+    IOC_CmdUsageArgs_T CmdUsageArgs = {.CbExecCmd_F = nullptr,  // NO CALLBACK - polling mode
+                                       .pCbPrivData = nullptr,
+                                       .CmdNum = 2,  // PING and ECHO commands
+                                       .pCmdIDs = SupportedCmdIDs};
+
+    IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI,
+                             .Flags = IOC_SRVFLAG_NONE,
+                             .UsageCapabilites = IOC_LinkUsageCmdExecutor,
+                             .UsageArgs = {.pCmd = &CmdUsageArgs}};
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
+    // Setup multiple clients
+    std::vector<std::thread> ClientThreads;
+
+    for (int i = 0; i < MultiPriv.ExpectedCommands.load(); i++) {
+        MultiPriv.Clients[i].ClientIndex = i;
+        MultiPriv.Clients[i].SentCmdID = (i == 0) ? IOC_CMDID_TEST_PING : IOC_CMDID_TEST_ECHO;
+        // Generate expected response based on command type and client index
+        if (MultiPriv.Clients[i].SentCmdID == IOC_CMDID_TEST_PING) {
+            MultiPriv.Clients[i].ExpectedResponse = "PONG_" + std::to_string(i);
+        } else {
+            MultiPriv.Clients[i].ExpectedResponse = "ECHO_" + std::to_string(i);
+        }
+
+        ClientThreads.emplace_back([&, i] {
+            IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageCmdInitiator};
+            IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
+            IOC_Result_T ResultValueInThread = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
+            ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValueInThread);
+            ASSERT_NE(IOC_ID_INVALID, CliLinkID);
+
+            MultiPriv.Clients[i].LinkID = CliLinkID;
+        });
+    }
+
+    // Accept all client connections - each creates a dedicated P2P SrvLinkID
+    std::vector<IOC_LinkID_T> SrvLinkIDs;
+    for (int i = 0; i < MultiPriv.ExpectedCommands.load(); i++) {
+        IOC_LinkID_T SrvLinkID = IOC_ID_INVALID;
+        ResultValue = IOC_acceptClient(SrvID, &SrvLinkID, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+        ASSERT_NE(IOC_ID_INVALID, SrvLinkID);
+
+        // Store each service link ID for individual polling
+        SrvLinkIDs.push_back(SrvLinkID);
+        MultiPriv.Clients[i].SrvLinkID = SrvLinkID;  // Add SrvLinkID to ClientInfo
+    }
+
+    // Wait for all client threads to complete connection
+    for (auto &thread : ClientThreads) {
+        if (thread.joinable()) thread.join();
+    }
+    ClientThreads.clear();
+
+    // Start service polling thread that handles multiple P2P connections
+    std::thread SrvPollingThread([&] {
+        MultiPriv.PollingStarted = true;
+
+        printf("[DEBUG] Multi-client polling started, waiting for %d commands\n", MultiPriv.ExpectedCommands.load());
+
+        while (MultiPriv.TotalCommandsProcessed.load() < MultiPriv.ExpectedCommands.load() &&
+               !MultiPriv.ShouldStop.load()) {
+            // Poll each P2P service link for commands
+            bool CommandFound = false;
+
+            for (int clientIdx = 0; clientIdx < MultiPriv.ExpectedCommands.load(); clientIdx++) {
+                // Skip clients that have already been processed
+                if (MultiPriv.Clients[clientIdx].CommandAcknowledged.load()) {
+                    continue;
+                }
+
+                IOC_LinkID_T currentSrvLinkID = MultiPriv.Clients[clientIdx].SrvLinkID;
+
+                IOC_CMDDESC_DECLARE_VAR(CmdDesc);
+
+                // Use non-blocking polling for each link
+                IOC_Option_defineNonBlock(NonBlockOption);
+                IOC_Result_T PollingResult = IOC_waitCMD(currentSrvLinkID, &CmdDesc, &NonBlockOption);
+
+                if (PollingResult == IOC_RESULT_SUCCESS) {
+                    CommandFound = true;
+                    auto ReceiveTime = std::chrono::steady_clock::now();
+                    IOC_CmdID_T CmdID = IOC_CmdDesc_getCmdID(&CmdDesc);
+
+                    printf("[DEBUG] Service received command %llu from client %d on SrvLinkID %llu\n", CmdID, clientIdx,
+                           currentSrvLinkID);
+
+                    // Mark command as received for this specific client (correct mapping)
+                    MultiPriv.Clients[clientIdx].CommandReceived = true;
+                    MultiPriv.Clients[clientIdx].ReceivedCmdID = CmdID;
+                    MultiPriv.Clients[clientIdx].ReceiveTime = ReceiveTime;
+
+                    // Process command based on command ID, not client index assumption
+                    std::string responseStr;
+                    if (CmdID == IOC_CMDID_TEST_PING) {
+                        responseStr = "PONG_" + std::to_string(clientIdx);
+                    } else if (CmdID == IOC_CMDID_TEST_ECHO) {
+                        responseStr = "ECHO_" + std::to_string(clientIdx);
+                    } else {
+                        responseStr = "UNKNOWN_" + std::to_string(clientIdx);
+                    }
+
+                    IOC_Result_T AckResult =
+                        IOC_CmdDesc_setOutPayload(&CmdDesc, (void *)responseStr.c_str(), responseStr.length());
+                    EXPECT_EQ(IOC_RESULT_SUCCESS, AckResult);
+
+                    // Set command status to success
+                    IOC_CmdDesc_setStatus(&CmdDesc, IOC_CMD_STATUS_SUCCESS);
+                    IOC_CmdDesc_setResult(&CmdDesc, IOC_RESULT_SUCCESS);
+
+                    // Send acknowledgment on the same P2P link
+                    IOC_Result_T SendResult = IOC_ackCMD(currentSrvLinkID, &CmdDesc, NULL);
+                    EXPECT_EQ(IOC_RESULT_SUCCESS, SendResult);
+
+                    // Mark command as acknowledged
+                    MultiPriv.Clients[clientIdx].CommandAcknowledged = true;
+                    MultiPriv.Clients[clientIdx].AckTime = std::chrono::steady_clock::now();
+                    MultiPriv.TotalCommandsProcessed++;
+
+                    printf("[DEBUG] Service acknowledged command %llu for client %d (total: %d/%d)\n", CmdID, clientIdx,
+                           MultiPriv.TotalCommandsProcessed.load(), MultiPriv.ExpectedCommands.load());
+                } else if (PollingResult != IOC_RESULT_NO_CMD_PENDING) {
+                    printf("[ERROR] Polling failed on client %d link with result: %d\n", clientIdx, PollingResult);
+                }
+            }
+
+            if (!CommandFound) {
+                // No commands available on any link, brief wait before retry
+                std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            }
+        }
+
+        MultiPriv.PollingComplete = true;
+        printf("[DEBUG] Multi-client polling completed\n");
+    });
+
+    // Wait for polling to start
+    while (!MultiPriv.PollingStarted.load()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));  // Let polling be ready
+
+    // Send commands from multiple clients concurrently
+    for (int i = 0; i < MultiPriv.ExpectedCommands.load(); i++) {
+        ClientThreads.emplace_back([&, i] {
+            // Add minimal staggered timing to test independent processing
+            std::this_thread::sleep_for(std::chrono::milliseconds(i * 20));
+
+            IOC_CMDDESC_DECLARE_VAR(CmdDesc);
+            CmdDesc.CmdID = MultiPriv.Clients[i].SentCmdID;
+
+            printf("[DEBUG] Client %d sending command %llu\n", i, CmdDesc.CmdID);
+
+            MultiPriv.Clients[i].SendTime = std::chrono::steady_clock::now();
+            MultiPriv.Clients[i].CommandSent = true;
+
+            IOC_Result_T ResultValueInThread = IOC_execCMD(MultiPriv.Clients[i].LinkID, &CmdDesc, NULL);
+
+            MultiPriv.Clients[i].CommandResult = ResultValueInThread;
+
+            // Verify command execution success
+            EXPECT_EQ(IOC_RESULT_SUCCESS, ResultValueInThread);
+            EXPECT_EQ(IOC_CMD_STATUS_SUCCESS, IOC_CmdDesc_getStatus(&CmdDesc));
+            EXPECT_EQ(IOC_RESULT_SUCCESS, IOC_CmdDesc_getResult(&CmdDesc));
+
+            // Verify response payload
+            void *responseData = IOC_CmdDesc_getOutData(&CmdDesc);
+            ULONG_T responseSize = IOC_CmdDesc_getOutDataSize(&CmdDesc);
+            if (responseData != nullptr) {
+                MultiPriv.Clients[i].ActualResponse = std::string((char *)responseData, responseSize);
+                EXPECT_STREQ(MultiPriv.Clients[i].ExpectedResponse.c_str(),
+                             MultiPriv.Clients[i].ActualResponse.c_str());
+            }
+
+            printf("[DEBUG] Client %d completed command with response: %s\n", i,
+                   MultiPriv.Clients[i].ActualResponse.c_str());
+        });
+    }
+
+    // Wait for all client command executions to complete
+    for (auto &thread : ClientThreads) {
+        if (thread.joinable()) thread.join();
+    }
+
+    // Wait for polling to complete processing all commands
+    while (!MultiPriv.PollingComplete.load() &&
+           MultiPriv.TotalCommandsProcessed.load() < MultiPriv.ExpectedCommands.load()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+
+    MultiPriv.ShouldStop = true;
+    if (SrvPollingThread.joinable()) SrvPollingThread.join();
+
+    // Verify multi-client processing results
+    ASSERT_EQ(MultiPriv.ExpectedCommands.load(), MultiPriv.TotalCommandsProcessed.load());
+
+    printf("[DEBUG] Verifying independent client processing:\n");
+    for (int i = 0; i < MultiPriv.ExpectedCommands.load(); i++) {
+        printf("[DEBUG] Client %d: Sent=%s, Received=%s, Acknowledged=%s\n", i,
+               MultiPriv.Clients[i].CommandSent.load() ? "true" : "false",
+               MultiPriv.Clients[i].CommandReceived.load() ? "true" : "false",
+               MultiPriv.Clients[i].CommandAcknowledged.load() ? "true" : "false");
+
+        // Verify each client's command flow
+        ASSERT_TRUE(MultiPriv.Clients[i].CommandSent.load()) << "Client " << i << " command was not sent";
+        ASSERT_TRUE(MultiPriv.Clients[i].CommandReceived.load())
+            << "Client " << i << " command was not received by service";
+        ASSERT_TRUE(MultiPriv.Clients[i].CommandAcknowledged.load())
+            << "Client " << i << " command was not acknowledged by service";
+
+        // Verify command IDs match
+        ASSERT_EQ(MultiPriv.Clients[i].SentCmdID, MultiPriv.Clients[i].ReceivedCmdID)
+            << "Client " << i << " command ID mismatch";
+
+        // Verify response content
+        ASSERT_EQ(MultiPriv.Clients[i].ExpectedResponse, MultiPriv.Clients[i].ActualResponse)
+            << "Client " << i << " response mismatch";
+
+        // Verify SYNC guarantee: command was successful
+        ASSERT_EQ(IOC_RESULT_SUCCESS, MultiPriv.Clients[i].CommandResult.load())
+            << "Client " << i << " command execution failed";
+    }
+
+    // Verify timing independence (commands processed concurrently, not sequentially)
+    auto MinSendTime = MultiPriv.Clients[0].SendTime;
+    auto MaxAckTime = MultiPriv.Clients[0].AckTime;
+
+    for (int i = 1; i < MultiPriv.ExpectedCommands.load(); i++) {
+        if (MultiPriv.Clients[i].SendTime < MinSendTime) {
+            MinSendTime = MultiPriv.Clients[i].SendTime;
+        }
+        if (MultiPriv.Clients[i].AckTime > MaxAckTime) {
+            MaxAckTime = MultiPriv.Clients[i].AckTime;
+        }
+    }
+
+    auto TotalProcessingTime = std::chrono::duration_cast<std::chrono::milliseconds>(MaxAckTime - MinSendTime);
+    printf("[DEBUG] Total multi-client processing time: %lld ms\n", TotalProcessingTime.count());
+
+    // Should process concurrently, not take 3x longer than single command
+    ASSERT_LE(TotalProcessingTime.count(), 1000)  // Allow up to 1 second for concurrent processing
+        << "Multi-client processing took too long: " << TotalProcessingTime.count() << "ms";
+
+    printf("[DEBUG] Multi-client polling test completed successfully\n");
+
+    // Cleanup
+    for (int i = 0; i < MultiPriv.ExpectedCommands.load(); i++) {
+        if (MultiPriv.Clients[i].LinkID != IOC_ID_INVALID) {
+            IOC_closeLink(MultiPriv.Clients[i].LinkID);
+        }
+        if (MultiPriv.Clients[i].SrvLinkID != IOC_ID_INVALID) {
+            IOC_closeLink(MultiPriv.Clients[i].SrvLinkID);
+        }
+    }
+    if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
 // TODO: Implement service-to-polling-client test
