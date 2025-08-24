@@ -103,7 +103,7 @@
  *  - By Coverage Matrix: Systematic coverage of command execution flows
  *  - By Priority: Basic P2P commands first, complex orchestration second
  *
- * STATUS TRACKING: 🟢 = Implemented, 🔴 = TODO/RED, ⚪ = Planned, ⚠️ = Issues
+ * STATUS TRACKING: ⚪ = Planned/TODO，� = Implemented/RED, 🟢 = Passed/GREEN, ⚠️ = Issues
  *
  * ⚠️ FRAMEWORK STATUS: Command APIs (IOC_execCMD, IOC_waitCMD, IOC_ackCMD) are DECLARED but NOT IMPLEMENTED
  *    These tests provide complete design specification ready for implementation.
@@ -113,50 +113,50 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  *
  * [@AC-1,US-1] Basic P2P command execution with callback processing
- *  🟢 TC-1: verifyServiceAsCmdExecutor_bySingleClient_expectSynchronousResponse
+ *  � TC-1: verifyServiceAsCmdExecutor_bySingleClient_expectSynchronousResponse
  *      @[Purpose]: Validate fundamental Conet CmdExecutor→callback execution from client initiator
  *      @[Brief]: Service accepts client, processes PING command via callback, returns PONG response
- *      @[Status]: IMPLEMENTED ✅ - Complete test with proper cleanup and verification
+ *      @[Status]: IMPLEMENTED/RED 🔴 - Test code complete but blocked by missing IOC command implementation
  *
  * [@AC-2,US-1] Multiple command type support and payload handling
- *  🟢 TC-1: verifyServiceAsCmdExecutor_byMultipleCommandTypes_expectProperExecution
+ *  � TC-1: verifyServiceAsCmdExecutor_byMultipleCommandTypes_expectProperExecution
  *      @[Purpose]: Ensure service can handle different command types with appropriate payloads
  *      @[Brief]: Tests PING (no payload), ECHO (text), CALC (numeric) commands sequentially
- *      @[Status]: IMPLEMENTED ✅ - Comprehensive command type coverage with validation
+ *      @[Status]: IMPLEMENTED/RED 🔴 - Comprehensive command type coverage, awaiting framework
  *
  * [@AC-3,US-1] Multi-client isolation and concurrent command processing
- *  🟢 TC-1: verifyServiceAsCmdExecutor_byMultipleClients_expectIsolatedExecution
+ *  � TC-1: verifyServiceAsCmdExecutor_byMultipleClients_expectIsolatedExecution
  *      @[Purpose]: Validate command isolation between multiple clients without interference
  *      @[Brief]: 3 clients send unique ECHO commands concurrently, verify response isolation
- *      @[Status]: IMPLEMENTED ✅ - Thread-safe multi-client testing with atomics
+ *      @[Status]: IMPLEMENTED/RED 🔴 - Thread-safe multi-client testing ready for framework
  *
  * [@AC-4,US-1] Command timeout and timing constraint validation
- *  🔴 TC-1: verifyServiceAsCmdExecutor_byTimeoutConstraints_expectProperTiming
+ *  ⚪ TC-1: verifyServiceAsCmdExecutor_byTimeoutConstraints_expectProperTiming
  *      @[Purpose]: Validate command timeout behavior for time-bounded operations
  *      @[Brief]: Test DELAY command with timeouts, verify completion and timeout scenarios
- *      @[Status]: TODO - Need DELAY command implementation and timeout testing logic
+ *      @[Status]: PLANNED/TODO ⚪ - Need DELAY command implementation and timeout testing logic
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * 📋 [US-2]: Service as CmdInitiator (Server→Client Command Patterns)
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  *
  * [@AC-1,US-2] Reversed command flow from service to client
- *  🟢 TC-1: verifyServiceAsCmdInitiator_bySingleClient_expectClientExecution
+ *  � TC-1: verifyServiceAsCmdInitiator_bySingleClient_expectClientExecution
  *      @[Purpose]: Validate reversed command flow from service to client executor
  *      @[Brief]: Service sends PING to client, client processes via callback, service gets PONG
- *      @[Status]: IMPLEMENTED ✅ - Complete bidirectional command flow verification
+ *      @[Status]: IMPLEMENTED/RED 🔴 - Complete bidirectional command flow, awaiting framework
  *
  * [@AC-2,US-2] Service orchestrating multiple client operations
- *  🔴 TC-1: verifyServiceAsCmdInitiator_byMultipleClients_expectOrchestration
+ *  ⚪ TC-1: verifyServiceAsCmdInitiator_byMultipleClients_expectOrchestration
  *      @[Purpose]: Validate service orchestrating commands across multiple clients
  *      @[Brief]: Service sends different commands to different clients independently
- *      @[Status]: TODO - Multi-client orchestration pattern needs implementation
+ *      @[Status]: PLANNED/TODO ⚪ - Multi-client orchestration pattern needs implementation
  *
  * [@AC-3,US-2] Command result aggregation from multiple clients
- *  🔴 TC-1: verifyServiceAsCmdInitiator_byResultAggregation_expectCompleteCollection
+ *  ⚪ TC-1: verifyServiceAsCmdInitiator_byResultAggregation_expectCompleteCollection
  *      @[Purpose]: Validate service collecting results from multiple clients for same command
  *      @[Brief]: Service sends GET_STATUS to all clients, aggregates responses
- *      @[Status]: TODO - Result aggregation logic and GET_STATUS command type needed
+ *      @[Status]: PLANNED/TODO ⚪ - Result aggregation logic and GET_STATUS command type needed
  */
 //======>END OF TEST CASES=========================================================================
 
@@ -582,16 +582,21 @@ TEST(UT_ConetCommandTypical, verifyServiceAsCmdInitiator_bySingleClient_expectCl
     if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
-// TODO: Additional test cases for AC-2, AC-3, AC-4 of US-1 and AC-2, AC-3 of US-2
+// 🔴 IMPLEMENTATION STATUS TRACKING - Organized by Priority and Category
 // These will be implemented following the same pattern with increasing complexity
 //
-// 🔴 IMPLEMENTATION ROADMAP:
+// 🔴 CURRENT RED TESTS (Implemented but blocked by framework):
+//   4 tests complete, awaiting IOC_execCMD/IOC_waitCMD/IOC_ackCMD implementation
+//
+// ⚪ PLANNED IMPLEMENTATION ROADMAP:
 //   1. AC-4,US-1 TC-1: Command timeout testing (need DELAY command support)
 //   2. AC-2,US-2 TC-1: Multi-client orchestration patterns
 //   3. AC-3,US-2 TC-1: Result aggregation mechanisms
 //   4. Performance testing: Command throughput and latency
 //   5. Boundary testing: Max payload sizes, concurrent limits
 //   6. Error scenarios: Network failures, invalid commands
+//
+// 🟢 FUTURE GREEN STATE: Tests will turn green once framework command APIs are implemented
 
 //======>END OF TEST CASES==========================================================================
 
