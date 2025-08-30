@@ -67,6 +67,12 @@
  *
  * US-3: As a service developer, I want OnAutoAccepted_F callback with command context
  *       so that I can configure per-client command capabilities upon auto-acceptance.
+ *
+ * US-4: As a service developer, I want control over auto-accepted link lifecycle with IOC_SRVFLAG_KEEP_ACCEPTED_LINK
+ *       so that I can manage persistent connections across service restart scenarios.
+ *
+ * US-5: As a service developer, I want to understand resource management differences between auto-cleanup and
+ * persistent links so that I can choose the appropriate cleanup strategy for my service architecture.
  */
 //======>END OF USER STORY==========================================================================
 
@@ -102,6 +108,25 @@
  *  AC-3: GIVEN OnAutoAccepted_F callback integration with both callback and polling patterns,
  *         WHEN clients connect with different command usage patterns,
  *         THEN callback handles mixed command execution modes correctly.
+ *
+ * [@US-4] Service Lifecycle with Persistent Links (IOC_SRVFLAG_KEEP_ACCEPTED_LINK)
+ *  AC-1: GIVEN a service with IOC_SRVFLAG_AUTO_ACCEPT and IOC_SRVFLAG_KEEP_ACCEPTED_LINK,
+ *         WHEN service goes offline,
+ *         THEN auto-accepted links persist and remain valid for manual cleanup.
+ *  AC-2: GIVEN persistent auto-accepted links requiring manual cleanup,
+ *         WHEN service shutdown occurs,
+ *         THEN developer must manually close server-side LinkIDs to prevent resource leaks.
+ *  AC-3: GIVEN persistent auto-accepted links across service restart,
+ *         WHEN service comes back online,
+ *         THEN existing links remain functional for continued operation.
+ *
+ * [@US-5] Service Lifecycle Comparison (Auto-cleanup vs Persistent Links)
+ *  AC-1: GIVEN services with and without IOC_SRVFLAG_KEEP_ACCEPTED_LINK,
+ *         WHEN both services go offline,
+ *         THEN auto-cleanup service cleans links automatically while persistent service preserves links.
+ *  AC-2: GIVEN different cleanup strategies under load testing,
+ *         WHEN measuring resource management performance,
+ *         THEN each strategy shows measurable differences in cleanup timing and resource usage.
  */
 //=======>END OF ACCEPTANCE CRITERIA================================================================
 
@@ -183,6 +208,46 @@
  *      @[Purpose]: Validate auto-accept callback handling both callback-based and polling command modes
  *      @[Brief]: Callback configures some links for immediate commands, others for polling-based commands
  *      @[Status]: TODO - Need to implement mixed pattern support with auto-accept
+ *
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ * 📋 [US-4]: SERVICE LIFECYCLE WITH PERSISTENT LINKS (IOC_SRVFLAG_KEEP_ACCEPTED_LINK)
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ * PATTERN: Auto-accepted links persist across service lifecycle with manual cleanup responsibility
+ *
+ * [@AC-1,US-4] Auto-accepted link persistence after service offline
+ *  ⚪ TC-1: verifyKeepAcceptedLink_byServiceOffline_expectLinkPersistence
+ *      @[Purpose]: Validate IOC_SRVFLAG_KEEP_ACCEPTED_LINK preserves auto-accepted links after service shutdown
+ *      @[Brief]: Service(AutoAccept+KeepLinks) → Client connects → Service offline → Links persist for manual cleanup
+ *      @[Status]: TODO - Need to implement persistent link behavior validation
+ *
+ * [@AC-2,US-4] Manual cleanup requirement for persistent auto-accepted links
+ *  ⚪ TC-1: verifyKeepAcceptedLink_byManualCleanup_expectProperResourceManagement
+ *      @[Purpose]: Validate manual cleanup responsibility for persistent auto-accepted links
+ *      @[Brief]: Service(AutoAccept+KeepLinks) → Multiple clients → Service offline → Manual LinkID cleanup required
+ *      @[Status]: TODO - Need to implement manual cleanup patterns for persistent links
+ *
+ * [@AC-3,US-4] Link functionality across service restart scenarios
+ *  ⚪ TC-1: verifyKeepAcceptedLink_byServiceRestart_expectConnectionPersistence
+ *      @[Purpose]: Validate persistent links remain functional across service restart scenarios
+ *      @[Brief]: Service restart with persistent links maintaining connection continuity
+ *      @[Status]: TODO - Need to implement service restart with persistent link functionality
+ *
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ * 📋 [US-5]: SERVICE LIFECYCLE COMPARISON (Auto-cleanup vs Persistent Links)
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ * PATTERN: Comparative analysis of resource management strategies for auto-accepted links
+ *
+ * [@AC-1,US-5] Resource management behavior comparison
+ *  ⚪ TC-1: verifyServiceLifecycleComparison_byAutoCleanupVsPersistent_expectDifferentBehavior
+ *      @[Purpose]: Compare auto-cleanup vs persistent link behavior for resource management
+ *      @[Brief]: Two services: one with auto-cleanup, one with persistent links → Compare resource handling
+ *      @[Status]: TODO - Need to implement comparative resource management analysis
+ *
+ * [@AC-2,US-5] Performance implications of cleanup strategies
+ *  ⚪ TC-1: verifyServiceLifecycleComparison_byPerformanceImplications_expectMeasurableDifference
+ *      @[Purpose]: Measure performance differences between auto-cleanup and persistent link strategies
+ *      @[Brief]: Load testing with both cleanup strategies → Measure resource usage and cleanup timing
+ *      @[Status]: TODO - Need to implement performance comparison for cleanup strategies
  */
 //======>END OF TEST CASES=========================================================================
 
@@ -942,6 +1007,47 @@ TEST(UT_ConetCommandTypicalAutoAccept, verifyOnAutoAcceptedCallback_forMixedCmdP
 TEST(UT_ConetCommandTypicalAutoAccept, verifyOnAutoAcceptedCallback_forCallbackPlusPolling_expectFlexibleHandling) {
     // TODO: Implement mixed callback + polling patterns with auto-accept
     GTEST_SKIP() << "TODO: Implement mixed command patterns with auto-accept test";
+}
+
+//======>BEGIN US-4: Service Lifecycle with Persistent Links=======================================
+
+// [@AC-1,US-4] TC-1: verifyKeepAcceptedLink_byServiceOffline_expectLinkPersistence
+// [@AC-1,US-4] TC-1: Auto-accepted links persist after service offline with IOC_SRVFLAG_KEEP_ACCEPTED_LINK
+TEST(UT_ConetCommandTypicalAutoAccept, verifyKeepAcceptedLink_byServiceOffline_expectLinkPersistence) {
+    // TODO: Implement IOC_SRVFLAG_KEEP_ACCEPTED_LINK persistence validation
+    GTEST_SKIP() << "TODO: Implement auto-accepted link persistence after service offline test";
+}
+
+// [@AC-2,US-4] TC-1: verifyKeepAcceptedLink_byManualCleanup_expectProperResourceManagement
+// [@AC-2,US-4] TC-1: Manual cleanup required for persistent auto-accepted links
+TEST(UT_ConetCommandTypicalAutoAccept, verifyKeepAcceptedLink_byManualCleanup_expectProperResourceManagement) {
+    // TODO: Implement manual cleanup patterns for persistent auto-accepted links
+    GTEST_SKIP() << "TODO: Implement manual cleanup requirement validation for persistent links test";
+}
+
+// [@AC-3,US-4] TC-1: verifyKeepAcceptedLink_byServiceRestart_expectConnectionPersistence
+// [@AC-3,US-4] TC-1: Links remain functional across service restart scenarios
+TEST(UT_ConetCommandTypicalAutoAccept, verifyKeepAcceptedLink_byServiceRestart_expectConnectionPersistence) {
+    // TODO: Implement service restart with persistent links functionality
+    GTEST_SKIP() << "TODO: Implement service restart with persistent link functionality test";
+}
+
+//======>BEGIN US-5: Service Lifecycle Comparison==================================================
+
+// [@AC-1,US-5] TC-1: verifyServiceLifecycleComparison_byAutoCleanupVsPersistent_expectDifferentBehavior
+// [@AC-1,US-5] TC-1: Compare resource management between default auto-cleanup vs. persistent links
+TEST(UT_ConetCommandTypicalAutoAccept,
+     verifyServiceLifecycleComparison_byAutoCleanupVsPersistent_expectDifferentBehavior) {
+    // TODO: Implement comparative resource management analysis
+    GTEST_SKIP() << "TODO: Implement auto-cleanup vs persistent links comparison test";
+}
+
+// [@AC-2,US-5] TC-1: verifyServiceLifecycleComparison_byPerformanceImplications_expectMeasurableDifference
+// [@AC-2,US-5] TC-1: Performance implications of different cleanup strategies
+TEST(UT_ConetCommandTypicalAutoAccept,
+     verifyServiceLifecycleComparison_byPerformanceImplications_expectMeasurableDifference) {
+    // TODO: Implement performance comparison between auto-cleanup vs manual cleanup strategies
+    GTEST_SKIP() << "TODO: Implement performance implications test for different cleanup strategies";
 }
 
 // ⚪ IMPLEMENTATION STATUS TRACKING - Auto-Accept Command Patterns TODO
