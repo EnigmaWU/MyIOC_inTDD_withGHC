@@ -214,8 +214,9 @@
  *
  * [@AC-3,US-3] Mixed command patterns (callback + polling) with auto-accept callback
  *  ⚪ TC-1: verifyOnAutoAcceptedCallback_forCallbackPlusPolling_expectFlexibleHandling
- *      @[Purpose]: Validate auto-accept callback handling both callback-based and polling command modes
- *      @[Brief]: Callback configures some links for immediate commands, others for polling-based commands
+ *      @[Purpose]: Validate OnAutoAccepted_F callback dynamically configuring execution modes per client
+ *      @[Brief]: Service auto-accepts multiple clients → Callback assigns Client-A(immediate execution) vs
+ * Client-B(polling-based execution)
  *      @[Status]: TODO - Need to implement mixed pattern support with auto-accept
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
@@ -1270,8 +1271,286 @@ TEST(UT_ConetCommandTypicalAutoAccept, verifyOnAutoAcceptedCallback_forMixedCmdP
 // [@AC-3,US-3] TC-1: verifyOnAutoAcceptedCallback_byMixedPatterns_expectFlexibleHandling
 // [@AC-3,US-3] TC-1: Mixed command execution modes (callback + polling) with auto-accept callback
 TEST(UT_ConetCommandTypicalAutoAccept, verifyOnAutoAcceptedCallback_forCallbackPlusPolling_expectFlexibleHandling) {
-    // TODO: Implement mixed callback + polling patterns with auto-accept
-    GTEST_SKIP() << "TODO: Implement mixed command patterns with auto-accept test";
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
+
+    // Enhanced callback private data structure for tracking mixed client execution modes
+    typedef struct __MixedExecModePriv {
+        __AutoAcceptCmdPriv_T AutoAcceptBase;
+        std::atomic<bool> CallbackInvoked{false};
+        std::atomic<int> CallbackClients{0};  // Clients using callback-based execution
+        std::atomic<int> PollingClients{0};   // Clients using polling-based execution
+        std::mutex CallbackMutex;
+        std::map<IOC_LinkID_T, std::string> ClientExecutionModes;  // Track per-client execution modes
+        std::vector<IOC_LinkID_T> CallbackLinks;                   // Links for callback execution clients
+        std::vector<IOC_LinkID_T> PollingLinks;                    // Links for polling execution clients
+    } __MixedExecModePriv_T;
+
+    __MixedExecModePriv_T MixedExecPriv = {};
+
+    // Private data for callback-based client command executor (Client-A)
+    __AutoAcceptCmdPriv_T CallbackClientExecPriv = {};
+
+    // Enhanced auto-accept callback that tracks different client execution modes
+    auto OnAutoAcceptedWithExecModeTracking = [](IOC_SrvID_T SrvID, IOC_LinkID_T LinkID, void *pSrvPriv) {
+        __MixedExecModePriv_T *pPrivData = (__MixedExecModePriv_T *)pSrvPriv;
+        if (!pPrivData) return;
+
+        std::lock_guard<std::mutex> lock(pPrivData->CallbackMutex);
+
+        // Record callback invocation
+        pPrivData->CallbackInvoked = true;
+
+        // Update base auto-accept tracking
+        pPrivData->AutoAcceptBase.ClientAutoAccepted = true;
+        pPrivData->AutoAcceptBase.AutoAcceptCount++;
+        pPrivData->AutoAcceptBase.LastAcceptedLinkID = LinkID;
+        pPrivData->AutoAcceptBase.AcceptedLinks.push_back(LinkID);
+
+        // Track different client execution modes based on connection order
+        int clientIndex = pPrivData->AutoAcceptBase.AutoAcceptCount.load() - 1;
+
+        if (clientIndex % 2 == 0) {
+            // Even-numbered clients (0, 2, 4, ...) use callback-based execution
+            pPrivData->CallbackClients++;
+            pPrivData->CallbackLinks.push_back(LinkID);
+            pPrivData->ClientExecutionModes[LinkID] = "CALLBACK_IMMEDIATE";
+        } else {
+            // Odd-numbered clients (1, 3, 5, ...) use polling-based execution
+            pPrivData->PollingClients++;
+            pPrivData->PollingLinks.push_back(LinkID);
+            pPrivData->ClientExecutionModes[LinkID] = "POLLING_MANUAL";
+        }
+    };
+
+    // Setup service as command INITIATOR (service sends commands to clients)
+    IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char *)"CmdAutoAccept_MixedExecModes"};
+
+    // Service initiates commands - no callback execution needed for service side
+    static IOC_CmdID_T ServiceCmdIDs[] = {IOC_CMDID_TEST_PING, IOC_CMDID_TEST_ECHO};
+    IOC_CmdUsageArgs_T ServiceCmdUsageArgs = {.CbExecCmd_F = nullptr,  // Service initiates, doesn't execute
+                                              .pCbPrivData = nullptr,
+                                              .CmdNum = sizeof(ServiceCmdIDs) / sizeof(ServiceCmdIDs[0]),
+                                              .pCmdIDs = ServiceCmdIDs};
+
+    IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI,
+                             .Flags = IOC_SRVFLAG_AUTO_ACCEPT,               // Enable auto-accept
+                             .UsageCapabilites = IOC_LinkUsageCmdInitiator,  // Service initiates commands
+                             .UsageArgs = {.pCmd = &ServiceCmdUsageArgs},
+                             .OnAutoAccepted_F = OnAutoAcceptedWithExecModeTracking,
+                             .pSrvPriv = &MixedExecPriv};
+
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
+    // 🎯 CLIENT-A: Callback-based command execution (immediate processing via callback)
+    static IOC_CmdID_T CallbackClientCmdIDs[] = {IOC_CMDID_TEST_PING, IOC_CMDID_TEST_ECHO};
+    IOC_CmdUsageArgs_T CallbackClientCmdUsageArgs = {
+        .CbExecCmd_F = __AutoAcceptCmd_ExecutorCb,  // Callback execution
+        .pCbPrivData = &CallbackClientExecPriv,
+        .CmdNum = sizeof(CallbackClientCmdIDs) / sizeof(CallbackClientCmdIDs[0]),
+        .pCmdIDs = CallbackClientCmdIDs};
+
+    IOC_ConnArgs_T ConnArgs_CallbackClient = {
+        .SrvURI = SrvURI, .Usage = IOC_LinkUsageCmdExecutor, .UsageArgs = {.pCmd = &CallbackClientCmdUsageArgs}};
+    IOC_LinkID_T CallbackClientLinkID = IOC_ID_INVALID;
+
+    ResultValue = IOC_connectService(&CallbackClientLinkID, &ConnArgs_CallbackClient, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, CallbackClientLinkID);
+
+    // Wait for Client-A auto-accept
+    for (int retry = 0; retry < 100; ++retry) {
+        if (MixedExecPriv.CallbackClients.load() >= 1) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    // 🔄 CLIENT-B: Polling-based command execution (manual IOC_waitCMD calls)
+    static IOC_CmdID_T PollingClientCmdIDs[] = {IOC_CMDID_TEST_PING, IOC_CMDID_TEST_ECHO};
+    IOC_CmdUsageArgs_T PollingClientCmdUsageArgs = {
+        .CbExecCmd_F = nullptr,  // No callback for polling mode
+        .pCbPrivData = nullptr,
+        .CmdNum = sizeof(PollingClientCmdIDs) / sizeof(PollingClientCmdIDs[0]),
+        .pCmdIDs = PollingClientCmdIDs};
+
+    IOC_ConnArgs_T ConnArgs_PollingClient = {
+        .SrvURI = SrvURI, .Usage = IOC_LinkUsageCmdExecutor, .UsageArgs = {.pCmd = &PollingClientCmdUsageArgs}};
+    IOC_LinkID_T PollingClientLinkID = IOC_ID_INVALID;
+
+    ResultValue = IOC_connectService(&PollingClientLinkID, &ConnArgs_PollingClient, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, PollingClientLinkID);
+
+    // Wait for Client-B auto-accept
+    for (int retry = 0; retry < 100; ++retry) {
+        if (MixedExecPriv.PollingClients.load() >= 1) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    // Verify callback configured mixed execution modes correctly
+    ASSERT_TRUE(MixedExecPriv.CallbackInvoked.load());
+    ASSERT_EQ(2, MixedExecPriv.AutoAcceptBase.AutoAcceptCount.load());
+    ASSERT_EQ(1, MixedExecPriv.CallbackClients.load());  // Client-A
+    ASSERT_EQ(1, MixedExecPriv.PollingClients.load());   // Client-B
+    ASSERT_EQ(1, MixedExecPriv.CallbackLinks.size());    // Callback execution clients
+    ASSERT_EQ(1, MixedExecPriv.PollingLinks.size());     // Polling execution clients
+
+    // Additional wait to ensure all auto-accept links are ready for commands
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // 🎯 TEST PATTERN 1: Service sends command to CLIENT-A (callback-based execution)
+    IOC_CmdDesc_T CallbackCmd = {};
+    CallbackCmd.CmdID = IOC_CMDID_TEST_PING;
+    CallbackCmd.TimeoutMs = 3000;
+    CallbackCmd.Status = IOC_CMD_STATUS_PENDING;
+
+    // Service sends command to callback client
+    ASSERT_EQ(1, MixedExecPriv.CallbackLinks.size());
+    IOC_LinkID_T ServiceToCallbackClient_LinkID = MixedExecPriv.CallbackLinks[0];
+
+    auto callback_start_time = std::chrono::steady_clock::now();
+    ResultValue = IOC_execCMD(ServiceToCallbackClient_LinkID, &CallbackCmd, NULL);
+    auto callback_duration =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - callback_start_time);
+
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue) << "SERVICE→CLIENT-A (callback) command should work";
+    ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, CallbackCmd.Status) << "Callback command should complete immediately";
+
+    // Verify callback execution was processed by CLIENT-A immediately
+    ASSERT_TRUE(CallbackClientExecPriv.CommandReceived.load());
+    ASSERT_GE(CallbackClientExecPriv.CommandCount.load(), 1);
+    ASSERT_EQ(IOC_CMDID_TEST_PING, CallbackClientExecPriv.LastCmdID);
+    ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, CallbackClientExecPriv.LastStatus);
+    ASSERT_LT(callback_duration.count(), 500) << "Callback execution should be fast (< 500ms)";
+
+    // Verify response from callback client
+    void *callbackResponseData = IOC_CmdDesc_getOutData(&CallbackCmd);
+    ULONG_T callbackResponseSize = IOC_CmdDesc_getOutDataSize(&CallbackCmd);
+    ASSERT_TRUE(callbackResponseData != nullptr);
+    ASSERT_GT(callbackResponseSize, 0);
+
+    std::string callbackResponse((char *)callbackResponseData, callbackResponseSize);
+    ASSERT_EQ("AUTO_PONG", callbackResponse) << "CLIENT-A should provide callback response";
+
+    // 🔄 TEST PATTERN 2: Service sends command to CLIENT-B (polling-based execution)
+    IOC_CmdDesc_T PollingCmd = {};
+    PollingCmd.CmdID = IOC_CMDID_TEST_ECHO;
+    PollingCmd.TimeoutMs = 5000;
+    PollingCmd.Status = IOC_CMD_STATUS_PENDING;
+    const char *echoInput = "PollingTest";
+    IOC_CmdDesc_setInPayload(&PollingCmd, (void *)echoInput, strlen(echoInput));
+
+    // Service sends command to polling client (this will block until client polls for it)
+    ASSERT_EQ(1, MixedExecPriv.PollingLinks.size());
+    IOC_LinkID_T ServiceToPollingClient_LinkID = MixedExecPriv.PollingLinks[0];
+
+    auto polling_start_time = std::chrono::steady_clock::now();
+
+    // Start service command in background since polling client needs to actively wait for it
+    std::atomic<bool> ServiceCommandSent{false};
+    std::thread ServiceCommandThread([&] {
+        IOC_Result_T ServiceResult = IOC_execCMD(ServiceToPollingClient_LinkID, &PollingCmd, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ServiceResult) << "SERVICE→CLIENT-B (polling) command should work";
+        ServiceCommandSent = true;
+    });
+
+    // Small delay to let service start sending command
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // CLIENT-B polls for commands using IOC_waitCMD (polling mode)
+    IOC_CmdDesc_T ClientPollCmd = {};
+    ClientPollCmd.CmdID = 0;  // Wait for any command
+    ClientPollCmd.TimeoutMs = 3000;
+    ClientPollCmd.Status = IOC_CMD_STATUS_PENDING;
+
+    ResultValue = IOC_waitCMD(PollingClientLinkID, &ClientPollCmd, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue) << "CLIENT-B should receive command via polling";
+    ASSERT_EQ(IOC_CMDID_TEST_ECHO, ClientPollCmd.CmdID) << "CLIENT-B should receive ECHO command";
+
+    // CLIENT-B manually processes the polled command and sends response
+    void *polledInputData = IOC_CmdDesc_getInData(&ClientPollCmd);
+    ULONG_T polledInputSize = IOC_CmdDesc_getInDataSize(&ClientPollCmd);
+    ASSERT_TRUE(polledInputData != nullptr);
+    ASSERT_GT(polledInputSize, 0);
+
+    std::string polledInput((char *)polledInputData, polledInputSize);
+    ASSERT_EQ("PollingTest", polledInput) << "CLIENT-B should receive correct input via polling";
+
+    // CLIENT-B processes and responds to polled command
+    std::string pollingResponse = "AUTO_" + polledInput;
+    IOC_CmdDesc_setOutPayload(&ClientPollCmd, (void *)pollingResponse.c_str(), pollingResponse.length());
+    IOC_CmdDesc_setStatus(&ClientPollCmd, IOC_CMD_STATUS_SUCCESS);
+    IOC_CmdDesc_setResult(&ClientPollCmd, IOC_RESULT_SUCCESS);
+
+    // CLIENT-B acknowledges the polled command
+    ResultValue = IOC_ackCMD(PollingClientLinkID, &ClientPollCmd, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue) << "CLIENT-B should acknowledge polled command";
+
+    // Wait for service command thread to complete
+    if (ServiceCommandThread.joinable()) ServiceCommandThread.join();
+
+    auto polling_duration =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - polling_start_time);
+
+    // Verify service received response from polling client
+    ASSERT_TRUE(ServiceCommandSent.load()) << "Service command should complete";
+    ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, PollingCmd.Status) << "Polling command should complete successfully";
+
+    void *pollingResponseData = IOC_CmdDesc_getOutData(&PollingCmd);
+    ULONG_T pollingResponseSize = IOC_CmdDesc_getOutDataSize(&PollingCmd);
+    ASSERT_TRUE(pollingResponseData != nullptr);
+    ASSERT_GT(pollingResponseSize, 0);
+
+    std::string finalPollingResponse((char *)pollingResponseData, pollingResponseSize);
+    ASSERT_EQ("AUTO_PollingTest", finalPollingResponse) << "Service should receive polling response from CLIENT-B";
+
+    // 📊 PERFORMANCE COMPARISON: Callback vs Polling execution timing
+    std::cout << "\n🎯 CLIENT EXECUTION MODE PERFORMANCE COMPARISON:\n";
+    std::cout << "   Callback client execution (CLIENT-A): " << callback_duration.count() << "ms\n";
+    std::cout << "   Polling client execution (CLIENT-B): " << polling_duration.count() << "ms\n";
+    std::cout << "   Performance difference: " << (polling_duration.count() - callback_duration.count()) << "ms\n";
+
+    // Verify timing characteristics: polling should take longer than callback
+    ASSERT_GT(polling_duration.count(), callback_duration.count())
+        << "Polling client execution should take longer than callback client execution";
+
+    // 🎯 VERIFICATION: Mixed client execution modes working simultaneously
+    // 1. CLIENT-A uses callback-based execution (immediate processing via CbExecCmd_F)
+    // 2. CLIENT-B uses polling-based execution (manual IOC_waitCMD + IOC_ackCMD)
+    // 3. Both patterns coexist with the same service (service is command initiator)
+    // 4. OnAutoAccepted_F callback tracks different client execution modes
+
+    // Send one more command to each client to verify sustained mixed operation
+    IOC_CmdDesc_T CallbackCmd2 = {};
+    CallbackCmd2.CmdID = IOC_CMDID_TEST_PING;
+    CallbackCmd2.TimeoutMs = 3000;
+    CallbackCmd2.Status = IOC_CMD_STATUS_PENDING;
+
+    ResultValue = IOC_execCMD(ServiceToCallbackClient_LinkID, &CallbackCmd2, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue) << "Second CLIENT-A callback command should work";
+    ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, CallbackCmd2.Status) << "Second callback should complete immediately";
+
+    // Verify final execution mode assignments in callback private data
+    ASSERT_EQ(2, MixedExecPriv.ClientExecutionModes.size()) << "Should track 2 client execution modes";
+
+    auto callbackLinkID = MixedExecPriv.CallbackLinks[0];
+    auto pollingLinkID = MixedExecPriv.PollingLinks[0];
+
+    ASSERT_EQ("CALLBACK_IMMEDIATE", MixedExecPriv.ClientExecutionModes[callbackLinkID])
+        << "CLIENT-A should be configured for callback execution";
+    ASSERT_EQ("POLLING_MANUAL", MixedExecPriv.ClientExecutionModes[pollingLinkID])
+        << "CLIENT-B should be configured for polling execution";
+
+    // Verify sustained command execution capabilities
+    ASSERT_GE(CallbackClientExecPriv.CommandCount.load(), 2)
+        << "CLIENT-A should have processed multiple callback commands";
+
+    // Cleanup
+    if (CallbackClientLinkID != IOC_ID_INVALID) IOC_closeLink(CallbackClientLinkID);
+    if (PollingClientLinkID != IOC_ID_INVALID) IOC_closeLink(PollingClientLinkID);
+    if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
 //======>BEGIN US-4: Service Lifecycle with Persistent Links=======================================
