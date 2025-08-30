@@ -69,7 +69,7 @@ static IOC_Result_T __IOC_executeCommandViaCallback(_IOC_LinkObject_pT pDestLink
     // Find the command executor callback in the destination link's usage args
     IOC_CmdUsageArgs_pT pCmdUsageArgs = NULL;
 
-    if (pDestLink->Args.Usage == IOC_LinkUsageCmdExecutor && pDestLink->Args.UsageArgs.pCmd != NULL) {
+    if ((pDestLink->Args.Usage & IOC_LinkUsageCmdExecutor) && pDestLink->Args.UsageArgs.pCmd != NULL) {
         pCmdUsageArgs = pDestLink->Args.UsageArgs.pCmd;
     }
 
@@ -141,11 +141,11 @@ static IOC_Result_T __IOC_findDestinationLink(IOC_LinkID_T SrcLinkID, _IOC_LinkO
         // Check if this link has complementary usage (CmdInitiator↔CmdExecutor)
         bool IsValidPeer = false;
 
-        if (pSrcLink->Args.Usage == IOC_LinkUsageCmdInitiator &&
-            pCandidateLink->Args.Usage == IOC_LinkUsageCmdExecutor) {
+        if ((pSrcLink->Args.Usage & IOC_LinkUsageCmdInitiator) &&
+            (pCandidateLink->Args.Usage & IOC_LinkUsageCmdExecutor)) {
             IsValidPeer = true;
-        } else if (pSrcLink->Args.Usage == IOC_LinkUsageCmdExecutor &&
-                   pCandidateLink->Args.Usage == IOC_LinkUsageCmdInitiator) {
+        } else if ((pSrcLink->Args.Usage & IOC_LinkUsageCmdExecutor) &&
+                   (pCandidateLink->Args.Usage & IOC_LinkUsageCmdInitiator)) {
             IsValidPeer = true;
         }
 
@@ -240,9 +240,10 @@ IOC_Result_T IOC_execCMD(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, IOC_Optio
 
     printf("[DEBUG IOC_execCMD] Found src link: Usage=%d\n", pSrcLink->Args.Usage);
 
-    // Verify that source link can initiate commands
-    if (pSrcLink->Args.Usage != IOC_LinkUsageCmdInitiator) {
-        printf("[DEBUG IOC_execCMD] INVALID_PARAM: Link usage is not CmdInitiator (usage=%d)\n", pSrcLink->Args.Usage);
+    // Verify that source link has command initiation capability
+    if (!(pSrcLink->Args.Usage & IOC_LinkUsageCmdInitiator)) {
+        printf("[DEBUG IOC_execCMD] INVALID_PARAM: Link usage lacks CmdInitiator capability (usage=%d)\n",
+               pSrcLink->Args.Usage);
         return IOC_RESULT_INVALID_PARAM;
     }
 
@@ -280,7 +281,7 @@ IOC_Result_T IOC_waitCMD(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, IOC_Optio
         return IOC_RESULT_NOT_EXIST_LINK;
     }
 
-    if (pLink->Args.Usage != IOC_LinkUsageCmdExecutor) {
+    if (!(pLink->Args.Usage & IOC_LinkUsageCmdExecutor)) {
         return IOC_RESULT_INVALID_PARAM;
     }
 

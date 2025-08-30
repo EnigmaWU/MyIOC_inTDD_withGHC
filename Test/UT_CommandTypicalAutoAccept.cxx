@@ -201,7 +201,7 @@
  *      @[Status]: IMPLEMENTED & PASSED - OnAutoAccepted_F callback with CLIENT→SERVICE command context working
  *
  * [@AC-2,US-3] Per-client command capability configuration via auto-accept callback
- *  ⚪ TC-1: verifyOnAutoAcceptedCallback_forMixedCmdPatterns_expectFlexibleConfig
+ *  🔴 TC-1: verifyOnAutoAcceptedCallback_forMixedCmdPatterns_expectFlexibleConfig
  *      @[Purpose]: Validate service supporting BOTH CmdExecutor+CmdInitiator with per-client configuration
  *      @[Brief]: Service(CmdExecutor|CmdInitiator+AutoAccept+Callback) handles:
  *                - Client-A(CmdInitiator) → CLIENT-A→SERVICE commands (US-1 pattern)
@@ -209,7 +209,8 @@
  *                - OnAutoAccepted_F configures each client individually based on Usage type
  *      @[Technical]: Service.UsageCapabilites = IOC_LinkUsageCmdExecutor | IOC_LinkUsageCmdInitiator
  *                    Callback determines per-client command flow based on client's Usage parameter
- *      @[Status]: TODO - Need to implement mixed client types with unified service capability
+ *      @[Status]: IMPLEMENTED - Mixed client types with unified service capability (test failing - need to debug
+ * command routing)
  *
  * [@AC-3,US-3] Mixed command patterns (callback + polling) with auto-accept callback
  *  ⚪ TC-1: verifyOnAutoAcceptedCallback_forCallbackPlusPolling_expectFlexibleHandling
@@ -1061,12 +1062,209 @@ TEST(UT_ConetCommandTypicalAutoAccept, verifyOnAutoAcceptedCallback_forClientToS
 // [@AC-2,US-3] TC-1: Service with BOTH CmdExecutor+CmdInitiator supporting mixed client types
 // [@AC-2,US-3] TC-1: Per-client command flow configuration (CLIENT→SERVICE & SERVICE→CLIENT patterns)
 TEST(UT_ConetCommandTypicalAutoAccept, verifyOnAutoAcceptedCallback_forMixedCmdPatterns_expectFlexibleConfig) {
-    // TODO: Implement service with combined CmdExecutor|CmdInitiator capability
-    // Service supports BOTH capabilities, callback configures per-client command direction:
-    // - Client-A(CmdInitiator) → CLIENT-A→SERVICE commands (US-1 pattern)
-    // - Client-B(CmdExecutor) → SERVICE→CLIENT-B commands (US-2 pattern)
-    // Key: Service.UsageCapabilites = IOC_LinkUsageCmdExecutor | IOC_LinkUsageCmdInitiator
-    GTEST_SKIP() << "TODO: Implement mixed client types with unified service capability test";
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
+
+    // Enhanced callback private data structure for mixed pattern tracking
+    typedef struct __MixedPatternPriv {
+        __AutoAcceptCmdPriv_T AutoAcceptBase;
+        std::atomic<bool> CallbackInvoked{false};
+        std::atomic<int> CmdInitiatorClients{0};  // CLIENT→SERVICE clients
+        std::atomic<int> CmdExecutorClients{0};   // SERVICE→CLIENT clients
+        std::mutex CallbackMutex;
+        std::map<IOC_LinkID_T, IOC_LinkUsage_T> ClientUsageMap;  // Track per-client usage types
+        std::vector<IOC_LinkID_T> InitiatorLinks;                // Links for CLIENT→SERVICE commands
+        std::vector<IOC_LinkID_T> ExecutorLinks;                 // Links for SERVICE→CLIENT commands
+    } __MixedPatternPriv_T;
+
+    __MixedPatternPriv_T MixedPriv = {};
+
+    // Private data for client-side command executors (SERVICE→CLIENT pattern)
+    __AutoAcceptCmdPriv_T ClientExecPriv_A = {};  // Client-A executor
+    __AutoAcceptCmdPriv_T ClientExecPriv_B = {};  // Client-B executor
+
+    // Enhanced auto-accept callback that configures per-client command capabilities
+    auto OnAutoAcceptedWithMixedConfig = [](IOC_SrvID_T SrvID, IOC_LinkID_T LinkID, void *pSrvPriv) {
+        __MixedPatternPriv_T *pPrivData = (__MixedPatternPriv_T *)pSrvPriv;
+        if (!pPrivData) return;
+
+        std::lock_guard<std::mutex> lock(pPrivData->CallbackMutex);
+
+        // Record callback invocation
+        pPrivData->CallbackInvoked = true;
+
+        // Update base auto-accept tracking
+        pPrivData->AutoAcceptBase.ClientAutoAccepted = true;
+        pPrivData->AutoAcceptBase.AutoAcceptCount++;
+        pPrivData->AutoAcceptBase.LastAcceptedLinkID = LinkID;
+        pPrivData->AutoAcceptBase.AcceptedLinks.push_back(LinkID);
+
+        // TODO: In real implementation, we would query the client's Usage type
+        // For this test, we'll track the connection order to determine client type
+        int clientIndex = pPrivData->AutoAcceptBase.AutoAcceptCount.load() - 1;
+
+        if (clientIndex % 2 == 0) {
+            // Even-numbered clients (0, 2, 4, ...) are CmdInitiator clients (CLIENT→SERVICE)
+            pPrivData->CmdInitiatorClients++;
+            pPrivData->InitiatorLinks.push_back(LinkID);
+            pPrivData->ClientUsageMap[LinkID] = IOC_LinkUsageCmdInitiator;
+        } else {
+            // Odd-numbered clients (1, 3, 5, ...) are CmdExecutor clients (SERVICE→CLIENT)
+            pPrivData->CmdExecutorClients++;
+            pPrivData->ExecutorLinks.push_back(LinkID);
+            pPrivData->ClientUsageMap[LinkID] = IOC_LinkUsageCmdExecutor;
+        }
+    };
+
+    // Setup service with COMBINED capabilities: CmdExecutor | CmdInitiator
+    IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char *)"CmdAutoAccept_MixedPattern"};
+
+    // Service supports BOTH command directions
+    static IOC_CmdID_T SupportedCmdIDs[] = {IOC_CMDID_TEST_PING, IOC_CMDID_TEST_ECHO};
+    IOC_CmdUsageArgs_T CmdUsageArgs = {.CbExecCmd_F = __AutoAcceptCmd_ExecutorCb,
+                                       .pCbPrivData = &MixedPriv.AutoAcceptBase,
+                                       .CmdNum = sizeof(SupportedCmdIDs) / sizeof(SupportedCmdIDs[0]),
+                                       .pCmdIDs = SupportedCmdIDs};
+
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = SrvURI,
+        .Flags = IOC_SRVFLAG_AUTO_ACCEPT,
+        .UsageCapabilites =
+            (IOC_LinkUsage_T)(IOC_LinkUsageCmdExecutor | IOC_LinkUsageCmdInitiator),  // 🎯 COMBINED CAPABILITIES
+        .UsageArgs = {.pCmd = &CmdUsageArgs},
+        .OnAutoAccepted_F = OnAutoAcceptedWithMixedConfig,
+        .pSrvPriv = &MixedPriv};
+
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
+    // 🔄 CLIENT-A: CmdInitiator type (CLIENT-A→SERVICE commands, US-1 pattern)
+    IOC_ConnArgs_T ConnArgs_A = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageCmdInitiator};
+    IOC_LinkID_T CliLinkID_A = IOC_ID_INVALID;
+
+    ResultValue = IOC_connectService(&CliLinkID_A, &ConnArgs_A, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, CliLinkID_A);
+
+    // Wait for Client-A auto-accept
+    for (int retry = 0; retry < 100; ++retry) {
+        if (MixedPriv.CmdInitiatorClients.load() >= 1) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    // 🔄 CLIENT-B: CmdExecutor type (SERVICE→CLIENT-B commands, US-2 pattern)
+    static IOC_CmdID_T ClientCmdIDs[] = {IOC_CMDID_TEST_PING, IOC_CMDID_TEST_ECHO};
+    IOC_CmdUsageArgs_T ClientCmdUsageArgs_B = {.CbExecCmd_F = __AutoAcceptCmd_ExecutorCb,
+                                               .pCbPrivData = &ClientExecPriv_B,
+                                               .CmdNum = sizeof(ClientCmdIDs) / sizeof(ClientCmdIDs[0]),
+                                               .pCmdIDs = ClientCmdIDs};
+
+    IOC_ConnArgs_T ConnArgs_B = {
+        .SrvURI = SrvURI, .Usage = IOC_LinkUsageCmdExecutor, .UsageArgs = {.pCmd = &ClientCmdUsageArgs_B}};
+    IOC_LinkID_T CliLinkID_B = IOC_ID_INVALID;
+
+    ResultValue = IOC_connectService(&CliLinkID_B, &ConnArgs_B, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, CliLinkID_B);
+
+    // Wait for Client-B auto-accept
+    for (int retry = 0; retry < 100; ++retry) {
+        if (MixedPriv.CmdExecutorClients.load() >= 1) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    // Verify callback configured mixed client patterns correctly
+    ASSERT_TRUE(MixedPriv.CallbackInvoked.load());
+    ASSERT_EQ(2, MixedPriv.AutoAcceptBase.AutoAcceptCount.load());
+    ASSERT_EQ(1, MixedPriv.CmdInitiatorClients.load());  // Client-A
+    ASSERT_EQ(1, MixedPriv.CmdExecutorClients.load());   // Client-B
+    ASSERT_EQ(1, MixedPriv.InitiatorLinks.size());       // CLIENT→SERVICE links
+    ASSERT_EQ(1, MixedPriv.ExecutorLinks.size());        // SERVICE→CLIENT links
+
+    // Additional wait to ensure all auto-accept links are ready for commands
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // 🎯 TEST PATTERN 1: CLIENT-A→SERVICE commands (US-1 pattern)
+    IOC_CmdDesc_T CmdDesc_A = {};
+    CmdDesc_A.CmdID = IOC_CMDID_TEST_PING;
+    CmdDesc_A.TimeoutMs = 3000;
+    CmdDesc_A.Status = IOC_CMD_STATUS_PENDING;
+
+    ResultValue = IOC_execCMD(CliLinkID_A, &CmdDesc_A, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue) << "CLIENT-A→SERVICE command should work";
+    ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, CmdDesc_A.Status);
+
+    // Verify CLIENT-A→SERVICE command was executed by service
+    ASSERT_TRUE(MixedPriv.AutoAcceptBase.CommandReceived.load());
+    ASSERT_GE(MixedPriv.AutoAcceptBase.CommandCount.load(), 1);
+
+    // Verify response from service to CLIENT-A
+    void *responseData_A = IOC_CmdDesc_getOutData(&CmdDesc_A);
+    ULONG_T responseSize_A = IOC_CmdDesc_getOutDataSize(&CmdDesc_A);
+    ASSERT_TRUE(responseData_A != nullptr);
+    ASSERT_GT(responseSize_A, 0);
+
+    std::string response_A((char *)responseData_A, responseSize_A);
+    ASSERT_EQ("AUTO_PONG", response_A) << "CLIENT-A should receive response from service";
+
+    // 🎯 TEST PATTERN 2: SERVICE→CLIENT-B commands (US-2 pattern)
+    IOC_CmdDesc_T CmdDesc_B = {};
+    CmdDesc_B.CmdID = IOC_CMDID_TEST_PING;
+    CmdDesc_B.TimeoutMs = 3000;
+    CmdDesc_B.Status = IOC_CMD_STATUS_PENDING;
+
+    // Service sends command to CLIENT-B using the executor link
+    ASSERT_EQ(1, MixedPriv.ExecutorLinks.size());
+    IOC_LinkID_T ServiceToClientB_LinkID = MixedPriv.ExecutorLinks[0];
+
+    ResultValue = IOC_execCMD(ServiceToClientB_LinkID, &CmdDesc_B, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue) << "SERVICE→CLIENT-B command should work";
+    ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, CmdDesc_B.Status);
+
+    // Verify SERVICE→CLIENT-B command was executed by CLIENT-B
+    ASSERT_TRUE(ClientExecPriv_B.CommandReceived.load());
+    ASSERT_GE(ClientExecPriv_B.CommandCount.load(), 1);
+    ASSERT_EQ(IOC_CMDID_TEST_PING, ClientExecPriv_B.LastCmdID);
+    ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, ClientExecPriv_B.LastStatus);
+
+    // Verify response from CLIENT-B to service
+    void *responseData_B = IOC_CmdDesc_getOutData(&CmdDesc_B);
+    ULONG_T responseSize_B = IOC_CmdDesc_getOutDataSize(&CmdDesc_B);
+    ASSERT_TRUE(responseData_B != nullptr);
+    ASSERT_GT(responseSize_B, 0);
+
+    std::string response_B((char *)responseData_B, responseSize_B);
+    ASSERT_EQ("AUTO_PONG", response_B) << "Service should receive response from CLIENT-B";
+
+    // 🎯 VERIFICATION: Mixed patterns working simultaneously
+    // 1. CLIENT-A can send commands to service (CLIENT→SERVICE)
+    // 2. Service can send commands to CLIENT-B (SERVICE→CLIENT)
+    // 3. Both patterns coexist in the same service with combined capabilities
+
+    IOC_CmdDesc_T CmdDesc_A2 = {};
+    CmdDesc_A2.CmdID = IOC_CMDID_TEST_ECHO;
+    CmdDesc_A2.TimeoutMs = 3000;
+    CmdDesc_A2.Status = IOC_CMD_STATUS_PENDING;
+    const char *echoInput = "MixedPattern_Test";
+    IOC_CmdDesc_setInPayload(&CmdDesc_A2, (void *)echoInput, strlen(echoInput));
+
+    ResultValue = IOC_execCMD(CliLinkID_A, &CmdDesc_A2, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue) << "Second CLIENT-A→SERVICE command should work";
+
+    void *responseData_A2 = IOC_CmdDesc_getOutData(&CmdDesc_A2);
+    std::string response_A2((char *)responseData_A2, IOC_CmdDesc_getOutDataSize(&CmdDesc_A2));
+    ASSERT_EQ("AUTO_MixedPattern_Test", response_A2) << "Service should echo CLIENT-A input with AUTO_ prefix";
+
+    // Verify final command statistics
+    ASSERT_GE(MixedPriv.AutoAcceptBase.CommandCount.load(), 2) << "Service should have executed multiple commands";
+    ASSERT_GE(ClientExecPriv_B.CommandCount.load(), 1) << "CLIENT-B should have executed service commands";
+
+    // Cleanup
+    if (CliLinkID_A != IOC_ID_INVALID) IOC_closeLink(CliLinkID_A);
+    if (CliLinkID_B != IOC_ID_INVALID) IOC_closeLink(CliLinkID_B);
+    if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
 // [@AC-3,US-3] TC-1: verifyOnAutoAcceptedCallback_byMixedPatterns_expectFlexibleHandling

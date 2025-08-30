@@ -1800,8 +1800,8 @@ static IOC_Result_T __IOC_execCmd_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_C
         return IOC_RESULT_INVALID_PARAM;
     }
 
-    // Verify link is CmdInitiator
-    if (pLinkObj->Args.Usage != IOC_LinkUsageCmdInitiator) {
+    // Verify link has CmdInitiator capability
+    if (!(pLinkObj->Args.Usage & IOC_LinkUsageCmdInitiator)) {
         printf("[DEBUG execCmd_ofProtoFifo] INVALID_PARAM: Not CmdInitiator (usage=%d)\n", pLinkObj->Args.Usage);
         return IOC_RESULT_INVALID_PARAM;
     }
@@ -1822,9 +1822,9 @@ static IOC_Result_T __IOC_execCmd_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_C
         return IOC_RESULT_NOT_EXIST_LINK;
     }
 
-    // Get peer's link object to verify it's CmdExecutor
+    // Get peer's link object to verify it has CmdExecutor capability
     _IOC_LinkObject_pT pPeerLinkObj = pPeerFifoLinkObj->pOwnerLinkObj;
-    if (!pPeerLinkObj || pPeerLinkObj->Args.Usage != IOC_LinkUsageCmdExecutor) {
+    if (!pPeerLinkObj || !(pPeerLinkObj->Args.Usage & IOC_LinkUsageCmdExecutor)) {
         printf("[DEBUG execCmd_ofProtoFifo] NO_CMD_EXECUTOR: Peer not CmdExecutor (pPeerLinkObj=%p, usage=%d)\n",
                pPeerLinkObj, pPeerLinkObj ? pPeerLinkObj->Args.Usage : -1);
         return IOC_RESULT_NO_CMD_EXECUTOR;
@@ -1952,8 +1952,8 @@ static IOC_Result_T __IOC_waitCmd_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_C
         return IOC_RESULT_INVALID_PARAM;
     }
 
-    // Verify link is CmdExecutor
-    if (pLinkObj->Args.Usage != IOC_LinkUsageCmdExecutor) {
+    // Verify link has CmdExecutor capability
+    if (!(pLinkObj->Args.Usage & IOC_LinkUsageCmdExecutor)) {
         printf("[DEBUG waitCmd_ofProtoFifo] INVALID_PARAM: Not CmdExecutor (usage=%d)\n", pLinkObj->Args.Usage);
         return IOC_RESULT_INVALID_PARAM;
     }
@@ -2055,8 +2055,8 @@ static IOC_Result_T __IOC_ackCmd_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, const 
         return IOC_RESULT_INVALID_PARAM;
     }
 
-    // Verify link is CmdExecutor
-    if (pLinkObj->Args.Usage != IOC_LinkUsageCmdExecutor) {
+    // Verify link has CmdExecutor capability
+    if (!(pLinkObj->Args.Usage & IOC_LinkUsageCmdExecutor)) {
         printf("[DEBUG ackCmd_ofProtoFifo] INVALID_PARAM: Not CmdExecutor (usage=%d)\n", pLinkObj->Args.Usage);
         return IOC_RESULT_INVALID_PARAM;
     }
