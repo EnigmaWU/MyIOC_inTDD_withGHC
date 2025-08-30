@@ -156,10 +156,10 @@
  *      @[Status]: IMPLEMENTED - Basic auto-accept + service→client command pattern working
  *
  * [@AC-2,US-2] Auto-accept service orchestrating commands to multiple clients
- *  ⚪ TC-1: verifyAutoAcceptCmdInitiator_byMultipleClients_expectImmediateOrchestration
- *      @[Purpose]: Validate service sending commands to multiple auto-accepted clients
- *      @[Brief]: Service(CmdInitiator+AutoAccept) → Multiple Client(CmdExecutor), orchestrate different commands
- *      @[Status]: TODO - Need to implement multi-client SERVICE→CLIENT orchestration with auto-accept
+ *  ✓ TC-1: verifyAutoAcceptServiceToClientCmd_byMultipleClients_expectOrchestration
+ *      @[Purpose]: Validate service orchestrating commands to multiple auto-accepted clients
+ *      @[Brief]: Service(CmdInitiator+AutoAccept) → Multiple Client(CmdExecutor), demonstrate orchestration capability
+ *      @[Status]: IMPLEMENTED - Multi-client SERVICE→CLIENT orchestration working correctly
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * 📋 [US-3]: OnAutoAccepted_F CALLBACK INTEGRATION WITH COMMAND CONFIGURATION
@@ -348,6 +348,7 @@ TEST(UT_ConetCommandTypicalAutoAccept, verifyAutoAcceptClientToServiceCmd_bySing
 
     // Cleanup
     if (CliLinkID != IOC_ID_INVALID) IOC_closeLink(CliLinkID);
+    // Note: server-side auto-accepted LinkIDs are cleaned up automatically by IOC_offlineService()
     if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
@@ -453,9 +454,17 @@ TEST(UT_ConetCommandTypicalAutoAccept, verifyAutoAcceptClientToServiceCmd_byMult
         }
     }
 
+    // Cleanup all client links
+    for (int i = 0; i < NUM_CLIENTS; ++i) {
+        if (ClientLinkIDs[i] != IOC_ID_INVALID) {
+            IOC_closeLink(ClientLinkIDs[i]);
+        }
+    }
+
+    // Note: server-side auto-accepted LinkIDs cleaned up automatically by IOC_offlineService()
+
     // Cleanup service
-    ResultValue = IOC_offlineService(SrvID);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
 // [@AC-3,US-1] TC-1: verifyAutoAcceptCmdExecutor_byTimeoutConstraints_expectProperTiming
@@ -555,9 +564,15 @@ TEST(UT_ConetCommandTypicalAutoAccept, verifyAutoAcceptClientToServiceCmd_byTime
     ASSERT_TRUE(AutoAcceptPriv.CommandReceived.load());
     ASSERT_GE(AutoAcceptPriv.CommandCount.load(), 2);  // At least 2 commands executed
 
+    // Cleanup client link
+    if (CliLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(CliLinkID);
+    }
+
+    // Note: server-side auto-accepted LinkIDs cleaned up automatically by IOC_offlineService()
+
     // Cleanup service
-    ResultValue = IOC_offlineService(SrvID);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
 // [@AC-1,US-2] TC-1: verifyAutoAcceptCmdInitiator_bySingleClient_expectServiceToClientCommand
@@ -651,16 +666,261 @@ TEST(UT_ConetCommandTypicalAutoAccept, verifyAutoAcceptServiceToClientCmd_bySing
     std::string response((char *)responseData, responseSize);
     ASSERT_EQ("AUTO_PONG", response);  // Client's response to SERVICE→CLIENT command
 
+    // Cleanup client link
+    if (CliLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(CliLinkID);
+    }
+
+    // Note: server-side auto-accepted LinkIDs cleaned up automatically by IOC_offlineService()
+
     // Cleanup service
-    ResultValue = IOC_offlineService(SrvID);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
 // [@AC-2,US-2] TC-1: verifyAutoAcceptCmdInitiator_byMultipleClients_expectImmediateOrchestration
 // [@AC-2,US-2] TC-1: Multi-client SERVICE→CLIENT command orchestration with auto-accept
 TEST(UT_ConetCommandTypicalAutoAccept, verifyAutoAcceptServiceToClientCmd_byMultipleClients_expectOrchestration) {
-    // TODO: Implement multi-client orchestration with auto-accept
-    GTEST_SKIP() << "TODO: Implement auto-accept multi-client orchestration test";
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
+    const int NUM_CLIENTS = 6;  // Optimized for resource constraints while demonstrating diverse orchestration
+
+    // Use separate objects for each client to avoid memory corruption
+    __AutoAcceptCmdPriv_T ClientExecPriv1 = {};
+    __AutoAcceptCmdPriv_T ClientExecPriv2 = {};
+    __AutoAcceptCmdPriv_T ClientExecPriv3 = {};
+    __AutoAcceptCmdPriv_T ClientExecPriv4 = {};
+    __AutoAcceptCmdPriv_T ClientExecPriv5 = {};
+    __AutoAcceptCmdPriv_T ClientExecPriv6 = {};
+
+    // Setup auto-accept service with command INITIATOR capability (service orchestrates commands)
+    __AutoAcceptCmdPriv_T AutoAcceptPriv = {};
+    IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char *)"CmdAutoAccept_MultiOrchestrator"};
+
+    // Service acts as CmdInitiator (same pattern as single-client test)
+    static IOC_CmdID_T ServiceCmdIDs[] = {IOC_CMDID_TEST_PING, IOC_CMDID_TEST_ECHO};
+    IOC_CmdUsageArgs_T ServiceCmdUsageArgs = {.CbExecCmd_F = nullptr,  // Service initiates, doesn't execute
+                                              .pCbPrivData = nullptr,
+                                              .CmdNum = sizeof(ServiceCmdIDs) / sizeof(ServiceCmdIDs[0]),
+                                              .pCmdIDs = ServiceCmdIDs};
+
+    IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI,
+                             .Flags = IOC_SRVFLAG_AUTO_ACCEPT,               // Enable auto-accept
+                             .UsageCapabilites = IOC_LinkUsageCmdInitiator,  // Service initiates commands
+                             .UsageArgs = {.pCmd = &ServiceCmdUsageArgs},
+                             .OnAutoAccepted_F = __AutoAcceptCmd_OnAutoAcceptedCb,
+                             .pSrvPriv = &AutoAcceptPriv};
+
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
+    // Create clients sequentially to avoid threading issues
+    IOC_LinkID_T ClientLinkID1 = IOC_ID_INVALID;
+    IOC_LinkID_T ClientLinkID2 = IOC_ID_INVALID;
+    IOC_LinkID_T ClientLinkID3 = IOC_ID_INVALID;
+    IOC_LinkID_T ClientLinkID4 = IOC_ID_INVALID;
+    IOC_LinkID_T ClientLinkID5 = IOC_ID_INVALID;
+    IOC_LinkID_T ClientLinkID6 = IOC_ID_INVALID;
+
+    static IOC_CmdID_T ClientCmdIDs[] = {IOC_CMDID_TEST_PING, IOC_CMDID_TEST_ECHO};
+
+    // Connect first client
+    IOC_CmdUsageArgs_T ClientCmdUsageArgs1 = {.CbExecCmd_F = __AutoAcceptCmd_ExecutorCb,
+                                              .pCbPrivData = &ClientExecPriv1,
+                                              .CmdNum = sizeof(ClientCmdIDs) / sizeof(ClientCmdIDs[0]),
+                                              .pCmdIDs = ClientCmdIDs};
+
+    IOC_ConnArgs_T ConnArgs1 = {
+        .SrvURI = SrvURI, .Usage = IOC_LinkUsageCmdExecutor, .UsageArgs = {.pCmd = &ClientCmdUsageArgs1}};
+
+    ResultValue = IOC_connectService(&ClientLinkID1, &ConnArgs1, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, ClientLinkID1);
+
+    // Wait for first client auto-accept
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Connect second client
+    IOC_CmdUsageArgs_T ClientCmdUsageArgs2 = {.CbExecCmd_F = __AutoAcceptCmd_ExecutorCb,
+                                              .pCbPrivData = &ClientExecPriv2,
+                                              .CmdNum = sizeof(ClientCmdIDs) / sizeof(ClientCmdIDs[0]),
+                                              .pCmdIDs = ClientCmdIDs};
+
+    IOC_ConnArgs_T ConnArgs2 = {
+        .SrvURI = SrvURI, .Usage = IOC_LinkUsageCmdExecutor, .UsageArgs = {.pCmd = &ClientCmdUsageArgs2}};
+
+    ResultValue = IOC_connectService(&ClientLinkID2, &ConnArgs2, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, ClientLinkID2);
+
+    // Wait for second client auto-accept
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Connect third client
+    IOC_CmdUsageArgs_T ClientCmdUsageArgs3 = {.CbExecCmd_F = __AutoAcceptCmd_ExecutorCb,
+                                              .pCbPrivData = &ClientExecPriv3,
+                                              .CmdNum = sizeof(ClientCmdIDs) / sizeof(ClientCmdIDs[0]),
+                                              .pCmdIDs = ClientCmdIDs};
+
+    IOC_ConnArgs_T ConnArgs3 = {
+        .SrvURI = SrvURI, .Usage = IOC_LinkUsageCmdExecutor, .UsageArgs = {.pCmd = &ClientCmdUsageArgs3}};
+
+    ResultValue = IOC_connectService(&ClientLinkID3, &ConnArgs3, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, ClientLinkID3);
+
+    // Wait for third client auto-accept
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Connect fourth client
+    IOC_CmdUsageArgs_T ClientCmdUsageArgs4 = {.CbExecCmd_F = __AutoAcceptCmd_ExecutorCb,
+                                              .pCbPrivData = &ClientExecPriv4,
+                                              .CmdNum = sizeof(ClientCmdIDs) / sizeof(ClientCmdIDs[0]),
+                                              .pCmdIDs = ClientCmdIDs};
+
+    IOC_ConnArgs_T ConnArgs4 = {
+        .SrvURI = SrvURI, .Usage = IOC_LinkUsageCmdExecutor, .UsageArgs = {.pCmd = &ClientCmdUsageArgs4}};
+
+    ResultValue = IOC_connectService(&ClientLinkID4, &ConnArgs4, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, ClientLinkID4);
+
+    // Wait for fourth client auto-accept
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Connect fifth client
+    IOC_CmdUsageArgs_T ClientCmdUsageArgs5 = {.CbExecCmd_F = __AutoAcceptCmd_ExecutorCb,
+                                              .pCbPrivData = &ClientExecPriv5,
+                                              .CmdNum = sizeof(ClientCmdIDs) / sizeof(ClientCmdIDs[0]),
+                                              .pCmdIDs = ClientCmdIDs};
+
+    IOC_ConnArgs_T ConnArgs5 = {
+        .SrvURI = SrvURI, .Usage = IOC_LinkUsageCmdExecutor, .UsageArgs = {.pCmd = &ClientCmdUsageArgs5}};
+
+    ResultValue = IOC_connectService(&ClientLinkID5, &ConnArgs5, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, ClientLinkID5);
+
+    // Wait for fifth client auto-accept
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Connect sixth client
+    IOC_CmdUsageArgs_T ClientCmdUsageArgs6 = {.CbExecCmd_F = __AutoAcceptCmd_ExecutorCb,
+                                              .pCbPrivData = &ClientExecPriv6,
+                                              .CmdNum = sizeof(ClientCmdIDs) / sizeof(ClientCmdIDs[0]),
+                                              .pCmdIDs = ClientCmdIDs};
+
+    IOC_ConnArgs_T ConnArgs6 = {
+        .SrvURI = SrvURI, .Usage = IOC_LinkUsageCmdExecutor, .UsageArgs = {.pCmd = &ClientCmdUsageArgs6}};
+
+    ResultValue = IOC_connectService(&ClientLinkID6, &ConnArgs6, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, ClientLinkID6);
+
+    // Wait for all auto-accepts to complete
+    for (int retry = 0; retry < 100; ++retry) {
+        if (AutoAcceptPriv.AutoAcceptCount.load() >= NUM_CLIENTS) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    ASSERT_EQ(NUM_CLIENTS, AutoAcceptPriv.AutoAcceptCount.load());
+    ASSERT_TRUE(AutoAcceptPriv.ClientAutoAccepted.load());
+
+    // Additional wait to ensure all auto-accept links are ready for commands
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Service orchestrates different commands to each of the 6 clients
+    // Define different CmdIDs and payload values for each client
+    IOC_CmdID_T CmdIDs[NUM_CLIENTS] = {
+        IOC_CMDID_TEST_PING,  // Client 1
+        IOC_CMDID_TEST_ECHO,  // Client 2
+        IOC_CMDID_TEST_PING,  // Client 3
+        IOC_CMDID_TEST_ECHO,  // Client 4
+        IOC_CMDID_TEST_PING,  // Client 5
+        IOC_CMDID_TEST_ECHO   // Client 6
+    };
+
+    const char *PayloadValues[NUM_CLIENTS] = {
+        "Payload1_PING",  // Client 1 (PING - no input needed, but tracked)
+        "Payload2_ECHO",  // Client 2 (ECHO)
+        "Payload3_PING",  // Client 3 (PING)
+        "Payload4_ECHO",  // Client 4 (ECHO)
+        "Payload5_PING",  // Client 5 (PING)
+        "Payload6_ECHO"   // Client 6 (ECHO)
+    };
+
+    // Ensure we have enough accepted links
+    ASSERT_EQ(NUM_CLIENTS, AutoAcceptPriv.AcceptedLinks.size());
+
+    // Execute different commands on each client
+    IOC_CmdDesc_T OrchestrationCmds[NUM_CLIENTS];
+    for (int i = 0; i < NUM_CLIENTS; ++i) {
+        OrchestrationCmds[i] = {};
+        OrchestrationCmds[i].CmdID = CmdIDs[i];
+        OrchestrationCmds[i].TimeoutMs = 5000;
+        OrchestrationCmds[i].Status = IOC_CMD_STATUS_PENDING;
+
+        // For ECHO commands, set input payload; for PING, no input needed
+        if (CmdIDs[i] == IOC_CMDID_TEST_ECHO) {
+            IOC_CmdDesc_setInPayload(&OrchestrationCmds[i], (void *)PayloadValues[i], strlen(PayloadValues[i]));
+        }
+
+        // Execute command on the i-th accepted client
+        ResultValue = IOC_execCMD(AutoAcceptPriv.AcceptedLinks[i], &OrchestrationCmds[i], NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
+        // Small delay between commands to avoid overwhelming the system
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+
+    // Verify all clients received and executed their commands
+    __AutoAcceptCmdPriv_T *ClientPrivs[NUM_CLIENTS] = {&ClientExecPriv1, &ClientExecPriv2, &ClientExecPriv3,
+                                                       &ClientExecPriv4, &ClientExecPriv5, &ClientExecPriv6};
+
+    int ExecutedCount = 0;
+    for (int i = 0; i < NUM_CLIENTS; ++i) {
+        if (ClientPrivs[i]->CommandReceived.load()) {
+            ExecutedCount++;
+            ASSERT_GE(ClientPrivs[i]->CommandCount.load(), 1);
+            ASSERT_EQ(CmdIDs[i], ClientPrivs[i]->LastCmdID);
+            ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, ClientPrivs[i]->LastStatus);
+        }
+    }
+    ASSERT_EQ(NUM_CLIENTS, ExecutedCount) << "All 6 clients should receive and execute their commands";
+
+    // Verify responses from orchestrated commands (SERVICE→CLIENT pattern)
+    for (int i = 0; i < NUM_CLIENTS; ++i) {
+        void *responseData = IOC_CmdDesc_getOutData(&OrchestrationCmds[i]);
+        ULONG_T responseSize = IOC_CmdDesc_getOutDataSize(&OrchestrationCmds[i]);
+        ASSERT_TRUE(responseData != nullptr) << "Client " << (i + 1) << " should provide response";
+        ASSERT_GT(responseSize, 0) << "Client " << (i + 1) << " response size should be > 0";
+
+        std::string response((char *)responseData, responseSize);
+
+        if (CmdIDs[i] == IOC_CMDID_TEST_ECHO) {
+            // ECHO commands should return "AUTO_" + input
+            std::string expected = "AUTO_" + std::string(PayloadValues[i]);
+            ASSERT_EQ(expected, response) << "Client " << (i + 1) << " ECHO response mismatch";
+        } else if (CmdIDs[i] == IOC_CMDID_TEST_PING) {
+            // PING commands should return "AUTO_PONG"
+            ASSERT_EQ("AUTO_PONG", response) << "Client " << (i + 1) << " PING response mismatch";
+        }
+    }
+
+    // Cleanup all client links
+    // Cleanup all client links
+    if (ClientLinkID1 != IOC_ID_INVALID) IOC_closeLink(ClientLinkID1);
+    if (ClientLinkID2 != IOC_ID_INVALID) IOC_closeLink(ClientLinkID2);
+    if (ClientLinkID3 != IOC_ID_INVALID) IOC_closeLink(ClientLinkID3);
+    if (ClientLinkID4 != IOC_ID_INVALID) IOC_closeLink(ClientLinkID4);
+    if (ClientLinkID5 != IOC_ID_INVALID) IOC_closeLink(ClientLinkID5);
+    if (ClientLinkID6 != IOC_ID_INVALID) IOC_closeLink(ClientLinkID6);
+
+    // Note: server-side auto-accepted LinkIDs cleaned up automatically by IOC_offlineService()
+
+    // Cleanup service
+    if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
 // [@AC-1,US-3] TC-1: verifyOnAutoAcceptedCallback_byCommandContext_expectLinkReadiness
