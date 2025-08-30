@@ -936,8 +936,120 @@ TEST(UT_ConetCommandTypicalAutoAccept, verifyAutoAcceptServiceToClientCmd_byMult
 // [@AC-1,US-3] TC-1: verifyOnAutoAcceptedCallback_byCommandContext_expectLinkReadiness
 // [@AC-1,US-3] TC-1: OnAutoAccepted_F callback enabling CLIENT→SERVICE command readiness
 TEST(UT_ConetCommandTypicalAutoAccept, verifyOnAutoAcceptedCallback_forClientToServiceCmd_expectLinkReadiness) {
-    // TODO: Implement OnAutoAccepted_F callback with command context
-    GTEST_SKIP() << "TODO: Implement OnAutoAccepted_F callback command context test";
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
+
+    // Enhanced callback private data to track callback details
+    typedef struct __CallbackCmdPriv {
+        __AutoAcceptCmdPriv_T AutoAcceptBase;
+        std::atomic<bool> CallbackInvoked{false};
+        std::atomic<bool> CommandContextReady{false};
+        IOC_SrvID_T CallbackSrvID{IOC_ID_INVALID};
+        IOC_LinkID_T CallbackLinkID{IOC_ID_INVALID};
+        std::mutex CallbackMutex;
+    } __CallbackCmdPriv_T;
+
+    __CallbackCmdPriv_T CallbackPriv = {};
+
+    // Enhanced auto-accept callback that validates command readiness
+    auto OnAutoAcceptedWithCmdContext = [](IOC_SrvID_T SrvID, IOC_LinkID_T LinkID, void *pSrvPriv) {
+        __CallbackCmdPriv_T *pPrivData = (__CallbackCmdPriv_T *)pSrvPriv;
+        if (!pPrivData) return;
+
+        std::lock_guard<std::mutex> lock(pPrivData->CallbackMutex);
+
+        // Record callback invocation
+        pPrivData->CallbackInvoked = true;
+        pPrivData->CallbackSrvID = SrvID;
+        pPrivData->CallbackLinkID = LinkID;
+
+        // Update base auto-accept tracking
+        pPrivData->AutoAcceptBase.ClientAutoAccepted = true;
+        pPrivData->AutoAcceptBase.AutoAcceptCount++;
+        pPrivData->AutoAcceptBase.LastAcceptedLinkID = LinkID;
+        pPrivData->AutoAcceptBase.AcceptedLinks.push_back(LinkID);
+
+        // Validate that link is immediately ready for CLIENT→SERVICE commands
+        // In a real implementation, this callback could configure command-specific settings
+        pPrivData->CommandContextReady = true;
+    };
+
+    // Setup auto-accept service with enhanced callback
+    IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char *)"CmdAutoAccept_CallbackContext"};
+
+    static IOC_CmdID_T SupportedCmdIDs[] = {IOC_CMDID_TEST_PING, IOC_CMDID_TEST_ECHO};
+    IOC_CmdUsageArgs_T CmdUsageArgs = {.CbExecCmd_F = __AutoAcceptCmd_ExecutorCb,
+                                       .pCbPrivData = &CallbackPriv.AutoAcceptBase,
+                                       .CmdNum = sizeof(SupportedCmdIDs) / sizeof(SupportedCmdIDs[0]),
+                                       .pCmdIDs = SupportedCmdIDs};
+
+    IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI,
+                             .Flags = IOC_SRVFLAG_AUTO_ACCEPT,
+                             .UsageCapabilites = IOC_LinkUsageCmdExecutor,
+                             .UsageArgs = {.pCmd = &CmdUsageArgs},
+                             .OnAutoAccepted_F = OnAutoAcceptedWithCmdContext,
+                             .pSrvPriv = &CallbackPriv};
+
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
+    // Client connects and triggers auto-accept callback
+    IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageCmdInitiator};
+    IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
+
+    ResultValue = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, CliLinkID);
+
+    // Wait for auto-accept callback to be invoked
+    for (int retry = 0; retry < 100; ++retry) {
+        if (CallbackPriv.CallbackInvoked.load()) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    // Verify callback was invoked with correct context
+    ASSERT_TRUE(CallbackPriv.CallbackInvoked.load()) << "OnAutoAccepted_F callback should be invoked";
+    ASSERT_EQ(SrvID, CallbackPriv.CallbackSrvID) << "Callback should receive correct SrvID";
+    ASSERT_NE(IOC_ID_INVALID, CallbackPriv.CallbackLinkID) << "Callback should receive valid LinkID";
+    ASSERT_TRUE(CallbackPriv.CommandContextReady.load()) << "Command context should be ready after callback";
+
+    // Verify base auto-accept tracking was updated
+    ASSERT_TRUE(CallbackPriv.AutoAcceptBase.ClientAutoAccepted.load());
+    ASSERT_EQ(1, CallbackPriv.AutoAcceptBase.AutoAcceptCount.load());
+    ASSERT_EQ(CallbackPriv.CallbackLinkID, CallbackPriv.AutoAcceptBase.LastAcceptedLinkID);
+
+    // Additional wait to ensure command readiness after callback
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Verify CLIENT→SERVICE command execution works immediately after callback
+    IOC_CmdDesc_T CmdDesc = {};
+    CmdDesc.CmdID = IOC_CMDID_TEST_PING;
+    CmdDesc.TimeoutMs = 3000;
+    CmdDesc.Status = IOC_CMD_STATUS_PENDING;
+
+    ResultValue = IOC_execCMD(CliLinkID, &CmdDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue) << "CLIENT→SERVICE command should work after auto-accept callback";
+    ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, CmdDesc.Status) << "Command should complete successfully";
+
+    // Verify command was executed by service
+    ASSERT_TRUE(CallbackPriv.AutoAcceptBase.CommandReceived.load());
+    ASSERT_GE(CallbackPriv.AutoAcceptBase.CommandCount.load(), 1);
+    ASSERT_EQ(IOC_CMDID_TEST_PING, CallbackPriv.AutoAcceptBase.LastCmdID);
+
+    // Verify response data
+    void *responseData = IOC_CmdDesc_getOutData(&CmdDesc);
+    ULONG_T responseSize = IOC_CmdDesc_getOutDataSize(&CmdDesc);
+    ASSERT_TRUE(responseData != nullptr);
+    ASSERT_GT(responseSize, 0);
+
+    std::string response((char *)responseData, responseSize);
+    ASSERT_EQ("AUTO_PONG", response) << "Should receive expected response from auto-accepted service";
+
+    // Cleanup
+    if (CliLinkID != IOC_ID_INVALID) IOC_closeLink(CliLinkID);
+    if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
 // [@AC-2,US-3] TC-1: verifyOnAutoAcceptedCallback_byPerClientConfig_expectIndividualSetup
