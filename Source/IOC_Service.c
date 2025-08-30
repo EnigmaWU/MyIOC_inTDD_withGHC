@@ -381,6 +381,11 @@ static void *__IOC_ServiceAutoAcceptDaemonThread(void *pArg) {
                 pLinkObj->Args.UsageArgs.pDat = pSrvObj->Args.UsageArgs.pDat;
             }
 
+            // 🔧 [TDD GREEN] Copy CMD callback configuration to auto-accepted connection
+            if (pSrvObj->Args.UsageArgs.pCmd) {
+                pLinkObj->Args.UsageArgs.pCmd = pSrvObj->Args.UsageArgs.pCmd;
+            }
+
             // Initialize SubState for auto-accepted connection based on service usage
             IOC_LinkSubState_T initialSubState = IOC_LinkSubStateDefault;
             if (pSrvObj->Args.UsageCapabilites & IOC_LinkUsageDatSender) {

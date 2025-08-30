@@ -321,6 +321,9 @@ TEST(UT_ConetCommandTypicalAutoAccept, verifyAutoAcceptClientToServiceCmd_bySing
     ASSERT_EQ(1, AutoAcceptPriv.AutoAcceptCount.load());
     ASSERT_NE(IOC_ID_INVALID, AutoAcceptPriv.LastAcceptedLinkID);
 
+    // Additional wait to ensure auto-accept link is fully configured for commands
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
     // TODO: Client sends command immediately after auto-accept
     IOC_CmdDesc_T CmdDesc = {};
     CmdDesc.CmdID = IOC_CMDID_TEST_PING;
