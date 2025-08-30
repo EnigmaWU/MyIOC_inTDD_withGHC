@@ -14,6 +14,7 @@
 
 #include <chrono>
 #include <thread>
+#include <vector>
 
 #include "IOC/IOC_Option.h"
 #include "_UT_IOC_Common.h"
@@ -126,22 +127,22 @@
  * PATTERN: Client connects → Service auto-accepts → Client sends commands → Service executes commands
  *
  * [@AC-1,US-1] Basic auto-accept with client-to-service command execution
- *  ⚪ TC-1: verifyAutoAcceptCmdExecutor_bySingleClient_expectImmediateCommandReady
+ *  ✓ TC-1: verifyAutoAcceptCmdExecutor_bySingleClient_expectImmediateCommandReady
  *      @[Purpose]: Validate CLIENT→SERVICE command flow with auto-accept (no manual accept needed)
  *      @[Brief]: Service(CmdExecutor+AutoAccept), Client(CmdInitiator) connects → Client sends PING → Service executes
- *      @[Status]: TODO - Need to implement auto-accept + client→service command pattern
+ *      @[Status]: IMPLEMENTED - Basic auto-accept + client→service command pattern working
  *
  * [@AC-2,US-1] Multi-client auto-accept with isolated client-to-service commands
- *  ⚪ TC-1: verifyAutoAcceptCmdExecutor_byMultipleClients_expectIsolatedExecution
+ *  ✓ TC-1: verifyAutoAcceptClientToServiceCmd_byMultipleClients_expectIsolatedExecution
  *      @[Purpose]: Ensure multiple clients can send commands independently to auto-accepting service
- *      @[Brief]: Multiple Client(CmdInitiator) → Service(CmdExecutor+AutoAccept), verify command isolation
- *      @[Status]: TODO - Need to implement multi-client CLIENT→SERVICE command patterns
+ *      @[Brief]: Multiple Client(CmdInitiator) -> Service(CmdExecutor+AutoAccept), verify command isolation
+ *      @[Status]: IMPLEMENTED - Multi-client CLIENT->SERVICE command patterns working
  *
  * [@AC-3,US-1] Client-to-service commands with timeout validation under auto-accept
- *  ⚪ TC-1: verifyAutoAcceptCmdExecutor_byTimeoutConstraints_expectProperTiming
+ *  ✓ TC-1: verifyAutoAcceptClientToServiceCmd_byTimeoutConstraints_expectProperTiming
  *      @[Purpose]: Validate command timeout behavior for CLIENT→SERVICE commands with auto-accept
  *      @[Brief]: Client(CmdInitiator) sends DELAY command → Service(CmdExecutor+AutoAccept) verifies timing
- *      @[Status]: TODO - Need to implement CLIENT→SERVICE timeout validation with auto-accept
+ *      @[Status]: IMPLEMENTED - CLIENT→SERVICE timeout validation with auto-accept working
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * 📋 [US-2]: AUTO-ACCEPT + SERVICE→CLIENT COMMANDS (Service=CmdInitiator, Client=CmdExecutor)
@@ -149,10 +150,10 @@
  * PATTERN: Client connects → Service auto-accepts → Service sends commands → Client executes commands
  *
  * [@AC-1,US-2] Basic auto-accept with service-to-client command initiation
- *  ⚪ TC-1: verifyAutoAcceptCmdInitiator_bySingleClient_expectServiceToClientCommand
+ *  ✓ TC-1: verifyAutoAcceptServiceToClientCmd_bySingleClient_expectImmediateExecution
  *      @[Purpose]: Validate SERVICE→CLIENT command flow with auto-accept (service initiates commands)
- *      @[Brief]: Service(CmdInitiator+AutoAccept), Client(CmdExecutor) connects → Service sends PING → Client executes
- *      @[Status]: TODO - Need to implement auto-accept + service→client command pattern
+ *      @[Brief]: Service(CmdInitiator+AutoAccept), Client(CmdExecutor) connects → Service sends ECHO → Client executes
+ *      @[Status]: IMPLEMENTED - Basic auto-accept + service→client command pattern working
  *
  * [@AC-2,US-2] Auto-accept service orchestrating commands to multiple clients
  *  ⚪ TC-1: verifyAutoAcceptCmdInitiator_byMultipleClients_expectImmediateOrchestration
@@ -355,22 +356,304 @@ TEST(UT_ConetCommandTypicalAutoAccept, verifyAutoAcceptClientToServiceCmd_bySing
 // [@AC-2,US-1] TC-1: verifyAutoAcceptCmdExecutor_byMultipleClients_expectIsolatedExecution
 // [@AC-2,US-1] TC-1: Multi-client CLIENT→SERVICE commands with auto-accept and isolation
 TEST(UT_ConetCommandTypicalAutoAccept, verifyAutoAcceptClientToServiceCmd_byMultipleClients_expectIsolatedExecution) {
-    // TODO: Implement multi-client auto-accept with command isolation
-    GTEST_SKIP() << "TODO: Implement multi-client auto-accept command execution test";
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
+    const int NUM_CLIENTS = 3;
+
+    // Setup auto-accept service with command executor capability
+    __AutoAcceptCmdPriv_T AutoAcceptPriv = {};
+    IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char *)"CmdAutoAccept_MultiClient"};
+
+    // Define supported commands for auto-accept service
+    static IOC_CmdID_T SupportedCmdIDs[] = {IOC_CMDID_TEST_PING, IOC_CMDID_TEST_ECHO};
+    IOC_CmdUsageArgs_T CmdUsageArgs = {.CbExecCmd_F = __AutoAcceptCmd_ExecutorCb,
+                                       .pCbPrivData = &AutoAcceptPriv,
+                                       .CmdNum = sizeof(SupportedCmdIDs) / sizeof(SupportedCmdIDs[0]),
+                                       .pCmdIDs = SupportedCmdIDs};
+
+    IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI,
+                             .Flags = IOC_SRVFLAG_AUTO_ACCEPT,  // Enable auto-accept
+                             .UsageCapabilites = IOC_LinkUsageCmdExecutor,
+                             .UsageArgs = {.pCmd = &CmdUsageArgs},
+                             .OnAutoAccepted_F = __AutoAcceptCmd_OnAutoAcceptedCb,
+                             .pSrvPriv = &AutoAcceptPriv};
+
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
+    // Create multiple clients that connect simultaneously
+    std::vector<IOC_LinkID_T> ClientLinkIDs(NUM_CLIENTS, IOC_ID_INVALID);
+    std::vector<std::thread> ClientThreads;
+
+    for (int i = 0; i < NUM_CLIENTS; ++i) {
+        ClientThreads.emplace_back([&, i] {
+            IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageCmdInitiator};
+            IOC_Result_T ResultValueInThread = IOC_connectService(&ClientLinkIDs[i], &ConnArgs, NULL);
+            ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValueInThread);
+            ASSERT_NE(IOC_ID_INVALID, ClientLinkIDs[i]);
+        });
+    }
+
+    // Wait for all clients to connect
+    for (auto &thread : ClientThreads) {
+        if (thread.joinable()) thread.join();
+    }
+
+    // Wait for all auto-accepts to complete
+    for (int retry = 0; retry < 100; ++retry) {
+        if (AutoAcceptPriv.AutoAcceptCount.load() >= NUM_CLIENTS) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    ASSERT_EQ(NUM_CLIENTS, AutoAcceptPriv.AutoAcceptCount.load());
+    ASSERT_TRUE(AutoAcceptPriv.ClientAutoAccepted.load());
+
+    // Additional wait to ensure all auto-accept links are ready for commands
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Each client sends a unique command to verify isolation
+    std::vector<IOC_CmdDesc_T> CmdDescs(NUM_CLIENTS);
+    std::vector<IOC_CmdID_T> ExpectedCmdIDs = {IOC_CMDID_TEST_PING, IOC_CMDID_TEST_ECHO, IOC_CMDID_TEST_PING};
+    std::vector<std::string> EchoInputs = {"", "TestInput", ""};  // ECHO needs input data
+
+    for (int i = 0; i < NUM_CLIENTS; ++i) {
+        CmdDescs[i] = {};
+        CmdDescs[i].CmdID = ExpectedCmdIDs[i];
+        CmdDescs[i].TimeoutMs = 5000;
+        CmdDescs[i].Status = IOC_CMD_STATUS_PENDING;
+
+        // Set input data for ECHO commands
+        if (ExpectedCmdIDs[i] == IOC_CMDID_TEST_ECHO && !EchoInputs[i].empty()) {
+            IOC_CmdDesc_setInPayload(&CmdDescs[i], (void *)EchoInputs[i].c_str(), EchoInputs[i].length());
+        }
+
+        ResultValue = IOC_execCMD(ClientLinkIDs[i], &CmdDescs[i], NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    }
+
+    // Verify all commands were executed (command count should be at least NUM_CLIENTS)
+    ASSERT_TRUE(AutoAcceptPriv.CommandReceived.load());
+    ASSERT_GE(AutoAcceptPriv.CommandCount.load(), NUM_CLIENTS);
+
+    // Verify responses are properly isolated (each client gets its own response)
+    for (int i = 0; i < NUM_CLIENTS; ++i) {
+        void *responseData = IOC_CmdDesc_getOutData(&CmdDescs[i]);
+        ULONG_T responseSize = IOC_CmdDesc_getOutDataSize(&CmdDescs[i]);
+        ASSERT_TRUE(responseData != nullptr);
+        ASSERT_GT(responseSize, 0);
+
+        // Verify response format based on command type
+        std::string response((char *)responseData, responseSize);
+        if (ExpectedCmdIDs[i] == IOC_CMDID_TEST_PING) {
+            ASSERT_EQ("AUTO_PONG", response);
+        } else if (ExpectedCmdIDs[i] == IOC_CMDID_TEST_ECHO) {
+            ASSERT_EQ("AUTO_TestInput", response);  // Expected "AUTO_" + "TestInput"
+        }
+    }
+
+    // Cleanup service
+    ResultValue = IOC_offlineService(SrvID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
 }
 
 // [@AC-3,US-1] TC-1: verifyAutoAcceptCmdExecutor_byTimeoutConstraints_expectProperTiming
 // [@AC-3,US-1] TC-1: CLIENT→SERVICE command timeout validation with auto-accept
 TEST(UT_ConetCommandTypicalAutoAccept, verifyAutoAcceptClientToServiceCmd_byTimeoutConstraints_expectProperTiming) {
-    // TODO: Implement timeout validation with auto-accepted connections
-    GTEST_SKIP() << "TODO: Implement auto-accept command timeout validation test";
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
+
+    // Setup auto-accept service with command executor capability
+    __AutoAcceptCmdPriv_T AutoAcceptPriv = {};
+    IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char *)"CmdAutoAccept_Timeout"};
+
+    // Define supported commands for auto-accept service
+    static IOC_CmdID_T SupportedCmdIDs[] = {IOC_CMDID_TEST_PING, IOC_CMDID_TEST_ECHO};
+    IOC_CmdUsageArgs_T CmdUsageArgs = {.CbExecCmd_F = __AutoAcceptCmd_ExecutorCb,
+                                       .pCbPrivData = &AutoAcceptPriv,
+                                       .CmdNum = sizeof(SupportedCmdIDs) / sizeof(SupportedCmdIDs[0]),
+                                       .pCmdIDs = SupportedCmdIDs};
+
+    IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI,
+                             .Flags = IOC_SRVFLAG_AUTO_ACCEPT,  // Enable auto-accept
+                             .UsageCapabilites = IOC_LinkUsageCmdExecutor,
+                             .UsageArgs = {.pCmd = &CmdUsageArgs},
+                             .OnAutoAccepted_F = __AutoAcceptCmd_OnAutoAcceptedCb,
+                             .pSrvPriv = &AutoAcceptPriv};
+
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
+    // Client setup and connection
+    IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageCmdInitiator};
+    IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
+
+    std::thread CliThread([&] {
+        IOC_Result_T ResultValueInThread = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValueInThread);
+        ASSERT_NE(IOC_ID_INVALID, CliLinkID);
+    });
+
+    // Wait for client connection and auto-accept
+    if (CliThread.joinable()) CliThread.join();
+
+    // Wait for auto-accept to complete
+    for (int retry = 0; retry < 100; ++retry) {
+        if (AutoAcceptPriv.ClientAutoAccepted.load()) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    ASSERT_TRUE(AutoAcceptPriv.ClientAutoAccepted.load());
+    ASSERT_EQ(1, AutoAcceptPriv.AutoAcceptCount.load());
+
+    // Additional wait to ensure auto-accept link is ready for commands
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Test 1: Normal command with reasonable timeout should succeed
+    IOC_CmdDesc_T NormalCmd = {};
+    NormalCmd.CmdID = IOC_CMDID_TEST_PING;
+    NormalCmd.TimeoutMs = 3000;  // 3 second timeout - should be enough
+    NormalCmd.Status = IOC_CMD_STATUS_PENDING;
+
+    auto start_time = std::chrono::steady_clock::now();
+    ResultValue = IOC_execCMD(CliLinkID, &NormalCmd, NULL);
+    auto end_time = std::chrono::steady_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, NormalCmd.Status);
+    ASSERT_LT(duration.count(), 1000);  // Should complete in less than 1 second
+
+    // Verify response data
+    void *responseData = IOC_CmdDesc_getOutData(&NormalCmd);
+    ULONG_T responseSize = IOC_CmdDesc_getOutDataSize(&NormalCmd);
+    ASSERT_TRUE(responseData != nullptr);
+    ASSERT_GT(responseSize, 0);
+
+    std::string response((char *)responseData, responseSize);
+    ASSERT_EQ("AUTO_PONG", response);
+
+    // Test 2: Command with very short timeout should also work (immediate response)
+    IOC_CmdDesc_T FastCmd = {};
+    FastCmd.CmdID = IOC_CMDID_TEST_PING;
+    FastCmd.TimeoutMs = 100;  // 100ms timeout - should still work for immediate response
+    FastCmd.Status = IOC_CMD_STATUS_PENDING;
+
+    start_time = std::chrono::steady_clock::now();
+    ResultValue = IOC_execCMD(CliLinkID, &FastCmd, NULL);
+    end_time = std::chrono::steady_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, FastCmd.Status);
+    ASSERT_LT(duration.count(), 100);  // Should complete well within timeout
+
+    // Verify command execution statistics
+    ASSERT_TRUE(AutoAcceptPriv.CommandReceived.load());
+    ASSERT_GE(AutoAcceptPriv.CommandCount.load(), 2);  // At least 2 commands executed
+
+    // Cleanup service
+    ResultValue = IOC_offlineService(SrvID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
 }
 
 // [@AC-1,US-2] TC-1: verifyAutoAcceptCmdInitiator_bySingleClient_expectServiceToClientCommand
 // [@AC-1,US-2] TC-1: SERVICE→CLIENT command flow with auto-accept (Service=CmdInitiator, Client=CmdExecutor)
 TEST(UT_ConetCommandTypicalAutoAccept, verifyAutoAcceptServiceToClientCmd_bySingleClient_expectImmediateExecution) {
-    // TODO: Implement auto-accept + service command initiator
-    GTEST_SKIP() << "TODO: Implement auto-accept service initiator command test";
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
+
+    // Private data for client command executor
+    __AutoAcceptCmdPriv_T ClientExecPriv = {};
+
+    // Setup auto-accept service with command INITIATOR capability (reversed roles)
+    __AutoAcceptCmdPriv_T AutoAcceptPriv = {};
+    IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char *)"CmdAutoAccept_ServiceInitiator"};
+
+    // Service acts as CmdInitiator - no command execution callback needed for service
+    static IOC_CmdID_T ServiceCmdIDs[] = {IOC_CMDID_TEST_PING, IOC_CMDID_TEST_ECHO};
+    IOC_CmdUsageArgs_T ServiceCmdUsageArgs = {.CbExecCmd_F = nullptr,  // Service initiates, doesn't execute
+                                              .pCbPrivData = nullptr,
+                                              .CmdNum = sizeof(ServiceCmdIDs) / sizeof(ServiceCmdIDs[0]),
+                                              .pCmdIDs = ServiceCmdIDs};
+
+    IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI,
+                             .Flags = IOC_SRVFLAG_AUTO_ACCEPT,               // Enable auto-accept
+                             .UsageCapabilites = IOC_LinkUsageCmdInitiator,  // Service initiates commands
+                             .UsageArgs = {.pCmd = &ServiceCmdUsageArgs},
+                             .OnAutoAccepted_F = __AutoAcceptCmd_OnAutoAcceptedCb,
+                             .pSrvPriv = &AutoAcceptPriv};
+
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
+    // Client setup as CmdExecutor (client will execute commands from service)
+    static IOC_CmdID_T ClientCmdIDs[] = {IOC_CMDID_TEST_PING, IOC_CMDID_TEST_ECHO};
+    IOC_CmdUsageArgs_T ClientCmdUsageArgs = {.CbExecCmd_F = __AutoAcceptCmd_ExecutorCb,  // Client executes commands
+                                             .pCbPrivData = &ClientExecPriv,
+                                             .CmdNum = sizeof(ClientCmdIDs) / sizeof(ClientCmdIDs[0]),
+                                             .pCmdIDs = ClientCmdIDs};
+
+    IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI,
+                               .Usage = IOC_LinkUsageCmdExecutor,  // Client executes commands
+                               .UsageArgs = {.pCmd = &ClientCmdUsageArgs}};
+    IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
+
+    std::thread CliThread([&] {
+        IOC_Result_T ResultValueInThread = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValueInThread);
+        ASSERT_NE(IOC_ID_INVALID, CliLinkID);
+    });
+
+    // Wait for client connection and auto-accept
+    if (CliThread.joinable()) CliThread.join();
+
+    // Wait for auto-accept to complete
+    for (int retry = 0; retry < 100; ++retry) {
+        if (AutoAcceptPriv.ClientAutoAccepted.load()) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    ASSERT_TRUE(AutoAcceptPriv.ClientAutoAccepted.load());
+    ASSERT_EQ(1, AutoAcceptPriv.AutoAcceptCount.load());
+    ASSERT_NE(IOC_ID_INVALID, AutoAcceptPriv.LastAcceptedLinkID);
+
+    // Additional wait to ensure auto-accept link is ready for commands
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Service sends command TO client (reversed flow: SERVICE→CLIENT)
+    IOC_CmdDesc_T CmdDesc = {};
+    CmdDesc.CmdID = IOC_CMDID_TEST_PING;
+    CmdDesc.TimeoutMs = 5000;
+    CmdDesc.Status = IOC_CMD_STATUS_PENDING;
+
+    // Service uses the auto-accepted link to send command to client
+    ResultValue = IOC_execCMD(AutoAcceptPriv.LastAcceptedLinkID, &CmdDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
+    // Verify command was executed by CLIENT (not the auto-accept service)
+    ASSERT_TRUE(ClientExecPriv.CommandReceived.load());
+    ASSERT_EQ(1, ClientExecPriv.CommandCount.load());
+    ASSERT_EQ(IOC_CMDID_TEST_PING, ClientExecPriv.LastCmdID);
+    ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, ClientExecPriv.LastStatus);
+
+    // Verify response payload from client command execution
+    void *responseData = IOC_CmdDesc_getOutData(&CmdDesc);
+    ULONG_T responseSize = IOC_CmdDesc_getOutDataSize(&CmdDesc);
+    ASSERT_TRUE(responseData != nullptr);
+    ASSERT_GT(responseSize, 0);
+
+    std::string response((char *)responseData, responseSize);
+    ASSERT_EQ("AUTO_PONG", response);  // Client's response to SERVICE→CLIENT command
+
+    // Cleanup service
+    ResultValue = IOC_offlineService(SrvID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
 }
 
 // [@AC-2,US-2] TC-1: verifyAutoAcceptCmdInitiator_byMultipleClients_expectImmediateOrchestration
