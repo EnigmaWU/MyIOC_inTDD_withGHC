@@ -105,8 +105,9 @@
  *         WHEN client auto-connects,
  *         THEN callback receives command-ready link context.
  *  AC-2: GIVEN OnAutoAccepted_F callback with per-client configuration,
- *         WHEN multiple clients auto-connect,
- *         THEN each client gets individual command capability setup.
+ *         WHEN multiple clients auto-connect with DIFFERENT Usage types (CmdInitiator vs CmdExecutor),
+ *         THEN service with COMBINED capabilities supports BOTH client→service AND service→client commands.
+ *         DETAILS: Service capability = CmdExecutor | CmdInitiator, callback configures per-client flow direction.
  *  AC-3: GIVEN OnAutoAccepted_F callback integration with both callback and polling patterns,
  *         WHEN clients connect with different command usage patterns,
  *         THEN callback handles mixed command execution modes correctly.
@@ -201,9 +202,14 @@
  *
  * [@AC-2,US-3] Per-client command capability configuration via auto-accept callback
  *  ⚪ TC-1: verifyOnAutoAcceptedCallback_forMixedCmdPatterns_expectFlexibleConfig
- *      @[Purpose]: Validate per-client command configuration through auto-accept callback (mixed US-1/US-2)
- *      @[Brief]: Callback configures different command patterns: some clients→service, others service→clients
- *      @[Status]: TODO - Need to implement per-client command capability configuration via callback
+ *      @[Purpose]: Validate service supporting BOTH CmdExecutor+CmdInitiator with per-client configuration
+ *      @[Brief]: Service(CmdExecutor|CmdInitiator+AutoAccept+Callback) handles:
+ *                - Client-A(CmdInitiator) → CLIENT-A→SERVICE commands (US-1 pattern)
+ *                - Client-B(CmdExecutor) → SERVICE→CLIENT-B commands (US-2 pattern)
+ *                - OnAutoAccepted_F configures each client individually based on Usage type
+ *      @[Technical]: Service.UsageCapabilites = IOC_LinkUsageCmdExecutor | IOC_LinkUsageCmdInitiator
+ *                    Callback determines per-client command flow based on client's Usage parameter
+ *      @[Status]: TODO - Need to implement mixed client types with unified service capability
  *
  * [@AC-3,US-3] Mixed command patterns (callback + polling) with auto-accept callback
  *  ⚪ TC-1: verifyOnAutoAcceptedCallback_forCallbackPlusPolling_expectFlexibleHandling
@@ -1052,11 +1058,15 @@ TEST(UT_ConetCommandTypicalAutoAccept, verifyOnAutoAcceptedCallback_forClientToS
     if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
-// [@AC-2,US-3] TC-1: verifyOnAutoAcceptedCallback_byPerClientConfig_expectIndividualSetup
-// [@AC-2,US-3] TC-1: Per-client command capability configuration (mixed CLIENT→SERVICE & SERVICE→CLIENT)
+// [@AC-2,US-3] TC-1: Service with BOTH CmdExecutor+CmdInitiator supporting mixed client types
+// [@AC-2,US-3] TC-1: Per-client command flow configuration (CLIENT→SERVICE & SERVICE→CLIENT patterns)
 TEST(UT_ConetCommandTypicalAutoAccept, verifyOnAutoAcceptedCallback_forMixedCmdPatterns_expectFlexibleConfig) {
-    // TODO: Implement per-client command configuration via callback
-    GTEST_SKIP() << "TODO: Implement per-client command configuration test";
+    // TODO: Implement service with combined CmdExecutor|CmdInitiator capability
+    // Service supports BOTH capabilities, callback configures per-client command direction:
+    // - Client-A(CmdInitiator) → CLIENT-A→SERVICE commands (US-1 pattern)
+    // - Client-B(CmdExecutor) → SERVICE→CLIENT-B commands (US-2 pattern)
+    // Key: Service.UsageCapabilites = IOC_LinkUsageCmdExecutor | IOC_LinkUsageCmdInitiator
+    GTEST_SKIP() << "TODO: Implement mixed client types with unified service capability test";
 }
 
 // [@AC-3,US-3] TC-1: verifyOnAutoAcceptedCallback_byMixedPatterns_expectFlexibleHandling
