@@ -194,19 +194,19 @@
  * PATTERN: Auto-accept callback configures command capabilities per client on connection
  *
  * [@AC-1,US-3] OnAutoAccepted_F callback enabling immediate command readiness (US-1 pattern)
- *  ⚪ TC-1: verifyOnAutoAcceptedCallback_byCommandContext_expectLinkReadiness
+ *  🟢 TC-1: verifyOnAutoAcceptedCallback_forClientToServiceCmd_expectLinkReadiness
  *      @[Purpose]: Validate OnAutoAccepted_F callback prepares CLIENT→SERVICE command readiness
  *      @[Brief]: Service(CmdExecutor+AutoAccept+Callback), callback configures link for CLIENT→SERVICE commands
- *      @[Status]: TODO - Need to implement OnAutoAccepted_F callback with CLIENT→SERVICE command context
+ *      @[Status]: IMPLEMENTED & PASSED - OnAutoAccepted_F callback with CLIENT→SERVICE command context working
  *
  * [@AC-2,US-3] Per-client command capability configuration via auto-accept callback
- *  ⚪ TC-1: verifyOnAutoAcceptedCallback_byPerClientConfig_expectIndividualSetup
+ *  ⚪ TC-1: verifyOnAutoAcceptedCallback_forMixedCmdPatterns_expectFlexibleConfig
  *      @[Purpose]: Validate per-client command configuration through auto-accept callback (mixed US-1/US-2)
  *      @[Brief]: Callback configures different command patterns: some clients→service, others service→clients
  *      @[Status]: TODO - Need to implement per-client command capability configuration via callback
  *
  * [@AC-3,US-3] Mixed command patterns (callback + polling) with auto-accept callback
- *  ⚪ TC-1: verifyOnAutoAcceptedCallback_byMixedPatterns_expectFlexibleHandling
+ *  ⚪ TC-1: verifyOnAutoAcceptedCallback_forCallbackPlusPolling_expectFlexibleHandling
  *      @[Purpose]: Validate auto-accept callback handling both callback-based and polling command modes
  *      @[Brief]: Callback configures some links for immediate commands, others for polling-based commands
  *      @[Status]: TODO - Need to implement mixed pattern support with auto-accept
