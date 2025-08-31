@@ -1,0 +1,1 @@
+/usr/bin/c++ -g -Wl,--dependency-file=CMakeFiles/UT_DataStateUS4.dir/link.d CMakeFiles/UT_DataStateUS4.dir/UT_DataStateUS4.cxx.o -o UT_DataStateUS4  ../libMyIOC.a /usr/lib/x86_64-linux-gnu/libgtest.a /usr/lib/x86_64-linux-gnu/libgtest_main.a /usr/lib/x86_64-linux-gnu/libgtest.a

@@ -1,0 +1,1 @@
+/usr/bin/c++ -g -Wl,--dependency-file=CMakeFiles/UT_CommandTypicalWaitAck.dir/link.d CMakeFiles/UT_CommandTypicalWaitAck.dir/UT_CommandTypicalWaitAck.cxx.o -o UT_CommandTypicalWaitAck  ../libMyIOC.a /usr/lib/x86_64-linux-gnu/libgtest.a /usr/lib/x86_64-linux-gnu/libgtest_main.a /usr/lib/x86_64-linux-gnu/libgtest.a

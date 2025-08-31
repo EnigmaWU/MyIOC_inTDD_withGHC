@@ -1,0 +1,1 @@
+/usr/bin/c++ -g -Wl,--dependency-file=CMakeFiles/UT_DataBoundaryUS4AC4.dir/link.d CMakeFiles/UT_DataBoundaryUS4AC4.dir/UT_DataBoundaryUS4AC4.cxx.o -o UT_DataBoundaryUS4AC4  ../libMyIOC.a /usr/lib/x86_64-linux-gnu/libgtest.a /usr/lib/x86_64-linux-gnu/libgtest_main.a /usr/lib/x86_64-linux-gnu/libgtest.a
