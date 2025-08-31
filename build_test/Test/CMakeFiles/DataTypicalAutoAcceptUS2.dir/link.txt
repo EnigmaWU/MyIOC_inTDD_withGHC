@@ -1,1 +1,0 @@
-/usr/bin/c++ -g -Wl,--dependency-file=CMakeFiles/DataTypicalAutoAcceptUS2.dir/link.d CMakeFiles/DataTypicalAutoAcceptUS2.dir/DataTypicalAutoAcceptUS2.cxx.o -o DataTypicalAutoAcceptUS2  ../libMyIOC.a /usr/lib/x86_64-linux-gnu/libgtest.a /usr/lib/x86_64-linux-gnu/libgtest_main.a /usr/lib/x86_64-linux-gnu/libgtest.a
