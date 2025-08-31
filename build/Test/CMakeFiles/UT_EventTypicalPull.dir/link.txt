@@ -1,0 +1,1 @@
+/usr/bin/c++ -O2 -g -DNDEBUG -Wl,--dependency-file=CMakeFiles/UT_EventTypicalPull.dir/link.d CMakeFiles/UT_EventTypicalPull.dir/UT_EventTypicalPull.cxx.o -o UT_EventTypicalPull  ../libMyIOC.a /usr/lib/x86_64-linux-gnu/libgtest.a /usr/lib/x86_64-linux-gnu/libgtest_main.a /usr/lib/x86_64-linux-gnu/libgtest.a

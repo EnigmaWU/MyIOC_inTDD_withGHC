@@ -1,0 +1,1 @@
+/usr/bin/c++ -O2 -g -DNDEBUG -Wl,--dependency-file=CMakeFiles/UT_CommandTypicalAutoAccept.dir/link.d CMakeFiles/UT_CommandTypicalAutoAccept.dir/UT_CommandTypicalAutoAccept.cxx.o -o UT_CommandTypicalAutoAccept  ../libMyIOC.a /usr/lib/x86_64-linux-gnu/libgtest.a /usr/lib/x86_64-linux-gnu/libgtest_main.a /usr/lib/x86_64-linux-gnu/libgtest.a
