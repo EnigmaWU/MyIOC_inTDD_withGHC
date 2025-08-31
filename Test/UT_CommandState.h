@@ -1,10 +1,11 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// Command State Testing - Common Header
+// Command State Testing - Common Header and User Stories
 //
 // Intent:
-// - Provides shared utilities, macros, and data structures for Command State testing
+// - Provides ALL User Stories, Acceptance Criteria, and Test Cases for Command State testing
 // - Supports DUAL-STATE testing approach: Individual Command State + Link Command Execution State
 // - Follows the established Data State testing pattern (UT_DataState.h)
+// - Each UT_CommandStateUSn.cxx implements the corresponding User Story's test cases
 //
 // 🎯 DUAL-STATE RATIONALE:
 //     Command state verification requires testing TWO distinct but related state aspects:
@@ -394,6 +395,249 @@ static void __TrackLinkCmdStateChange(__CmdDualStatePrivData_T *pPrivData, IOC_L
 }
 
 //======>END OF COMMAND STATE UTILITY FUNCTIONS==================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF ALL USER STORIES AND ACCEPTANCE CRITERIA=======================================
+/**
+ * ╔══════════════════════════════════════════════════════════════════════════════════════════╗
+ * ║                          📋 COMMAND STATE USER STORIES                                   ║
+ * ║                           Complete Specification                                         ║
+ * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
+ *
+ * This section consolidates ALL User Stories and Acceptance Criteria for Command State testing.
+ * Each User Story is implemented in its corresponding UT_CommandStateUSn.cxx file.
+ */
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF USER STORY 1: INDIVIDUAL COMMAND STATE VERIFICATION============================
+/**
+ * US-1: As a command state developer, I want to verify individual command state tracking
+ *       so that each IOC_CmdDesc_T properly maintains its status and result throughout
+ *       its lifecycle, enabling accurate command execution monitoring and debugging.
+ *
+ * 🎯 FOCUS: Individual Command State (Level 1 of Dual-State Testing)
+ * 📁 IMPLEMENTATION: UT_CommandStateUS1.cxx
+ *
+ * [@US-1] Individual Command State Verification
+ *  AC-1: GIVEN a command descriptor initialization,
+ *         WHEN IOC_CmdDesc_T is created with valid parameters,
+ *         THEN IOC_CmdDesc_getStatus() should return IOC_CMD_STATUS_PENDING
+ *         AND command should be ready for execution.
+ *
+ *  AC-2: GIVEN a command during callback execution,
+ *         WHEN command is being processed in callback,
+ *         THEN IOC_CmdDesc_getStatus() should return IOC_CMD_STATUS_PROCESSING
+ *         AND command context should remain valid.
+ *
+ *  AC-3: GIVEN a successful command completion,
+ *         WHEN command execution completes successfully,
+ *         THEN IOC_CmdDesc_getStatus() should return IOC_CMD_STATUS_SUCCESS
+ *         AND IOC_CmdDesc_getResult() should return IOC_RESULT_SUCCESS.
+ *
+ *  AC-4: GIVEN a command in polling mode,
+ *         WHEN IOC_ackCMD() is called after command completion,
+ *         THEN command status should transition properly
+ *         AND command should be available for cleanup.
+ *
+ *  AC-5: GIVEN a command execution failure,
+ *         WHEN command encounters an error during processing,
+ *         THEN IOC_CmdDesc_getStatus() should return IOC_CMD_STATUS_FAILED
+ *         AND IOC_CmdDesc_getResult() should reflect the specific error.
+ *
+ *  AC-6: GIVEN a command timeout scenario,
+ *         WHEN command execution exceeds specified timeout,
+ *         THEN IOC_CmdDesc_getStatus() should return IOC_CMD_STATUS_TIMEOUT
+ *         AND command should be properly cleaned up.
+ *
+ *  AC-7: GIVEN concurrent command isolation,
+ *         WHEN multiple commands execute on same link,
+ *         THEN each command should maintain independent state
+ *         AND command states should not interfere with each other.
+ */
+//======>END OF USER STORY 1===================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF USER STORY 2: LINK COMMAND EXECUTION STATE VERIFICATION========================
+/**
+ * US-2: As a command state developer, I want to verify link command execution states
+ *       so that IOC_LinkID_T properly reflects command processing activity and maintains
+ *       appropriate link states during command execution workflows,
+ *       enabling effective command load monitoring and resource management.
+ *
+ * 🎯 FOCUS: Link Command Execution State (Level 2 of Dual-State Testing)
+ * 📁 IMPLEMENTATION: UT_CommandStateUS2.cxx
+ *
+ * [@US-2] Link Command Execution State Verification
+ *  AC-1: GIVEN a link configured as CmdInitiator,
+ *         WHEN link is ready to send commands,
+ *         THEN IOC_getLinkState() should return IOC_LinkSubStateCmdInitiatorReady
+ *         AND link should be available for command transmission.
+ *
+ *  AC-2: GIVEN a CmdInitiator link executing a command,
+ *         WHEN IOC_execCMD() is called and waiting for response,
+ *         THEN IOC_getLinkState() should return IOC_LinkSubStateCmdInitiatorBusyExecCmd
+ *         AND link should reflect command execution activity.
+ *
+ *  AC-3: GIVEN a link configured as CmdExecutor in callback mode,
+ *         WHEN link is ready to receive commands,
+ *         THEN IOC_getLinkState() should return IOC_LinkSubStateCmdExecutorReady
+ *         AND link should be available for command reception.
+ *
+ *  AC-4: GIVEN a CmdExecutor link processing a command in callback mode,
+ *         WHEN command is being executed in callback,
+ *         THEN IOC_getLinkState() should return IOC_LinkSubStateCmdExecutorBusyExecCmd
+ *         AND link should reflect command processing activity.
+ *
+ *  AC-5: GIVEN a CmdExecutor link in polling mode,
+ *         WHEN link is waiting for commands via IOC_waitCMD(),
+ *         THEN IOC_getLinkState() should return IOC_LinkSubStateCmdExecutorBusyWaitCmd
+ *         AND link should reflect active polling state.
+ *
+ *  AC-6: GIVEN multiple concurrent commands on the same link,
+ *         WHEN commands execute simultaneously,
+ *         THEN link state should reflect aggregate command activity
+ *         AND link should maintain consistent state representation.
+ *
+ *  AC-7: GIVEN command execution completion,
+ *         WHEN all commands complete successfully or with errors,
+ *         THEN link state should return to appropriate ready state
+ *         AND link should be available for new command operations.
+ */
+//======>END OF USER STORY 2===================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF USER STORY 3: MULTI-ROLE LINK STATE VERIFICATION===============================
+/**
+ * US-3: As a command state developer, I want to verify multi-role link state behavior
+ *       so that links with both CmdInitiator and CmdExecutor capabilities properly
+ *       manage state transitions and priority resolution during concurrent operations,
+ *       enabling flexible bidirectional command communication patterns.
+ *
+ * 🎯 FOCUS: Multi-Role Link Command State (Advanced Level 2 Testing)
+ * 📁 IMPLEMENTATION: UT_CommandStateUS3.cxx
+ *
+ * [@US-3] Multi-Role Link State Verification
+ *  AC-1: GIVEN a link configured with both CmdInitiator and CmdExecutor capabilities,
+ *         WHEN link is ready for both sending and receiving commands,
+ *         THEN IOC_getLinkState() should return appropriate multi-role ready sub-state
+ *         AND link should support both command directions.
+ *
+ *  AC-2: GIVEN a multi-role link with CmdInitiator operation active,
+ *         WHEN link is executing an outbound command,
+ *         THEN link state should prioritize CmdInitiator busy state
+ *         AND CmdExecutor capability should remain available for incoming commands.
+ *
+ *  AC-3: GIVEN a multi-role link with CmdExecutor operation active,
+ *         WHEN link is processing an inbound command,
+ *         THEN link state should prioritize CmdExecutor busy state
+ *         AND CmdInitiator capability should remain available for outbound commands.
+ *
+ *  AC-4: GIVEN concurrent operations on multi-role link,
+ *         WHEN both CmdInitiator and CmdExecutor are busy simultaneously,
+ *         THEN link state should reflect highest priority busy state
+ *         AND both operations should complete successfully without interference.
+ *
+ *  AC-5: GIVEN multi-role link with role transition,
+ *         WHEN active role changes from CmdInitiator to CmdExecutor or vice versa,
+ *         THEN link state should transition smoothly
+ *         AND role change should not affect ongoing command operations.
+ */
+//======>END OF USER STORY 3===================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF USER STORY 4: COMMAND TIMEOUT AND ERROR STATE VERIFICATION====================
+/**
+ * US-4: As a command state developer, I want to verify command timeout and error states
+ *       so that both individual command and link states properly handle failure conditions,
+ *       timeout scenarios, and error recovery, ensuring robust command execution reliability.
+ *
+ * 🎯 FOCUS: Error and Timeout State Handling (Both Level 1 and Level 2)
+ * 📁 IMPLEMENTATION: UT_CommandStateUS4.cxx
+ *
+ * [@US-4] Command Timeout and Error State Verification
+ *  AC-1: GIVEN a command with timeout specified,
+ *         WHEN command execution exceeds timeout duration,
+ *         THEN IOC_CmdDesc_getStatus() should return IOC_CMD_STATUS_TIMEOUT
+ *         AND command should transition to timeout state.
+ *
+ *  AC-2: GIVEN a link with command timeout,
+ *         WHEN command times out,
+ *         THEN IOC_getLinkState() should reflect timeout impact on link state
+ *         AND link should remain available for new commands.
+ *
+ *  AC-3: GIVEN a command execution error,
+ *         WHEN command fails with error result,
+ *         THEN both command status and link state should reflect error condition
+ *         AND error information should be properly propagated.
+ *
+ *  AC-4: GIVEN multiple commands with mixed success/failure,
+ *         WHEN some commands succeed and others fail,
+ *         THEN link state should aggregate error conditions appropriately
+ *         AND successful commands should not be affected by failed ones.
+ *
+ *  AC-5: GIVEN error recovery after command failure,
+ *         WHEN error conditions are resolved,
+ *         THEN both command and link states should return to ready state
+ *         AND link should be available for new command operations.
+ */
+//======>END OF USER STORY 4===================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF USER STORY 5: PERFORMANCE AND SCALABILITY STATE VERIFICATION===================
+/**
+ * US-5: As a command state developer, I want to verify command state performance and scalability
+ *       so that state tracking remains accurate and efficient under high-load conditions,
+ *       concurrent operations, and resource constraints, ensuring production-ready reliability.
+ *
+ * 🎯 FOCUS: Performance and Scalability (Both Level 1 and Level 2 under Load)
+ * 📁 IMPLEMENTATION: UT_CommandStateUS5.cxx
+ *
+ * [@US-5] Performance and Scalability State Verification
+ *  AC-1: GIVEN high-frequency command operations,
+ *         WHEN commands execute at maximum supported rate,
+ *         THEN state update performance should remain within acceptable limits
+ *         AND state accuracy should be maintained under load.
+ *
+ *  AC-2: GIVEN multiple concurrent commands per link,
+ *         WHEN link handles maximum supported concurrent operations,
+ *         THEN link state aggregation should perform efficiently
+ *         AND individual command states should remain accurate.
+ *
+ *  AC-3: GIVEN extended operation duration,
+ *         WHEN system runs for extended period with continuous command activity,
+ *         THEN state memory usage should remain stable
+ *         AND no state-related resource leaks should occur.
+ *
+ *  AC-4: GIVEN maximum supported links and commands,
+ *         WHEN system operates at full capacity,
+ *         THEN state operations should scale linearly
+ *         AND system responsiveness should remain acceptable.
+ *
+ *  AC-5: GIVEN resource-constrained environment,
+ *         WHEN system operates under memory or CPU constraints,
+ *         THEN state operations should degrade gracefully
+ *         AND critical state information should remain available.
+ */
+//======>END OF USER STORY 5===================================================================
+
+/**
+ * ╔══════════════════════════════════════════════════════════════════════════════════════════╗
+ * ║                            📊 USER STORY IMPLEMENTATION MAP                              ║
+ * ╠══════════════════════════════════════════════════════════════════════════════════════════╣
+ * ║ US-1: Individual Command State          → UT_CommandStateUS1.cxx (IMPLEMENTED)          ║
+ * ║ US-2: Link Command Execution State      → UT_CommandStateUS2.cxx (IMPLEMENTED)          ║
+ * ║ US-3: Multi-Role Link State             → UT_CommandStateUS3.cxx (FRAMEWORK)            ║
+ * ║ US-4: Timeout and Error State           → UT_CommandStateUS4.cxx (FRAMEWORK)            ║
+ * ║ US-5: Performance and Scalability       → UT_CommandStateUS5.cxx (FRAMEWORK)            ║
+ * ║                                                                                          ║
+ * ║ 🎯 DUAL-STATE COVERAGE:                                                                  ║
+ * ║   • Level 1 (Command State): US-1, US-4, US-5                                          ║
+ * ║   • Level 2 (Link State): US-2, US-3, US-4, US-5                                       ║
+ * ║   • Integration Testing: All USs provide correlation verification                       ║
+ * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
+ */
+
+//======>END OF ALL USER STORIES AND ACCEPTANCE CRITERIA=====================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF COMMAND STATE TESTING PATTERNS=================================================

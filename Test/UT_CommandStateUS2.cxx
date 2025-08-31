@@ -1,21 +1,12 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// Command State US-2: Link Command Execution State Verification
+// Command State US-2 Implementation: Link Command Execution State Verification
 //
-// Intent:
-// - Verify link command execution state transitions during command processing
-// - Test link sub-states during different command execution patterns (callback vs polling)
-// - Validate link state correlation with command activity and role behavior
+// 🎯 IMPLEMENTATION OF: User Story 2 (see UT_CommandState.h for complete specification)
+// 📋 PURPOSE: Verify link command execution state transitions during command processing
+// 🔗 DUAL-STATE LEVEL: Level 2 - Link Command State (IOC_LinkID_T focus)
 //
-// 🎯 DUAL-STATE FOCUS: This file focuses on LINK COMMAND EXECUTION STATE (Level 2)
-//     WHY LINK COMMAND EXECUTION STATE MATTERS:
-//     - Link state reflects command processing activity at the communication level
-//     - Different command roles (CmdInitiator vs CmdExecutor) require different link sub-states
-//     - Multiple concurrent commands on the same link require aggregate state tracking
-//     - Link state enables monitoring command load and resource utilization
-//     - Execution patterns (callback vs polling) manifest differently in link state behavior
-//
-// 🔗 COMPANION: UT_CommandStateUS1.cxx focuses on INDIVIDUAL COMMAND STATE (Level 1)
-//     Together, these files provide comprehensive dual-state command testing coverage.
+// This file implements all test cases for US-2 Acceptance Criteria.
+// See UT_CommandState.h for complete User Story definition and Acceptance Criteria.
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <chrono>
@@ -24,94 +15,28 @@
 #include "UT_CommandState.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF OVERVIEW OF THIS UNIT TESTING FILE===============================================
+//======>BEGIN OF IMPLEMENTATION OVERVIEW=========================================================
 /**
- * @brief Verify link command execution state management during command processing:
- *  - Link sub-states during command execution: IOC_LinkSubStateCmdInitiatorReady →
- * IOC_LinkSubStateCmdInitiatorBusyExecCmd
- *  - Command executor link states: IOC_LinkSubStateCmdExecutorReady → IOC_LinkSubStateCmdExecutorBusyExecCmd
- *  - Polling mode link states: IOC_LinkSubStateCmdExecutorBusyWaitCmd during IOC_waitCMD operations
- *  - Link state correlation with command activity level and concurrent command processing
+ * @brief US-2 Implementation: Link Command Execution State Verification
+ *
+ * This file implements all test cases for User Story 2 Acceptance Criteria:
+ *  - AC-1: CmdInitiator link ready state verification
+ *  - AC-2: CmdInitiator link busy state during command execution
+ *  - AC-3: CmdExecutor link ready state verification
+ *  - AC-4: CmdExecutor link busy state during callback execution
+ *  - AC-5: CmdExecutor link polling state verification
+ *  - AC-6: Link state aggregation during concurrent commands
+ *  - AC-7: Link state return to ready after command completion
  *
  * Key API focus:
  *  - IOC_getLinkState(): Retrieve link main state and command-specific sub-states
  *  - Link state correlation with command execution patterns (callback vs polling)
- *  - Multi-command scenarios: Link state aggregation during concurrent command processing
- *  - Role-based link states: CmdInitiator vs CmdExecutor link state behavior differences
+ *  - Role-based link states: CmdInitiator vs CmdExecutor behavior differences
  */
-//======>END OF OVERVIEW OF THIS UNIT TESTING FILE=================================================
+//======>END OF IMPLEMENTATION OVERVIEW===========================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF UNIT TESTING DESIGN==============================================================
-/**
- * Design focus:
- *  - Link command execution state verification independent of individual command state
- *  - Command role-based link state behavior (CmdInitiator vs CmdExecutor sub-states)
- *  - Execution pattern impact on link state (callback vs polling mode differences)
- *  - Multi-command link state aggregation and concurrent command activity tracking
- *  - Link state consistency across command lifecycle phases
- *
- * Test approach:
- *  - Focus on IOC_getLinkState() with command-specific sub-states
- *  - Verify link state transitions during command execution phases
- *  - Test link state correlation with command activity levels
- *  - Validate role-specific link state behavior patterns
- *  - Ensure link state provides meaningful command execution status information
- */
-///////////////////////////////////////////////////////////////////////////////////////////////////
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF USER STORY=======================================================================
-/**
- * US-2: As a command state developer, I want to verify link command execution states
- *       so that IOC_LinkID_T properly reflects command processing activity and maintains
- *       appropriate link states during command execution workflows,
- *       enabling effective command load monitoring and resource management.
- */
-//======>END OF USER STORY==========================================================================
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
-//=======>BEGIN OF ACCEPTANCE CRITERIA==============================================================
-/**
- * [@US-2] Link Command Execution State Verification
- *  AC-1: GIVEN a link configured as CmdInitiator,
- *         WHEN link is ready to send commands,
- *         THEN IOC_getLinkState() should return IOC_LinkSubStateCmdInitiatorReady
- *         AND link should be available for command transmission.
- *
- *  AC-2: GIVEN a CmdInitiator link executing a command,
- *         WHEN IOC_execCMD() is called and waiting for response,
- *         THEN IOC_getLinkState() should return IOC_LinkSubStateCmdInitiatorBusyExecCmd
- *         AND link should reflect command execution activity.
- *
- *  AC-3: GIVEN a link configured as CmdExecutor in callback mode,
- *         WHEN link is ready to receive commands,
- *         THEN IOC_getLinkState() should return IOC_LinkSubStateCmdExecutorReady
- *         AND link should be available for command reception.
- *
- *  AC-4: GIVEN a CmdExecutor link processing a command in callback mode,
- *         WHEN command is being executed in callback,
- *         THEN IOC_getLinkState() should return IOC_LinkSubStateCmdExecutorBusyExecCmd
- *         AND link should reflect command processing activity.
- *
- *  AC-5: GIVEN a CmdExecutor link in polling mode,
- *         WHEN link is waiting for commands via IOC_waitCMD(),
- *         THEN IOC_getLinkState() should return IOC_LinkSubStateCmdExecutorBusyWaitCmd
- *         AND link should reflect active polling state.
- *
- *  AC-6: GIVEN multiple concurrent commands on the same link,
- *         WHEN commands execute simultaneously,
- *         THEN link state should reflect aggregate command activity
- *         AND link should maintain consistent state representation.
- *
- *  AC-7: GIVEN command execution completion,
- *         WHEN all commands complete successfully or with errors,
- *         THEN link state should return to appropriate ready state
- *         AND link should be available for new command operations.
- */
-//=======>END OF ACCEPTANCE CRITERIA================================================================
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF TEST CASES=======================================================================
 //======>BEGIN OF TEST CASES=======================================================================
 /**************************************************************************************************
  * @brief 【Link Command Execution State Test Cases】

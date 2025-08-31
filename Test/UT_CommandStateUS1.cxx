@@ -1,21 +1,12 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// Command State US-1: Individual Command State Verification
+// Command State US-1 Implementation: Individual Command State Verification
 //
-// Intent:
-// - Verify individual IOC_CmdDesc_T lifecycle state transitions (PENDING→PROCESSING→SUCCESS/FAILED/TIMEOUT)
-// - Test command status and result field consistency throughout command execution
-// - Validate command state persistence across different execution patterns (callback vs polling)
+// 🎯 IMPLEMENTATION OF: User Story 1 (see UT_CommandState.h for complete specification)
+// 📋 PURPOSE: Verify individual IOC_CmdDesc_T lifecycle state transitions
+// 🔗 DUAL-STATE LEVEL: Level 1 - Individual Command State (IOC_CmdDesc_T focus)
 //
-// 🎯 DUAL-STATE FOCUS: This file focuses on INDIVIDUAL COMMAND STATE (Level 1)
-//     WHY INDIVIDUAL COMMAND STATE MATTERS:
-//     - Each IOC_CmdDesc_T has independent status/result fields that must be tracked correctly
-//     - Command state transitions follow specific lifecycle rules regardless of link state
-//     - Individual command state provides detailed execution information for debugging/monitoring
-//     - State consistency is critical for command completion detection and error handling
-//     - Different execution patterns (callback vs polling) affect individual command state differently
-//
-// 🔗 COMPANION: UT_CommandStateUS2.cxx focuses on LINK COMMAND EXECUTION STATE (Level 2)
-//     Together, these files provide comprehensive dual-state command testing coverage.
+// This file implements all test cases for US-1 Acceptance Criteria.
+// See UT_CommandState.h for complete User Story definition and Acceptance Criteria.
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <chrono>
@@ -24,22 +15,26 @@
 #include "UT_CommandState.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF OVERVIEW OF THIS UNIT TESTING FILE===============================================
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF IMPLEMENTATION OVERVIEW=========================================================
 /**
- * @brief Verify individual command state management throughout command lifecycle:
- *  - Command status transitions: IOC_CMD_STATUS_PENDING → IOC_CMD_STATUS_PROCESSING →
- * IOC_CMD_STATUS_SUCCESS/FAILED/TIMEOUT
- *  - Command result accuracy: IOC_RESULT_SUCCESS, IOC_RESULT_CMD_EXEC_FAILED, IOC_RESULT_TIMEOUT, etc.
- *  - State persistence across execution patterns: callback mode vs polling mode (IOC_waitCMD + IOC_ackCMD)
- *  - State consistency during error conditions and timeout scenarios
+ * @brief US-1 Implementation: Individual Command State Verification
+ *
+ * This file implements all test cases for User Story 1 Acceptance Criteria:
+ *  - AC-1: Command initialization state verification
+ *  - AC-2: Callback mode execution state transitions
+ *  - AC-3: Polling mode execution state transitions
+ *  - AC-4: Successful command completion states
+ *  - AC-5: Error condition state handling
+ *  - AC-6: Timeout scenario state management
+ *  - AC-7: Concurrent command state isolation
  *
  * Key API focus:
  *  - IOC_CmdDesc_getStatus(): Retrieve current command execution status
  *  - IOC_CmdDesc_getResult(): Retrieve command execution result
- *  - IOC_CmdDesc_setStatus(), IOC_CmdDesc_setResult(): State modification validation
  *  - Command state persistence across IOC_execCMD, IOC_waitCMD, IOC_ackCMD operations
  */
-//======>END OF OVERVIEW OF THIS UNIT TESTING FILE=================================================
+//======>END OF IMPLEMENTATION OVERVIEW===========================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF UNIT TESTING DESIGN==============================================================
