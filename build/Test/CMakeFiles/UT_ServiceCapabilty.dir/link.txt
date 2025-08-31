@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/UT_ServiceCapabilty.dir/link.d CMakeFiles/UT_ServiceCapabilty.dir/UT_ServiceCapabilty.cxx.o -o UT_ServiceCapabilty  ../libMyIOC.a /usr/lib/x86_64-linux-gnu/libgtest.a /usr/lib/x86_64-linux-gnu/libgtest_main.a /usr/lib/x86_64-linux-gnu/libgtest.a
