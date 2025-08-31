@@ -3,7 +3,7 @@
 //
 // Intent:
 // - Verify link state behavior when same link handles multiple command roles
-// - Test role transitions: CmdExecutor ↔ CmdInitiator on same link  
+// - Test role transitions: CmdExecutor ↔ CmdInitiator on same link
 // - Validate link state consistency during role changes and concurrent operations
 //
 // 🎯 DUAL-STATE FOCUS: This file focuses on MULTI-ROLE LINK COMMAND STATE behavior
@@ -25,7 +25,7 @@
 //======>BEGIN OF OVERVIEW OF THIS UNIT TESTING FILE===============================================
 /**
  * @brief Verify multi-role link command state management:
- *  - Link role transitions: Single-role → Multi-role configuration  
+ *  - Link role transitions: Single-role → Multi-role configuration
  *  - Concurrent role operations: CmdInitiator + CmdExecutor on same link
  *  - State priority resolution: Which sub-state takes precedence during concurrent operations
  *  - Role isolation: Commands from different roles maintain proper separation
@@ -77,14 +77,14 @@ TEST(UT_CommandStateUS3, verifyMultiRoleLinkReady_byDualCapability_expectReadyFo
     // TODO: Implement multi-role link ready state verification
     // Verify link configured with both CmdInitiator and CmdExecutor capabilities
     // shows appropriate ready state for both roles
-    
+
     GTEST_SKIP() << "Multi-role link state testing pending framework implementation";
 }
 
 TEST(UT_CommandStateUS3, verifyMultiRolePriority_byConcurrentOperations_expectProperStatePriority) {
     // TODO: Implement concurrent multi-role operation priority testing
     // Verify link state priority resolution when both roles are active simultaneously
-    
+
     GTEST_SKIP() << "Multi-role priority testing pending framework implementation";
 }
 

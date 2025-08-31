@@ -73,21 +73,21 @@
 TEST(UT_CommandStateUS4, verifyCommandTimeout_byExceedingTimeoutMs_expectTimeoutStatus) {
     // TODO: Implement command timeout state verification
     // Test command state transitions when timeout duration is exceeded
-    
+
     GTEST_SKIP() << "Command timeout state testing pending framework implementation";
 }
 
 TEST(UT_CommandStateUS4, verifyLinkStateAfterTimeout_byCommandTimeout_expectLinkRecovery) {
     // TODO: Implement link state behavior during command timeout
     // Verify link state properly handles command timeout without affecting link availability
-    
+
     GTEST_SKIP() << "Link timeout state testing pending framework implementation";
 }
 
 TEST(UT_CommandStateUS4, verifyErrorStatePropagation_byCommandFailure_expectProperErrorHandling) {
     // TODO: Implement error state propagation testing
     // Verify error conditions are properly reflected in both command and link states
-    
+
     GTEST_SKIP() << "Error state propagation testing pending framework implementation";
 }
 

@@ -27,8 +27,9 @@
 //======>BEGIN OF OVERVIEW OF THIS UNIT TESTING FILE===============================================
 /**
  * @brief Verify link command execution state management during command processing:
- *  - Link sub-states during command execution: IOC_LinkSubStateCmdInitiatorReady → IOC_LinkSubStateCmdInitiatorBusyExecCmd
- *  - Command executor link states: IOC_LinkSubStateCmdExecutorReady → IOC_LinkSubStateCmdExecutorBusyExecCmd  
+ *  - Link sub-states during command execution: IOC_LinkSubStateCmdInitiatorReady →
+ * IOC_LinkSubStateCmdInitiatorBusyExecCmd
+ *  - Command executor link states: IOC_LinkSubStateCmdExecutorReady → IOC_LinkSubStateCmdExecutorBusyExecCmd
  *  - Polling mode link states: IOC_LinkSubStateCmdExecutorBusyWaitCmd during IOC_waitCMD operations
  *  - Link state correlation with command activity level and concurrent command processing
  *
@@ -62,7 +63,7 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF USER STORY=======================================================================
 /**
- * US-2: As a command state developer, I want to verify link command execution states  
+ * US-2: As a command state developer, I want to verify link command execution states
  *       so that IOC_LinkID_T properly reflects command processing activity and maintains
  *       appropriate link states during command execution workflows,
  *       enabling effective command load monitoring and resource management.
@@ -177,37 +178,37 @@
 typedef struct __LinkCmdExecStatePriv {
     std::atomic<bool> LinkStateTracking{true};
     std::atomic<int> StateChangeCount{0};
-    
+
     // Link state history
     IOC_LinkState_T StateHistory[20];
     IOC_LinkSubState_T SubStateHistory[20];
     int HistoryCount{0};
-    
+
     // Command activity tracking
     std::atomic<int> CommandsSent{0};
     std::atomic<int> CommandsReceived{0};
     std::atomic<int> CommandsProcessed{0};
-    
+
     // State timing
     std::chrono::steady_clock::time_point StateChangeTimestamps[20];
-    
+
     // Current state cache
     std::atomic<IOC_LinkState_T> LastMainState{IOC_LinkStateUndefined};
     std::atomic<IOC_LinkSubState_T> LastSubState{IOC_LinkSubStateDefault};
-    
+
     std::mutex StateMutex;
 } __LinkCmdExecStatePriv_T;
 
 // TODO: Implement link state tracking utilities
 static void __TrackLinkState(__LinkCmdExecStatePriv_T *pPrivData, IOC_LinkID_T linkID) {
     if (!pPrivData) return;
-    
+
     std::lock_guard<std::mutex> lock(pPrivData->StateMutex);
-    
+
     IOC_LinkState_T mainState = IOC_LinkStateUndefined;
     IOC_LinkSubState_T subState = IOC_LinkSubStateDefault;
     IOC_Result_T result = IOC_getLinkState(linkID, &mainState, &subState);
-    
+
     if (result == IOC_RESULT_SUCCESS) {
         // Check if state changed
         if (pPrivData->LastMainState != mainState || pPrivData->LastSubState != subState) {
@@ -217,13 +218,13 @@ static void __TrackLinkState(__LinkCmdExecStatePriv_T *pPrivData, IOC_LinkID_T l
                 pPrivData->StateChangeTimestamps[pPrivData->HistoryCount] = std::chrono::steady_clock::now();
                 pPrivData->HistoryCount++;
             }
-            
+
             pPrivData->LastMainState = mainState;
             pPrivData->LastSubState = subState;
             pPrivData->StateChangeCount++;
-            
-            printf("🔗 [LINK_STATE] LinkID=%llu MainState=%d, SubState=%d, Changes=%d\n", 
-                   linkID, mainState, subState, pPrivData->StateChangeCount.load());
+
+            printf("🔗 [LINK_STATE] LinkID=%llu MainState=%d, SubState=%d, Changes=%d\n", linkID, mainState, subState,
+                   pPrivData->StateChangeCount.load());
         }
     }
 }
@@ -234,23 +235,23 @@ static IOC_Result_T __LinkCmdExecState_ExecutorCb(IOC_LinkID_T LinkID, IOC_CmdDe
     if (!pPrivData || !pCmdDesc) {
         return IOC_RESULT_INVALID_PARAM;
     }
-    
+
     // Track command received
     pPrivData->CommandsReceived++;
-    
+
     // Track link state during callback execution
     __TrackLinkState(pPrivData, LinkID);
-    
+
     // Set command to processing state
     IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_PROCESSING);
-    
+
     // Track link state during processing
     __TrackLinkState(pPrivData, LinkID);
-    
+
     // Process the command
     IOC_CmdID_T CmdID = IOC_CmdDesc_getCmdID(pCmdDesc);
     IOC_Result_T ExecResult = IOC_RESULT_SUCCESS;
-    
+
     if (CmdID == IOC_CMDID_TEST_PING) {
         IOC_CmdDesc_setOutPayload(pCmdDesc, (void *)"PONG", 4);
         IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_SUCCESS);
@@ -260,93 +261,93 @@ static IOC_Result_T __LinkCmdExecState_ExecutorCb(IOC_LinkID_T LinkID, IOC_CmdDe
         IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_FAILED);
         IOC_CmdDesc_setResult(pCmdDesc, IOC_RESULT_NOT_SUPPORT);
     }
-    
+
     // Track command processed
     pPrivData->CommandsProcessed++;
-    
+
     // Track final link state
     __TrackLinkState(pPrivData, LinkID);
-    
+
     return ExecResult;
 }
 
 // [@AC-1,US-2] TC-1: CmdInitiator link ready state verification
 TEST(UT_CommandStateUS2, verifyLinkCmdInitiatorReady_byInitialState_expectReadySubState) {
     IOC_Result_T ResultValue = IOC_RESULT_BUG;
-    
+
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                🔧 SETUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
     __LinkCmdExecStatePriv_T linkStatePriv = {};
-    
+
     // Service setup for CmdInitiator testing
     IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
                            .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
                            .pPath = (const char *)"CmdStateUS2_InitiatorReady"};
-    
+
     // Setup service as CmdExecutor to receive commands from CmdInitiator
     static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_PING};
     IOC_CmdUsageArgs_T cmdUsageArgs = {.CbExecCmd_F = __LinkCmdExecState_ExecutorCb,
                                        .pCbPrivData = &linkStatePriv,
                                        .CmdNum = 1,
                                        .pCmdIDs = supportedCmdIDs};
-    
+
     IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
                              .Flags = IOC_SRVFLAG_NONE,
                              .UsageCapabilites = IOC_LinkUsageCmdExecutor,
                              .UsageArgs = {.pCmd = &cmdUsageArgs}};
-    
+
     IOC_SrvID_T srvID = IOC_ID_INVALID;
     ResultValue = IOC_onlineService(&srvID, &srvArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
-    
+
     printf("🔧 [SETUP] Service online for CmdInitiator ready state testing\n");
-    
+
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                              📋 BEHAVIOR PHASE                                       │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
-    
+
     // Client setup as CmdInitiator
     IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
     IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
-    
+
     std::thread cliThread([&] {
         IOC_Result_T connResult = IOC_connectService(&cliLinkID, &connArgs, NULL);
         ASSERT_EQ(IOC_RESULT_SUCCESS, connResult);
     });
-    
+
     // Accept client
     IOC_LinkID_T srvLinkID = IOC_ID_INVALID;
     ResultValue = IOC_acceptClient(srvID, &srvLinkID, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
-    
+
     if (cliThread.joinable()) cliThread.join();
-    
+
     printf("📋 [BEHAVIOR] CmdInitiator link established, checking ready state\n");
-    
+
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               ✅ VERIFY PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
-    
+
     // Verify CmdInitiator link is in ready state
     // NOTE: Current implementation may not have CmdInitiator-specific sub-states implemented yet
     // This test establishes the expected behavior for future implementation
-    
+
     IOC_LinkState_T mainState = IOC_LinkStateUndefined;
     IOC_LinkSubState_T subState = IOC_LinkSubStateDefault;
     ResultValue = IOC_getLinkState(cliLinkID, &mainState, &subState);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
-    
+
     // Verify main state is Ready
     VERIFY_LINK_CMD_MAIN_STATE(cliLinkID, IOC_LinkStateReady);
-    
+
     // TODO: Once CmdInitiator sub-states are implemented, verify:
     // VERIFY_LINK_CMD_SUB_STATE(cliLinkID, IOC_LinkSubStateCmdInitiatorReady);
-    
+
     printf("✅ [VERIFY] CmdInitiator link ready state: MainState=%d, SubState=%d\n", mainState, subState);
     printf("✅ [NOTE] CmdInitiator-specific sub-states pending implementation\n");
     printf("✅ [RESULT] CmdInitiator ready state verification completed\n");
-    
+
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               🧹 CLEANUP PHASE                                       │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
@@ -358,76 +359,76 @@ TEST(UT_CommandStateUS2, verifyLinkCmdInitiatorReady_byInitialState_expectReadyS
 // [@AC-3,US-2] TC-1: CmdExecutor link ready state verification
 TEST(UT_CommandStateUS2, verifyLinkCmdExecutorReady_byCallbackMode_expectReadySubState) {
     IOC_Result_T ResultValue = IOC_RESULT_BUG;
-    
+
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                🔧 SETUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
     __LinkCmdExecStatePriv_T linkStatePriv = {};
-    
+
     // Service setup as CmdExecutor with callback mode
     IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
                            .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
                            .pPath = (const char *)"CmdStateUS2_ExecutorReady"};
-    
+
     static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_PING};
     IOC_CmdUsageArgs_T cmdUsageArgs = {.CbExecCmd_F = __LinkCmdExecState_ExecutorCb,
                                        .pCbPrivData = &linkStatePriv,
                                        .CmdNum = 1,
                                        .pCmdIDs = supportedCmdIDs};
-    
+
     IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
                              .Flags = IOC_SRVFLAG_NONE,
                              .UsageCapabilites = IOC_LinkUsageCmdExecutor,
                              .UsageArgs = {.pCmd = &cmdUsageArgs}};
-    
+
     IOC_SrvID_T srvID = IOC_ID_INVALID;
     ResultValue = IOC_onlineService(&srvID, &srvArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
-    
+
     printf("🔧 [SETUP] Service online as CmdExecutor with callback mode\n");
-    
+
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                              📋 BEHAVIOR PHASE                                       │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
-    
+
     // Client setup as CmdInitiator
     IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
     IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
-    
+
     std::thread cliThread([&] {
         IOC_Result_T connResult = IOC_connectService(&cliLinkID, &connArgs, NULL);
         ASSERT_EQ(IOC_RESULT_SUCCESS, connResult);
     });
-    
+
     // Accept client and get the CmdExecutor link
     IOC_LinkID_T srvLinkID = IOC_ID_INVALID;
     ResultValue = IOC_acceptClient(srvID, &srvLinkID, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
-    
+
     if (cliThread.joinable()) cliThread.join();
-    
+
     printf("📋 [BEHAVIOR] CmdExecutor link established, checking ready state\n");
-    
+
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               ✅ VERIFY PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
-    
+
     // Verify CmdExecutor link is in ready state
     IOC_LinkState_T mainState = IOC_LinkStateUndefined;
     IOC_LinkSubState_T subState = IOC_LinkSubStateDefault;
     ResultValue = IOC_getLinkState(srvLinkID, &mainState, &subState);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
-    
+
     // Verify main state is Ready
     VERIFY_LINK_CMD_MAIN_STATE(srvLinkID, IOC_LinkStateReady);
-    
+
     // TODO: Once CmdExecutor sub-states are implemented, verify:
     // VERIFY_LINK_CMD_SUB_STATE(srvLinkID, IOC_LinkSubStateCmdExecutorReady);
-    
+
     printf("✅ [VERIFY] CmdExecutor link ready state: MainState=%d, SubState=%d\n", mainState, subState);
     printf("✅ [NOTE] CmdExecutor-specific sub-states pending implementation\n");
     printf("✅ [RESULT] CmdExecutor ready state verification completed\n");
-    
+
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               🧹 CLEANUP PHASE                                       │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
@@ -439,98 +440,98 @@ TEST(UT_CommandStateUS2, verifyLinkCmdExecutorReady_byCallbackMode_expectReadySu
 // [@AC-4,US-2] TC-1: CmdExecutor link busy state during callback execution
 TEST(UT_CommandStateUS2, verifyLinkCmdExecutorBusy_byCallbackExecution_expectBusySubState) {
     IOC_Result_T ResultValue = IOC_RESULT_BUG;
-    
+
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                🔧 SETUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
     __LinkCmdExecStatePriv_T linkStatePriv = {};
-    
+
     // Service setup as CmdExecutor with state tracking callback
     IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
                            .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
                            .pPath = (const char *)"CmdStateUS2_ExecutorBusy"};
-    
+
     static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_PING};
     IOC_CmdUsageArgs_T cmdUsageArgs = {.CbExecCmd_F = __LinkCmdExecState_ExecutorCb,
                                        .pCbPrivData = &linkStatePriv,
                                        .CmdNum = 1,
                                        .pCmdIDs = supportedCmdIDs};
-    
+
     IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
                              .Flags = IOC_SRVFLAG_NONE,
                              .UsageCapabilites = IOC_LinkUsageCmdExecutor,
                              .UsageArgs = {.pCmd = &cmdUsageArgs}};
-    
+
     IOC_SrvID_T srvID = IOC_ID_INVALID;
     ResultValue = IOC_onlineService(&srvID, &srvArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
-    
+
     printf("🔧 [SETUP] Service online as CmdExecutor with link state tracking\n");
-    
+
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                              📋 BEHAVIOR PHASE                                       │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
-    
+
     // Client setup
     IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
     IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
-    
+
     std::thread cliThread([&] {
         IOC_Result_T connResult = IOC_connectService(&cliLinkID, &connArgs, NULL);
         ASSERT_EQ(IOC_RESULT_SUCCESS, connResult);
     });
-    
+
     IOC_LinkID_T srvLinkID = IOC_ID_INVALID;
     ResultValue = IOC_acceptClient(srvID, &srvLinkID, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
-    
+
     if (cliThread.joinable()) cliThread.join();
-    
+
     // Track initial link state
     __TrackLinkState(&linkStatePriv, srvLinkID);
-    
+
     // Execute command to trigger callback and link state changes
     IOC_CmdDesc_T cmdDesc = IOC_CMDDESC_INIT_VALUE;
     cmdDesc.CmdID = IOC_CMDID_TEST_PING;
     cmdDesc.TimeoutMs = 5000;
-    
+
     printf("📋 [BEHAVIOR] Executing command to trigger CmdExecutor busy state\n");
-    
+
     ResultValue = IOC_execCMD(cliLinkID, &cmdDesc, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
-    
+
     // Track final link state
     __TrackLinkState(&linkStatePriv, srvLinkID);
-    
+
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               ✅ VERIFY PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
-    
+
     // Verify command was processed
     ASSERT_EQ(1, linkStatePriv.CommandsReceived.load()) << "Command should be received";
     ASSERT_EQ(1, linkStatePriv.CommandsProcessed.load()) << "Command should be processed";
-    
+
     // Verify link state changes were tracked
     ASSERT_GT(linkStatePriv.StateChangeCount.load(), 0) << "Link state changes should be tracked";
     ASSERT_GT(linkStatePriv.HistoryCount, 0) << "Link state history should be recorded";
-    
+
     // Verify final link state is back to ready
     IOC_LinkState_T finalMainState = IOC_LinkStateUndefined;
     IOC_LinkSubState_T finalSubState = IOC_LinkSubStateDefault;
     ResultValue = IOC_getLinkState(srvLinkID, &finalMainState, &finalSubState);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
     ASSERT_EQ(IOC_LinkStateReady, finalMainState) << "Final main state should be Ready";
-    
+
     // TODO: Once CmdExecutor busy sub-states are implemented, verify:
     // - Link shows IOC_LinkSubStateCmdExecutorBusyExecCmd during callback execution
     // - Link returns to IOC_LinkSubStateCmdExecutorReady after completion
-    
+
     printf("✅ [VERIFY] Link state tracking: %d state changes recorded\n", linkStatePriv.StateChangeCount.load());
-    printf("✅ [VERIFY] Command processing: %d received, %d processed\n", 
-           linkStatePriv.CommandsReceived.load(), linkStatePriv.CommandsProcessed.load());
+    printf("✅ [VERIFY] Command processing: %d received, %d processed\n", linkStatePriv.CommandsReceived.load(),
+           linkStatePriv.CommandsProcessed.load());
     printf("✅ [NOTE] CmdExecutor busy sub-states pending implementation\n");
     printf("✅ [RESULT] CmdExecutor busy state verification completed\n");
-    
+
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               🧹 CLEANUP PHASE                                       │
     // └──────────────────────────────────────────────────────────────────────────────────────┘

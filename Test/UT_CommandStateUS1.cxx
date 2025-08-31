@@ -27,7 +27,8 @@
 //======>BEGIN OF OVERVIEW OF THIS UNIT TESTING FILE===============================================
 /**
  * @brief Verify individual command state management throughout command lifecycle:
- *  - Command status transitions: IOC_CMD_STATUS_PENDING → IOC_CMD_STATUS_PROCESSING → IOC_CMD_STATUS_SUCCESS/FAILED/TIMEOUT
+ *  - Command status transitions: IOC_CMD_STATUS_PENDING → IOC_CMD_STATUS_PROCESSING →
+ * IOC_CMD_STATUS_SUCCESS/FAILED/TIMEOUT
  *  - Command result accuracy: IOC_RESULT_SUCCESS, IOC_RESULT_CMD_EXEC_FAILED, IOC_RESULT_TIMEOUT, etc.
  *  - State persistence across execution patterns: callback mode vs polling mode (IOC_waitCMD + IOC_ackCMD)
  *  - State consistency during error conditions and timeout scenarios
@@ -159,7 +160,7 @@
  *      @[Status]: TODO - Need to implement failure state verification
  *
  * [@AC-6,US-1] Command timeout state handling
- *  ⚪ TC-1: verifyCommandTimeout_byExceededTimeout_expectTimeoutStatus  
+ *  ⚪ TC-1: verifyCommandTimeout_byExceededTimeout_expectTimeoutStatus
  *      @[Purpose]: Validate command timeout state handling
  *      @[Brief]: Execute command with short timeout, verify IOC_CMD_STATUS_TIMEOUT + IOC_RESULT_TIMEOUT
  *      @[Status]: TODO - Need to implement timeout state verification
@@ -178,25 +179,25 @@ typedef struct __IndividualCmdStatePriv {
     std::atomic<bool> CommandStarted{false};
     std::atomic<bool> CommandCompleted{false};
     std::atomic<int> CommandCount{0};
-    
+
     // State transition tracking
     std::atomic<bool> ProcessingDetected{false};
     std::atomic<bool> CompletionDetected{false};
     std::atomic<int> StateTransitionCount{0};
-    
+
     // Command state history
     IOC_CmdStatus_E StatusHistory[10];
     IOC_Result_T ResultHistory[10];
     int HistoryCount{0};
-    
+
     // Error tracking
     std::atomic<bool> ErrorOccurred{false};
     IOC_Result_T LastError{IOC_RESULT_SUCCESS};
-    
+
     // Timing
     std::chrono::steady_clock::time_point StartTime;
     std::chrono::steady_clock::time_point CompletionTime;
-    
+
     std::mutex StateMutex;
 } __IndividualCmdStatePriv_T;
 
@@ -206,24 +207,24 @@ static IOC_Result_T __IndividualCmdState_ExecutorCb(IOC_LinkID_T LinkID, IOC_Cmd
     if (!pPrivData || !pCmdDesc) {
         return IOC_RESULT_INVALID_PARAM;
     }
-    
+
     std::lock_guard<std::mutex> lock(pPrivData->StateMutex);
-    
+
     // Track state transition to PROCESSING
     IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_PROCESSING);
     pPrivData->ProcessingDetected = true;
-    
+
     // Record state transition
     if (pPrivData->HistoryCount < 10) {
         pPrivData->StatusHistory[pPrivData->HistoryCount] = IOC_CMD_STATUS_PROCESSING;
         pPrivData->ResultHistory[pPrivData->HistoryCount] = IOC_RESULT_SUCCESS;
         pPrivData->HistoryCount++;
     }
-    
+
     // Process the command
     IOC_CmdID_T CmdID = IOC_CmdDesc_getCmdID(pCmdDesc);
     IOC_Result_T ExecResult = IOC_RESULT_SUCCESS;
-    
+
     if (CmdID == IOC_CMDID_TEST_PING) {
         // Simulate PING processing
         IOC_CmdDesc_setOutPayload(pCmdDesc, (void *)"PONG", 4);
@@ -244,19 +245,19 @@ static IOC_Result_T __IndividualCmdState_ExecutorCb(IOC_LinkID_T LinkID, IOC_Cmd
         IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_FAILED);
         IOC_CmdDesc_setResult(pCmdDesc, IOC_RESULT_NOT_SUPPORT);
     }
-    
+
     // Track completion
     pPrivData->CompletionDetected = true;
     pPrivData->CommandCompleted = true;
     pPrivData->StateTransitionCount++;
-    
+
     // Record final state
     if (pPrivData->HistoryCount < 10) {
         pPrivData->StatusHistory[pPrivData->HistoryCount] = IOC_CmdDesc_getStatus(pCmdDesc);
         pPrivData->ResultHistory[pPrivData->HistoryCount] = IOC_CmdDesc_getResult(pCmdDesc);
         pPrivData->HistoryCount++;
     }
-    
+
     return ExecResult;
 }
 
@@ -267,38 +268,38 @@ TEST(UT_CommandStateUS1, verifyCommandInitialization_byNewDescriptor_expectPendi
     // └──────────────────────────────────────────────────────────────────────────────────────┘
     __IndividualCmdStatePriv_T privData = {};
     IOC_CmdDesc_T cmdDesc = IOC_CMDDESC_INIT_VALUE;
-    
+
     printf("🔧 [SETUP] Testing command initialization state\n");
-    
+
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                              📋 BEHAVIOR PHASE                                       │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
     cmdDesc.CmdID = IOC_CMDID_TEST_PING;
     cmdDesc.TimeoutMs = 5000;
     IOC_CmdDesc_initVar(&cmdDesc);
-    
-    printf("📋 [BEHAVIOR] Command descriptor initialized: CmdID=%llu, TimeoutMs=%lu\n", 
-           cmdDesc.CmdID, cmdDesc.TimeoutMs);
-    
+
+    printf("📋 [BEHAVIOR] Command descriptor initialized: CmdID=%llu, TimeoutMs=%lu\n", cmdDesc.CmdID,
+           cmdDesc.TimeoutMs);
+
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               ✅ VERIFY PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
-    
+
     // Verify initial command status
     VERIFY_COMMAND_STATUS(&cmdDesc, IOC_CMD_STATUS_PENDING);
-    
-    // Verify initial command result  
+
+    // Verify initial command result
     VERIFY_COMMAND_RESULT(&cmdDesc, IOC_RESULT_SUCCESS);
-    
+
     // Verify command ID is set correctly
     ASSERT_EQ(IOC_CMDID_TEST_PING, IOC_CmdDesc_getCmdID(&cmdDesc));
-    
+
     // Verify timeout is set correctly
     ASSERT_EQ(5000, cmdDesc.TimeoutMs);
-    
+
     printf("✅ [VERIFY] Command initialization state verified: Status=PENDING, Result=SUCCESS\n");
     printf("✅ [RESULT] Individual command initialization test completed successfully\n");
-    
+
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               🧹 CLEANUP PHASE                                       │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
@@ -308,93 +309,92 @@ TEST(UT_CommandStateUS1, verifyCommandInitialization_byNewDescriptor_expectPendi
 // [@AC-2,US-1] TC-1: Command processing state in callback mode
 TEST(UT_CommandStateUS1, verifyCommandProcessingState_byCallbackExecution_expectProcessingStatus) {
     IOC_Result_T ResultValue = IOC_RESULT_BUG;
-    
+
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                🔧 SETUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
     __IndividualCmdStatePriv_T srvPrivData = {};
-    
+
     // Service setup (CmdExecutor with callback)
     IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
                            .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
                            .pPath = (const char *)"CmdStateUS1_CallbackProcessing"};
-    
+
     static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_PING};
     IOC_CmdUsageArgs_T cmdUsageArgs = {.CbExecCmd_F = __IndividualCmdState_ExecutorCb,
                                        .pCbPrivData = &srvPrivData,
                                        .CmdNum = 1,
                                        .pCmdIDs = supportedCmdIDs};
-    
+
     IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
                              .Flags = IOC_SRVFLAG_NONE,
                              .UsageCapabilites = IOC_LinkUsageCmdExecutor,
                              .UsageArgs = {.pCmd = &cmdUsageArgs}};
-    
+
     IOC_SrvID_T srvID = IOC_ID_INVALID;
     ResultValue = IOC_onlineService(&srvID, &srvArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
-    
+
     printf("🔧 [SETUP] Service online with callback executor: SrvID=%llu\n", srvID);
-    
+
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                              📋 BEHAVIOR PHASE                                       │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
-    
+
     // Client setup and command execution
     IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
     IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
-    
+
     std::thread cliThread([&] {
         IOC_Result_T connResult = IOC_connectService(&cliLinkID, &connArgs, NULL);
         ASSERT_EQ(IOC_RESULT_SUCCESS, connResult);
     });
-    
+
     // Accept client
     IOC_LinkID_T srvLinkID = IOC_ID_INVALID;
     ResultValue = IOC_acceptClient(srvID, &srvLinkID, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
-    
+
     if (cliThread.joinable()) cliThread.join();
-    
+
     // Create and execute command
     IOC_CmdDesc_T cmdDesc = IOC_CMDDESC_INIT_VALUE;
     cmdDesc.CmdID = IOC_CMDID_TEST_PING;
     cmdDesc.TimeoutMs = 5000;
-    
+
     // Verify initial state
     VERIFY_COMMAND_STATUS(&cmdDesc, IOC_CMD_STATUS_PENDING);
-    
+
     printf("📋 [BEHAVIOR] Executing command via callback mode\n");
-    
+
     // Execute command - this should trigger state transitions in callback
     ResultValue = IOC_execCMD(cliLinkID, &cmdDesc, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
-    
+
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               ✅ VERIFY PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
-    
+
     // Verify final command state
     VERIFY_COMMAND_STATUS(&cmdDesc, IOC_CMD_STATUS_SUCCESS);
     VERIFY_COMMAND_RESULT(&cmdDesc, IOC_RESULT_SUCCESS);
-    
+
     // Verify callback tracked state transitions
     ASSERT_TRUE(srvPrivData.ProcessingDetected.load()) << "Processing state should be detected in callback";
     ASSERT_TRUE(srvPrivData.CompletionDetected.load()) << "Completion should be detected in callback";
     ASSERT_GT(srvPrivData.StateTransitionCount.load(), 0) << "State transitions should be tracked";
-    
+
     // Verify response data
     void *responseData = IOC_CmdDesc_getOutData(&cmdDesc);
     ULONG_T responseSize = IOC_CmdDesc_getOutDataSize(&cmdDesc);
     ASSERT_TRUE(responseData != nullptr);
     ASSERT_EQ(4, responseSize);
     ASSERT_STREQ("PONG", (char *)responseData);
-    
+
     printf("✅ [VERIFY] Command processing state verified: PENDING→PROCESSING→SUCCESS\n");
-    printf("✅ [VERIFY] State transitions tracked: %d transitions detected\n", 
-           srvPrivData.StateTransitionCount.load());
+    printf("✅ [VERIFY] State transitions tracked: %d transitions detected\n", srvPrivData.StateTransitionCount.load());
     printf("✅ [RESULT] Callback mode command processing state test completed successfully\n");
-    
+
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               🧹 CLEANUP PHASE                                       │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
@@ -406,102 +406,102 @@ TEST(UT_CommandStateUS1, verifyCommandProcessingState_byCallbackExecution_expect
 // [@AC-4,US-1] TC-1: Successful command completion state
 TEST(UT_CommandStateUS1, verifyCommandSuccess_byNormalCompletion_expectSuccessStatus) {
     IOC_Result_T ResultValue = IOC_RESULT_BUG;
-    
+
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                🔧 SETUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
     __IndividualCmdStatePriv_T srvPrivData = {};
-    
+
     // Service setup
     IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
                            .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
                            .pPath = (const char *)"CmdStateUS1_SuccessCompletion"};
-    
+
     static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_PING, IOC_CMDID_TEST_ECHO};
     IOC_CmdUsageArgs_T cmdUsageArgs = {.CbExecCmd_F = __IndividualCmdState_ExecutorCb,
                                        .pCbPrivData = &srvPrivData,
                                        .CmdNum = 2,
                                        .pCmdIDs = supportedCmdIDs};
-    
+
     IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
                              .Flags = IOC_SRVFLAG_NONE,
                              .UsageCapabilites = IOC_LinkUsageCmdExecutor,
                              .UsageArgs = {.pCmd = &cmdUsageArgs}};
-    
+
     IOC_SrvID_T srvID = IOC_ID_INVALID;
     ResultValue = IOC_onlineService(&srvID, &srvArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
-    
+
     // Client setup
     IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
     IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
-    
+
     std::thread cliThread([&] {
         IOC_Result_T connResult = IOC_connectService(&cliLinkID, &connArgs, NULL);
         ASSERT_EQ(IOC_RESULT_SUCCESS, connResult);
     });
-    
+
     IOC_LinkID_T srvLinkID = IOC_ID_INVALID;
     ResultValue = IOC_acceptClient(srvID, &srvLinkID, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
-    
+
     if (cliThread.joinable()) cliThread.join();
-    
+
     printf("🔧 [SETUP] Service and client connected for success testing\n");
-    
+
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                              📋 BEHAVIOR PHASE                                       │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
-    
+
     // Test 1: PING command success
     IOC_CmdDesc_T pingCmd = IOC_CMDDESC_INIT_VALUE;
     pingCmd.CmdID = IOC_CMDID_TEST_PING;
     pingCmd.TimeoutMs = 5000;
-    
+
     printf("📋 [BEHAVIOR] Testing PING command success state\n");
     ResultValue = IOC_execCMD(cliLinkID, &pingCmd, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
-    
+
     // Test 2: ECHO command success
     IOC_CmdDesc_T echoCmd = IOC_CMDDESC_INIT_VALUE;
     echoCmd.CmdID = IOC_CMDID_TEST_ECHO;
     echoCmd.TimeoutMs = 5000;
     const char *echoInput = "Hello World";
     IOC_CmdDesc_setInPayload(&echoCmd, (void *)echoInput, strlen(echoInput));
-    
+
     printf("📋 [BEHAVIOR] Testing ECHO command success state\n");
     ResultValue = IOC_execCMD(cliLinkID, &echoCmd, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
-    
+
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               ✅ VERIFY PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
-    
+
     // Verify PING command success state
     VERIFY_COMMAND_STATE_TRANSITION(&pingCmd, IOC_CMD_STATUS_SUCCESS, IOC_RESULT_SUCCESS);
-    
+
     void *pingResponse = IOC_CmdDesc_getOutData(&pingCmd);
     ASSERT_TRUE(pingResponse != nullptr);
     ASSERT_STREQ("PONG", (char *)pingResponse);
-    
+
     // Verify ECHO command success state
     VERIFY_COMMAND_STATE_TRANSITION(&echoCmd, IOC_CMD_STATUS_SUCCESS, IOC_RESULT_SUCCESS);
-    
+
     void *echoResponse = IOC_CmdDesc_getOutData(&echoCmd);
     ULONG_T echoResponseSize = IOC_CmdDesc_getOutDataSize(&echoCmd);
     ASSERT_TRUE(echoResponse != nullptr);
     ASSERT_EQ(strlen(echoInput), echoResponseSize);
     ASSERT_STREQ(echoInput, (char *)echoResponse);
-    
+
     // Verify service callback state tracking
     ASSERT_TRUE(srvPrivData.ProcessingDetected.load());
     ASSERT_TRUE(srvPrivData.CompletionDetected.load());
-    ASSERT_GE(srvPrivData.StateTransitionCount.load(), 2); // At least 2 commands processed
-    
+    ASSERT_GE(srvPrivData.StateTransitionCount.load(), 2);  // At least 2 commands processed
+
     printf("✅ [VERIFY] PING command success: Status=SUCCESS, Result=SUCCESS, Response=PONG\n");
     printf("✅ [VERIFY] ECHO command success: Status=SUCCESS, Result=SUCCESS, Response=%s\n", (char *)echoResponse);
     printf("✅ [RESULT] Command success state verification completed successfully\n");
-    
+
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               🧹 CLEANUP PHASE                                       │
     // └──────────────────────────────────────────────────────────────────────────────────────┘

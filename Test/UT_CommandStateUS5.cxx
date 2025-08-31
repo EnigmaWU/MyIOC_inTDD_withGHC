@@ -73,21 +73,21 @@
 TEST(UT_CommandStateUS5, verifyStatePerformance_byHighFrequencyOps_expectAcceptableLatency) {
     // TODO: Implement state performance testing under high-frequency operations
     // Measure state update latency and accuracy during maximum command rate
-    
+
     GTEST_SKIP() << "State performance testing pending framework implementation";
 }
 
 TEST(UT_CommandStateUS5, verifyStateConcurrency_byMaxConcurrentCmds_expectAccurateAggregation) {
     // TODO: Implement concurrent command state testing
     // Verify state accuracy with maximum supported concurrent commands per link
-    
+
     GTEST_SKIP() << "State concurrency testing pending framework implementation";
 }
 
 TEST(UT_CommandStateUS5, verifyStateScalability_byMaxSystemCapacity_expectLinearPerformance) {
     // TODO: Implement system-wide state scalability testing
     // Test state operations at maximum supported links and commands
-    
+
     GTEST_SKIP() << "State scalability testing pending framework implementation";
 }
 
