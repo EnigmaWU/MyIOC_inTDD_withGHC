@@ -59,3 +59,4 @@ compile_commands.json
 cmake_*
 TMP
 .DS_Store
+build/

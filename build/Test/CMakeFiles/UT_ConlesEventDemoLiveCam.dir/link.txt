@@ -1,1 +1,0 @@
-/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/UT_ConlesEventDemoLiveCam.dir/link.d CMakeFiles/UT_ConlesEventDemoLiveCam.dir/UT_ConlesEventDemoLiveCam.cxx.o -o UT_ConlesEventDemoLiveCam  ../libMyIOC.a /usr/lib/x86_64-linux-gnu/libgtest.a /usr/lib/x86_64-linux-gnu/libgtest_main.a /usr/lib/x86_64-linux-gnu/libgtest.a
