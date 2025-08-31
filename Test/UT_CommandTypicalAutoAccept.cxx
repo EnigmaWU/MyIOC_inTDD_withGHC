@@ -238,10 +238,10 @@
  * testing
  *
  * [@AC-3,US-4] Link functionality across service restart scenarios
- *  🟢 TC-1: verifyKeepAcceptedLink_byServiceRestart_expectConnectionPersistence
+ *  ⚪ TC-1: verifyKeepAcceptedLink_byServiceRestart_expectConnectionPersistence
  *      @[Purpose]: Validate persistent links remain functional across service restart scenarios
  *      @[Brief]: Service restart with persistent links maintaining connection continuity
- *      @[Status]: IMPLEMENTED & PASSED - Service restart with persistent link functionality working
+ *      @[Status]: REDUNDANT - Service restart functionality already covered by [@AC-2,US-4] TC-1
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * 📋 [US-5]: SERVICE LIFECYCLE COMPARISON (Auto-cleanup vs Persistent Links)
@@ -1676,7 +1676,7 @@ TEST(UT_ConetCommandTypicalAutoAccept, verifyKeepAcceptedLink_byServiceOffline_e
         EXPECT_EQ(IOC_RESULT_SUCCESS, closeResult);
     }
 
-    std::cout << "\n� EXPECTED BEHAVIOR (when IOC_SRVFLAG_KEEP_ACCEPTED_LINK is implemented):\n"
+    std::cout << "\n EXPECTED BEHAVIOR (when IOC_SRVFLAG_KEEP_ACCEPTED_LINK is implemented):\n"
               << "   ✅ PERSISTENCE: Auto-accepted links survive service shutdown\n"
               << "   🔄 LIFECYCLE: Links remain valid across service restart cycles\n"
               << "   👤 RESPONSIBILITY: Application controls link cleanup (not automatic)\n"
@@ -1826,7 +1826,7 @@ TEST(UT_ConetCommandTypicalAutoAccept, verifyKeepAcceptedLink_byManualCleanup_ex
     std::cout << "   📋 RESPONSIBILITY: Application must manually close all server-side LinkIDs\n";
     std::cout << "   ⚠️  RISK: Failure to cleanup = resource leak\n";
 
-    // � TDD RED TEST: Auto-accept should work immediately after service restart
+    // TDD RED TEST: Auto-accept should work immediately after service restart
     // This tests that the auto-accept daemon restarts correctly and can handle new connections
     std::cout << "\n🔥 TDD RED TEST: Auto-accept functionality after service restart\n";
 
@@ -2025,9 +2025,20 @@ TEST(UT_ConetCommandTypicalAutoAccept, verifyKeepAcceptedLink_byManualCleanup_ex
  * - Seamless failover and recovery scenarios
  */
 TEST(UT_ConetCommandTypicalAutoAccept, verifyKeepAcceptedLink_byServiceRestart_expectConnectionPersistence) {
-    // TODO: Implement service restart with persistent links functionality
-    // Test should validate link reuse after service restart without client reconnection
-    GTEST_SKIP() << "TODO: Implement service restart with persistent link functionality test";
+    // REDUNDANT: This test case is already covered by [@AC-2,US-4] TC-1
+    // (verifyKeepAcceptedLink_byManualCleanup_expectProperResourceManagement) The [@AC-2,US-4] TC-1 test already
+    // implements comprehensive service restart functionality including:
+    // 1. Service restart on same URI with persistent links (lines 1833-1910)
+    // 2. Client→restarted service communication validation
+    // 3. New client auto-accept after service restart testing
+    // 4. Connection persistence across service lifecycle validation
+    //
+    // Since the core service restart functionality is thoroughly tested in [@AC-2,US-4] TC-1,
+    // this separate test case would be duplicative and is not needed.
+    //
+    // For service restart testing, refer to the comprehensive implementation in:
+    // verifyKeepAcceptedLink_byManualCleanup_expectProperResourceManagement ([@AC-2,US-4] TC-1)
+    GTEST_SKIP() << "REDUNDANT: Service restart functionality already covered by [@AC-2,US-4] TC-1";
 }
 
 //======>BEGIN US-5: Service Lifecycle Comparison==================================================
