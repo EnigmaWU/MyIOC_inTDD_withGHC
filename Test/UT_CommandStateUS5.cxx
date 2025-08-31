@@ -16,17 +16,17 @@
 /**
  * @brief US-5 Implementation: Performance and Scalability State Verification
  *
- * This file implements all test cases for User Story 5 Acceptance Criteria:
- *  - AC-1: High-frequency operation state performance
- *  - AC-2: Concurrent command state accuracy
- *  - AC-3: Extended operation memory stability
- *  - AC-4: Maximum capacity linear scalability
- *  - AC-5: Resource-constrained graceful degradation
+ * Implements test cases for User Story 5 (see UT_CommandState.h for complete US/AC specification):
+ *  - TC-1: High-frequency operation state performance (AC-1)
+ *  - TC-2: Concurrent command state accuracy (AC-2)
+ *  - TC-3: Extended operation memory stability (AC-3)
+ *  - TC-4: Maximum capacity linear scalability (AC-4)
+ *  - TC-5: Resource-constrained graceful degradation (AC-5)
  *
- * Key API focus:
- *  - IOC_CmdDesc_getStatus(): Performance under concurrent access
- *  - IOC_getLinkState(): Scalability with multiple commands per link
- *  - Resource utilization: Memory and CPU usage during state operations
+ * 🔧 Implementation Focus:
+ *  - State performance under high-load conditions
+ *  - Resource utilization and memory stability
+ *  - Scalability testing with configurable load parameters
  */
 //======>END OF IMPLEMENTATION OVERVIEW===========================================================
 

@@ -16,17 +16,17 @@
 /**
  * @brief US-4 Implementation: Command Timeout and Error State Verification
  *
- * This file implements all test cases for User Story 4 Acceptance Criteria:
- *  - AC-1: Command timeout state transitions
- *  - AC-2: Link state during command timeout
- *  - AC-3: Error state propagation handling
- *  - AC-4: Mixed success/failure command aggregation
- *  - AC-5: Error recovery and state cleanup
+ * Implements test cases for User Story 4 (see UT_CommandState.h for complete US/AC specification):
+ *  - TC-1: Command timeout state transitions (AC-1)
+ *  - TC-2: Link state during command timeout (AC-2)
+ *  - TC-3: Error state propagation handling (AC-3)
+ *  - TC-4: Mixed success/failure command aggregation (AC-4)
+ *  - TC-5: Error recovery and state cleanup (AC-5)
  *
- * Key API focus:
- *  - IOC_CmdDesc_getStatus(): Command timeout and error states
- *  - IOC_getLinkState(): Link state during error conditions
- *  - Error recovery: State cleanup after command failures
+ * 🔧 Implementation Focus:
+ *  - Command timeout and error state handling
+ *  - Error recovery and state cleanup procedures
+ *  - Error propagation between command and link levels
  */
 //======>END OF IMPLEMENTATION OVERVIEW===========================================================
 

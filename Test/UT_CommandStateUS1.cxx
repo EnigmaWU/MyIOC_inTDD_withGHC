@@ -20,90 +20,21 @@
 /**
  * @brief US-1 Implementation: Individual Command State Verification
  *
- * This file implements all test cases for User Story 1 Acceptance Criteria:
- *  - AC-1: Command initialization state verification
- *  - AC-2: Callback mode execution state transitions
- *  - AC-3: Polling mode execution state transitions
- *  - AC-4: Successful command completion states
- *  - AC-5: Error condition state handling
- *  - AC-6: Timeout scenario state management
- *  - AC-7: Concurrent command state isolation
+ * Implements test cases for User Story 1 (see UT_CommandState.h for complete US/AC specification):
+ *  - TC-1: Command initialization state verification (AC-1)
+ *  - TC-2: Callback mode execution state transitions (AC-2)
+ *  - TC-3: Polling mode execution state transitions (AC-3)
+ *  - TC-4: Successful command completion states (AC-4)
+ *  - TC-5: Error condition state handling (AC-5)
+ *  - TC-6: Timeout scenario state management (AC-6)
+ *  - TC-7: Concurrent command state isolation (AC-7)
  *
- * Key API focus:
- *  - IOC_CmdDesc_getStatus(): Retrieve current command execution status
- *  - IOC_CmdDesc_getResult(): Retrieve command execution result
- *  - Command state persistence across IOC_execCMD, IOC_waitCMD, IOC_ackCMD operations
+ * 🔧 Implementation Focus:
+ *  - IOC_CmdDesc_getStatus(), IOC_CmdDesc_getResult() API testing
+ *  - Command state persistence across execution patterns
+ *  - State transition validation and error handling
  */
 //======>END OF IMPLEMENTATION OVERVIEW===========================================================
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF UNIT TESTING DESIGN==============================================================
-/**
- * Design focus:
- *  - Individual command state lifecycle verification independent of link state
- *  - Command status/result field consistency throughout execution
- *  - State transition validation for all command execution patterns
- *  - Error condition state handling and timeout state management
- *  - Command state isolation: multiple commands maintain independent states
- *
- * Test approach:
- *  - Focus on IOC_CmdDesc_T state fields and accessor functions
- *  - Verify state transitions follow expected lifecycle patterns
- *  - Test state persistence across different API call sequences
- *  - Validate error condition state propagation
- *  - Ensure command state independence from link state changes
- */
-///////////////////////////////////////////////////////////////////////////////////////////////////
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF USER STORY=======================================================================
-/**
- * US-1: As a command state developer, I want to verify individual command lifecycle states
- *       so that each IOC_CmdDesc_T properly tracks its execution progress from PENDING
- *       through PROCESSING to final SUCCESS/FAILED/TIMEOUT status,
- *       ensuring accurate command state information for debugging and monitoring.
- */
-//======>END OF USER STORY==========================================================================
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
-//=======>BEGIN OF ACCEPTANCE CRITERIA==============================================================
-/**
- * [@US-1] Individual Command Lifecycle State Verification
- *  AC-1: GIVEN a newly created command descriptor,
- *         WHEN command is initialized,
- *         THEN status should be IOC_CMD_STATUS_PENDING and result should be IOC_RESULT_SUCCESS.
- *
- *  AC-2: GIVEN a command during execution in callback mode,
- *         WHEN command is being processed,
- *         THEN status should transition to IOC_CMD_STATUS_PROCESSING
- *         AND result should remain consistent with execution state.
- *
- *  AC-3: GIVEN a command during execution in polling mode,
- *         WHEN command is processed via IOC_waitCMD + IOC_ackCMD,
- *         THEN status should transition through expected states
- *         AND final status should reflect acknowledgment result.
- *
- *  AC-4: GIVEN a successfully completed command,
- *         WHEN execution completes normally,
- *         THEN status should be IOC_CMD_STATUS_SUCCESS
- *         AND result should be IOC_RESULT_SUCCESS.
- *
- *  AC-5: GIVEN a command that encounters execution errors,
- *         WHEN executor returns failure,
- *         THEN status should be IOC_CMD_STATUS_FAILED
- *         AND result should reflect specific error condition.
- *
- *  AC-6: GIVEN a command that exceeds timeout,
- *         WHEN execution time exceeds specified timeout,
- *         THEN status should be IOC_CMD_STATUS_TIMEOUT
- *         AND result should be IOC_RESULT_TIMEOUT.
- *
- *  AC-7: GIVEN multiple concurrent commands,
- *         WHEN commands execute independently,
- *         THEN each command should maintain independent state
- *         AND state changes should not affect other commands.
- */
-//=======>END OF ACCEPTANCE CRITERIA================================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF TEST CASES=======================================================================

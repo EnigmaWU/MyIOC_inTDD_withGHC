@@ -19,19 +19,19 @@
 /**
  * @brief US-2 Implementation: Link Command Execution State Verification
  *
- * This file implements all test cases for User Story 2 Acceptance Criteria:
- *  - AC-1: CmdInitiator link ready state verification
- *  - AC-2: CmdInitiator link busy state during command execution
- *  - AC-3: CmdExecutor link ready state verification
- *  - AC-4: CmdExecutor link busy state during callback execution
- *  - AC-5: CmdExecutor link polling state verification
- *  - AC-6: Link state aggregation during concurrent commands
- *  - AC-7: Link state return to ready after command completion
+ * Implements test cases for User Story 2 (see UT_CommandState.h for complete US/AC specification):
+ *  - TC-1: CmdInitiator link ready state verification (AC-1)
+ *  - TC-2: CmdInitiator link busy state during command execution (AC-2)
+ *  - TC-3: CmdExecutor link ready state verification (AC-3)
+ *  - TC-4: CmdExecutor link busy state during callback execution (AC-4)
+ *  - TC-5: CmdExecutor link polling state verification (AC-5)
+ *  - TC-6: Link state aggregation during concurrent commands (AC-6)
+ *  - TC-7: Link state return to ready after command completion (AC-7)
  *
- * Key API focus:
- *  - IOC_getLinkState(): Retrieve link main state and command-specific sub-states
- *  - Link state correlation with command execution patterns (callback vs polling)
- *  - Role-based link states: CmdInitiator vs CmdExecutor behavior differences
+ * 🔧 Implementation Focus:
+ *  - IOC_getLinkState() API testing with command-specific sub-states
+ *  - Link state correlation with command execution patterns
+ *  - Role-based link state behavior (CmdInitiator vs CmdExecutor)
  */
 //======>END OF IMPLEMENTATION OVERVIEW===========================================================
 

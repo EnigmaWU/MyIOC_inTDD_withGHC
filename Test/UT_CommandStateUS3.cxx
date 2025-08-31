@@ -16,20 +16,20 @@
 /**
  * @brief US-3 Implementation: Multi-Role Link State Verification
  *
- * This file implements all test cases for User Story 3 Acceptance Criteria:
- *  - AC-1: Multi-role link ready state verification
- *  - AC-2: CmdInitiator priority during multi-role operations
- *  - AC-3: CmdExecutor priority during multi-role operations
- *  - AC-4: Concurrent multi-role operations handling
- *  - AC-5: Role transition state management
+ * Implements test cases for User Story 3 (see UT_CommandState.h for complete US/AC specification):
+ *  - TC-1: Multi-role link ready state verification (AC-1)
+ *  - TC-2: CmdInitiator priority during multi-role operations (AC-2)
+ *  - TC-3: CmdExecutor priority during multi-role operations (AC-3)
+ *  - TC-4: Concurrent multi-role operations handling (AC-4)
+ *  - TC-5: Role transition state management (AC-5)
  *
- * Key API focus:
- *  - IOC_getLinkState(): Multi-role link state priority resolution
- *  - Role capability management: IOC_LinkUsageCmdInitiator | IOC_LinkUsageCmdExecutor
+ * 🔧 Implementation Focus:
+ *  - Multi-role link state priority resolution
+ *  - Role capability management and transitions
  *  - Concurrent command handling with different roles
  */
 //======>END OF IMPLEMENTATION OVERVIEW===========================================================// TODO: Implement
-//multi-role link state test cases
+// multi-role link state test cases
 // This file provides the framework for testing complex link state scenarios
 // involving multiple command roles on a single link connection.
 
