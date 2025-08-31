@@ -85,7 +85,7 @@ static inline void IOC_CmdDesc_initVar(IOC_CmdDesc_pT pCmdDesc) {
     if (!pCmdDesc) return;
 
     memset(pCmdDesc, 0, sizeof(IOC_CmdDesc_T));
-    pCmdDesc->Status = IOC_CMD_STATUS_PENDING;
+    pCmdDesc->Status = IOC_CMD_STATUS_INITIALIZED;  // Fixed: Should be INITIALIZED after initVar
     pCmdDesc->Result = IOC_RESULT_SUCCESS;
 }
 
