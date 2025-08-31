@@ -163,6 +163,13 @@ typedef enum {
     IOC_LinkSubStateDatReceiverBusyRecvDat,    // polling mode
     IOC_LinkSubStateDatReceiverBusyCbRecvDat,  // callback mode
 
+    // CMD Service SubStates
+    IOC_LinkSubStateCmdInitiatorReady,         // Command initiator ready to send commands
+    IOC_LinkSubStateCmdInitiatorBusyExecCmd,   // Command initiator busy executing command (waiting for response)
+    IOC_LinkSubStateCmdExecutorReady,          // Command executor ready to receive commands
+    IOC_LinkSubStateCmdExecutorBusyExecCmd,    // Command executor busy processing command (callback mode)
+    IOC_LinkSubStateCmdExecutorBusyWaitCmd,    // Command executor busy waiting for command (polling mode)
+
 } IOC_LinkSubState_T,
     *IOC_LinkSubState_pT;
 
