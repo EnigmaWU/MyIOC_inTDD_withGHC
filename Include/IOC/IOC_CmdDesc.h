@@ -12,12 +12,23 @@ extern "C" {
  * @brief Command execution status enumeration
  */
 typedef enum {
-    IOC_CMD_STATUS_PENDING = 0,     // Command is waiting to be processed
-    IOC_CMD_STATUS_PROCESSING = 1,  // Command is being processed
-    IOC_CMD_STATUS_SUCCESS = 2,     // Command executed successfully
-    IOC_CMD_STATUS_FAILED = 3,      // Command execution failed
-    IOC_CMD_STATUS_TIMEOUT = 4,     // Command execution timeout
-    // TODO: IOC_CMD_STATUS_CANCELED = 5,    // Command was canceled
+    IOC_CMD_STATUS_INVALID = 0,      // Invalid status
+    IOC_CMD_STATUS_INITIALIZED = 1,  // Command is initialized
+                                     // after initVar, before execCMD
+    IOC_CMD_STATUS_PENDING = 2,      // Command is waiting to be processed
+                                     // after execCMD, before CbExecCmd_F or waitCMD or TIMEOUT
+    IOC_CMD_STATUS_PROCESSING = 3,   // Command is being processed
+                                     // after CbExecCmd_F is called, before return
+                                     // after waitCMD is called success, before ackCMD
+    IOC_CMD_STATUS_SUCCESS = 4,      // Command executed successfully
+                                     // JUST before CbExecCmd_F return, or ackCMD is called
+    IOC_CMD_STATUS_FAILED = 5,       // Command execution failed
+                                     // SAME WITH SUCCESS
+    IOC_CMD_STATUS_TIMEOUT = 6,      // Command execution timeout
+                                     // before CbExecCmd_F is called or waitCMD TIMEOUT is reached
+    // after CbExecCmd_F is calling, while executing too long to return and trigger TIMEOUT
+    // after waitCMD is called, while executing too long to call ackCMD to trigger TIMEOUT
+    // TODO: IOC_CMD_STATUS_CANCELED = 7,    // Command was canceled
 } IOC_CmdStatus_E;
 
 /**
@@ -63,10 +74,10 @@ typedef struct {
 // Initialization macros and functions for command description
 #define IOC_CMDDESC_DECLARE_VAR(VarName) IOC_CmdDesc_T VarName = IOC_CMDDESC_INIT_VALUE
 
-#define IOC_CMDDESC_INIT_VALUE                                                                                        \
-    {                                                                                                                 \
-        .MsgDesc = {0}, .CmdID = 0, .Status = IOC_CMD_STATUS_PENDING, .Result = IOC_RESULT_SUCCESS, .InPayload = {0}, \
-        .OutPayload = {0}, .TimeoutMs = 0, .pExecContext = NULL                                                       \
+#define IOC_CMDDESC_INIT_VALUE                                                                          \
+    {                                                                                                   \
+        .MsgDesc = {0}, .CmdID = 0, .Status = IOC_CMD_STATUS_INITIALIZED, .Result = IOC_RESULT_SUCCESS, \
+        .InPayload = {0}, .OutPayload = {0}, .TimeoutMs = 0, .pExecContext = NULL                       \
     }
 
 // Inline initialization function for command description
@@ -114,6 +125,10 @@ static inline const char *IOC_CmdDesc_getCmdFullNameStr(IOC_CmdDesc_pT pCmdDesc,
 
 static inline const char *IOC_CmdDesc_getStatusStr(IOC_CmdDesc_pT pCmdDesc) {
     switch (pCmdDesc->Status) {
+        case IOC_CMD_STATUS_INVALID:
+            return "INVALID";
+        case IOC_CMD_STATUS_INITIALIZED:
+            return "INITIALIZED";
         case IOC_CMD_STATUS_PENDING:
             return "PENDING";
         case IOC_CMD_STATUS_PROCESSING:
