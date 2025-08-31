@@ -1,1 +1,0 @@
-/usr/bin/c++ -O2 -g -DNDEBUG -Wl,--dependency-file=CMakeFiles/UT_EventTypicalAutoSubscribe.dir/link.d CMakeFiles/UT_EventTypicalAutoSubscribe.dir/UT_EventTypicalAutoSubscribe.cxx.o -o UT_EventTypicalAutoSubscribe  ../libMyIOC.a /usr/lib/x86_64-linux-gnu/libgtest.a /usr/lib/x86_64-linux-gnu/libgtest_main.a /usr/lib/x86_64-linux-gnu/libgtest.a
