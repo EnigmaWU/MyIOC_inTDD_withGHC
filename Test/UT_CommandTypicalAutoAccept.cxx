@@ -1557,9 +1557,37 @@ TEST(UT_ConetCommandTypicalAutoAccept, verifyOnAutoAcceptedCallback_forCallbackP
 
 // [@AC-1,US-4] TC-1: verifyKeepAcceptedLink_byServiceOffline_expectLinkPersistence
 // [@AC-1,US-4] TC-1: Auto-accepted links persist after service offline with IOC_SRVFLAG_KEEP_ACCEPTED_LINK
+/**
+ * @brief Test link persistence behavior across service lifecycle with IOC_SRVFLAG_KEEP_ACCEPTED_LINK
+ *
+ * 🔑 PERSISTENCE CONCEPT EXPLAINED:
+ * - "Persist" = Links survive service shutdown and remain valid for future operations
+ * - WITHOUT persistent flag: Auto-cleanup occurs → links destroyed on service offline
+ * - WITH persistent flag: Links preserved → manual cleanup required, service restart possible
+ *
+ * 📋 PERSISTENCE LIFECYCLE PATTERN:
+ * 1. Service(AutoAccept+KeepLinks) ← Client connects
+ * 2. Auto-accept creates persistent link with bidirectional command capability
+ * 3. Service goes offline → Link persists (vs auto-cleanup destroying link)
+ * 4. Application responsible for manual link cleanup OR service restart reuses link
+ *
+ * 🎯 PERSISTENCE VALUE PROPOSITION:
+ * - Enables service restart without client reconnection overhead
+ * - Supports hot-swappable service deployments with connection continuity
+ * - Provides application-controlled resource management vs automatic cleanup
+ * - Maintains established command channels across service lifecycle events
+ *
+ * ⚖️ PERSISTENCE TRADE-OFFS:
+ * Benefits: Service restart flexibility, connection preservation, reduced reconnection cost
+ * Responsibilities: Manual cleanup required, resource tracking burden, potential leak risk
+ *
+ * 🚩 CURRENT IMPLEMENTATION STATUS:
+ * IOC_SRVFLAG_KEEP_ACCEPTED_LINK flag not yet implemented → Test documents expected behavior
+ * Using IOC_SRVFLAG_AUTO_ACCEPT only to demonstrate current auto-cleanup vs future persistence
+ */
 TEST(UT_ConetCommandTypicalAutoAccept, verifyKeepAcceptedLink_byServiceOffline_expectLinkPersistence) {
-    // NOTE: This test documents expected behavior for IOC_SRVFLAG_KEEP_ACCEPTED_LINK
-    // Currently this flag is not implemented, so we test with IOC_SRVFLAG_AUTO_ACCEPT only
+    // 📋 TEST DESIGN: Document expected persistent link behavior vs current auto-cleanup behavior
+    // This test serves as specification for IOC_SRVFLAG_KEEP_ACCEPTED_LINK implementation
 
     IOC_Result_T ResultValue = IOC_RESULT_BUG;
     __AutoAcceptCmdPriv_T AutoAcceptPriv = {};
@@ -1589,6 +1617,8 @@ TEST(UT_ConetCommandTypicalAutoAccept, verifyKeepAcceptedLink_byServiceOffline_e
 
     std::cout << "\n🔄 TESTING PERSISTENT LINK BEHAVIOR:\n";
     std::cout << "   Setting up auto-accept service with command capability...\n";
+    std::cout << "   🎯 PERSISTENCE GOAL: Validate link survival after service shutdown\n";
+    std::cout << "   📋 CURRENT vs EXPECTED: Documenting auto-cleanup vs persistent behavior\n";
 
     // Client setup and connection
     IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageCmdInitiator};
@@ -1623,50 +1653,103 @@ TEST(UT_ConetCommandTypicalAutoAccept, verifyKeepAcceptedLink_byServiceOffline_e
     ASSERT_TRUE(AutoAcceptPriv.ClientAutoAccepted.load());
     ASSERT_EQ(1, AutoAcceptPriv.AutoAcceptCount.load());
 
-    // Service goes offline to test link persistence
-    std::cout << "   Service shutting down to test link persistence...\n";
+    // Service goes offline to test link persistence behavior
+    std::cout << "   📤 Service shutting down to test link persistence...\n";
+    std::cout << "   🔍 PERSISTENCE TEST: Will link survive service offline?\n";
     ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_offlineService(SrvID));
 
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-    // Test current behavior (auto-cleanup with IOC_SRVFLAG_AUTO_ACCEPT only)
+    // Test current behavior vs expected persistent behavior
     IOC_Result_T closeResult = IOC_closeLink(CliLinkID);
 
-    std::cout << "\n💡 CURRENT BEHAVIOR ANALYSIS:\n";
+    std::cout << "\n💡 CURRENT BEHAVIOR ANALYSIS (IOC_SRVFLAG_AUTO_ACCEPT only):\n";
     if (closeResult == IOC_RESULT_LINK_BROKEN || closeResult != IOC_RESULT_SUCCESS) {
-        std::cout << "   ✓ Current: Links cleaned up after service shutdown\n";
-        std::cout << "   ✓ This is expected behavior with IOC_SRVFLAG_AUTO_ACCEPT only\n";
+        std::cout << "   ❌ CURRENT: Links auto-cleaned after service shutdown\n";
+        std::cout << "   ℹ️  This is expected with auto-cleanup behavior (no persistence)\n";
+        std::cout << "   🎯 IMPLICATION: Client must reconnect when service restarts\n";
     } else {
-        std::cout << "   ✓ Link still exists, manual cleanup successful\n";
+        std::cout << "   ✅ CURRENT: Link still exists, manual cleanup successful\n";
+        std::cout << "   ℹ️  Link survived service shutdown (unexpected with auto-cleanup)\n";
         EXPECT_EQ(IOC_RESULT_SUCCESS, closeResult);
     }
 
-    std::cout << "\n💡 EXPECTED BEHAVIOR (when IOC_SRVFLAG_KEEP_ACCEPTED_LINK is implemented):\n"
-              << "   - Auto-accepted links should persist after service shutdown\n"
-              << "   - Manual cleanup responsibility transfers to application\n"
-              << "   - Links should remain valid for service restart scenarios\n"
-              << "   - Proper resource management prevents memory leaks\n"
-              << "   - Seamless service lifecycle management\n";
+    std::cout << "\n� EXPECTED BEHAVIOR (when IOC_SRVFLAG_KEEP_ACCEPTED_LINK is implemented):\n"
+              << "   ✅ PERSISTENCE: Auto-accepted links survive service shutdown\n"
+              << "   🔄 LIFECYCLE: Links remain valid across service restart cycles\n"
+              << "   👤 RESPONSIBILITY: Application controls link cleanup (not automatic)\n"
+              << "   🔗 CONTINUITY: Established command channels preserved during service updates\n"
+              << "   ⚡ PERFORMANCE: No reconnection overhead for service restart scenarios\n"
+              << "   🛡️  SAFETY: Resource tracking prevents memory leaks in persistent mode\n";
 
-    std::cout << "\n🎯 IMPLEMENTATION REQUIREMENTS:\n"
-              << "   1. Add IOC_SRVFLAG_KEEP_ACCEPTED_LINK flag validation in IOC_Service.c\n"
-              << "   2. Modify link cleanup logic to respect persistent flag\n"
-              << "   3. Implement manual cleanup APIs for application control\n"
-              << "   4. Add service restart reconnection mechanisms\n"
-              << "   5. Ensure proper resource tracking for persistent links\n";
+    std::cout << "\n🎯 IMPLEMENTATION REQUIREMENTS FOR PERSISTENCE:\n"
+              << "   1. 🏗️  Add IOC_SRVFLAG_KEEP_ACCEPTED_LINK flag validation in IOC_Service.c\n"
+              << "   2. 🧹 Modify link cleanup logic to respect persistent flag setting\n"
+              << "   3. 🎛️  Implement manual cleanup APIs for application-controlled resource management\n"
+              << "   4. 🔄 Add service restart reconnection mechanisms for persistent links\n"
+              << "   5. 📊 Ensure proper resource tracking and leak prevention for persistent links\n"
+              << "   6. 📚 Document persistence usage patterns and best practices\n";
+
+    std::cout << "\n📋 PERSISTENCE USE CASES:\n"
+              << "   • Hot-swappable service deployments (zero-downtime updates)\n"
+              << "   • Service restart scenarios (configuration reload, crash recovery)\n"
+              << "   • Long-running client connections with intermittent service availability\n"
+              << "   • Resource-constrained environments (minimize connection setup overhead)\n";
 }
 
 // [@AC-2,US-4] TC-1: verifyKeepAcceptedLink_byManualCleanup_expectProperResourceManagement
 // [@AC-2,US-4] TC-1: Manual cleanup required for persistent auto-accepted links
+/**
+ * @brief Test manual cleanup responsibilities for persistent links
+ *
+ * 🎯 MANUAL CLEANUP CONCEPT:
+ * - Persistent links transfer cleanup responsibility from IOC framework to application
+ * - Application MUST explicitly call IOC_closeLink() for each persistent link
+ * - Failure to cleanup = resource leak (memory, file descriptors, etc.)
+ *
+ * 📋 CLEANUP LIFECYCLE:
+ * 1. Service(AutoAccept+KeepLinks) accepts multiple clients
+ * 2. Service goes offline → Links persist (no auto-cleanup)
+ * 3. Application tracks and manually closes all server-side LinkIDs
+ * 4. Resource accounting validates no leaks occurred
+ *
+ * 🛡️  RESOURCE MANAGEMENT VALIDATION:
+ * - Memory usage before/after cleanup should match
+ * - File descriptor count should return to baseline
+ * - Link registry should be empty after manual cleanup
+ * - No zombie connections should remain in system
+ */
 TEST(UT_ConetCommandTypicalAutoAccept, verifyKeepAcceptedLink_byManualCleanup_expectProperResourceManagement) {
     // TODO: Implement manual cleanup patterns for persistent auto-accepted links
+    // Test should validate proper resource cleanup when application manages persistent links
     GTEST_SKIP() << "TODO: Implement manual cleanup requirement validation for persistent links test";
 }
 
 // [@AC-3,US-4] TC-1: verifyKeepAcceptedLink_byServiceRestart_expectConnectionPersistence
 // [@AC-3,US-4] TC-1: Links remain functional across service restart scenarios
+/**
+ * @brief Test connection continuity across service restart with persistent links
+ *
+ * 🔄 SERVICE RESTART PERSISTENCE:
+ * - Persistent links survive service shutdown and remain valid for restart
+ * - New service instance can inherit and reuse existing persistent links
+ * - Command execution resumes seamlessly after service comes back online
+ *
+ * 📋 RESTART LIFECYCLE:
+ * 1. Service(AutoAccept+KeepLinks) ← Client connects, commands work
+ * 2. Service goes offline → Link persists (not destroyed)
+ * 3. New service starts with same URI → Inherits persistent links
+ * 4. Commands resume working without client reconnection
+ *
+ * 🎯 RESTART VALUE PROPOSITION:
+ * - Zero-downtime service updates (hot deployment)
+ * - Client connection preservation during service maintenance
+ * - Reduced reconnection overhead for long-running operations
+ * - Seamless failover and recovery scenarios
+ */
 TEST(UT_ConetCommandTypicalAutoAccept, verifyKeepAcceptedLink_byServiceRestart_expectConnectionPersistence) {
     // TODO: Implement service restart with persistent links functionality
+    // Test should validate link reuse after service restart without client reconnection
     GTEST_SKIP() << "TODO: Implement service restart with persistent link functionality test";
 }
 
@@ -1674,17 +1757,63 @@ TEST(UT_ConetCommandTypicalAutoAccept, verifyKeepAcceptedLink_byServiceRestart_e
 
 // [@AC-1,US-5] TC-1: verifyServiceLifecycleComparison_byAutoCleanupVsPersistent_expectDifferentBehavior
 // [@AC-1,US-5] TC-1: Compare resource management between default auto-cleanup vs. persistent links
+/**
+ * @brief Comparative analysis of auto-cleanup vs persistent link strategies
+ *
+ * 🔄 CLEANUP STRATEGY COMPARISON:
+ *
+ * AUTO-CLEANUP (Default behavior):
+ * ✅ Pros: Automatic resource management, no memory leaks, simple application code
+ * ❌ Cons: Client reconnection required after service restart, connection setup overhead
+ * 🎯 Use Case: Simple request-response services, stateless operations
+ *
+ * PERSISTENT LINKS (IOC_SRVFLAG_KEEP_ACCEPTED_LINK):
+ * ✅ Pros: Service restart without reconnection, reduced overhead, connection continuity
+ * ❌ Cons: Manual cleanup required, resource tracking burden, potential leak risk
+ * 🎯 Use Case: Long-running services, hot deployments, stateful connections
+ *
+ * 📊 COMPARISON METRICS:
+ * - Resource cleanup timing (immediate vs manual)
+ * - Memory usage patterns (automatic vs tracked)
+ * - Service restart impact (reconnection vs continuity)
+ * - Application complexity (simple vs managed)
+ */
 TEST(UT_ConetCommandTypicalAutoAccept,
      verifyServiceLifecycleComparison_byAutoCleanupVsPersistent_expectDifferentBehavior) {
-    // TODO: Implement comparative resource management analysis
+    // TODO: Implement side-by-side comparison of both cleanup strategies
+    // Test should run identical scenarios with both flag configurations and compare results
     GTEST_SKIP() << "TODO: Implement auto-cleanup vs persistent links comparison test";
 }
 
 // [@AC-2,US-5] TC-1: verifyServiceLifecycleComparison_byPerformanceImplications_expectMeasurableDifference
 // [@AC-2,US-5] TC-1: Performance implications of different cleanup strategies
+/**
+ * @brief Quantitative performance analysis of cleanup strategies under load
+ *
+ * 📊 PERFORMANCE DIMENSIONS:
+ *
+ * STARTUP/SHUTDOWN PERFORMANCE:
+ * - Auto-cleanup: Fast shutdown (automatic), slower restart (reconnection overhead)
+ * - Persistent: Slower shutdown (tracking), faster restart (reuse existing links)
+ *
+ * MEMORY USAGE PATTERNS:
+ * - Auto-cleanup: Lower peak memory (immediate cleanup), predictable usage
+ * - Persistent: Higher peak memory (accumulated links), requires careful management
+ *
+ * SCALABILITY CHARACTERISTICS:
+ * - Auto-cleanup: Linear resource usage, simple scaling model
+ * - Persistent: Complex resource tracking, higher efficiency for restart scenarios
+ *
+ * 🎯 MEASUREMENT TARGETS:
+ * - Connection setup/teardown timing
+ * - Memory consumption under load
+ * - Service restart recovery time
+ * - Resource utilization efficiency
+ */
 TEST(UT_ConetCommandTypicalAutoAccept,
      verifyServiceLifecycleComparison_byPerformanceImplications_expectMeasurableDifference) {
-    // TODO: Implement performance comparison between auto-cleanup vs manual cleanup strategies
+    // TODO: Implement quantitative performance comparison with load testing
+    // Test should measure timing, memory, and resource usage for both cleanup strategies
     GTEST_SKIP() << "TODO: Implement performance implications test for different cleanup strategies";
 }
 
