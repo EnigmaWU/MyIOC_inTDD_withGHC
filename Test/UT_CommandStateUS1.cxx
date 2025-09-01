@@ -59,7 +59,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  *
  * [@AC-1,US-1] Command initialization state verification
- *  � TC-1: verifyCommandInitialization_byNewDescriptor_expectPendingStatus  [STATE]
+ *  🟢 TC-1: verifyCommandInitialization_byNewDescriptor_expectInitializedStatus  [STATE]
  *      @[Purpose]: Validate newly created command descriptors have correct initial state
  *      @[Brief]: Create IOC_CmdDesc_T, verify IOC_CMD_STATUS_INITIALIZED and IOC_RESULT_SUCCESS
  *      @[Status]: IMPLEMENTED ✅ - Basic initialization state verification completed
@@ -70,7 +70,7 @@
  *      @[Status]: IMPLEMENTED ✅ - State transition verification completed
  *
  * [@AC-2,US-1] Command processing state in callback mode
- *  � TC-1: verifyCommandProcessingState_byCallbackExecution_expectProcessingStatus  [STATE]
+ *  🟢 TC-1: verifyCommandProcessingState_byCallbackExecution_expectProcessingStatus  [STATE]
  *      @[Purpose]: Validate command status during callback-based execution
  *      @[Brief]: Execute command via callback, verify IOC_CMD_STATUS_PROCESSING during execution
  *      @[Status]: IMPLEMENTED ✅ - Basic callback processing state tracking completed
@@ -284,7 +284,7 @@ static IOC_Result_T __IndividualCmdState_ExecutorCb(IOC_LinkID_T LinkID, IOC_Cmd
 }
 
 // [@AC-1,US-1] TC-1: Command initialization state verification
-TEST(UT_CommandStateUS1, verifyCommandInitialization_byNewDescriptor_expectPendingStatus) {
+TEST(UT_CommandStateUS1, verifyCommandInitialization_byNewDescriptor_expectInitializedStatus) {
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                🔧 SETUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
@@ -442,11 +442,11 @@ TEST(UT_CommandStateUS1, verifyCommandProcessingState_byCallbackExecution_expect
 
     // CRITICAL: Execute command and verify PENDING state transition
     printf("📋 [BEHAVIOR] State before execCMD: %s\n", IOC_CmdDesc_getStatusStr(&cmdDesc));
-    
+
     // Execute command - this should transition INITIALIZED→PENDING→PROCESSING→SUCCESS
     ResultValue = IOC_execCMD(cliLinkID, &cmdDesc, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
-    
+
     // NOTE: Command should now be in SUCCESS state (callback completed)
     printf("📋 [BEHAVIOR] State after execCMD: %s\n", IOC_CmdDesc_getStatusStr(&cmdDesc));
 
@@ -515,7 +515,7 @@ TEST(UT_CommandStateUS1, verifyStateTransition_fromPending_toProcessing_viaCallb
     // No cleanup needed for this simple state verification
 }
 
-// [@AC-2,US-1] TC-3: State consistency during callback execution  
+// [@AC-2,US-1] TC-3: State consistency during callback execution
 TEST(UT_CommandStateUS1, verifyStateConsistency_duringCallbackExecution_expectStableProcessing) {
     IOC_Result_T ResultValue = IOC_RESULT_BUG;
 
@@ -539,7 +539,7 @@ TEST(UT_CommandStateUS1, verifyStateConsistency_duringCallbackExecution_expectSt
 
         // Verify callback receives PROCESSING state (IOC framework handles PENDING→PROCESSING transition)
         if (entryState != IOC_CMD_STATUS_PROCESSING) {
-            return IOC_RESULT_BUG; // Callback should receive PROCESSING state
+            return IOC_RESULT_BUG;  // Callback should receive PROCESSING state
         }
 
         pPrivData->ProcessingDetected = true;
@@ -550,7 +550,7 @@ TEST(UT_CommandStateUS1, verifyStateConsistency_duringCallbackExecution_expectSt
         // Verify state remains PROCESSING during work
         IOC_CmdStatus_E duringState = IOC_CmdDesc_getStatus(pCmdDesc);
         if (duringState != IOC_CMD_STATUS_PROCESSING) {
-            return IOC_RESULT_BUG; // State should remain PROCESSING
+            return IOC_RESULT_BUG;  // State should remain PROCESSING
         }
 
         // Complete the command
@@ -577,10 +577,8 @@ TEST(UT_CommandStateUS1, verifyStateConsistency_duringCallbackExecution_expectSt
                            .pPath = (const char *)"CmdStateUS1_StateConsistency"};
 
     static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_PING};
-    IOC_CmdUsageArgs_T cmdUsageArgs = {.CbExecCmd_F = detailedExecutorCb,
-                                       .pCbPrivData = &srvPrivData,
-                                       .CmdNum = 1,
-                                       .pCmdIDs = supportedCmdIDs};
+    IOC_CmdUsageArgs_T cmdUsageArgs = {
+        .CbExecCmd_F = detailedExecutorCb, .pCbPrivData = &srvPrivData, .CmdNum = 1, .pCmdIDs = supportedCmdIDs};
 
     IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
                              .Flags = IOC_SRVFLAG_NONE,
@@ -636,7 +634,7 @@ TEST(UT_CommandStateUS1, verifyStateConsistency_duringCallbackExecution_expectSt
 
     // Verify state transition sequence
     ASSERT_GE(srvPrivData.HistoryCount, 1) << "Should record at least PROCESSING state entry";
-    
+
     // Verify callback entry state: should be PROCESSING
     ASSERT_EQ(IOC_CMD_STATUS_PROCESSING, srvPrivData.StatusHistory[0]) << "Callback entry state should be PROCESSING";
 
