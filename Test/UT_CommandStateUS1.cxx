@@ -451,6 +451,66 @@ TEST(UT_CommandStateUS1, verifyStateTransition_fromInitialized_toPending_viaExec
     if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
 }
 
+// Enhanced callback for dual PROCESSING state verification
+static std::mutex s_processingMutex;
+static std::condition_variable s_processingCv;
+static std::atomic<bool> s_processingStateReady{false};
+static std::atomic<bool> s_testCanProceed{false};
+static IOC_CmdDesc_pT s_sharedCmdDesc = nullptr;
+static std::atomic<bool> s_callbackProcessingVerified{false};
+
+static IOC_Result_T __AsyncProcessingExecutorCb(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, void *pCbPriv) {
+    __IndividualCmdStatePriv_T *pPrivData = (__IndividualCmdStatePriv_T *)pCbPriv;
+    if (!pPrivData || !pCmdDesc) return IOC_RESULT_INVALID_PARAM;
+
+    std::unique_lock<std::mutex> lock(s_processingMutex);
+
+    // OPTION-1: Verify PROCESSING state INSIDE callback context
+    IOC_CmdStatus_E callbackEntryState = IOC_CmdDesc_getStatus(pCmdDesc);
+    printf("🔍 [CALLBACK] Entry state: %s\n", callbackEntryState == IOC_CMD_STATUS_PROCESSING ? "PROCESSING" : "OTHER");
+
+    // ✅ VERIFICATION 1: PROCESSING state check inside callback
+    if (callbackEntryState == IOC_CMD_STATUS_PROCESSING) {
+        s_callbackProcessingVerified = true;
+        printf("✅ [CALLBACK] PROCESSING state verified inside callback context\n");
+    } else {
+        printf("❌ [CALLBACK] Expected PROCESSING but got state: %d\n", callbackEntryState);
+        return IOC_RESULT_BUG;
+    }
+
+    pPrivData->ProcessingDetected = true;
+
+    // Record PROCESSING state in history
+    if (pPrivData->HistoryCount < 10) {
+        pPrivData->StatusHistory[pPrivData->HistoryCount++] = IOC_CMD_STATUS_PROCESSING;
+    }
+
+    // Share command descriptor for test context verification
+    s_sharedCmdDesc = pCmdDesc;
+    s_processingStateReady = true;
+
+    // Signal test context that PROCESSING state is ready for verification
+    s_processingCv.notify_one();
+    lock.unlock();
+
+    // Wait for test context to complete its PROCESSING state verification
+    std::unique_lock<std::mutex> waitLock(s_processingMutex);
+    s_processingCv.wait(waitLock, [&] { return s_testCanProceed.load(); });
+
+    // Process the command after test verification
+    IOC_CmdID_T CmdID = IOC_CmdDesc_getCmdID(pCmdDesc);
+    if (CmdID == IOC_CMDID_TEST_PING) {
+        IOC_CmdDesc_setOutPayload(pCmdDesc, (void *)"PONG", 4);
+        IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_SUCCESS);
+        IOC_CmdDesc_setResult(pCmdDesc, IOC_RESULT_SUCCESS);
+    }
+
+    pPrivData->CompletionDetected = true;
+    pPrivData->StateTransitionCount++;
+
+    return IOC_RESULT_SUCCESS;
+}
+
 // [@AC-2,US-1] TC-1: Command processing state in callback mode
 TEST(UT_CommandStateUS1, verifyCommandProcessingState_byCallbackExecution_expectProcessingStatus) {
     IOC_Result_T ResultValue = IOC_RESULT_BUG;
@@ -460,13 +520,19 @@ TEST(UT_CommandStateUS1, verifyCommandProcessingState_byCallbackExecution_expect
     // └──────────────────────────────────────────────────────────────────────────────────────┘
     __IndividualCmdStatePriv_T srvPrivData = {};
 
-    // Service setup (CmdExecutor with callback)
+    // Reset static variables for this test
+    s_processingStateReady = false;
+    s_testCanProceed = false;
+    s_sharedCmdDesc = nullptr;
+    s_callbackProcessingVerified = false;
+
+    // Service setup with enhanced callback
     IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
                            .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
                            .pPath = (const char *)"CmdStateUS1_CallbackProcessing"};
 
     static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_PING};
-    IOC_CmdUsageArgs_T cmdUsageArgs = {.CbExecCmd_F = __IndividualCmdState_ExecutorCb,
+    IOC_CmdUsageArgs_T cmdUsageArgs = {.CbExecCmd_F = __AsyncProcessingExecutorCb,
                                        .pCbPrivData = &srvPrivData,
                                        .CmdNum = 1,
                                        .pCmdIDs = supportedCmdIDs};
@@ -480,13 +546,7 @@ TEST(UT_CommandStateUS1, verifyCommandProcessingState_byCallbackExecution_expect
     ResultValue = IOC_onlineService(&srvID, &srvArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
 
-    printf("🔧 [SETUP] Service online with callback executor: SrvID=%llu\n", srvID);
-
-    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
-    // │                              📋 BEHAVIOR PHASE                                       │
-    // └──────────────────────────────────────────────────────────────────────────────────────┘
-
-    // Client setup and command execution
+    // Client setup
     IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
     IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
 
@@ -495,45 +555,70 @@ TEST(UT_CommandStateUS1, verifyCommandProcessingState_byCallbackExecution_expect
         ASSERT_EQ(IOC_RESULT_SUCCESS, connResult);
     });
 
-    // Accept client
     IOC_LinkID_T srvLinkID = IOC_ID_INVALID;
     ResultValue = IOC_acceptClient(srvID, &srvLinkID, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
 
     if (cliThread.joinable()) cliThread.join();
 
-    // Create and execute command
+    printf("🔧 [SETUP] Enhanced async callback service ready for PROCESSING state verification\n");
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                              📋 BEHAVIOR PHASE                                       │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+
     IOC_CmdDesc_T cmdDesc = IOC_CMDDESC_INIT_VALUE;
     cmdDesc.CmdID = IOC_CMDID_TEST_PING;
     cmdDesc.TimeoutMs = 5000;
 
-    // Verify initial state (should be INITIALIZED after macro initialization)
     VERIFY_COMMAND_STATUS(&cmdDesc, IOC_CMD_STATUS_INITIALIZED);
+    printf("📋 [BEHAVIOR] Initial state: %s\n", IOC_CmdDesc_getStatusStr(&cmdDesc));
 
-    printf("📋 [BEHAVIOR] Executing command via callback mode\n");
+    // Execute command asynchronously to capture PROCESSING state
+    printf("📋 [BEHAVIOR] Executing command with async PROCESSING state capture\n");
 
-    // CRITICAL: Execute command and verify PENDING state transition
-    printf("📋 [BEHAVIOR] State before execCMD: %s\n", IOC_CmdDesc_getStatusStr(&cmdDesc));
-
-    // Execute command - this should transition INITIALIZED→PENDING→PROCESSING→SUCCESS
-    ResultValue = IOC_execCMD(cliLinkID, &cmdDesc, NULL);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
-
-    // NOTE: Command should now be in SUCCESS state (callback completed)
-    printf("📋 [BEHAVIOR] State after execCMD: %s\n", IOC_CmdDesc_getStatusStr(&cmdDesc));
+    std::thread execThread([&] {
+        ResultValue = IOC_execCMD(cliLinkID, &cmdDesc, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    });
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               ✅ VERIFY PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
 
-    // Verify final command state
+    // OPTION-2: Wait for callback to signal PROCESSING state is ready
+    {
+        std::unique_lock<std::mutex> lock(s_processingMutex);
+        s_processingCv.wait(lock, [&] { return s_processingStateReady.load(); });
+
+        // ✅ ASSERTION 1: Verify callback successfully verified PROCESSING state
+        ASSERT_TRUE(s_callbackProcessingVerified.load()) << "Callback should have verified PROCESSING state";
+
+        // ✅ ASSERTION 2: PROCESSING state verification in TEST context
+        ASSERT_TRUE(s_sharedCmdDesc != nullptr) << "Shared command descriptor should be available";
+        IOC_CmdStatus_E testContextState = IOC_CmdDesc_getStatus(s_sharedCmdDesc);
+        printf("🔍 [TEST] Verifying PROCESSING state in test context: %s\n",
+               testContextState == IOC_CMD_STATUS_PROCESSING ? "PROCESSING" : "OTHER");
+
+        ASSERT_EQ(IOC_CMD_STATUS_PROCESSING, testContextState) << "Test context should verify PROCESSING state";
+
+        printf("✅ [VERIFY] PROCESSING state verified in BOTH callback and test contexts\n");
+
+        // Signal callback to proceed with completion
+        s_testCanProceed = true;
+        s_processingCv.notify_one();
+    }
+
+    // Wait for command execution to complete
+    if (execThread.joinable()) execThread.join();
+
+    // Verify final state after completion
     VERIFY_COMMAND_STATUS(&cmdDesc, IOC_CMD_STATUS_SUCCESS);
     VERIFY_COMMAND_RESULT(&cmdDesc, IOC_RESULT_SUCCESS);
 
-    // Verify callback tracked state transitions
+    // Verify callback tracking
     ASSERT_TRUE(srvPrivData.ProcessingDetected.load()) << "Processing state should be detected in callback";
     ASSERT_TRUE(srvPrivData.CompletionDetected.load()) << "Completion should be detected in callback";
-    ASSERT_GT(srvPrivData.StateTransitionCount.load(), 0) << "State transitions should be tracked";
 
     // Verify response data
     void *responseData = IOC_CmdDesc_getOutData(&cmdDesc);
@@ -542,9 +627,11 @@ TEST(UT_CommandStateUS1, verifyCommandProcessingState_byCallbackExecution_expect
     ASSERT_EQ(4, responseSize);
     ASSERT_STREQ("PONG", (char *)responseData);
 
-    printf("✅ [VERIFY] Command processing state verified: INITIALIZED→PENDING→PROCESSING→SUCCESS\n");
-    printf("✅ [VERIFY] State transitions tracked: %d transitions detected\n", srvPrivData.StateTransitionCount.load());
-    printf("✅ [RESULT] Callback mode command processing state test completed successfully\n");
+    printf("✅ [VERIFY] Command processing state verified with DUAL assertions:\n");
+    printf("   • ASSERTION 1: PROCESSING verified inside callback context ✅\n");
+    printf("   • ASSERTION 2: PROCESSING verified in test context ✅\n");
+    printf("   • Final state: SUCCESS ✅\n");
+    printf("✅ [RESULT] Enhanced callback mode processing state test completed successfully\n");
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               🧹 CLEANUP PHASE                                       │
