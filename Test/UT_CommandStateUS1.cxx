@@ -839,6 +839,21 @@ TEST(UT_CommandStateUS1, verifyStateConsistency_duringCallbackExecution_expectSt
     IOC_Result_T ResultValue = IOC_RESULT_BUG;
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                    📋 STATE ASSERTION STRATEGY FOR CALLBACK MODE                     │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    // PENDING State: Brief framework-managed transition (INITIALIZED→PENDING→PROCESSING)
+    //   - Cannot be directly asserted in callback mode (too fast, framework-internal)
+    //   - Verified implicitly by successful PROCESSING state reception in callback
+    //   - For explicit PENDING verification, see polling mode tests (TC-1 of AC-3)
+    //
+    // PROCESSING State: Explicitly asserted in multiple contexts:
+    //   - ASSERTION 1,7: Callback receives PROCESSING state (framework transition complete)
+    //   - ASSERTION 2: State remains PROCESSING during callback execution (stability)
+    //   - ASSERTION 3,4: Pre/post execution states (INITIALIZED→SUCCESS via PROCESSING)
+    //
+    // This design follows TDD principles while respecting framework timing constraints.
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                🔧 SETUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
     __IndividualCmdStatePriv_T srvPrivData = {};
@@ -856,21 +871,29 @@ TEST(UT_CommandStateUS1, verifyStateConsistency_duringCallbackExecution_expectSt
             pPrivData->StatusHistory[pPrivData->HistoryCount++] = entryState;
         }
 
-        // Verify callback receives PROCESSING state (IOC framework handles PENDING→PROCESSING transition)
+        // ✅ CRITICAL ASSERTION 1: Verify callback receives PROCESSING state (framework handles PENDING→PROCESSING)
+        printf("🔍 [CALLBACK] Entry state verification: %s\n",
+               entryState == IOC_CMD_STATUS_PROCESSING ? "PROCESSING" : "UNEXPECTED");
         if (entryState != IOC_CMD_STATUS_PROCESSING) {
-            return IOC_RESULT_BUG;  // Callback should receive PROCESSING state
+            printf("❌ [CALLBACK] ASSERTION FAILURE: Expected PROCESSING but got state: %d\n", entryState);
+            return IOC_RESULT_BUG;  // This will cause test failure
         }
+        printf("✅ [CALLBACK] PROCESSING state verified at callback entry\n");
 
         pPrivData->ProcessingDetected = true;
 
         // Simulate processing work
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
-        // Verify state remains PROCESSING during work
+        // ✅ CRITICAL ASSERTION 2: Verify state remains PROCESSING during work (stability check)
         IOC_CmdStatus_E duringState = IOC_CmdDesc_getStatus(pCmdDesc);
+        printf("🔍 [CALLBACK] State during processing: %s\n",
+               duringState == IOC_CMD_STATUS_PROCESSING ? "PROCESSING" : "UNEXPECTED");
         if (duringState != IOC_CMD_STATUS_PROCESSING) {
-            return IOC_RESULT_BUG;  // State should remain PROCESSING
+            printf("❌ [CALLBACK] ASSERTION FAILURE: Processing state not stable, got: %d\n", duringState);
+            return IOC_RESULT_BUG;  // This will cause test failure
         }
+        printf("✅ [CALLBACK] PROCESSING state stability verified during execution\n");
 
         // Complete the command
         IOC_CmdID_T CmdID = IOC_CmdDesc_getCmdID(pCmdDesc);
@@ -936,41 +959,64 @@ TEST(UT_CommandStateUS1, verifyStateConsistency_duringCallbackExecution_expectSt
     printf("📋 [BEHAVIOR] Initial state: %s\n", IOC_CmdDesc_getStatusStr(&cmdDesc));
     VERIFY_COMMAND_STATUS(&cmdDesc, IOC_CMD_STATUS_INITIALIZED);
 
+    // ✅ CRITICAL ASSERTION 3: Capture pre-execution state (should be INITIALIZED)
+    IOC_CmdStatus_E preExecStatus = IOC_CmdDesc_getStatus(&cmdDesc);
+    ASSERT_EQ(IOC_CMD_STATUS_INITIALIZED, preExecStatus) << "Command should be INITIALIZED before execCMD call";
+    printf("✅ [BEHAVIOR] Pre-execution state verified: INITIALIZED\n");
+
     // Execute command with detailed state tracking
     printf("📋 [BEHAVIOR] Executing command with state consistency monitoring\n");
+    printf("📋 [BEHAVIOR] Note: PENDING state occurs briefly during execCMD (framework-managed)\n");
     ResultValue = IOC_execCMD(cliLinkID, &cmdDesc, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
 
+    // ✅ CRITICAL ASSERTION 4: Verify post-execution state (should be SUCCESS after callback completion)
+    IOC_CmdStatus_E postExecStatus = IOC_CmdDesc_getStatus(&cmdDesc);
+    ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, postExecStatus)
+        << "Command should be SUCCESS after synchronous execCMD completion";
+
     printf("📋 [BEHAVIOR] Final state: %s\n", IOC_CmdDesc_getStatusStr(&cmdDesc));
+    printf("✅ [BEHAVIOR] Post-execution state verified: SUCCESS\n");
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               ✅ VERIFY PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
 
-    // Verify final state
+    // ✅ CRITICAL ASSERTION 5: Verify final state consistency
     VERIFY_COMMAND_STATUS(&cmdDesc, IOC_CMD_STATUS_SUCCESS);
     VERIFY_COMMAND_RESULT(&cmdDesc, IOC_RESULT_SUCCESS);
 
-    // Verify state transition sequence
+    // ✅ CRITICAL ASSERTION 6: Verify state transition sequence was recorded
     ASSERT_GE(srvPrivData.HistoryCount, 1) << "Should record at least PROCESSING state entry";
+    ASSERT_LE(srvPrivData.HistoryCount, 10) << "History count should be within expected bounds";
 
-    // Verify callback entry state: should be PROCESSING
-    ASSERT_EQ(IOC_CMD_STATUS_PROCESSING, srvPrivData.StatusHistory[0]) << "Callback entry state should be PROCESSING";
+    // ✅ CRITICAL ASSERTION 7: Verify callback entry state was PROCESSING (from history)
+    ASSERT_EQ(IOC_CMD_STATUS_PROCESSING, srvPrivData.StatusHistory[0])
+        << "Callback entry state should be PROCESSING (framework handles INITIALIZED→PENDING→PROCESSING)";
 
-    // Verify processing was detected
-    ASSERT_TRUE(srvPrivData.ProcessingDetected.load());
-    ASSERT_TRUE(srvPrivData.CompletionDetected.load());
+    // ✅ CRITICAL ASSERTION 8: Verify PROCESSING state detection flags
+    ASSERT_TRUE(srvPrivData.ProcessingDetected.load()) << "ProcessingDetected flag should be set by callback";
+    ASSERT_TRUE(srvPrivData.CompletionDetected.load()) << "CompletionDetected flag should be set by callback";
 
-    // Verify final state is SUCCESS (after callback completion)
-    VERIFY_COMMAND_STATUS(&cmdDesc, IOC_CMD_STATUS_SUCCESS);
+    // ✅ CRITICAL ASSERTION 9: Verify state transition counting
+    ASSERT_EQ(1, srvPrivData.StateTransitionCount.load()) << "Should record exactly 1 command execution";
 
-    printf("✅ [VERIFY] State consistency verified:\n");
-    printf("   • Callback entry state: PROCESSING ✅\n");
-    printf("   • Final completion state: SUCCESS ✅\n");
-    printf("   • Processing stability: Maintained during execution ✅\n");
-    printf("   • Transition count: %d states recorded ✅\n", srvPrivData.HistoryCount);
-    printf("   • Framework behavior: IOC handles PENDING→PROCESSING automatically ✅\n");
-    printf("✅ [RESULT] State consistency verification completed successfully\n");
+    // ✅ CRITICAL ASSERTION 10: Verify final state consistency (double-check)
+    IOC_CmdStatus_E finalStatus = IOC_CmdDesc_getStatus(&cmdDesc);
+    IOC_Result_T finalResult = IOC_CmdDesc_getResult(&cmdDesc);
+    ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, finalStatus) << "Final status should be SUCCESS";
+    ASSERT_EQ(IOC_RESULT_SUCCESS, finalResult) << "Final result should be SUCCESS";
+
+    printf("✅ [VERIFY] Complete state consistency verification:\n");
+    printf("   • Pre-execution state: INITIALIZED ✅ (ASSERTION 3)\n");
+    printf("   • Callback entry state: PROCESSING ✅ (ASSERTIONS 1,7)\n");
+    printf("   • Processing stability: MAINTAINED ✅ (ASSERTION 2)\n");
+    printf("   • Post-execution state: SUCCESS ✅ (ASSERTIONS 4,5,10)\n");
+    printf("   • State detection flags: SET ✅ (ASSERTION 8)\n");
+    printf("   • Transition count: %d recorded ✅ (ASSERTION 9)\n", srvPrivData.StateTransitionCount.load());
+    printf("   • History count: %d states ✅ (ASSERTION 6)\n", srvPrivData.HistoryCount);
+    printf("   • Framework behavior: PENDING→PROCESSING transition handled automatically ✅\n");
+    printf("✅ [RESULT] Enhanced state consistency with comprehensive assertions completed successfully\n");
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               🧹 CLEANUP PHASE                                       │
