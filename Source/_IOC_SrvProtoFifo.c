@@ -42,6 +42,36 @@
 #include "_IOC.h"
 #include "_IOC_EvtDescQueue.h"
 
+// Timeout enforcement callback wrapper structures and functions
+typedef struct {
+    pthread_cond_t completionCond;
+    pthread_mutex_t completionMutex;
+    bool isCompleted;
+    IOC_Result_T callbackResult;
+    IOC_CmdDesc_pT pCmdDesc;
+    IOC_CmdUsageArgs_pT pCmdUsageArgs;
+    IOC_LinkID_T linkID;
+} _IOC_TimeoutContext_T;
+
+static void* __IOC_timeoutCallbackWrapper(void* arg) {
+    _IOC_TimeoutContext_T* ctx = (_IOC_TimeoutContext_T*)arg;
+    printf("[DEBUG CALLBACK THREAD] Starting callback execution\n");
+    
+    // Execute the actual callback
+    IOC_Result_T result = ctx->pCmdUsageArgs->CbExecCmd_F(
+        ctx->linkID, ctx->pCmdDesc, ctx->pCmdUsageArgs->pCbPrivData);
+    
+    // Signal completion
+    pthread_mutex_lock(&ctx->completionMutex);
+    ctx->callbackResult = result;
+    ctx->isCompleted = true;
+    pthread_cond_signal(&ctx->completionCond);
+    pthread_mutex_unlock(&ctx->completionMutex);
+    
+    printf("[DEBUG CALLBACK THREAD] Callback completed with result=%d\n", result);
+    return NULL;
+}
+
 typedef struct _IOC_ProtoFifoLinkObjectStru _IOC_ProtoFifoLinkObject_T;
 typedef _IOC_ProtoFifoLinkObject_T *_IOC_ProtoFifoLinkObject_pT;
 
@@ -1929,15 +1959,92 @@ static IOC_Result_T __IOC_execCmd_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_C
         return IOC_RESULT_NOT_SUPPORT;
     }
 
-    // Execute command via callback (synchronous in ProtoFifo)
+    // 🎯 TIMEOUT ENFORCEMENT: Execute command via callback with timeout monitoring
     pCmdDesc->Status = IOC_CMD_STATUS_PROCESSING;
-    IOC_Result_T Result = pCmdUsageArgs->CbExecCmd_F(pPeerLinkObj->ID, pCmdDesc, pCmdUsageArgs->pCbPrivData);
 
-    // Update command status based on result
-    if (Result == IOC_RESULT_SUCCESS) {
+    // Extract timeout value from command descriptor
+    ULONG_T timeoutMs = pCmdDesc->TimeoutMs;
+    if (timeoutMs == 0) timeoutMs = 5000;  // Default 5s timeout
+
+    printf("[DEBUG execCmd_ofProtoFifo] TIMEOUT ENFORCEMENT: Starting callback with %lums timeout\n", timeoutMs);
+
+    // Timeout enforcement using pthread timed execution
+    IOC_Result_T Result = IOC_RESULT_TIMEOUT;
+    bool callbackCompleted = false;
+    
+    // Create timeout tracking structure
+    _IOC_TimeoutContext_T timeoutContext = {
+        .isCompleted = false,
+        .callbackResult = IOC_RESULT_BUG,
+        .pCmdDesc = pCmdDesc,
+        .pCmdUsageArgs = pCmdUsageArgs,
+        .linkID = pPeerLinkObj->ID
+    };
+    
+    pthread_mutex_init(&timeoutContext.completionMutex, NULL);
+    pthread_cond_init(&timeoutContext.completionCond, NULL);
+
+    // Execute callback in separate thread to enable timeout enforcement
+    pthread_t callbackThread;
+    int threadResult = pthread_create(&callbackThread, NULL, __IOC_timeoutCallbackWrapper, &timeoutContext);
+
+    if (threadResult != 0) {
+        printf("[DEBUG execCmd_ofProtoFifo] ERROR: Failed to create callback thread\n");
+        Result = IOC_RESULT_BUG;
+    } else {
+        // Wait for callback completion or timeout
+        pthread_mutex_lock(&timeoutContext.completionMutex);
+        
+        struct timespec timeout;
+        clock_gettime(CLOCK_REALTIME, &timeout);
+        timeout.tv_sec += timeoutMs / 1000;
+        timeout.tv_nsec += (timeoutMs % 1000) * 1000000;
+        if (timeout.tv_nsec >= 1000000000) {
+            timeout.tv_sec++;
+            timeout.tv_nsec -= 1000000000;
+        }
+
+        int waitResult = 0;
+        while (!timeoutContext.isCompleted && waitResult == 0) {
+            waitResult = pthread_cond_timedwait(&timeoutContext.completionCond, 
+                                              &timeoutContext.completionMutex, &timeout);
+        }
+
+        if (timeoutContext.isCompleted) {
+            // Callback completed within timeout
+            Result = timeoutContext.callbackResult;
+            callbackCompleted = true;
+            printf("[DEBUG execCmd_ofProtoFifo] TIMEOUT SUCCESS: Callback completed in time with result=%d\n", Result);
+        } else {
+            // Timeout occurred
+            Result = IOC_RESULT_TIMEOUT;
+            printf("[DEBUG execCmd_ofProtoFifo] TIMEOUT ENFORCED: Callback exceeded %lums timeout\n", timeoutMs);
+            
+            // Cancel the thread (callback will continue but result ignored)
+            pthread_cancel(callbackThread);
+        }
+
+        pthread_mutex_unlock(&timeoutContext.completionMutex);
+        pthread_join(callbackThread, NULL);
+    }
+
+    // Cleanup timeout tracking
+    pthread_mutex_destroy(&timeoutContext.completionMutex);
+    pthread_cond_destroy(&timeoutContext.completionCond);
+
+    // 🎯 STRICT TIMEOUT STATE UPDATE: Based on timeout enforcement result
+    if (Result == IOC_RESULT_TIMEOUT) {
+        pCmdDesc->Status = IOC_CMD_STATUS_TIMEOUT;
+        pCmdDesc->Result = IOC_RESULT_TIMEOUT;
+        printf("[DEBUG execCmd_ofProtoFifo] TIMEOUT STATE: Set to IOC_CMD_STATUS_TIMEOUT\n");
+    } else if (Result == IOC_RESULT_SUCCESS && callbackCompleted) {
         pCmdDesc->Status = IOC_CMD_STATUS_SUCCESS;
+        pCmdDesc->Result = IOC_RESULT_SUCCESS;
+        printf("[DEBUG execCmd_ofProtoFifo] SUCCESS STATE: Callback completed successfully\n");
     } else {
         pCmdDesc->Status = IOC_CMD_STATUS_FAILED;
+        pCmdDesc->Result = Result;
+        printf("[DEBUG execCmd_ofProtoFifo] FAILED STATE: Callback failed with result=%d\n", Result);
     }
 
     return Result;
