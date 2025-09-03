@@ -1864,9 +1864,15 @@ static IOC_Result_T __IOC_execCmd_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_C
             return IOC_RESULT_TOO_MANY_QUEUING_EVTDESC;
         }
 
-        // Enqueue command
+        // Enqueue command with proper state transition: INITIALIZED → PENDING
         ULONG_T queueIndex = pPeerFifoLinkObj->CmdPolling.QueuedCmdNum % 64;
         pPeerFifoLinkObj->CmdPolling.QueuedCmdDescs[queueIndex] = *pCmdDesc;  // Copy command
+
+        // 🎯 TDD FIX: Implement INITIALIZED → PENDING transition during execCMD (polling mode)
+        pPeerFifoLinkObj->CmdPolling.QueuedCmdDescs[queueIndex].Status = IOC_CMD_STATUS_PENDING;
+        printf("[DEBUG execCmd_ofProtoFifo] POLLING MODE: State transition INITIALIZED → PENDING for SeqID=%lu\n",
+               pCmdDesc->MsgDesc.SeqID);
+
         pPeerFifoLinkObj->CmdPolling.QueuedCmdNum++;
 
         printf("[DEBUG execCmd_ofProtoFifo] POLLING MODE: Command queued at index %lu (total=%lu) with SeqID=%lu\n",

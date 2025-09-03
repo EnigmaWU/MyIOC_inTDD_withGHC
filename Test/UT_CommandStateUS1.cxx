@@ -1179,22 +1179,17 @@ TEST(UT_CommandStateUS1, verifyStateTransition_fromPending_toProcessing_viaPolli
             printf("📋 [SERVER] Command received via IOC_waitCMD: CmdID=%llu\n", IOC_CmdDesc_getCmdID(&waitCmdDesc));
             printf("📋 [SERVER] Command state after waitCMD: %s\n", IOC_CmdDesc_getStatusStr(&waitCmdDesc));
 
-            // ✅ CRITICAL ASSERTION 1: Verify command state when received via IOC_waitCMD
+            // ✅ CRITICAL ASSERTION 1: Verify command is received in PENDING state via IOC_waitCMD
+            // TDD RED PHASE: This should be the CORRECT behavior - commands sent via execCMD should be PENDING when
+            // received
             IOC_CmdStatus_E waitStatus = IOC_CmdDesc_getStatus(&waitCmdDesc);
             printf("📋 [SERVER] Received command status: %s\n", IOC_CmdDesc_getStatusStr(&waitCmdDesc));
 
-            // In polling mode, commands may be received in INITIALIZED state and must be manually transitioned to
-            // PENDING
-            if (waitStatus == IOC_CMD_STATUS_INITIALIZED) {
-                printf("📋 [SERVER] Command received in INITIALIZED state - transitioning to PENDING manually\n");
-                IOC_CmdDesc_setStatus(&waitCmdDesc, IOC_CMD_STATUS_PENDING);
-                waitStatus = IOC_CmdDesc_getStatus(&waitCmdDesc);
-                ASSERT_EQ(IOC_CMD_STATUS_PENDING, waitStatus) << "Command should be PENDING after manual transition";
-            } else if (waitStatus == IOC_CMD_STATUS_PENDING) {
-                printf("📋 [SERVER] Command received in PENDING state (framework managed)\n");
-            } else {
-                FAIL() << "Command received in unexpected state: " << waitStatus;
-            }
+            // 🔴 RED ASSERTION: Commands should be PENDING when received via IOC_waitCMD (currently fails - needs
+            // framework fix)
+            ASSERT_EQ(IOC_CMD_STATUS_PENDING, waitStatus)
+                << "TDD RED: Commands should be PENDING when received via IOC_waitCMD (framework needs to implement "
+                   "INITIALIZED→PENDING transition during execCMD)";
 
             // Process the command manually (no callback in polling mode)
             IOC_CmdID_T cmdID = IOC_CmdDesc_getCmdID(&waitCmdDesc);
@@ -1244,39 +1239,26 @@ TEST(UT_CommandStateUS1, verifyStateTransition_fromPending_toProcessing_viaPolli
         printf("📋 [CLIENT] Initial command state: %s\n", IOC_CmdDesc_getStatusStr(&cmdDesc));
         VERIFY_COMMAND_STATUS(&cmdDesc, IOC_CMD_STATUS_INITIALIZED);
 
-        // Send command (should be non-blocking in polling mode and return immediately)
-        printf("📋 [CLIENT] Sending command via execCMD (non-blocking for polling mode)\n");
+        // Send command (execCMD is SYNCHRONOUS and will complete the full workflow)
+        printf("📋 [CLIENT] Sending command via execCMD (synchronous - will wait for completion)\n");
         ResultValue = IOC_execCMD(cliLinkID, &cmdDesc, NULL);
         ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
 
         printf("📋 [CLIENT] Command state after execCMD: %s\n", IOC_CmdDesc_getStatusStr(&cmdDesc));
 
-        // ✅ CRITICAL ASSERTION 3: In polling mode, command state varies based on timing
+        // ✅ CRITICAL ASSERTION 3: After execCMD completes (SYNCHRONOUS), command should be SUCCESS
+        // This is the correct expectation since execCMD is synchronous and completes the full workflow
         IOC_CmdStatus_E postExecStatus = IOC_CmdDesc_getStatus(&cmdDesc);
-        if (postExecStatus == IOC_CMD_STATUS_INITIALIZED) {
-            printf("📋 [CLIENT] ✅ VERIFIED: Command still INITIALIZED after execCMD (polling mode)\n");
-        } else if (postExecStatus == IOC_CMD_STATUS_PENDING) {
-            printf("📋 [CLIENT] ✅ VERIFIED: Command in PENDING state after execCMD (polling mode)\n");
-        } else if (postExecStatus == IOC_CMD_STATUS_SUCCESS) {
-            printf("📋 [CLIENT] ⚠️ Command already completed - server processed very quickly\n");
-        } else {
-            printf("📋 [CLIENT] Command in intermediate state: %s\n", IOC_CmdDesc_getStatusStr(&cmdDesc));
-        }
+        ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, postExecStatus)
+            << "After synchronous execCMD completes in polling mode, command should be SUCCESS";
 
-        // In polling mode, command should complete successfully via the polling workflow
-        IOC_CmdStatus_E finalStatus = IOC_CmdDesc_getStatus(&cmdDesc);
-        if (finalStatus == IOC_CMD_STATUS_SUCCESS) {
-            printf("📋 [CLIENT] Command completed successfully via polling workflow\n");
-            VERIFY_COMMAND_STATUS(&cmdDesc, IOC_CMD_STATUS_SUCCESS);
-            VERIFY_COMMAND_RESULT(&cmdDesc, IOC_RESULT_SUCCESS);
+        printf("📋 [CLIENT] ✅ VERIFIED: Command in SUCCESS state after synchronous execCMD\n");
 
-            // Verify response data
-            void *responseData = IOC_CmdDesc_getOutData(&cmdDesc);
-            ASSERT_TRUE(responseData != nullptr);
-            ASSERT_STREQ("PONG", (char *)responseData);
-        } else {
-            printf("📋 [CLIENT] Command in intermediate state: %s\n", IOC_CmdDesc_getStatusStr(&cmdDesc));
-        }
+        // Verify final result and response data
+        VERIFY_COMMAND_RESULT(&cmdDesc, IOC_RESULT_SUCCESS);
+        void *responseData = IOC_CmdDesc_getOutData(&cmdDesc);
+        ASSERT_TRUE(responseData != nullptr);
+        ASSERT_STREQ("PONG", (char *)responseData);
 
         s_pollingCommandReady = true;
         s_pollingCv.notify_all();
