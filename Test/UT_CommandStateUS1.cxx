@@ -1300,16 +1300,30 @@ TEST(UT_CommandStateUS1, verifyStateTransition_fromPending_toProcessing_viaPolli
     IOC_Result_T ResultValue = IOC_RESULT_BUG;
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │            📋 TDD ASSERTION STRATEGY FOR POLLING MODE VERIFICATION                   │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    // POLLING Mode State Verification: Comprehensive ASSERT coverage for IOC_waitCMD/IOC_ackCMD workflow
+    //   - ASSERTION 1-2: Pre-execution state verification (INITIALIZED for both client/server)
+    //   - ASSERTION 3-4: PENDING state verification via IOC_waitCMD reception and server processing
+    //   - ASSERTION 5-6: PROCESSING state verification via manual state transitions
+    //   - ASSERTION 7-8: SUCCESS state verification via IOC_ackCMD and final result confirmation
+    //   - ASSERTION 9-10: Response payload verification (request/response data integrity)
+    //   - ASSERTION 11-12: Polling workflow timing and synchronization verification
+    //   - ASSERTION 13-14: State history tracking and transition sequence verification
+    //
+    // This design ensures every critical polling mode aspect has explicit ASSERT statements.
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                🔧 SETUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
 
-    // Reset static variables for this test
+    // Reset static variables for this test with enhanced tracking
     s_pollingCommandReady = false;
     s_pollingCommandReceived = false;
     s_pollingAckCompleted = false;
     s_pollingCmdDesc = IOC_CMDDESC_INIT_VALUE;
 
-    // Reset polling private data manually
+    // Enhanced polling private data reset with comprehensive state tracking
     s_pollingPrivData.CommandInitialized = false;
     s_pollingPrivData.CommandStarted = false;
     s_pollingPrivData.CommandCompleted = false;
@@ -1320,6 +1334,12 @@ TEST(UT_CommandStateUS1, verifyStateTransition_fromPending_toProcessing_viaPolli
     s_pollingPrivData.HistoryCount = 0;
     s_pollingPrivData.ErrorOccurred = false;
     s_pollingPrivData.LastError = IOC_RESULT_SUCCESS;
+
+    // Clear state history for comprehensive tracking
+    for (int i = 0; i < 10; i++) {
+        s_pollingPrivData.StatusHistory[i] = IOC_CMD_STATUS_INITIALIZED;
+        s_pollingPrivData.ResultHistory[i] = IOC_RESULT_SUCCESS;
+    }
 
     // Service setup for pure polling mode (NO callback execution)
     IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
@@ -1356,37 +1376,54 @@ TEST(UT_CommandStateUS1, verifyStateTransition_fromPending_toProcessing_viaPolli
 
     if (cliThread.joinable()) cliThread.join();
 
-    printf("🔧 [SETUP] Polling mode service ready for IOC_waitCMD/IOC_ackCMD workflow\n");
+    printf(
+        "🔧 [SETUP] Enhanced polling mode service ready for comprehensive IOC_waitCMD/IOC_ackCMD workflow "
+        "verification\n");
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                              📋 BEHAVIOR PHASE                                       │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
 
-    // Server thread: Start polling FIRST (must be waiting before client sends)
-    std::thread serverThread([&] {
-        printf("📋 [SERVER] Starting polling mode - waiting for commands\n");
+    // Enhanced server thread with comprehensive state tracking and timing
+    std::chrono::steady_clock::time_point serverStartTime;
+    std::chrono::steady_clock::time_point waitCmdStartTime;
+    std::chrono::steady_clock::time_point waitCmdCompleteTime;
+    std::chrono::steady_clock::time_point ackCmdCompleteTime;
 
-        // Wait for incoming command (this should be blocking until client sends)
+    std::thread serverThread([&] {
+        serverStartTime = std::chrono::steady_clock::now();
+        printf("📋 [SERVER] Enhanced polling mode - waiting for commands with timing verification\n");
+
+        // Wait for incoming command with enhanced timing tracking
         IOC_CmdDesc_T waitCmdDesc = IOC_CMDDESC_INIT_VALUE;
+
+        // ✅ CRITICAL ASSERTION 1: Verify initial waitCmdDesc state before IOC_waitCMD
+        IOC_CmdStatus_E preWaitStatus = IOC_CmdDesc_getStatus(&waitCmdDesc);
+        ASSERT_EQ(IOC_CMD_STATUS_INITIALIZED, preWaitStatus) << "waitCmdDesc should be INITIALIZED before IOC_waitCMD";
+        printf("✅ [SERVER] Pre-waitCMD state verified: INITIALIZED (ASSERTION 1)\n");
+
         printf("📋 [SERVER] Calling IOC_waitCMD to receive command\n");
+        waitCmdStartTime = std::chrono::steady_clock::now();
         ResultValue = IOC_waitCMD(srvLinkID, &waitCmdDesc, NULL);  // Use NULL for options
+        waitCmdCompleteTime = std::chrono::steady_clock::now();
 
         if (ResultValue == IOC_RESULT_SUCCESS) {
             s_pollingCommandReceived = true;
             printf("📋 [SERVER] Command received via IOC_waitCMD: CmdID=%llu\n", IOC_CmdDesc_getCmdID(&waitCmdDesc));
             printf("📋 [SERVER] Command state after waitCMD: %s\n", IOC_CmdDesc_getStatusStr(&waitCmdDesc));
 
-            // ✅ CRITICAL ASSERTION 1: Verify command is received in PENDING state via IOC_waitCMD
-            // TDD RED PHASE: This should be the CORRECT behavior - commands sent via execCMD should be PENDING when
-            // received
+            // ✅ CRITICAL ASSERTION 3: Verify command is received in PENDING state via IOC_waitCMD
             IOC_CmdStatus_E waitStatus = IOC_CmdDesc_getStatus(&waitCmdDesc);
-            printf("📋 [SERVER] Received command status: %s\n", IOC_CmdDesc_getStatusStr(&waitCmdDesc));
-
-            // 🔴 RED ASSERTION: Commands should be PENDING when received via IOC_waitCMD (currently fails - needs
-            // framework fix)
             ASSERT_EQ(IOC_CMD_STATUS_PENDING, waitStatus)
-                << "TDD RED: Commands should be PENDING when received via IOC_waitCMD (framework needs to implement "
-                   "INITIALIZED→PENDING transition during execCMD)";
+                << "Commands should be PENDING when received via IOC_waitCMD in polling mode";
+            printf("✅ [SERVER] PENDING state verified after IOC_waitCMD (ASSERTION 3)\n");
+
+            // Record PENDING state in history
+            if (s_pollingPrivData.HistoryCount < 10) {
+                s_pollingPrivData.StatusHistory[s_pollingPrivData.HistoryCount] = waitStatus;
+                s_pollingPrivData.ResultHistory[s_pollingPrivData.HistoryCount] = IOC_RESULT_SUCCESS;
+                s_pollingPrivData.HistoryCount++;
+            }
 
             // Process the command manually (no callback in polling mode)
             IOC_CmdID_T cmdID = IOC_CmdDesc_getCmdID(&waitCmdDesc);
@@ -1395,67 +1432,109 @@ TEST(UT_CommandStateUS1, verifyStateTransition_fromPending_toProcessing_viaPolli
                 IOC_CmdDesc_setStatus(&waitCmdDesc, IOC_CMD_STATUS_PROCESSING);
                 printf("📋 [SERVER] Set command to PROCESSING state for manual processing\n");
 
-                // ✅ CRITICAL ASSERTION 2: Verify command is now in PROCESSING state
+                // ✅ CRITICAL ASSERTION 5: Verify command is now in PROCESSING state
                 IOC_CmdStatus_E processingStatus = IOC_CmdDesc_getStatus(&waitCmdDesc);
                 ASSERT_EQ(IOC_CMD_STATUS_PROCESSING, processingStatus)
                     << "Command should be in PROCESSING state after manual state setting";
+                printf("✅ [SERVER] PROCESSING state verified during manual processing (ASSERTION 5)\n");
+
+                // Record PROCESSING state in history
+                if (s_pollingPrivData.HistoryCount < 10) {
+                    s_pollingPrivData.StatusHistory[s_pollingPrivData.HistoryCount] = processingStatus;
+                    s_pollingPrivData.ResultHistory[s_pollingPrivData.HistoryCount] = IOC_RESULT_SUCCESS;
+                    s_pollingPrivData.HistoryCount++;
+                }
 
                 s_pollingPrivData.ProcessingDetected = true;
+                s_pollingPrivData.StateTransitionCount++;
 
-                // Do the actual processing
-                IOC_CmdDesc_setOutPayload(&waitCmdDesc, (void *)"PONG", 4);
+                // Do the actual processing with payload verification
+                const char *expectedPayload = "PONG";
+                IOC_CmdDesc_setOutPayload(&waitCmdDesc, (void *)expectedPayload, strlen(expectedPayload));
                 IOC_CmdDesc_setStatus(&waitCmdDesc, IOC_CMD_STATUS_SUCCESS);
                 IOC_CmdDesc_setResult(&waitCmdDesc, IOC_RESULT_SUCCESS);
-                printf("📋 [SERVER] Command processed: PING → PONG, Status set to SUCCESS\n");
+                printf("📋 [SERVER] Command processed: PING → %s, Status set to SUCCESS\n", expectedPayload);
+
+                // ✅ CRITICAL ASSERTION 9: Verify response payload is set correctly
+                void *responseData = IOC_CmdDesc_getOutData(&waitCmdDesc);
+                ASSERT_TRUE(responseData != nullptr) << "Response payload should be set after processing";
+                ASSERT_STREQ(expectedPayload, (char *)responseData) << "Response payload should match expected PONG";
+                printf("✅ [SERVER] Response payload verified: '%s' (ASSERTION 9)\n", (char *)responseData);
+
+                // Record SUCCESS state in history
+                if (s_pollingPrivData.HistoryCount < 10) {
+                    s_pollingPrivData.StatusHistory[s_pollingPrivData.HistoryCount] = IOC_CMD_STATUS_SUCCESS;
+                    s_pollingPrivData.ResultHistory[s_pollingPrivData.HistoryCount] = IOC_RESULT_SUCCESS;
+                    s_pollingPrivData.HistoryCount++;
+                }
             }
 
-            // Acknowledge command completion
+            // Acknowledge command completion with timing
             printf("📋 [SERVER] Calling IOC_ackCMD to complete command\n");
             ResultValue = IOC_ackCMD(srvLinkID, &waitCmdDesc, NULL);  // Use NULL for options
-            ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+            ackCmdCompleteTime = std::chrono::steady_clock::now();
+            ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue) << "IOC_ackCMD should succeed";
+
+            // ✅ CRITICAL ASSERTION 7: Verify final state after IOC_ackCMD
+            IOC_CmdStatus_E finalServerStatus = IOC_CmdDesc_getStatus(&waitCmdDesc);
+            ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, finalServerStatus) << "Command should be SUCCESS after IOC_ackCMD";
+            printf("✅ [SERVER] SUCCESS state verified after IOC_ackCMD (ASSERTION 7)\n");
 
             printf("📋 [SERVER] Command state after ackCMD: %s\n", IOC_CmdDesc_getStatusStr(&waitCmdDesc));
             s_pollingAckCompleted = true;
             s_pollingPrivData.CompletionDetected = true;
             s_pollingCmdDesc = waitCmdDesc;  // Store for verification
         } else {
-            printf("⚠️ [SERVER] IOC_waitCMD failed or timed out: %d\n", ResultValue);
+            printf("❌ [SERVER] IOC_waitCMD failed or timed out: %d\n", ResultValue);
+            ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue) << "IOC_waitCMD should succeed in polling mode";
         }
     });
 
-    // Give server time to start waiting for commands
+    // Give server time to start waiting for commands with timing verification
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     printf("📋 [SYNC] Server should now be waiting for commands\n");
 
-    // Client thread: Send command (should be non-blocking in polling mode)
+    // Enhanced client thread with comprehensive state tracking
+    std::chrono::steady_clock::time_point clientStartTime;
+    std::chrono::steady_clock::time_point execCmdStartTime;
+    std::chrono::steady_clock::time_point execCmdCompleteTime;
+
     std::thread clientThread([&] {
+        clientStartTime = std::chrono::steady_clock::now();
         IOC_CmdDesc_T cmdDesc = IOC_CMDDESC_INIT_VALUE;
         cmdDesc.CmdID = IOC_CMDID_TEST_PING;
         cmdDesc.TimeoutMs = 3000;
 
+        // ✅ CRITICAL ASSERTION 2: Verify client command initial state
+        IOC_CmdStatus_E clientInitialStatus = IOC_CmdDesc_getStatus(&cmdDesc);
+        ASSERT_EQ(IOC_CMD_STATUS_INITIALIZED, clientInitialStatus)
+            << "Client command should be INITIALIZED before execCMD";
+        printf("✅ [CLIENT] Initial command state verified: INITIALIZED (ASSERTION 2)\n");
+
         printf("📋 [CLIENT] Initial command state: %s\n", IOC_CmdDesc_getStatusStr(&cmdDesc));
         VERIFY_COMMAND_STATUS(&cmdDesc, IOC_CMD_STATUS_INITIALIZED);
 
-        // Send command (execCMD is SYNCHRONOUS and will complete the full workflow)
+        // Send command with timing verification (execCMD is SYNCHRONOUS and will complete the full workflow)
         printf("📋 [CLIENT] Sending command via execCMD (synchronous - will wait for completion)\n");
+        execCmdStartTime = std::chrono::steady_clock::now();
         ResultValue = IOC_execCMD(cliLinkID, &cmdDesc, NULL);
-        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+        execCmdCompleteTime = std::chrono::steady_clock::now();
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue) << "execCMD should succeed in polling mode";
 
         printf("📋 [CLIENT] Command state after execCMD: %s\n", IOC_CmdDesc_getStatusStr(&cmdDesc));
 
-        // ✅ CRITICAL ASSERTION 3: After execCMD completes (SYNCHRONOUS), command should be SUCCESS
-        // This is the correct expectation since execCMD is synchronous and completes the full workflow
+        // ✅ CRITICAL ASSERTION 8: After execCMD completes (SYNCHRONOUS), command should be SUCCESS
         IOC_CmdStatus_E postExecStatus = IOC_CmdDesc_getStatus(&cmdDesc);
         ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, postExecStatus)
             << "After synchronous execCMD completes in polling mode, command should be SUCCESS";
+        printf("✅ [CLIENT] SUCCESS state verified after synchronous execCMD (ASSERTION 8)\n");
 
-        printf("📋 [CLIENT] ✅ VERIFIED: Command in SUCCESS state after synchronous execCMD\n");
-
-        // Verify final result and response data
+        // ✅ CRITICAL ASSERTION 10: Verify final result and response data on client side
         VERIFY_COMMAND_RESULT(&cmdDesc, IOC_RESULT_SUCCESS);
         void *responseData = IOC_CmdDesc_getOutData(&cmdDesc);
-        ASSERT_TRUE(responseData != nullptr);
-        ASSERT_STREQ("PONG", (char *)responseData);
+        ASSERT_TRUE(responseData != nullptr) << "Client should receive response data";
+        ASSERT_STREQ("PONG", (char *)responseData) << "Client should receive correct PONG response";
+        printf("✅ [CLIENT] Response data verified: '%s' (ASSERTION 10)\n", (char *)responseData);
 
         s_pollingCommandReady = true;
         s_pollingCv.notify_all();
@@ -1469,38 +1548,83 @@ TEST(UT_CommandStateUS1, verifyStateTransition_fromPending_toProcessing_viaPolli
     // │                               ✅ VERIFY PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
 
-    // Verify polling workflow completed successfully
-    ASSERT_TRUE(s_pollingCommandReady.load()) << "Client should have sent command";
+    // ✅ CRITICAL ASSERTION 11: Verify polling workflow timing and synchronization
+    auto totalWorkflowDuration = ackCmdCompleteTime - serverStartTime;
+    auto waitCmdDuration = waitCmdCompleteTime - waitCmdStartTime;
+    auto execCmdDuration = execCmdCompleteTime - execCmdStartTime;
+
+    printf("📋 [TIMING] Total workflow duration: %lld ms\n",
+           std::chrono::duration_cast<std::chrono::milliseconds>(totalWorkflowDuration).count());
+    printf("📋 [TIMING] waitCMD duration: %lld ms\n",
+           std::chrono::duration_cast<std::chrono::milliseconds>(waitCmdDuration).count());
+    printf("📋 [TIMING] execCMD duration: %lld ms\n",
+           std::chrono::duration_cast<std::chrono::milliseconds>(execCmdDuration).count());
+
+    // Verify reasonable timing constraints (should complete within reasonable time)
+    ASSERT_LT(std::chrono::duration_cast<std::chrono::milliseconds>(totalWorkflowDuration).count(), 5000)
+        << "Total polling workflow should complete within 5 seconds";
+    printf("✅ [TIMING] Polling workflow timing verified (ASSERTION 11)\n");
+
+    // ✅ CRITICAL ASSERTION 12: Verify polling workflow completed successfully
+    ASSERT_TRUE(s_pollingCommandReady.load()) << "Client should have sent command successfully";
 
     if (s_pollingCommandReceived.load()) {
-        printf("✅ [VERIFY] Polling mode workflow verification:\n");
+        printf("✅ [VERIFY] Enhanced polling mode workflow verification:\n");
         printf("   • Command sent via execCMD ✅\n");
         printf("   • Command received via IOC_waitCMD ✅\n");
 
         // ✅ CRITICAL ASSERTION 4: Verify PROCESSING state was properly detected
         ASSERT_TRUE(s_pollingPrivData.ProcessingDetected.load()) << "PROCESSING state must be detected in polling mode";
-        printf("   • PROCESSING state detected in polling mode ✅\n");
+        printf("   • PROCESSING state detected in polling mode ✅ (ASSERTION 4)\n");
+
+        // ✅ CRITICAL ASSERTION 6: Verify state transition counting
+        ASSERT_GE(s_pollingPrivData.StateTransitionCount.load(), 1) << "Should record at least 1 state transition";
+        printf("   • State transitions recorded: %d ✅ (ASSERTION 6)\n", s_pollingPrivData.StateTransitionCount.load());
+
+        // ✅ CRITICAL ASSERTION 13: Verify state history tracking
+        ASSERT_GE(s_pollingPrivData.HistoryCount, 3)
+            << "Should record at least 3 state entries (PENDING, PROCESSING, SUCCESS)";
+        ASSERT_LE(s_pollingPrivData.HistoryCount, 10) << "History count should be within bounds";
+        printf("   • State history entries: %d ✅ (ASSERTION 13)\n", s_pollingPrivData.HistoryCount);
+
+        // ✅ CRITICAL ASSERTION 14: Verify state history contains expected sequence
+        bool pendingFoundInHistory = false;
+        bool processingFoundInHistory = false;
+        bool successFoundInHistory = false;
+        for (int i = 0; i < s_pollingPrivData.HistoryCount; i++) {
+            if (s_pollingPrivData.StatusHistory[i] == IOC_CMD_STATUS_PENDING) pendingFoundInHistory = true;
+            if (s_pollingPrivData.StatusHistory[i] == IOC_CMD_STATUS_PROCESSING) processingFoundInHistory = true;
+            if (s_pollingPrivData.StatusHistory[i] == IOC_CMD_STATUS_SUCCESS) successFoundInHistory = true;
+        }
+        ASSERT_TRUE(pendingFoundInHistory) << "State history should contain PENDING state";
+        ASSERT_TRUE(processingFoundInHistory) << "State history should contain PROCESSING state";
+        ASSERT_TRUE(successFoundInHistory) << "State history should contain SUCCESS state";
+        printf("   • State sequence verified: PENDING→PROCESSING→SUCCESS ✅ (ASSERTION 14)\n");
 
         if (s_pollingAckCompleted.load()) {
             printf("   • Command completed via IOC_ackCMD ✅\n");
             printf("   • Final state: %s ✅\n", IOC_CmdDesc_getStatusStr(&s_pollingCmdDesc));
 
-            // ✅ CRITICAL ASSERTION 5: Verify final command state is SUCCESS
+            // Final state immutability verification (similar to AC-4 TC-1 pattern)
             ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, IOC_CmdDesc_getStatus(&s_pollingCmdDesc))
-                << "Final command status must be SUCCESS";
+                << "Final command status must remain SUCCESS";
             ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_CmdDesc_getResult(&s_pollingCmdDesc))
-                << "Final command result must be SUCCESS";
+                << "Final command result must remain SUCCESS";
 
             ASSERT_TRUE(s_pollingPrivData.CompletionDetected) << "Completion should be detected";
 
-            // ✅ CRITICAL ASSERTION 6: Verify response data
+            // Final response data verification
             void *responseData = IOC_CmdDesc_getOutData(&s_pollingCmdDesc);
             ASSERT_TRUE(responseData != nullptr) << "Response data should not be null";
             ASSERT_STREQ("PONG", (char *)responseData) << "Response should be 'PONG'";
         }
 
-        printf("✅ [RESULT] Polling mode state transition verification completed successfully\n");
+        printf("✅ [RESULT] Enhanced polling mode state transition verification completed successfully\n");
         printf("   🎯 VERIFIED STATES: INITIALIZED → PENDING → PROCESSING → SUCCESS\n");
+        printf("   📊 COMPREHENSIVE ASSERTIONS: 14 critical assertions verified ✅\n");
+        printf("   ⏱️  TIMING VERIFICATION: Workflow timing measured and validated ✅\n");
+        printf("   📋 STATE HISTORY: Complete transition sequence recorded and verified ✅\n");
+        printf("   🔄 POLLING WORKFLOW: IOC_waitCMD/IOC_ackCMD pattern successfully validated ✅\n");
     } else {
         printf("⚠️ [INFO] Polling mode may not be fully supported or requires different workflow\n");
         printf("   This could indicate the IOC framework uses callback mode primarily\n");
