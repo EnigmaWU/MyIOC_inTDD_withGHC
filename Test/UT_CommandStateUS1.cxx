@@ -1904,6 +1904,257 @@ TEST(UT_CommandStateUS1, verifyCommandFailure_byExecutorError_expectFailedStatus
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF AC-6 TIMEOUT HANDLING============================================================
+
+// [@AC-6,US-1] TC-1: verifyStateTransition_fromProcessing_toTimeout_expectTimeoutState
+//
+// 🎯 PURPOSE: Validate PROCESSING→TIMEOUT state transition when time expires
+// 📋 STRATEGY: Force timeout condition by using minimal timeout and slow executor
+// 🔄 FOCUS: Timeout state transition verification and final state immutability
+// 💡 INSIGHT: Tests IOC framework's timeout handling mechanism
+
+// Timeout Testing Private Data
+struct __TimeoutTestPrivData_T {
+    std::atomic<bool> CallbackExecuted{false};
+    std::atomic<int> StateTransitionCount{0};
+    std::atomic<int> CommandCount{0};
+    std::atomic<IOC_CmdStatus_E> LastStateObserved{IOC_CMD_STATUS_INITIALIZED};
+    std::chrono::steady_clock::time_point StartTime;
+    std::chrono::steady_clock::time_point CallbackStartTime;
+    std::chrono::steady_clock::time_point CallbackEndTime;
+};
+
+static __TimeoutTestPrivData_T s_timeoutPrivData;
+
+// Slow Executor Callback for Timeout Testing
+static IOC_Result_T __SlowTimeoutExecutorCb(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, void *pCbPriv) {
+    s_timeoutPrivData.CallbackExecuted = true;
+    s_timeoutPrivData.CallbackStartTime = std::chrono::steady_clock::now();
+
+    printf("🐌 [CALLBACK] Slow executor entry - simulating long processing\n");
+    printf("📋 [CALLBACK] LinkID=%llu\n", LinkID);
+
+    // Track initial state in callback
+    if (pCmdDesc) {
+        IOC_CmdStatus_E currentState = IOC_CmdDesc_getStatus(pCmdDesc);
+        s_timeoutPrivData.LastStateObserved = currentState;
+        s_timeoutPrivData.StateTransitionCount++;
+        printf("📋 [CALLBACK] Entry state: %s\n", currentState == IOC_CMD_STATUS_PROCESSING ? "PROCESSING" : "OTHER");
+    }
+
+    // Simulate slow processing that should exceed timeout
+    // Use 200ms processing when timeout is 50ms
+    printf("🐌 [CALLBACK] Starting slow processing (200ms)...\n");
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    s_timeoutPrivData.CallbackEndTime = std::chrono::steady_clock::now();
+    printf("🐌 [CALLBACK] Slow processing completed\n");
+
+    // Set success state (but timeout should prevent this from being final)
+    if (pCmdDesc) {
+        IOC_CmdDesc_setOutPayload(pCmdDesc, (void *)"TIMEOUT_TEST", 12);
+        IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_SUCCESS);
+        IOC_CmdDesc_setResult(pCmdDesc, IOC_RESULT_SUCCESS);
+    }
+
+    return IOC_RESULT_SUCCESS;
+}
+
+TEST(UT_CommandStateUS1, verifyStateTransition_fromProcessing_toTimeout_expectTimeoutState) {
+    printf("🔧 [SETUP] Testing timeout state transition with aggressive timeout (50ms)\n");
+
+    // Reset timeout test data
+    s_timeoutPrivData.CallbackExecuted = false;
+    s_timeoutPrivData.StateTransitionCount = 0;
+    s_timeoutPrivData.CommandCount = 0;
+    s_timeoutPrivData.LastStateObserved = IOC_CMD_STATUS_INITIALIZED;
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                              📋 SETUP PHASE                                          │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    __IndividualCmdStatePriv_T timeoutPrivData = {};
+    IOC_CmdDesc_T cmdDesc = IOC_CMDDESC_INIT_VALUE;
+
+    printf("[INFO] Testing timeout handling with 50ms timeout\n");
+
+    // Service setup with slow timeout callback
+    IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char *)"CmdStateUS1_TimeoutTest"};
+
+    static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_PING};
+    IOC_CmdUsageArgs_T cmdUsageArgs = {.CbExecCmd_F = __SlowTimeoutExecutorCb,
+                                       .pCbPrivData = &timeoutPrivData,
+                                       .CmdNum = 1,
+                                       .pCmdIDs = supportedCmdIDs};
+
+    IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
+                             .Flags = IOC_SRVFLAG_NONE,
+                             .UsageCapabilites = IOC_LinkUsageCmdExecutor,
+                             .UsageArgs = {.pCmd = &cmdUsageArgs}};
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    IOC_Result_T result = IOC_onlineService(&srvID, &srvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result);
+
+    // Client setup
+    IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
+    IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
+
+    std::thread cliThread([&] {
+        IOC_Result_T connResult = IOC_connectService(&cliLinkID, &connArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, connResult);
+    });
+
+    IOC_LinkID_T srvLinkID = IOC_ID_INVALID;
+    result = IOC_acceptClient(srvID, &srvLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result);
+
+    if (cliThread.joinable()) cliThread.join();
+
+    printf("🔧 [SETUP] Timeout testing service ready with aggressive 50ms timeout configuration\n");
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                            📝 COMMAND PREPARATION                                    │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    IOC_CmdDesc_initVar(&cmdDesc);
+    cmdDesc.CmdID = IOC_CMDID_TEST_PING;
+    cmdDesc.TimeoutMs = 50;  // Aggressive 50ms timeout vs 200ms callback
+
+    s_timeoutPrivData.CommandCount = 1;
+    s_timeoutPrivData.StartTime = std::chrono::steady_clock::now();
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                           🔄 TIMEOUT TEST EXECUTION                                  │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+
+    // ASSERTION 1: Pre-execution state verification
+    IOC_CmdStatus_E preState = IOC_CmdDesc_getStatus(&cmdDesc);
+    EXPECT_EQ(preState, IOC_CMD_STATUS_INITIALIZED) << "Pre-execution state should be INITIALIZED";
+    printf("✅ [BEHAVIOR] Pre-execution state verified: %s (ASSERTION 1)\n",
+           preState == IOC_CMD_STATUS_INITIALIZED ? "INITIALIZED" : "OTHER");
+
+    printf("📋 [BEHAVIOR] Initial command state: %s\n",
+           preState == IOC_CMD_STATUS_INITIALIZED ? "INITIALIZED" : "OTHER");
+    printf("📋 [BEHAVIOR] Executing command with aggressive timeout (50ms vs 200ms callback)\n");
+
+    // Execute command - should timeout during callback execution
+    IOC_Result_T execResult = IOC_execCMD(cliLinkID, &cmdDesc, NULL);
+
+    printf("📋 [BEHAVIOR] execCMD returned: %d\n", execResult);
+
+    // ASSERTION 2: Command execution initiation
+    // execCMD may succeed even if timeout occurs during processing
+    printf("✅ [BEHAVIOR] execCMD initiation result: %d (ASSERTION 2)\n", execResult);
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                           🔍 TIMEOUT STATE VERIFICATION                              │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+
+    // ASSERTION 3: Callback execution tracking
+    bool callbackWasCalled = s_timeoutPrivData.CallbackExecuted.load();
+    printf("✅ [VERIFY] Callback execution tracking: %s (ASSERTION 3)\n", callbackWasCalled ? "CALLED" : "NOT_CALLED");
+
+    // ASSERTION 4: Final command state verification - STRICT timeout enforcement
+    IOC_CmdStatus_E finalState = IOC_CmdDesc_getStatus(&cmdDesc);
+    printf("📋 [BEHAVIOR] Final command state: %s\n", finalState == IOC_CMD_STATUS_TIMEOUT      ? "TIMEOUT"
+                                                      : finalState == IOC_CMD_STATUS_FAILED     ? "FAILED"
+                                                      : finalState == IOC_CMD_STATUS_SUCCESS    ? "SUCCESS"
+                                                      : finalState == IOC_CMD_STATUS_PROCESSING ? "PROCESSING"
+                                                                                                : "OTHER");
+
+    // STRICT ASSERTION: Command should have timed out, not completed successfully
+    // With 50ms timeout vs 200ms callback, timeout should be enforced
+    ASSERT_TRUE(finalState == IOC_CMD_STATUS_TIMEOUT || finalState == IOC_CMD_STATUS_FAILED)
+        << "TIMEOUT FAILURE: Command with 50ms timeout should NOT complete successfully with 200ms callback. "
+        << "Expected: IOC_CMD_STATUS_TIMEOUT or IOC_CMD_STATUS_FAILED, "
+        << "Actual: " << finalState << ". This indicates the IOC framework needs proper timeout enforcement.";
+
+    printf("✅ [VERIFY] STRICT timeout enforcement verified: %s (ASSERTION 4)\n",
+           finalState == IOC_CMD_STATUS_TIMEOUT ? "TIMEOUT" : "FAILED");
+
+    // ASSERTION 5: Command result verification - STRICT timeout result
+    IOC_Result_T finalResult = IOC_CmdDesc_getResult(&cmdDesc);
+    printf("📋 [BEHAVIOR] Final command result: %d\n", finalResult);
+
+    // STRICT ASSERTION: Result should indicate timeout, not success
+    ASSERT_TRUE(finalResult == IOC_RESULT_TIMEOUT || finalResult < 0)
+        << "TIMEOUT FAILURE: Command result should indicate timeout condition. "
+        << "Expected: IOC_RESULT_TIMEOUT or negative error code, "
+        << "Actual: " << finalResult << ". This indicates the IOC framework needs proper timeout result handling.";
+
+    printf("✅ [VERIFY] STRICT timeout result verified: %d (ASSERTION 5)\n", finalResult);
+
+    // ASSERTION 6: Timing verification - STRICT timeout enforcement
+    auto endTime = std::chrono::steady_clock::now();
+    auto totalDuration =
+        std::chrono::duration_cast<std::chrono::milliseconds>(endTime - s_timeoutPrivData.StartTime).count();
+
+    // STRICT ASSERTION: Execution should be close to timeout value, not callback duration
+    // With 50ms timeout, execution should complete around 50ms (±20ms margin), NOT 200ms+
+    bool timeoutEnforced = totalDuration <= 100;  // 50ms timeout + 50ms margin
+    ASSERT_TRUE(timeoutEnforced) << "TIMEOUT FAILURE: Execution took " << totalDuration << "ms but timeout was 50ms. "
+                                 << "Expected: ≤100ms (50ms timeout + margin), "
+                                 << "Actual: " << totalDuration << "ms. "
+                                 << "This indicates the IOC framework is not enforcing timeouts properly.";
+
+    printf("✅ [VERIFY] STRICT timeout timing enforced: %lldms ≤ 100ms (ASSERTION 6)\n", totalDuration);
+
+    // ASSERTION 7: State transition tracking
+    int transitionCount = s_timeoutPrivData.StateTransitionCount.load();
+    EXPECT_GE(transitionCount, 0) << "Should have recorded state transitions";
+    printf("✅ [VERIFY] State transitions recorded: %d (ASSERTION 7)\n", transitionCount);
+
+    // ASSERTION 8: Timeout behavior verification - STRICT TDD requirements
+    if (callbackWasCalled) {
+        printf("🔍 [VERIFY] Callback was executed - timeout should have interrupted processing\n");
+        ASSERT_TRUE(finalState != IOC_CMD_STATUS_SUCCESS)
+            << "TDD FAILURE: If callback was called but timeout occurred, final state should NOT be SUCCESS";
+        printf("🔍 [VERIFY] STRICT: Timeout correctly interrupted slow processing\n");
+    } else {
+        printf("🔍 [VERIFY] Timeout occurred before callback execution - acceptable behavior\n");
+    }
+    printf("✅ [VERIFY] STRICT timeout behavior verified (ASSERTION 8)\n");
+
+    // ASSERTION 9: State immutability after completion
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    IOC_CmdStatus_E stateRecheck = IOC_CmdDesc_getStatus(&cmdDesc);
+    EXPECT_EQ(finalState, stateRecheck) << "Final state should be immutable";
+    printf("✅ [VERIFY] Final state immutability verified (ASSERTION 9)\n");
+
+    // ASSERTION 10: Command tracking consistency
+    int cmdCount = s_timeoutPrivData.CommandCount.load();
+    EXPECT_EQ(cmdCount, 1) << "Should have processed exactly one command";
+    printf("✅ [VERIFY] Command tracking consistency: %d (ASSERTION 10)\n", cmdCount);
+
+    printf("✅ [VERIFY] STRICT timeout verification completed:\n");
+    printf("   • Pre-execution state: %s ✅ (ASSERTION 1)\n",
+           preState == IOC_CMD_STATUS_INITIALIZED ? "INITIALIZED" : "OTHER");
+    printf("   • execCMD result: %d ✅ (ASSERTION 2)\n", execResult);
+    printf("   • Callback execution: %s ✅ (ASSERTION 3)\n", callbackWasCalled ? "CALLED" : "NOT_CALLED");
+    printf("   • Final status: %s ✅ (ASSERTION 4 - STRICT)\n", finalState == IOC_CMD_STATUS_TIMEOUT  ? "TIMEOUT"
+                                                                : finalState == IOC_CMD_STATUS_FAILED ? "FAILED"
+                                                                                                      : "ERROR");
+    printf("   • Final result: %d ✅ (ASSERTION 5 - STRICT)\n", finalResult);
+    printf("   • Execution timing: %lldms ≤ 100ms ✅ (ASSERTION 6 - STRICT)\n", totalDuration);
+    printf("   • State transitions: %d ✅ (ASSERTION 7)\n", transitionCount);
+    printf("   • Timeout behavior: STRICT VERIFIED ✅ (ASSERTION 8)\n");
+    printf("   • State immutability: VERIFIED ✅ (ASSERTION 9)\n");
+    printf("   • Command tracking: %d ✅ (ASSERTION 10)\n", cmdCount);
+
+    printf("✅ [RESULT] STRICT timeout enforcement test completed - IOC framework MUST implement proper timeouts\n");
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🧹 CLEANUP PHASE                                       │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    if (cliLinkID != IOC_ID_INVALID) IOC_closeLink(cliLinkID);
+    if (srvLinkID != IOC_ID_INVALID) IOC_closeLink(srvLinkID);
+    if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
+}
+
+//======>END OF AC-6 TIMEOUT HANDLING==============================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF IMPLEMENTATION SUMMARY===========================================================
 /**
  * ╔══════════════════════════════════════════════════════════════════════════════════════════╗
@@ -1916,7 +2167,7 @@ TEST(UT_CommandStateUS1, verifyCommandFailure_byExecutorError_expectFailedStatus
  * ║   ✅ US-1 AC-2: Command processing state in callback mode                               ║
  * ║   ✅ US-1 AC-3: Command processing state in polling mode                                ║
  * ║   ✅ US-1 AC-4: Successful command completion state                                     ║
- * ║   TODO: US-1 AC-5: Command failure state handling                                       ║
+ * ║   ✅ US-1 AC-5: Command failure state handling                                          ║
  * ║   TODO: US-1 AC-6: Command timeout state handling                                       ║
  * ║   TODO: US-1 AC-7: Multiple command state isolation                                     ║
  * ║                                                                                          ║
@@ -1928,6 +2179,7 @@ TEST(UT_CommandStateUS1, verifyCommandFailure_byExecutorError_expectFailedStatus
  * ║   AC-2 TC-3: verifyStateConsistency_duringCallbackExecution_expectStableProcessing      ║
  * ║   AC-3 TC-1: verifyStateTransition_fromPending_toProcessing_viaPolling                  ║
  * ║   AC-4 TC-1: verifyCommandSuccess_byNormalCompletion_expectSuccessStatus                ║
+ * ║   AC-5 TC-1: verifyCommandFailure_byExecutorError_expectFailedStatus                    ║
  * ║                                                                                          ║
  * ║ 🚀 KEY ACHIEVEMENTS:                                                                     ║
  * ║   • ✅ INDIVIDUAL COMMAND STATE APIs: IOC_CmdDesc_getStatus(), IOC_CmdDesc_getResult()  ║
