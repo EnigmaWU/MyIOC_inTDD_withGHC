@@ -1031,9 +1031,94 @@ TEST(UT_CommandStateUS1, verifyCommandSuccess_byNormalCompletion_expectSuccessSt
     IOC_Result_T ResultValue = IOC_RESULT_BUG;
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │            📋 TDD ASSERTION STRATEGY FOR SUCCESS STATE VERIFICATION                  │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    // SUCCESS State Verification: Comprehensive ASSERT coverage for command completion
+    //   - ASSERTION 1-2: Pre-execution state verification (INITIALIZED for both commands)
+    //   - ASSERTION 3-4: Post-execution state verification (SUCCESS for both commands)
+    //   - ASSERTION 5-6: Result verification (IOC_RESULT_SUCCESS for both commands)
+    //   - ASSERTION 7-8: Response payload verification (PONG for PING, echo for ECHO)
+    //   - ASSERTION 9-12: Service callback state tracking verification
+    //   - ASSERTION 13-14: State transition history verification
+    //   - ASSERTION 15-16: Final immutable state verification
+    //
+    // This design ensures every critical success aspect has explicit ASSERT statements.
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                🔧 SETUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
     __IndividualCmdStatePriv_T srvPrivData = {};
+
+    // Enhanced callback for success state verification with comprehensive assertions
+    auto enhancedSuccessExecutorCb = [](IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, void *pCbPriv) -> IOC_Result_T {
+        __IndividualCmdStatePriv_T *pPrivData = (__IndividualCmdStatePriv_T *)pCbPriv;
+        if (!pPrivData || !pCmdDesc) return IOC_RESULT_INVALID_PARAM;
+
+        std::lock_guard<std::mutex> lock(pPrivData->StateMutex);
+
+        // Record entry state (should be PROCESSING)
+        IOC_CmdStatus_E entryState = IOC_CmdDesc_getStatus(pCmdDesc);
+        if (pPrivData->HistoryCount < 10) {
+            pPrivData->StatusHistory[pPrivData->HistoryCount] = entryState;
+            pPrivData->ResultHistory[pPrivData->HistoryCount] = IOC_RESULT_SUCCESS;
+            pPrivData->HistoryCount++;
+        }
+
+        // ✅ CALLBACK ASSERTION: Verify PROCESSING state at callback entry
+        if (entryState != IOC_CMD_STATUS_PROCESSING) {
+            printf("❌ [CALLBACK] ASSERTION FAILURE: Expected PROCESSING but got state: %d\n", entryState);
+            return IOC_RESULT_BUG;
+        }
+        printf("✅ [CALLBACK] PROCESSING state verified at entry\n");
+
+        pPrivData->ProcessingDetected = true;
+        pPrivData->CommandCount++;
+
+        // Process the command based on type
+        IOC_CmdID_T CmdID = IOC_CmdDesc_getCmdID(pCmdDesc);
+        IOC_Result_T ExecResult = IOC_RESULT_SUCCESS;
+
+        if (CmdID == IOC_CMDID_TEST_PING) {
+            // PING command processing
+            IOC_CmdDesc_setOutPayload(pCmdDesc, (void *)"PONG", 4);
+            IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_SUCCESS);
+            IOC_CmdDesc_setResult(pCmdDesc, IOC_RESULT_SUCCESS);
+            printf("✅ [CALLBACK] PING command processed successfully\n");
+        } else if (CmdID == IOC_CMDID_TEST_ECHO) {
+            // ECHO command processing
+            void *inData = IOC_CmdDesc_getInData(pCmdDesc);
+            ULONG_T inSize = IOC_CmdDesc_getInDataSize(pCmdDesc);
+            if (inData && inSize > 0) {
+                IOC_CmdDesc_setOutPayload(pCmdDesc, inData, inSize);
+                IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_SUCCESS);
+                IOC_CmdDesc_setResult(pCmdDesc, IOC_RESULT_SUCCESS);
+                printf("✅ [CALLBACK] ECHO command processed successfully\n");
+            } else {
+                ExecResult = IOC_RESULT_INVALID_PARAM;
+                IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_FAILED);
+                IOC_CmdDesc_setResult(pCmdDesc, IOC_RESULT_INVALID_PARAM);
+            }
+        } else {
+            // Unsupported command
+            ExecResult = IOC_RESULT_NOT_SUPPORT;
+            IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_FAILED);
+            IOC_CmdDesc_setResult(pCmdDesc, IOC_RESULT_NOT_SUPPORT);
+        }
+
+        // Track completion
+        pPrivData->CompletionDetected = true;
+        pPrivData->CommandCompleted = true;
+        pPrivData->StateTransitionCount++;
+
+        // Record final state
+        if (pPrivData->HistoryCount < 10) {
+            pPrivData->StatusHistory[pPrivData->HistoryCount] = IOC_CmdDesc_getStatus(pCmdDesc);
+            pPrivData->ResultHistory[pPrivData->HistoryCount] = IOC_CmdDesc_getResult(pCmdDesc);
+            pPrivData->HistoryCount++;
+        }
+
+        return ExecResult;
+    };
 
     // Service setup
     IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
@@ -1041,10 +1126,8 @@ TEST(UT_CommandStateUS1, verifyCommandSuccess_byNormalCompletion_expectSuccessSt
                            .pPath = (const char *)"CmdStateUS1_SuccessCompletion"};
 
     static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_PING, IOC_CMDID_TEST_ECHO};
-    IOC_CmdUsageArgs_T cmdUsageArgs = {.CbExecCmd_F = __IndividualCmdState_ExecutorCb,
-                                       .pCbPrivData = &srvPrivData,
-                                       .CmdNum = 2,
-                                       .pCmdIDs = supportedCmdIDs};
+    IOC_CmdUsageArgs_T cmdUsageArgs = {
+        .CbExecCmd_F = enhancedSuccessExecutorCb, .pCbPrivData = &srvPrivData, .CmdNum = 2, .pCmdIDs = supportedCmdIDs};
 
     IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
                              .Flags = IOC_SRVFLAG_NONE,
@@ -1070,60 +1153,128 @@ TEST(UT_CommandStateUS1, verifyCommandSuccess_byNormalCompletion_expectSuccessSt
 
     if (cliThread.joinable()) cliThread.join();
 
-    printf("🔧 [SETUP] Service and client connected for success testing\n");
+    printf("🔧 [SETUP] Enhanced success verification service with comprehensive assertions ready\n");
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                              📋 BEHAVIOR PHASE                                       │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
 
-    // Test 1: PING command success
+    // Test 1: PING command success with comprehensive state verification
     IOC_CmdDesc_T pingCmd = IOC_CMDDESC_INIT_VALUE;
     pingCmd.CmdID = IOC_CMDID_TEST_PING;
     pingCmd.TimeoutMs = 5000;
 
+    // ✅ CRITICAL ASSERTION 1: Verify pre-execution state for PING command
+    IOC_CmdStatus_E pingPreState = IOC_CmdDesc_getStatus(&pingCmd);
+    ASSERT_EQ(IOC_CMD_STATUS_INITIALIZED, pingPreState) << "PING command should be INITIALIZED before execution";
+    printf("📋 [BEHAVIOR] PING pre-execution state verified: INITIALIZED\n");
+
     printf("📋 [BEHAVIOR] Testing PING command success state\n");
     ResultValue = IOC_execCMD(cliLinkID, &pingCmd, NULL);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue) << "PING command execution should return SUCCESS";
 
-    // Test 2: ECHO command success
+    // ✅ CRITICAL ASSERTION 3: Verify post-execution state for PING command
+    IOC_CmdStatus_E pingPostState = IOC_CmdDesc_getStatus(&pingCmd);
+    ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, pingPostState) << "PING command should be SUCCESS after execution";
+    printf("📋 [BEHAVIOR] PING post-execution state verified: SUCCESS\n");
+
+    // Test 2: ECHO command success with comprehensive state verification
     IOC_CmdDesc_T echoCmd = IOC_CMDDESC_INIT_VALUE;
     echoCmd.CmdID = IOC_CMDID_TEST_ECHO;
     echoCmd.TimeoutMs = 5000;
     const char *echoInput = "Hello World";
     IOC_CmdDesc_setInPayload(&echoCmd, (void *)echoInput, strlen(echoInput));
 
+    // ✅ CRITICAL ASSERTION 2: Verify pre-execution state for ECHO command
+    IOC_CmdStatus_E echoPreState = IOC_CmdDesc_getStatus(&echoCmd);
+    ASSERT_EQ(IOC_CMD_STATUS_INITIALIZED, echoPreState) << "ECHO command should be INITIALIZED before execution";
+    printf("📋 [BEHAVIOR] ECHO pre-execution state verified: INITIALIZED\n");
+
     printf("📋 [BEHAVIOR] Testing ECHO command success state\n");
     ResultValue = IOC_execCMD(cliLinkID, &echoCmd, NULL);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue) << "ECHO command execution should return SUCCESS";
+
+    // ✅ CRITICAL ASSERTION 4: Verify post-execution state for ECHO command
+    IOC_CmdStatus_E echoPostState = IOC_CmdDesc_getStatus(&echoCmd);
+    ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, echoPostState) << "ECHO command should be SUCCESS after execution";
+    printf("📋 [BEHAVIOR] ECHO post-execution state verified: SUCCESS\n");
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               ✅ VERIFY PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
 
-    // Verify PING command success state
-    VERIFY_COMMAND_STATE_TRANSITION(&pingCmd, IOC_CMD_STATUS_SUCCESS, IOC_RESULT_SUCCESS);
+    // ✅ CRITICAL ASSERTION 5: Verify PING command final result
+    IOC_Result_T pingResult = IOC_CmdDesc_getResult(&pingCmd);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, pingResult) << "PING command should have SUCCESS result";
 
+    // ✅ CRITICAL ASSERTION 7: Verify PING command response payload
     void *pingResponse = IOC_CmdDesc_getOutData(&pingCmd);
-    ASSERT_TRUE(pingResponse != nullptr);
-    ASSERT_STREQ("PONG", (char *)pingResponse);
+    ULONG_T pingResponseSize = IOC_CmdDesc_getOutDataSize(&pingCmd);
+    ASSERT_TRUE(pingResponse != nullptr) << "PING response should not be null";
+    ASSERT_EQ(4, pingResponseSize) << "PING response size should be 4 bytes";
+    ASSERT_STREQ("PONG", (char *)pingResponse) << "PING response should be 'PONG'";
 
-    // Verify ECHO command success state
-    VERIFY_COMMAND_STATE_TRANSITION(&echoCmd, IOC_CMD_STATUS_SUCCESS, IOC_RESULT_SUCCESS);
+    // ✅ CRITICAL ASSERTION 6: Verify ECHO command final result
+    IOC_Result_T echoResult = IOC_CmdDesc_getResult(&echoCmd);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, echoResult) << "ECHO command should have SUCCESS result";
 
+    // ✅ CRITICAL ASSERTION 8: Verify ECHO command response payload
     void *echoResponse = IOC_CmdDesc_getOutData(&echoCmd);
     ULONG_T echoResponseSize = IOC_CmdDesc_getOutDataSize(&echoCmd);
-    ASSERT_TRUE(echoResponse != nullptr);
-    ASSERT_EQ(strlen(echoInput), echoResponseSize);
-    ASSERT_STREQ(echoInput, (char *)echoResponse);
+    ASSERT_TRUE(echoResponse != nullptr) << "ECHO response should not be null";
+    ASSERT_EQ(strlen(echoInput), echoResponseSize) << "ECHO response size should match input size";
+    ASSERT_STREQ(echoInput, (char *)echoResponse) << "ECHO response should match input";
 
-    // Verify service callback state tracking
-    ASSERT_TRUE(srvPrivData.ProcessingDetected.load());
-    ASSERT_TRUE(srvPrivData.CompletionDetected.load());
-    ASSERT_GE(srvPrivData.StateTransitionCount.load(), 2);  // At least 2 commands processed
+    // ✅ CRITICAL ASSERTION 9: Verify service callback processing detection
+    ASSERT_TRUE(srvPrivData.ProcessingDetected.load()) << "Service should have detected PROCESSING state";
 
-    printf("✅ [VERIFY] PING command success: Status=SUCCESS, Result=SUCCESS, Response=PONG\n");
-    printf("✅ [VERIFY] ECHO command success: Status=SUCCESS, Result=SUCCESS, Response=%s\n", (char *)echoResponse);
-    printf("✅ [RESULT] Command success state verification completed successfully\n");
+    // ✅ CRITICAL ASSERTION 10: Verify service callback completion detection
+    ASSERT_TRUE(srvPrivData.CompletionDetected.load()) << "Service should have detected completion";
+
+    // ✅ CRITICAL ASSERTION 11: Verify service callback command counting
+    ASSERT_EQ(2, srvPrivData.CommandCount.load()) << "Service should have processed exactly 2 commands";
+
+    // ✅ CRITICAL ASSERTION 12: Verify state transition counting
+    ASSERT_EQ(2, srvPrivData.StateTransitionCount.load()) << "Service should have recorded 2 state transitions";
+
+    // ✅ CRITICAL ASSERTION 13: Verify state history recording
+    ASSERT_GE(srvPrivData.HistoryCount, 2) << "Service should have recorded at least 2 state entries";
+    ASSERT_LE(srvPrivData.HistoryCount, 10) << "Service history count should be within bounds";
+
+    // ✅ CRITICAL ASSERTION 14: Verify state history contains PROCESSING states
+    bool processingFoundInHistory = false;
+    for (int i = 0; i < srvPrivData.HistoryCount; i++) {
+        if (srvPrivData.StatusHistory[i] == IOC_CMD_STATUS_PROCESSING) {
+            processingFoundInHistory = true;
+            break;
+        }
+    }
+    ASSERT_TRUE(processingFoundInHistory) << "State history should contain PROCESSING state";
+
+    // ✅ CRITICAL ASSERTION 15: Verify final state immutability (PING)
+    IOC_CmdStatus_E pingFinalStatus = IOC_CmdDesc_getStatus(&pingCmd);
+    IOC_Result_T pingFinalResult = IOC_CmdDesc_getResult(&pingCmd);
+    ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, pingFinalStatus) << "PING final status should remain SUCCESS";
+    ASSERT_EQ(IOC_RESULT_SUCCESS, pingFinalResult) << "PING final result should remain SUCCESS";
+
+    // ✅ CRITICAL ASSERTION 16: Verify final state immutability (ECHO)
+    IOC_CmdStatus_E echoFinalStatus = IOC_CmdDesc_getStatus(&echoCmd);
+    IOC_Result_T echoFinalResult = IOC_CmdDesc_getResult(&echoCmd);
+    ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, echoFinalStatus) << "ECHO final status should remain SUCCESS";
+    ASSERT_EQ(IOC_RESULT_SUCCESS, echoFinalResult) << "ECHO final result should remain SUCCESS";
+
+    printf("✅ [VERIFY] Comprehensive success state verification completed:\n");
+    printf("   • Pre-execution states: INITIALIZED ✅ (ASSERTIONS 1,2)\n");
+    printf("   • Post-execution states: SUCCESS ✅ (ASSERTIONS 3,4)\n");
+    printf("   • Command results: SUCCESS ✅ (ASSERTIONS 5,6)\n");
+    printf("   • Response payloads: VERIFIED ✅ (ASSERTIONS 7,8)\n");
+    printf("   • Service state tracking: VERIFIED ✅ (ASSERTIONS 9,10,11,12)\n");
+    printf("   • State history: RECORDED ✅ (ASSERTIONS 13,14)\n");
+    printf("   • Final state immutability: VERIFIED ✅ (ASSERTIONS 15,16)\n");
+    printf("   • Total commands processed: %d ✅\n", srvPrivData.CommandCount.load());
+    printf("   • Total state transitions: %d ✅\n", srvPrivData.StateTransitionCount.load());
+    printf("   • History entries recorded: %d ✅\n", srvPrivData.HistoryCount);
+    printf("✅ [RESULT] Enhanced success state verification with 16 critical assertions completed successfully\n");
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               🧹 CLEANUP PHASE                                       │
