@@ -2654,8 +2654,9 @@ TEST(UT_CommandStateUS1, verifyCommandStateIsolation_bySequentialCommands_expect
 TEST(UT_CommandStateUS1, verifyStateConsistency_betweenWaitAndAck_expectStableStates) {
     printf("🔧 [SETUP] Testing state consistency between IOC_waitCMD and IOC_ackCMD\n");
 
-    // This test verifies that command states remain consistent during the wait/ack workflow
-    // in polling mode. It ensures state machine stability between server-side operations.
+    // This test verifies that command state transitions to PROCESSING after IOC_waitCMD succeeds,
+    // and remains PROCESSING until IOC_ackCMD is called to complete the command.
+    // Per ArchDesign: "after waitCMD is called success, before ackCMD" = PROCESSING state
 
     // Service setup
     IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
@@ -2693,7 +2694,7 @@ TEST(UT_CommandStateUS1, verifyStateConsistency_betweenWaitAndAck_expectStableSt
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
         stateBeforeAck = IOC_CmdDesc_getStatus(&serverCmd);
 
-        IOC_CmdDesc_setStatus(&serverCmd, IOC_CMD_STATUS_PROCESSING);
+        // ✅ CORRECT: Let framework manage state, test only sets result payload
         IOC_CmdDesc_setOutPayload(&serverCmd, (void *)"PONG", 4);
         IOC_CmdDesc_setStatus(&serverCmd, IOC_CMD_STATUS_SUCCESS);
         IOC_CmdDesc_setResult(&serverCmd, IOC_RESULT_SUCCESS);
@@ -2711,11 +2712,16 @@ TEST(UT_CommandStateUS1, verifyStateConsistency_betweenWaitAndAck_expectStableSt
     if (srvThread.joinable()) srvThread.join();
 
     ASSERT_TRUE(waitCompleted.load()) << "IOC_waitCMD should complete";
-    ASSERT_EQ(IOC_CMD_STATUS_PENDING, stateAfterWait.load()) << "State after waitCMD should be PENDING";
-    ASSERT_EQ(IOC_CMD_STATUS_PENDING, stateBeforeAck.load()) << "State before ackCMD should remain PENDING";
+    // ✅ CRITICAL: After waitCMD succeeds, state should be PROCESSING (not PENDING)
+    // Per ArchDesign: "after waitCMD is called success, before ackCMD" = PROCESSING state
+    ASSERT_EQ(IOC_CMD_STATUS_PROCESSING, stateAfterWait.load()) << "State after waitCMD should be PROCESSING";
+    ASSERT_EQ(IOC_CMD_STATUS_PROCESSING, stateBeforeAck.load()) << "State before ackCMD should remain PROCESSING";
     ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, IOC_CmdDesc_getStatus(&clientCmd)) << "Client should receive SUCCESS";
 
     printf("✅ [RESULT] Wait/Ack state consistency verified successfully\n");
+    printf("   • State after waitCMD: PROCESSING ✅\n");
+    printf("   • State before ackCMD: PROCESSING ✅\n");
+    printf("   • State consistency: PROCESSING maintained between wait/ack ✅\n");
 
     if (cliLinkID != IOC_ID_INVALID) IOC_closeLink(cliLinkID);
     if (srvLinkID != IOC_ID_INVALID) IOC_closeLink(srvLinkID);
@@ -2755,7 +2761,7 @@ TEST(UT_CommandStateUS1, verifyStateTransition_fromProcessing_toCompleted_viaAck
         IOC_CmdDesc_T serverCmd = IOC_CMDDESC_INIT_VALUE;
         ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_waitCMD(srvLinkID, &serverCmd, NULL));
 
-        IOC_CmdDesc_setStatus(&serverCmd, IOC_CMD_STATUS_PROCESSING);
+        // ✅ CORRECT: Framework already set to PROCESSING, test verifies it
         stateBeforeAck = IOC_CmdDesc_getStatus(&serverCmd);
 
         IOC_CmdDesc_setOutPayload(&serverCmd, (void *)"PONG", 4);

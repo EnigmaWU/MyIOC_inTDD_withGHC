@@ -2145,6 +2145,11 @@ static IOC_Result_T __IOC_waitCmd_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_C
     printf("[DEBUG waitCmd_ofProtoFifo] POLLING MODE: Command dequeued from index %lu (processed=%lu)\n", queueIndex,
            pFifoLinkObj->CmdPolling.ProcedCmdNum);
 
+    // 🎯 CRITICAL STATE TRANSITION: Set to PROCESSING after successful waitCMD
+    // Per README_ArchDesign.md: "after waitCMD is called success, before ackCMD" = PROCESSING state
+    IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_PROCESSING);
+    printf("[DEBUG waitCmd_ofProtoFifo] STATE TRANSITION: PENDING → PROCESSING (after waitCMD success)\n");
+
     pthread_mutex_unlock(&pFifoLinkObj->CmdPolling.CmdPollingMutex);
 
     return IOC_RESULT_SUCCESS;
