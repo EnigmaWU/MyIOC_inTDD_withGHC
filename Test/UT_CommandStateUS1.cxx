@@ -242,13 +242,16 @@ static IOC_Result_T __IndividualCmdState_ExecutorCb(IOC_LinkID_T LinkID, IOC_Cmd
 
     std::lock_guard<std::mutex> lock(pPrivData->StateMutex);
 
-    // Track state transition to PROCESSING
-    IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_PROCESSING);
-    pPrivData->ProcessingDetected = true;
+    // ✅ CORRECT: Framework already set to PROCESSING before callback invocation
+    // Callback's role: VERIFY current state and set FINAL state (SUCCESS/FAILED)
+    IOC_CmdStatus_E currentStatus = IOC_CmdDesc_getStatus(pCmdDesc);
+    if (currentStatus == IOC_CMD_STATUS_PROCESSING) {
+        pPrivData->ProcessingDetected = true;
+    }
 
     // Record state transition
     if (pPrivData->HistoryCount < 10) {
-        pPrivData->StatusHistory[pPrivData->HistoryCount] = IOC_CMD_STATUS_PROCESSING;
+        pPrivData->StatusHistory[pPrivData->HistoryCount] = currentStatus;
         pPrivData->ResultHistory[pPrivData->HistoryCount] = IOC_RESULT_SUCCESS;
         pPrivData->HistoryCount++;
     }
