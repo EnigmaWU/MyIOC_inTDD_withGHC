@@ -510,41 +510,49 @@ static void __TrackLinkCmdStateChange(__CmdDualStatePrivData_T *pPrivData, IOC_L
 //======>END OF USER STORY 2===================================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF USER STORY 3: MULTI-ROLE LINK STATE VERIFICATION===============================
+//======>BEGIN OF USER STORY 3: MULTI-ROLE SERVICE STATE VERIFICATION============================
 /**
- * US-3: As a command state developer, I want to verify multi-role link state behavior
- *       so that links with both CmdInitiator and CmdExecutor capabilities properly
- *       manage state transitions and priority resolution during concurrent operations,
- *       enabling flexible bidirectional command communication patterns.
+ * US-3: As a command state developer, I want to verify multi-role service state behavior
+ *       so that services with both CmdInitiator and CmdExecutor capabilities properly
+ *       manage state across multiple links with different roles, ensuring correct state
+ *       tracking and independent operation for each link.
  *
- * 🎯 FOCUS: Multi-Role Link Command State (Advanced Level 2 Testing)
+ * 🎯 FOCUS: Multi-Role Service Command State (Advanced Level 2 Testing)
  * 📁 IMPLEMENTATION: UT_CommandStateUS3.cxx
  *
- * [@US-3] Multi-Role Link State Verification
- *  AC-1: GIVEN a link configured with both CmdInitiator and CmdExecutor capabilities,
- *         WHEN link is ready for both sending and receiving commands,
- *         THEN IOC_getLinkState() should return appropriate multi-role ready sub-state
- *         AND link should support both command directions.
+ * 🏗️ ARCHITECTURE CLARIFICATION:
+ *    • SERVICE Capabilities: A service CAN declare UsageCapabilities = (CmdInitiator | CmdExecutor)
+ *    • LINK Usage: Each established LinkID has ONLY ONE usage pair after connection:
+ *       - Link1: Service(CmdInitiator) ←→ Client1(CmdExecutor)
+ *       - Link2: Service(CmdExecutor) ←→ Client2(CmdInitiator)
+ *    • Multi-Role Service: A service managing multiple links, each with different single role
+ *    • NOT: A single link with dual roles simultaneously
  *
- *  AC-2: GIVEN a multi-role link with CmdInitiator operation active,
- *         WHEN link is executing an outbound command,
- *         THEN link state should prioritize CmdInitiator busy state
- *         AND CmdExecutor capability should remain available for incoming commands.
+ * [@US-3] Multi-Role Service State Verification
+ *  AC-1: GIVEN a service with both CmdInitiator and CmdExecutor capabilities,
+ *         WHEN service accepts connections from clients with different usage patterns,
+ *         THEN each established link should have correct single-role state
+ *         AND IOC_getLinkState() should return appropriate state for each link independently.
  *
- *  AC-3: GIVEN a multi-role link with CmdExecutor operation active,
- *         WHEN link is processing an inbound command,
- *         THEN link state should prioritize CmdExecutor busy state
- *         AND CmdInitiator capability should remain available for outbound commands.
+ *  AC-2: GIVEN a multi-role service with one link as CmdInitiator and another as CmdExecutor,
+ *         WHEN service sends command through Initiator link,
+ *         THEN Initiator link state should show CmdInitiatorBusyExecCmd
+ *         AND Executor link state should remain independent (unaffected).
  *
- *  AC-4: GIVEN concurrent operations on multi-role link,
- *         WHEN both CmdInitiator and CmdExecutor are busy simultaneously,
- *         THEN link state should reflect highest priority busy state
- *         AND both operations should complete successfully without interference.
+ *  AC-3: GIVEN a multi-role service with one link as CmdExecutor and another as CmdInitiator,
+ *         WHEN service processes command on Executor link,
+ *         THEN Executor link state should show CmdExecutorBusyExecCmd
+ *         AND Initiator link state should remain independent (unaffected).
  *
- *  AC-5: GIVEN multi-role link with role transition,
- *         WHEN active role changes from CmdInitiator to CmdExecutor or vice versa,
- *         THEN link state should transition smoothly
- *         AND role change should not affect ongoing command operations.
+ *  AC-4: GIVEN a multi-role service with multiple links in different roles,
+ *         WHEN service performs operations on multiple links concurrently,
+ *         THEN each link state should be tracked independently
+ *         AND operations should complete successfully without interference.
+ *
+ *  AC-5: GIVEN a multi-role service managing links with different roles,
+ *         WHEN service switches between different role operations,
+ *         THEN each link state should maintain integrity
+ *         AND role-specific operations should execute correctly on their respective links.
  */
 //======>END OF USER STORY 3===================================================================
 
