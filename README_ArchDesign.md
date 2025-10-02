@@ -746,3 +746,124 @@ stateDiagram-v2
   - `DataReceiverBusyRecvDat → DataReceiverReady`: Data received in polling mode
   - `DataReceiverReady → DataReceiverBusyCbRecvDat`: Data received (callback mode)
   - `DataReceiverBusyCbRecvDat → DataReceiverReady`: Data processing completed
+
+---
+
+## Individual Command State Machine (IOC_CmdDesc_T)
+
+Individual command descriptors (IOC_CmdDesc_T) maintain their own state lifecycle independent of link states. This provides fine-grained command tracking and enables proper error handling, timeout management, and execution verification.
+
+```mermaid
+stateDiagram-v2
+  [*] --> INITIALIZED: IOC_CmdDesc_initVar()
+  
+  INITIALIZED --> PENDING: IOC_execCMD() called
+  INITIALIZED --> PENDING: Command queued in polling mode
+  
+  PENDING --> PROCESSING: Callback invoked (callback mode)
+  PENDING --> PROCESSING: IOC_waitCMD() receives command (polling mode)
+  PENDING --> TIMEOUT: Timeout expires before processing
+  
+  PROCESSING --> SUCCESS: Command executed successfully
+  PROCESSING --> FAILED: Command execution error
+  PROCESSING --> TIMEOUT: Processing timeout expires
+  
+  SUCCESS --> [*]: Command lifecycle complete
+  FAILED --> [*]: Command lifecycle complete
+  TIMEOUT --> [*]: Command lifecycle complete
+  
+  note right of INITIALIZED
+    Status: IOC_CMD_STATUS_INITIALIZED
+    Result: IOC_RESULT_SUCCESS
+    Created via IOC_CmdDesc_initVar()
+  end note
+  
+  note right of PENDING
+    Status: IOC_CMD_STATUS_PENDING
+    Brief state during command routing
+    Framework-managed transition
+  end note
+  
+  note right of PROCESSING
+    Status: IOC_CMD_STATUS_PROCESSING
+    Command being executed
+    Callback mode: In CbExecCmd_F()
+    Polling mode: Between waitCMD/ackCMD
+  end note
+  
+  note right of SUCCESS
+    Status: IOC_CMD_STATUS_SUCCESS
+    Result: IOC_RESULT_SUCCESS
+    Response data available
+  end note
+  
+  note right of FAILED
+    Status: IOC_CMD_STATUS_FAILED
+    Result: Error code (e.g., IOC_RESULT_NOT_SUPPORT)
+    Error details preserved
+  end note
+  
+  note right of TIMEOUT
+    Status: IOC_CMD_STATUS_TIMEOUT
+    Result: IOC_RESULT_TIMEOUT
+    Partial state may be preserved
+  end note
+```
+
+* **State Descriptions**:
+  * **INITIALIZED**: Command descriptor created and ready for execution
+    * Entry: `IOC_CmdDesc_initVar()` called
+    * Properties: Status=INITIALIZED, Result=SUCCESS, CmdID set, Timeout configured
+    * Exit: Command submitted via `IOC_execCMD()` or polling mode queue
+
+  * **PENDING**: Command queued for processing, waiting for executor availability
+    * Entry: Command routing initiated by IOC framework
+    * Properties: Status=PENDING, brief transitional state (usually milliseconds)
+    * Exit: Executor callback invoked or `IOC_waitCMD()` receives command
+
+  * **PROCESSING**: Command actively being executed by target executor
+    * Entry: Callback mode - `CbExecCmd_F()` invoked; Polling mode - `IOC_waitCMD()` success
+    * Properties: Status=PROCESSING, command logic executing
+    * Exit: Execution completes with result, timeout expires, or error occurs
+
+  * **SUCCESS**: Command executed successfully with valid response
+    * Entry: Executor completes processing with success result
+    * Properties: Status=SUCCESS, Result=SUCCESS, response payload available
+    * Terminal: Final state, command lifecycle complete
+
+  * **FAILED**: Command execution failed with error information
+    * Entry: Executor reports execution error or framework detects failure
+    * Properties: Status=FAILED, Result=error code, error details preserved
+    * Terminal: Final state, command lifecycle complete
+
+  * **TIMEOUT**: Command execution exceeded timeout threshold
+    * Entry: Framework timeout detection during PENDING or PROCESSING states
+    * Properties: Status=TIMEOUT, Result=TIMEOUT, partial execution state preserved
+    * Terminal: Final state, command lifecycle complete
+
+* **Design Principles**:
+  1. **Independent Lifecycle**: Each IOC_CmdDesc_T maintains independent state regardless of link state
+  2. **Atomic Transitions**: State changes are atomic and thread-safe
+  3. **Terminal States**: SUCCESS/FAILED/TIMEOUT are immutable final states
+  4. **Error Preservation**: Failed commands preserve error context and diagnostic information
+  5. **Timeout Flexibility**: Timeout can occur during PENDING (pre-execution) or PROCESSING (during execution)
+
+* **State Correlation with Link States**:
+  * **Individual Command State** (IOC_CmdDesc_T): Tracks single command execution lifecycle
+  * **Link Command State** (IOC_LinkID_T): Tracks aggregate command activity on communication link
+  * **Relationship**: Multiple individual commands can be PROCESSING on same link concurrently
+  * **Independence**: Individual command completion doesn't directly affect link state
+  * **Coordination**: Link busy states reflect presence of active individual commands
+
+* **API Integration**:
+  * **State Query**: `IOC_CmdDesc_getStatus()`, `IOC_CmdDesc_getResult()`
+  * **State Verification**: Unit tests validate state machine transitions and consistency
+  * **Error Handling**: Each state provides specific error context for debugging
+  * **Timeout Management**: Framework enforces timeouts and updates state accordingly
+
+* **Testing Strategy** (see UT_CommandStateUS1.cxx):
+  * **Lifecycle Verification**: Tests validate complete INITIALIZED→PROCESSING→SUCCESS flow
+  * **Error Scenarios**: Tests verify proper FAILED state transitions and error preservation
+  * **Timeout Handling**: Tests confirm TIMEOUT state behavior and partial state preservation
+  * **Concurrent Isolation**: Tests ensure independent command state machines don't interfere
+  * **State Consistency**: Tests verify state machine invariants and transition atomicity

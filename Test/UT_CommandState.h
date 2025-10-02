@@ -7,6 +7,10 @@
 // - Follows the established Data State testing pattern (UT_DataState.h)
 // - Each UT_CommandStateUSn.cxx implements the corresponding User Story's test cases
 //
+// 📊 STATE DIAGRAMS: See README_ArchDesign.md for comprehensive state transition diagrams:
+//    - "Individual Command State Machine (IOC_CmdDesc_T)" - Individual command lifecycle states
+//    - "CMD::Conet" - Link-level command state (Initiator/Executor states)
+//
 // 🎯 DUAL-STATE RATIONALE:
 //     Command state verification requires testing TWO distinct but related state aspects:
 //     1. INDIVIDUAL COMMAND STATE: Each IOC_CmdDesc_T's lifecycle (PENDING→PROCESSING→SUCCESS/FAILED/TIMEOUT)

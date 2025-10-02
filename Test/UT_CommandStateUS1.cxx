@@ -7,6 +7,9 @@
 //
 // This file implements all test cases for US-1 Acceptance Criteria.
 // See UT_CommandState.h for complete User Story definition and Acceptance Criteria.
+//
+// 📊 STATE TRANSITION DIAGRAM: See README_ArchDesign.md "Individual Command State Machine (IOC_CmdDesc_T)"
+//    for complete state transition diagram and architectural documentation.
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <chrono>
