@@ -269,11 +269,10 @@ TEST(UT_CommandStateUS2, verifyLinkCmdInitiatorReady_byInitialState_expectReadyS
     // Verify main state is Ready
     VERIFY_LINK_CMD_MAIN_STATE(cliLinkID, IOC_LinkStateReady);
 
-    // TODO: Once CmdInitiator sub-states are implemented, verify:
-    // VERIFY_LINK_CMD_SUB_STATE(cliLinkID, IOC_LinkSubStateCmdInitiatorReady);
+    // Verify sub-state (TDD: This will FAIL until framework implements it)
+    VERIFY_LINK_CMD_SUB_STATE(cliLinkID, IOC_LinkSubStateCmdInitiatorReady);
 
     printf("✅ [VERIFY] CmdInitiator link ready state: MainState=%d, SubState=%d\n", mainState, subState);
-    printf("⚠️  [NOTE] CmdInitiator-specific sub-states pending implementation\n");
     printf("✅ [RESULT] CmdInitiator ready state verification completed\n");
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
@@ -350,11 +349,10 @@ TEST(UT_CommandStateUS2, verifyLinkCmdExecutorReady_byCallbackMode_expectReadySu
     // Verify main state is Ready
     VERIFY_LINK_CMD_MAIN_STATE(srvLinkID, IOC_LinkStateReady);
 
-    // TODO: Once CmdExecutor sub-states are implemented, verify:
-    // VERIFY_LINK_CMD_SUB_STATE(srvLinkID, IOC_LinkSubStateCmdExecutorReady);
+    // Verify sub-state (TDD: This will FAIL until framework implements it)
+    VERIFY_LINK_CMD_SUB_STATE(srvLinkID, IOC_LinkSubStateCmdExecutorReady);
 
     printf("✅ [VERIFY] CmdExecutor link ready state: MainState=%d, SubState=%d\n", mainState, subState);
-    printf("⚠️  [NOTE] CmdExecutor-specific sub-states pending implementation\n");
     printf("✅ [RESULT] CmdExecutor ready state verification completed\n");
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
@@ -457,7 +455,10 @@ TEST(UT_CommandStateUS2, verifyLinkCmdExecutorBusy_byCallbackExecution_expectBus
     printf("✅ [VERIFY] Link state tracking: %d state changes recorded\n", linkStatePriv.StateChangeCount.load());
     printf("✅ [VERIFY] Command processing: %d received, %d processed\n", linkStatePriv.CommandsReceived.load(),
            linkStatePriv.CommandsProcessed.load());
-    printf("⚠️  [NOTE] CmdExecutor busy sub-states pending implementation\n");
+
+    // Verify busy sub-state was captured (TDD: This will FAIL until framework implements it)
+    // TODO: Add verification that IOC_LinkSubStateCmdExecutorBusyExecCmd appeared in state history
+    // EXPECT_TRUE(linkStatePriv.HistoryCount > 1) << "Should have captured busy state transition";
     printf("✅ [RESULT] CmdExecutor busy state verification completed\n");
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
@@ -562,18 +563,18 @@ TEST(UT_CommandStateUS2, verifyLinkCmdInitiatorBusy_byCommandExecution_expectBus
     // Main state should still be Ready (command execution doesn't change main state)
     VERIFY_LINK_CMD_MAIN_STATE(cliLinkID, IOC_LinkStateReady);
 
-    // TODO: Once CmdInitiator busy sub-states are implemented, verify:
-    // VERIFY_LINK_CMD_SUB_STATE(cliLinkID, IOC_LinkSubStateCmdInitiatorBusyExecCmd);
+    // Verify busy sub-state during execution (TDD: This will FAIL until framework implements it)
+    VERIFY_LINK_CMD_SUB_STATE(cliLinkID, IOC_LinkSubStateCmdInitiatorBusyExecCmd);
 
     if (execThread.joinable()) execThread.join();
 
-    // Verify return to ready state after completion
+    // Verify return to ready sub-state after completion
     ResultValue = IOC_getLinkState(cliLinkID, &mainState, &subState);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
     VERIFY_LINK_CMD_MAIN_STATE(cliLinkID, IOC_LinkStateReady);
+    VERIFY_LINK_CMD_SUB_STATE(cliLinkID, IOC_LinkSubStateCmdInitiatorReady);
 
     printf("✅ [VERIFY] CmdInitiator busy state behavior verified\n");
-    printf("⚠️  [NOTE] CmdInitiator busy sub-states pending implementation\n");
     printf("✅ [RESULT] CmdInitiator busy state verification completed\n");
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
@@ -681,8 +682,8 @@ TEST(UT_CommandStateUS2, verifyLinkCmdExecutorPolling_byWaitCMD_expectPollingSub
     printf("🔍 [DEBUG] CmdExecutor state during waitCMD: MainState=%d, SubState=%d\n", mainState, subState);
     VERIFY_LINK_CMD_MAIN_STATE(srvLinkID, IOC_LinkStateReady);
 
-    // TODO: Once CmdExecutor polling sub-states are implemented, verify:
-    // VERIFY_LINK_CMD_SUB_STATE(srvLinkID, IOC_LinkSubStateCmdExecutorBusyWaitCmd);
+    // Verify polling sub-state during waitCMD (TDD: This will FAIL until framework implements it)
+    VERIFY_LINK_CMD_SUB_STATE(srvLinkID, IOC_LinkSubStateCmdExecutorBusyWaitCmd);
 
     // Send command to complete the wait
     IOC_CmdDesc_T sendCmd = IOC_CMDDESC_INIT_VALUE;
@@ -699,11 +700,11 @@ TEST(UT_CommandStateUS2, verifyLinkCmdExecutorPolling_byWaitCMD_expectPollingSub
     ResultValue = IOC_getLinkState(srvLinkID, &mainState, &subState);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
     VERIFY_LINK_CMD_MAIN_STATE(srvLinkID, IOC_LinkStateReady);
+    VERIFY_LINK_CMD_SUB_STATE(srvLinkID, IOC_LinkSubStateCmdExecutorReady);
 
     ASSERT_TRUE(commandReceived.load()) << "Command should have been received via polling";
 
     printf("✅ [VERIFY] CmdExecutor polling state behavior verified\n");
-    printf("⚠️  [NOTE] CmdExecutor polling sub-states pending implementation\n");
     printf("✅ [RESULT] CmdExecutor polling state verification completed\n");
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
@@ -889,7 +890,7 @@ TEST(UT_CommandStateUS2, verifyLinkStateAggregation_byConcurrentCommands_expectC
     printf("   • Client link state: Ready (consistent)\n");
     printf("   • Server link state: Ready (consistent)\n");
     printf("   • Concurrent access control: %s\n", (rejectedCount > 0) ? "WORKING ✓" : "Not tested");
-    printf("⚠️  [NOTE] Concurrent command sub-states pending implementation\n");
+    // TODO: Add sub-state transition verification during concurrent execution
     printf("✅ [RESULT] Link state aggregation verification completed\n");
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
@@ -1026,7 +1027,7 @@ TEST(UT_CommandStateUS2, verifyLinkStateCompletion_byCommandFinish_expectReadySt
 
     printf("✅ [VERIFY] Multiple completion cycles verified: Ready → Busy → Ready × 4\n");
     printf("✅ [VERIFY] Total commands processed: %d\n", srvPrivData.CommandsProcessed.load());
-    printf("⚠️  [NOTE] Completion state transitions pending sub-state implementation\n");
+    // TODO: Add sub-state transition verification for completion cycles
     printf("✅ [RESULT] Link state completion verification completed\n");
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
