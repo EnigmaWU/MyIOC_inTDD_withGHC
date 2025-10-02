@@ -2503,6 +2503,260 @@ TEST(UT_CommandStateUS1, verifyCommandStateIsolation_byConcurrentCommands_expect
     if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
 }
 
+// [@AC-7,US-1] TC-2: verifyCommandStateIsolation_bySequentialCommands_expectIndependentStates
+//
+// 🎯 PURPOSE: Validate that sequential commands on same service maintain independent states
+// 📋 STRATEGY: Execute multiple commands sequentially with different outcomes
+// 🔄 FOCUS: State isolation across successive command invocations
+// 💡 INSIGHT: Tests that previous command state doesn't contaminate next command
+
+TEST(UT_CommandStateUS1, verifyCommandStateIsolation_bySequentialCommands_expectIndependentStates) {
+    printf("🔧 [SETUP] Testing sequential command state isolation on same service\n");
+
+    // Reset isolation test data
+    s_isolationPrivData.CommandCount = 0;
+    s_isolationPrivData.SuccessCount = 0;
+    s_isolationPrivData.FailureCount = 0;
+    s_isolationPrivData.TimeoutCount = 0;
+    s_isolationPrivData.ConcurrentExecutionDetected = false;
+    s_isolationPrivData.ObservedStates.clear();
+    s_isolationPrivData.ObservedResults.clear();
+    s_isolationPrivData.ProcessedCmdIDs.clear();
+    s_isolationPrivData.StartTime = std::chrono::steady_clock::now();
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │            📋 TDD ASSERTION STRATEGY FOR SEQUENTIAL STATE ISOLATION                 │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    // SEQUENTIAL State Isolation: Comprehensive ASSERT coverage for successive command independence
+    //   - ASSERTION 1-3: Each command starts with INITIALIZED state (no carryover)
+    //   - ASSERTION 4-6: Each command achieves expected final state independently
+    //   - ASSERTION 7-9: Each command has correct result without contamination
+    //   - ASSERTION 10-12: State history shows clean transitions per command
+    //   - ASSERTION 13-15: Previous command state doesn't affect next command
+    //   - ASSERTION 16-18: Command descriptors maintain independent lifecycle
+    //
+    // This ensures previous command execution doesn't contaminate subsequent commands.
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                🔧 SETUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+
+    // Setup single service for sequential command testing
+    IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char *)"CmdStateUS1_SequentialIsolation"};
+
+    static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_PING, IOC_CMDID_TEST_ECHO};
+
+    IOC_CmdUsageArgs_T cmdUsageArgs = {
+        .CbExecCmd_F = __IsolationMultiExecutorCb, .pCbPrivData = nullptr, .CmdNum = 2, .pCmdIDs = supportedCmdIDs};
+    IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
+                             .Flags = IOC_SRVFLAG_NONE,
+                             .UsageCapabilites = IOC_LinkUsageCmdExecutor,
+                             .UsageArgs = {.pCmd = &cmdUsageArgs}};
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
+
+    IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T srvLinkID = IOC_ID_INVALID;
+
+    std::thread connThread([&] {
+        IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
+        ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_connectService(&cliLinkID, &connArgs, NULL));
+    });
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_acceptClient(srvID, &srvLinkID, NULL));
+    if (connThread.joinable()) connThread.join();
+
+    printf("🔧 [SETUP] Service ready for sequential command state isolation testing\n");
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                        📝 SEQUENTIAL COMMAND EXECUTION                               │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+
+    // Command 1: SUCCESS case
+    printf("\n📋 [BEHAVIOR] === COMMAND 1: SUCCESS PATH ===\n");
+    IOC_CmdDesc_T cmd1 = IOC_CMDDESC_INIT_VALUE;
+    cmd1.CmdID = IOC_CMDID_TEST_PING;
+    cmd1.TimeoutMs = 5000;
+
+    // ✅ ASSERTION 1: Cmd1 starts with INITIALIZED
+    ASSERT_EQ(IOC_CMD_STATUS_INITIALIZED, IOC_CmdDesc_getStatus(&cmd1)) << "CMD1 should start INITIALIZED";
+    printf("✅ [CMD1] Initial state: INITIALIZED (ASSERTION 1)\n");
+
+    IOC_Result_T result1 = IOC_execCMD(cliLinkID, &cmd1, NULL);
+    printf("📋 [CMD1] execCMD returned: %d\n", result1);
+
+    // ✅ ASSERTION 4: Cmd1 achieves SUCCESS state
+    IOC_CmdStatus_E cmd1FinalState = IOC_CmdDesc_getStatus(&cmd1);
+    ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, cmd1FinalState) << "CMD1 should be SUCCESS";
+    printf("✅ [CMD1] Final state: SUCCESS (ASSERTION 4)\n");
+
+    // ✅ ASSERTION 7: Cmd1 has correct result
+    IOC_Result_T cmd1Result = IOC_CmdDesc_getResult(&cmd1);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, cmd1Result) << "CMD1 should have SUCCESS result";
+    printf("✅ [CMD1] Result: SUCCESS (%d) (ASSERTION 7)\n", cmd1Result);
+
+    // Verify response
+    void *cmd1Response = IOC_CmdDesc_getOutData(&cmd1);
+    ASSERT_TRUE(cmd1Response != nullptr) << "CMD1 should have response";
+    ASSERT_STREQ("PONG", (char *)cmd1Response) << "CMD1 response should be PONG";
+    printf("✅ [CMD1] Response: '%s' ✓\n", (char *)cmd1Response);
+
+    // Small delay to ensure command is fully processed
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // Command 2: FAILURE case (should not be affected by CMD1 success)
+    printf("\n📋 [BEHAVIOR] === COMMAND 2: FAILURE PATH ===\n");
+    IOC_CmdDesc_T cmd2 = IOC_CMDDESC_INIT_VALUE;
+    cmd2.CmdID = IOC_CMDID_TEST_ECHO;
+    cmd2.TimeoutMs = 5000;
+    const char *failInput = "FAIL_TRIGGER";
+    IOC_CmdDesc_setInPayload(&cmd2, (void *)failInput, strlen(failInput));
+
+    // ✅ ASSERTION 2: Cmd2 starts with INITIALIZED (not contaminated by CMD1 SUCCESS)
+    ASSERT_EQ(IOC_CMD_STATUS_INITIALIZED, IOC_CmdDesc_getStatus(&cmd2)) << "CMD2 should start INITIALIZED";
+    printf("✅ [CMD2] Initial state: INITIALIZED (ASSERTION 2)\n");
+
+    IOC_Result_T result2 = IOC_execCMD(cliLinkID, &cmd2, NULL);
+    printf("📋 [CMD2] execCMD returned: %d\n", result2);
+
+    // ✅ ASSERTION 5: Cmd2 achieves FAILED state (independent of CMD1)
+    IOC_CmdStatus_E cmd2FinalState = IOC_CmdDesc_getStatus(&cmd2);
+    ASSERT_EQ(IOC_CMD_STATUS_FAILED, cmd2FinalState) << "CMD2 should be FAILED";
+    printf("✅ [CMD2] Final state: FAILED (ASSERTION 5)\n");
+
+    // ✅ ASSERTION 8: Cmd2 has correct failure result
+    IOC_Result_T cmd2Result = IOC_CmdDesc_getResult(&cmd2);
+    ASSERT_EQ(IOC_RESULT_NOT_SUPPORT, cmd2Result) << "CMD2 should have NOT_SUPPORT result";
+    printf("✅ [CMD2] Result: NOT_SUPPORT (%d) (ASSERTION 8)\n", cmd2Result);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // Command 3: TIMEOUT case (should not be affected by CMD2 failure)
+    printf("\n📋 [BEHAVIOR] === COMMAND 3: TIMEOUT PATH ===\n");
+    IOC_CmdDesc_T cmd3 = IOC_CMDDESC_INIT_VALUE;
+    cmd3.CmdID = IOC_CMDID_TEST_ECHO;
+    cmd3.TimeoutMs = 50;  // Aggressive timeout
+    const char *timeoutInput = "TIMEOUT_TRIGGER";
+    IOC_CmdDesc_setInPayload(&cmd3, (void *)timeoutInput, strlen(timeoutInput));
+
+    // ✅ ASSERTION 3: Cmd3 starts with INITIALIZED (not contaminated by CMD2 FAILED)
+    ASSERT_EQ(IOC_CMD_STATUS_INITIALIZED, IOC_CmdDesc_getStatus(&cmd3)) << "CMD3 should start INITIALIZED";
+    printf("✅ [CMD3] Initial state: INITIALIZED (ASSERTION 3)\n");
+
+    IOC_Result_T result3 = IOC_execCMD(cliLinkID, &cmd3, NULL);
+    printf("📋 [CMD3] execCMD returned: %d\n", result3);
+
+    // ✅ ASSERTION 6: Cmd3 achieves TIMEOUT/FAILED state (independent of CMD1/CMD2)
+    IOC_CmdStatus_E cmd3FinalState = IOC_CmdDesc_getStatus(&cmd3);
+    ASSERT_TRUE(cmd3FinalState == IOC_CMD_STATUS_TIMEOUT || cmd3FinalState == IOC_CMD_STATUS_FAILED)
+        << "CMD3 should be TIMEOUT or FAILED";
+    printf("✅ [CMD3] Final state: %s (ASSERTION 6)\n",
+           cmd3FinalState == IOC_CMD_STATUS_TIMEOUT ? "TIMEOUT" : "FAILED");
+
+    // ✅ ASSERTION 9: Cmd3 has correct timeout result
+    IOC_Result_T cmd3Result = IOC_CmdDesc_getResult(&cmd3);
+    ASSERT_TRUE(cmd3Result == IOC_RESULT_TIMEOUT || cmd3Result < 0) << "CMD3 should have TIMEOUT or error result";
+    printf("✅ [CMD3] Result: %d (ASSERTION 9)\n", cmd3Result);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // Command 4: Another SUCCESS case (should not be affected by CMD3 timeout)
+    printf("\n📋 [BEHAVIOR] === COMMAND 4: SUCCESS PATH (AFTER TIMEOUT) ===\n");
+    IOC_CmdDesc_T cmd4 = IOC_CMDDESC_INIT_VALUE;
+    cmd4.CmdID = IOC_CMDID_TEST_ECHO;
+    cmd4.TimeoutMs = 5000;
+    const char *normalInput = "NORMAL_ECHO";
+    IOC_CmdDesc_setInPayload(&cmd4, (void *)normalInput, strlen(normalInput));
+
+    // ✅ ASSERTION 13: Cmd4 starts with INITIALIZED (not contaminated by CMD3 TIMEOUT)
+    ASSERT_EQ(IOC_CMD_STATUS_INITIALIZED, IOC_CmdDesc_getStatus(&cmd4)) << "CMD4 should start INITIALIZED";
+    printf("✅ [CMD4] Initial state: INITIALIZED (ASSERTION 13)\n");
+
+    IOC_Result_T result4 = IOC_execCMD(cliLinkID, &cmd4, NULL);
+    printf("📋 [CMD4] execCMD returned: %d\n", result4);
+
+    // ✅ ASSERTION 14: Cmd4 achieves SUCCESS state (proves recovery from timeout)
+    IOC_CmdStatus_E cmd4FinalState = IOC_CmdDesc_getStatus(&cmd4);
+    ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, cmd4FinalState) << "CMD4 should be SUCCESS";
+    printf("✅ [CMD4] Final state: SUCCESS (ASSERTION 14)\n");
+
+    // ✅ ASSERTION 15: Cmd4 has correct result and response
+    IOC_Result_T cmd4Result = IOC_CmdDesc_getResult(&cmd4);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, cmd4Result) << "CMD4 should have SUCCESS result";
+    void *cmd4Response = IOC_CmdDesc_getOutData(&cmd4);
+    ASSERT_TRUE(cmd4Response != nullptr) << "CMD4 should have response";
+    ASSERT_STREQ(normalInput, (char *)cmd4Response) << "CMD4 should echo input";
+    printf("✅ [CMD4] Result: SUCCESS, Response: '%s' (ASSERTION 15)\n", (char *)cmd4Response);
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                        🔍 SEQUENTIAL ISOLATION VERIFICATION                         │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+
+    auto endTime = std::chrono::steady_clock::now();
+    auto totalDuration =
+        std::chrono::duration_cast<std::chrono::milliseconds>(endTime - s_isolationPrivData.StartTime).count();
+
+    // ✅ ASSERTION 10: Verify all commands were processed
+    ASSERT_EQ(4, s_isolationPrivData.CommandCount.load()) << "Should process exactly 4 commands";
+    printf("✅ [VERIFY] Command count: %d (ASSERTION 10)\n", s_isolationPrivData.CommandCount.load());
+
+    // ✅ ASSERTION 11: Verify success/failure counts
+    ASSERT_GE(s_isolationPrivData.SuccessCount.load(), 2) << "Should have at least 2 successes";
+    ASSERT_GE(s_isolationPrivData.FailureCount.load(), 1) << "Should have at least 1 failure";
+    printf("✅ [VERIFY] Success=%d, Failure=%d (ASSERTION 11)\n", s_isolationPrivData.SuccessCount.load(),
+           s_isolationPrivData.FailureCount.load());
+
+    // ✅ ASSERTION 12: Verify command IDs were tracked correctly
+    ASSERT_EQ(4, s_isolationPrivData.ProcessedCmdIDs.size()) << "Should track 4 command IDs";
+    printf("✅ [VERIFY] Processed command IDs: ");
+    for (auto cmdID : s_isolationPrivData.ProcessedCmdIDs) {
+        printf("%llu ", cmdID);
+    }
+    printf("(ASSERTION 12)\n");
+
+    // ✅ ASSERTION 16: Verify CMD1 state is still immutable
+    ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, IOC_CmdDesc_getStatus(&cmd1)) << "CMD1 should remain SUCCESS";
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_CmdDesc_getResult(&cmd1)) << "CMD1 result should remain SUCCESS";
+    printf("✅ [VERIFY] CMD1 state immutability: SUCCESS (ASSERTION 16)\n");
+
+    // ✅ ASSERTION 17: Verify CMD2 state is still immutable
+    ASSERT_EQ(IOC_CMD_STATUS_FAILED, IOC_CmdDesc_getStatus(&cmd2)) << "CMD2 should remain FAILED";
+    ASSERT_EQ(IOC_RESULT_NOT_SUPPORT, IOC_CmdDesc_getResult(&cmd2)) << "CMD2 result should remain NOT_SUPPORT";
+    printf("✅ [VERIFY] CMD2 state immutability: FAILED (ASSERTION 17)\n");
+
+    // ✅ ASSERTION 18: Verify CMD3 and CMD4 states are immutable
+    ASSERT_EQ(cmd3FinalState, IOC_CmdDesc_getStatus(&cmd3)) << "CMD3 should remain in final state";
+    ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, IOC_CmdDesc_getStatus(&cmd4)) << "CMD4 should remain SUCCESS";
+    printf("✅ [VERIFY] CMD3/CMD4 state immutability verified (ASSERTION 18)\n");
+
+    printf("\n✅ [VERIFY] Sequential command state isolation verification completed:\n");
+    printf("   • CMD1: INITIALIZED→SUCCESS ✅ (ASSERTIONS 1,4,7)\n");
+    printf("   • CMD2: INITIALIZED→FAILED ✅ (ASSERTIONS 2,5,8)\n");
+    printf("   • CMD3: INITIALIZED→TIMEOUT ✅ (ASSERTIONS 3,6,9)\n");
+    printf("   • CMD4: INITIALIZED→SUCCESS ✅ (ASSERTIONS 13,14,15)\n");
+    printf("   • Command tracking: 4 commands processed ✅ (ASSERTION 10)\n");
+    printf("   • State distribution: Success=%d, Failure=%d ✅ (ASSERTION 11)\n",
+           s_isolationPrivData.SuccessCount.load(), s_isolationPrivData.FailureCount.load());
+    printf("   • Command ID tracking: 4 IDs recorded ✅ (ASSERTION 12)\n");
+    printf("   • State immutability: ALL VERIFIED ✅ (ASSERTIONS 16-18)\n");
+    printf("   • Total execution time: %lldms\n", totalDuration);
+
+    printf("✅ [RESULT] Sequential command state isolation test completed successfully\n");
+    printf("   🎯 VERIFIED: Each command maintains independent state lifecycle\n");
+    printf("   📊 COMPREHENSIVE ASSERTIONS: 18 critical assertions verified ✅\n");
+    printf("   🔄 SEQUENTIAL EXECUTION: SUCCESS→FAIL→TIMEOUT→SUCCESS pattern ✅\n");
+    printf("   🔒 NO STATE CONTAMINATION: Previous command doesn't affect next ✅\n");
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🧹 CLEANUP PHASE                                       │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    if (cliLinkID != IOC_ID_INVALID) IOC_closeLink(cliLinkID);
+    if (srvLinkID != IOC_ID_INVALID) IOC_closeLink(srvLinkID);
+    if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
+}
+
 //======>END OF AC-7 STATE ISOLATION TESTING======================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
