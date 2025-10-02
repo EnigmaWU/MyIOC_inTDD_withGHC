@@ -465,11 +465,15 @@ TEST(UT_CommandStateUS1, verifyStateTransition_fromInitialized_toPending_viaExec
 }
 
 // Enhanced callback for dual PROCESSING state verification
+// ⚠️ ARCHITECTURAL NOTE: This test uses pointer sharing across threads for verification.
+//    This is ONLY acceptable in TEST code for state observation.
+//    PRODUCTION code should NEVER share command descriptors across thread boundaries!
+//    Each thread should maintain its own IOC_CmdDesc_T copy.
 static std::mutex s_processingMutex;
 static std::condition_variable s_processingCv;
 static std::atomic<bool> s_processingStateReady{false};
 static std::atomic<bool> s_testCanProceed{false};
-static IOC_CmdDesc_pT s_sharedCmdDesc = nullptr;
+static IOC_CmdDesc_pT s_sharedCmdDesc = nullptr;  // ⚠️ TEST ONLY: Not safe for production!
 static std::atomic<bool> s_callbackProcessingVerified{false};
 
 static IOC_Result_T __AsyncProcessingExecutorCb(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, void *pCbPriv) {
