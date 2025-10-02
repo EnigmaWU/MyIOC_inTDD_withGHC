@@ -1314,14 +1314,15 @@ TEST(UT_CommandStateUS1, verifyStateTransition_fromPending_toProcessing_viaPolli
     // └──────────────────────────────────────────────────────────────────────────────────────┘
     // POLLING Mode State Verification: Comprehensive ASSERT coverage for IOC_waitCMD/IOC_ackCMD workflow
     //   - ASSERTION 1-2: Pre-execution state verification (INITIALIZED for both client/server)
-    //   - ASSERTION 3-4: PENDING state verification via IOC_waitCMD reception and server processing
-    //   - ASSERTION 5-6: PROCESSING state verification via manual state transitions
+    //   - ASSERTION 3-4: PROCESSING state verification after IOC_waitCMD (framework auto-transition)
+    //   - ASSERTION 5-6: PROCESSING state stability verification during executor work
     //   - ASSERTION 7-8: SUCCESS state verification via IOC_ackCMD and final result confirmation
     //   - ASSERTION 9-10: Response payload verification (request/response data integrity)
     //   - ASSERTION 11-12: Polling workflow timing and synchronization verification
     //   - ASSERTION 13-14: State history tracking and transition sequence verification
     //
-    // This design ensures every critical polling mode aspect has explicit ASSERT statements.
+    // CRITICAL ARCHITECTURE: Framework manages PENDING→PROCESSING transition after waitCMD success
+    // Executor only manages PROCESSING→SUCCESS/FAILED transition before ackCMD
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                🔧 SETUP PHASE                                        │
@@ -1422,13 +1423,15 @@ TEST(UT_CommandStateUS1, verifyStateTransition_fromPending_toProcessing_viaPolli
             printf("📋 [SERVER] Command received via IOC_waitCMD: CmdID=%llu\n", IOC_CmdDesc_getCmdID(&waitCmdDesc));
             printf("📋 [SERVER] Command state after waitCMD: %s\n", IOC_CmdDesc_getStatusStr(&waitCmdDesc));
 
-            // ✅ CRITICAL ASSERTION 3: Verify command is received in PENDING state via IOC_waitCMD
+            // ✅ CRITICAL ASSERTION 3: Verify command is PROCESSING after IOC_waitCMD
+            // Per ArchDesign: "after waitCMD is called success, before ackCMD" = PROCESSING state
+            // Framework automatically transitions PENDING → PROCESSING after successful waitCMD
             IOC_CmdStatus_E waitStatus = IOC_CmdDesc_getStatus(&waitCmdDesc);
-            ASSERT_EQ(IOC_CMD_STATUS_PENDING, waitStatus)
-                << "Commands should be PENDING when received via IOC_waitCMD in polling mode";
-            printf("✅ [SERVER] PENDING state verified after IOC_waitCMD (ASSERTION 3)\n");
+            ASSERT_EQ(IOC_CMD_STATUS_PROCESSING, waitStatus)
+                << "Commands should be PROCESSING after successful waitCMD (framework manages this transition)";
+            printf("✅ [SERVER] PROCESSING state verified after IOC_waitCMD (ASSERTION 3)\n");
 
-            // Record PENDING state in history
+            // Record PROCESSING state in history
             if (s_pollingPrivData.HistoryCount < 10) {
                 s_pollingPrivData.StatusHistory[s_pollingPrivData.HistoryCount] = waitStatus;
                 s_pollingPrivData.ResultHistory[s_pollingPrivData.HistoryCount] = IOC_RESULT_SUCCESS;
@@ -1436,17 +1439,17 @@ TEST(UT_CommandStateUS1, verifyStateTransition_fromPending_toProcessing_viaPolli
             }
 
             // Process the command manually (no callback in polling mode)
+            // ✅ CORRECT: Framework already set to PROCESSING, we just do the work
             IOC_CmdID_T cmdID = IOC_CmdDesc_getCmdID(&waitCmdDesc);
             if (cmdID == IOC_CMDID_TEST_PING) {
-                // Set PROCESSING state manually since we're doing the work
-                IOC_CmdDesc_setStatus(&waitCmdDesc, IOC_CMD_STATUS_PROCESSING);
-                printf("📋 [SERVER] Set command to PROCESSING state for manual processing\n");
+                // No need to set PROCESSING - framework already did it!
+                printf("📋 [SERVER] Processing command (already in PROCESSING state)\n");
 
-                // ✅ CRITICAL ASSERTION 5: Verify command is now in PROCESSING state
+                // ✅ CRITICAL ASSERTION 5: Verify command remains in PROCESSING state
                 IOC_CmdStatus_E processingStatus = IOC_CmdDesc_getStatus(&waitCmdDesc);
                 ASSERT_EQ(IOC_CMD_STATUS_PROCESSING, processingStatus)
-                    << "Command should be in PROCESSING state after manual state setting";
-                printf("✅ [SERVER] PROCESSING state verified during manual processing (ASSERTION 5)\n");
+                    << "Command should remain in PROCESSING state during executor work";
+                printf("✅ [SERVER] PROCESSING state confirmed during executor work (ASSERTION 5)\n");
 
                 // Record PROCESSING state in history
                 if (s_pollingPrivData.HistoryCount < 10) {
@@ -1597,19 +1600,17 @@ TEST(UT_CommandStateUS1, verifyStateTransition_fromPending_toProcessing_viaPolli
         ASSERT_LE(s_pollingPrivData.HistoryCount, 10) << "History count should be within bounds";
         printf("   • State history entries: %d ✅ (ASSERTION 13)\n", s_pollingPrivData.HistoryCount);
 
-        // ✅ CRITICAL ASSERTION 14: Verify state history contains expected sequence
-        bool pendingFoundInHistory = false;
+        // ✅ CRITICAL ASSERTION 14: Verify state history contains expected executor-visible states
+        // Note: PENDING state is framework-internal during queue time, executor only sees PROCESSING→SUCCESS
         bool processingFoundInHistory = false;
         bool successFoundInHistory = false;
         for (int i = 0; i < s_pollingPrivData.HistoryCount; i++) {
-            if (s_pollingPrivData.StatusHistory[i] == IOC_CMD_STATUS_PENDING) pendingFoundInHistory = true;
             if (s_pollingPrivData.StatusHistory[i] == IOC_CMD_STATUS_PROCESSING) processingFoundInHistory = true;
             if (s_pollingPrivData.StatusHistory[i] == IOC_CMD_STATUS_SUCCESS) successFoundInHistory = true;
         }
-        ASSERT_TRUE(pendingFoundInHistory) << "State history should contain PENDING state";
-        ASSERT_TRUE(processingFoundInHistory) << "State history should contain PROCESSING state";
-        ASSERT_TRUE(successFoundInHistory) << "State history should contain SUCCESS state";
-        printf("   • State sequence verified: PENDING→PROCESSING→SUCCESS ✅ (ASSERTION 14)\n");
+        ASSERT_TRUE(processingFoundInHistory) << "State history should contain PROCESSING state (after waitCMD)";
+        ASSERT_TRUE(successFoundInHistory) << "State history should contain SUCCESS state (set by executor)";
+        printf("   • State sequence verified: PROCESSING→SUCCESS (executor-visible states) ✅ (ASSERTION 14)\n");
 
         if (s_pollingAckCompleted.load()) {
             printf("   • Command completed via IOC_ackCMD ✅\n");
@@ -1630,10 +1631,11 @@ TEST(UT_CommandStateUS1, verifyStateTransition_fromPending_toProcessing_viaPolli
         }
 
         printf("✅ [RESULT] Enhanced polling mode state transition verification completed successfully\n");
-        printf("   🎯 VERIFIED STATES: INITIALIZED → PENDING → PROCESSING → SUCCESS\n");
+        printf("   🎯 VERIFIED STATES: Framework: INITIALIZED → PENDING → PROCESSING (after waitCMD)\n");
+        printf("                       Executor:  PROCESSING → SUCCESS (executor sets final state)\n");
         printf("   📊 COMPREHENSIVE ASSERTIONS: 14 critical assertions verified ✅\n");
         printf("   ⏱️  TIMING VERIFICATION: Workflow timing measured and validated ✅\n");
-        printf("   📋 STATE HISTORY: Complete transition sequence recorded and verified ✅\n");
+        printf("   📋 STATE HISTORY: Executor-visible transition sequence recorded and verified ✅\n");
         printf("   🔄 POLLING WORKFLOW: IOC_waitCMD/IOC_ackCMD pattern successfully validated ✅\n");
     } else {
         printf("⚠️ [INFO] Polling mode may not be fully supported or requires different workflow\n");
