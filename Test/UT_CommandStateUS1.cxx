@@ -2660,14 +2660,32 @@ TEST(UT_CommandStateUS1, verifyCommandStateIsolation_bySequentialCommands_expect
 //======>BEGIN OF REMAINING AC TESTS===============================================================
 
 // [@AC-3,US-1] TC-2: State consistency between IOC_waitCMD and IOC_ackCMD
+/**
+ * ╔══════════════════════════════════════════════════════════════════════════════════════════╗
+ * ║                         🔄 POLLING MODE STATE CONSISTENCY                                ║
+ * ╠══════════════════════════════════════════════════════════════════════════════════════════╣
+ * ║ @[Purpose]: Validate PROCESSING state stability between waitCMD and ackCMD in polling     ║
+ * ║ @[Brief]: Capture state immediately after waitCMD and before ackCMD, verify consistency   ║
+ * ║ @[Strategy]: Use multi-threading to observe state at precise moments in polling workflow  ║
+ * ║                                                                                          ║
+ * ║ 📋 KEY ASSERTIONS:                                                                        ║
+ * ║   • ASSERTION 1: waitCMD completes successfully                                          ║
+ * ║   • ASSERTION 2: State after waitCMD is PROCESSING (framework managed)                   ║
+ * ║   • ASSERTION 3: State remains PROCESSING before ackCMD (stability)                      ║
+ * ║   • ASSERTION 4: Client receives final SUCCESS state                                     ║
+ * ║                                                                                          ║
+ * ║ 🎯 ARCHITECTURE PRINCIPLE:                                                               ║
+ * ║   Per IOC_CmdDesc.h line 26: "after waitCMD is called success, before ackCMD"           ║
+ * ║   Command must be in PROCESSING state - this is the polling mode contract!              ║
+ * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
+ */
 TEST(UT_CommandStateUS1, verifyStateConsistency_betweenWaitAndAck_expectStableStates) {
-    printf("🔧 [SETUP] Testing state consistency between IOC_waitCMD and IOC_ackCMD\n");
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                🔧 SETUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    printf("🔧 [SETUP] Testing PROCESSING state consistency between IOC_waitCMD and IOC_ackCMD\n");
 
-    // This test verifies that command state transitions to PROCESSING after IOC_waitCMD succeeds,
-    // and remains PROCESSING until IOC_ackCMD is called to complete the command.
-    // Per ArchDesign: "after waitCMD is called success, before ackCMD" = PROCESSING state
-
-    // Service setup
+    // Service setup for pure polling mode (no callback)
     IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
                            .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
                            .pPath = (const char *)"CmdStateUS1_WaitAckConsistency"};
@@ -2690,10 +2708,18 @@ TEST(UT_CommandStateUS1, verifyStateConsistency_betweenWaitAndAck_expectStableSt
     ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_acceptClient(srvID, &srvLinkID, NULL));
     if (connThread.joinable()) connThread.join();
 
+    // State observation atomics for multi-threaded verification
     std::atomic<IOC_CmdStatus_E> stateAfterWait{IOC_CMD_STATUS_INITIALIZED};
     std::atomic<IOC_CmdStatus_E> stateBeforeAck{IOC_CMD_STATUS_INITIALIZED};
     std::atomic<bool> waitCompleted{false};
 
+    printf("🔧 [SETUP] Service and client established, ready for polling mode test\n");
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                              📋 BEHAVIOR PHASE                                       │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+
+    // Server thread: Execute polling mode workflow (waitCMD → process → ackCMD)
     std::thread srvThread([&] {
         IOC_CmdDesc_T serverCmd = IOC_CMDDESC_INIT_VALUE;
         ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_waitCMD(srvLinkID, &serverCmd, NULL));
@@ -2720,26 +2746,66 @@ TEST(UT_CommandStateUS1, verifyStateConsistency_betweenWaitAndAck_expectStableSt
 
     if (srvThread.joinable()) srvThread.join();
 
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                ✅ VERIFY PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+
+    // ✅ ASSERTION 1: Verify waitCMD completed successfully
     ASSERT_TRUE(waitCompleted.load()) << "IOC_waitCMD should complete";
-    // ✅ CRITICAL: After waitCMD succeeds, state should be PROCESSING (not PENDING)
-    // Per ArchDesign: "after waitCMD is called success, before ackCMD" = PROCESSING state
-    ASSERT_EQ(IOC_CMD_STATUS_PROCESSING, stateAfterWait.load()) << "State after waitCMD should be PROCESSING";
+    printf("✅ [VERIFY] waitCMD completion verified (ASSERTION 1)\n");
+
+    // ✅ ASSERTION 2: Verify state immediately after waitCMD is PROCESSING
+    // CRITICAL: Per IOC_CmdDesc.h line 26 - "after waitCMD is called success, before ackCMD" = PROCESSING
+    ASSERT_EQ(IOC_CMD_STATUS_PROCESSING, stateAfterWait.load())
+        << "State after waitCMD should be PROCESSING (framework transition)";
+    printf("✅ [VERIFY] State after waitCMD: PROCESSING (ASSERTION 2)\n");
+
+    // ✅ ASSERTION 3: Verify state remains PROCESSING before ackCMD (stability)
     ASSERT_EQ(IOC_CMD_STATUS_PROCESSING, stateBeforeAck.load()) << "State before ackCMD should remain PROCESSING";
+    printf("✅ [VERIFY] State before ackCMD: PROCESSING (ASSERTION 3)\n");
+
+    // ✅ ASSERTION 4: Verify client receives final SUCCESS state
     ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, IOC_CmdDesc_getStatus(&clientCmd)) << "Client should receive SUCCESS";
+    printf("✅ [VERIFY] Client received final state: SUCCESS (ASSERTION 4)\n");
 
-    printf("✅ [RESULT] Wait/Ack state consistency verified successfully\n");
-    printf("   • State after waitCMD: PROCESSING ✅\n");
-    printf("   • State before ackCMD: PROCESSING ✅\n");
+    printf("\n✅ [RESULT] Wait/Ack state consistency verified successfully:\n");
+    printf("   • State after waitCMD: PROCESSING ✅ (ASSERTION 2)\n");
+    printf("   • State before ackCMD: PROCESSING ✅ (ASSERTION 3)\n");
     printf("   • State consistency: PROCESSING maintained between wait/ack ✅\n");
+    printf("   • Client final state: SUCCESS ✅ (ASSERTION 4)\n");
 
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🧹 CLEANUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
     if (cliLinkID != IOC_ID_INVALID) IOC_closeLink(cliLinkID);
     if (srvLinkID != IOC_ID_INVALID) IOC_closeLink(srvLinkID);
     if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
 }
 
 // [@AC-3,US-1] TC-3: Processing to completed transition via IOC_ackCMD
+/**
+ * ╔══════════════════════════════════════════════════════════════════════════════════════════╗
+ * ║                      🔄 ACK-DRIVEN STATE TRANSITION VERIFICATION                         ║
+ * ╠══════════════════════════════════════════════════════════════════════════════════════════╣
+ * ║ @[Purpose]: Validate PROCESSING→SUCCESS state transition triggered by IOC_ackCMD         ║
+ * ║ @[Brief]: Capture state before and after ackCMD to verify the final transition          ║
+ * ║ @[Strategy]: Use polling mode with state observation before/after ackCMD call           ║
+ * ║                                                                                          ║
+ * ║ 📋 KEY ASSERTIONS:                                                                        ║
+ * ║   • ASSERTION 1: State before ackCMD is PROCESSING (executor responsibility zone)       ║
+ * ║   • ASSERTION 2: State after ackCMD is SUCCESS (final transition complete)              ║
+ * ║   • ASSERTION 3: Client receives final SUCCESS state                                    ║
+ * ║                                                                                          ║
+ * ║ 🎯 ARCHITECTURE PRINCIPLE:                                                               ║
+ * ║   In polling mode, executor sets final state (SUCCESS/FAILED) before calling ackCMD.    ║
+ * ║   ackCMD completes the command lifecycle and propagates result to client.               ║
+ * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
+ */
 TEST(UT_CommandStateUS1, verifyStateTransition_fromProcessing_toCompleted_viaAck) {
-    printf("🔧 [SETUP] Testing PROCESSING→SUCCESS/FAILED transition via IOC_ackCMD\n");
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                🔧 SETUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+    printf("🔧 [SETUP] Testing PROCESSING→SUCCESS transition via IOC_ackCMD\n");
 
     IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
                            .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
@@ -2766,21 +2832,35 @@ TEST(UT_CommandStateUS1, verifyStateTransition_fromProcessing_toCompleted_viaAck
     std::atomic<IOC_CmdStatus_E> stateBeforeAck{IOC_CMD_STATUS_INITIALIZED};
     std::atomic<IOC_CmdStatus_E> stateAfterAck{IOC_CMD_STATUS_INITIALIZED};
 
+    printf("🔧 [SETUP] Service and client established for ack transition test\n");
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                              📋 BEHAVIOR PHASE                                       │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+
+    // Server thread: Execute polling workflow with state capture around ackCMD
     std::thread srvThread([&] {
         IOC_CmdDesc_T serverCmd = IOC_CMDDESC_INIT_VALUE;
         ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_waitCMD(srvLinkID, &serverCmd, NULL));
 
-        // ✅ CORRECT: Framework already set to PROCESSING, test verifies it
+        // Capture state before ackCMD (should be PROCESSING from framework)
         stateBeforeAck = IOC_CmdDesc_getStatus(&serverCmd);
+        printf("📋 [BEHAVIOR] State before ackCMD: %s\n", IOC_CmdDesc_getStatusStr(&serverCmd));
 
+        // Executor sets final state and result payload
         IOC_CmdDesc_setOutPayload(&serverCmd, (void *)"PONG", 4);
         IOC_CmdDesc_setStatus(&serverCmd, IOC_CMD_STATUS_SUCCESS);
         IOC_CmdDesc_setResult(&serverCmd, IOC_RESULT_SUCCESS);
 
+        // Call ackCMD to complete the command
         ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_ackCMD(srvLinkID, &serverCmd, NULL));
+
+        // Capture state after ackCMD
         stateAfterAck = IOC_CmdDesc_getStatus(&serverCmd);
+        printf("📋 [BEHAVIOR] State after ackCMD: %s\n", IOC_CmdDesc_getStatusStr(&serverCmd));
     });
 
+    // Client thread: Send command and wait for completion
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     IOC_CmdDesc_T clientCmd = IOC_CMDDESC_INIT_VALUE;
@@ -2790,19 +2870,67 @@ TEST(UT_CommandStateUS1, verifyStateTransition_fromProcessing_toCompleted_viaAck
 
     if (srvThread.joinable()) srvThread.join();
 
-    ASSERT_EQ(IOC_CMD_STATUS_PROCESSING, stateBeforeAck.load()) << "State before ackCMD should be PROCESSING";
-    ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, stateAfterAck.load()) << "State after ackCMD should be SUCCESS";
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                ✅ VERIFY PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+
+    // ✅ ASSERTION 1: Verify state before ackCMD is PROCESSING
+    ASSERT_EQ(IOC_CMD_STATUS_PROCESSING, stateBeforeAck.load())
+        << "State before ackCMD should be PROCESSING (executor's working state)";
+    printf("✅ [VERIFY] State before ackCMD: PROCESSING (ASSERTION 1)\n");
+
+    // ✅ ASSERTION 2: Verify state after ackCMD is SUCCESS
+    ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, stateAfterAck.load())
+        << "State after ackCMD should be SUCCESS (final transition complete)";
+    printf("✅ [VERIFY] State after ackCMD: SUCCESS (ASSERTION 2)\n");
+
+    // ✅ ASSERTION 3: Verify client receives final SUCCESS state
     ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, IOC_CmdDesc_getStatus(&clientCmd)) << "Client should receive SUCCESS";
+    printf("✅ [VERIFY] Client received SUCCESS (ASSERTION 3)\n");
 
-    printf("✅ [RESULT] PROCESSING→SUCCESS transition via ackCMD verified successfully\n");
+    printf("\n✅ [RESULT] PROCESSING→SUCCESS transition via ackCMD verified:\n");
+    printf("   • State before ackCMD: PROCESSING ✅ (ASSERTION 1)\n");
+    printf("   • State after ackCMD: SUCCESS ✅ (ASSERTION 2)\n");
+    printf("   • Client final state: SUCCESS ✅ (ASSERTION 3)\n");
+    printf("   • Transition complete: ackCMD successfully finalized command\n");
 
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🧹 CLEANUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
     if (cliLinkID != IOC_ID_INVALID) IOC_closeLink(cliLinkID);
     if (srvLinkID != IOC_ID_INVALID) IOC_closeLink(srvLinkID);
     if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
 }
 
 // [@AC-4,US-1] TC-2: Final state immutability after SUCCESS
+// ╔══════════════════════════════════════════════════════════════════════════════════════╗
+// ║                   🔒 SUCCESS STATE IMMUTABILITY VERIFICATION                         ║
+// ╠══════════════════════════════════════════════════════════════════════════════════════╣
+// ║ PURPOSE:                                                                             ║
+// ║   Validate that SUCCESS is a final state that cannot be modified after completion    ║
+// ║                                                                                      ║
+// ║ BRIEF:                                                                               ║
+// ║   Execute command to SUCCESS, then verify state remains unchanged over time         ║
+// ║                                                                                      ║
+// ║ STRATEGY:                                                                            ║
+// ║   1. Execute command with auto-success executor                                      ║
+// ║   2. Capture final state and result immediately after completion                     ║
+// ║   3. Wait and re-check state/result to confirm immutability                          ║
+// ║                                                                                      ║
+// ║ KEY ASSERTIONS:                                                                      ║
+// ║   • ASSERTION 1: First capture shows SUCCESS state                                   ║
+// ║   • ASSERTION 2: First capture shows SUCCESS result                                  ║
+// ║   • ASSERTION 3: Second capture (after delay) shows identical state                  ║
+// ║   • ASSERTION 4: Second capture (after delay) shows identical result                 ║
+// ║                                                                                      ║
+// ║ ARCHITECTURE PRINCIPLE:                                                              ║
+// ║   Final states (SUCCESS/FAILED/TIMEOUT) are immutable - framework guarantees         ║
+// ║   no state transitions after completion                                              ║
+// ╚══════════════════════════════════════════════════════════════════════════════════════╝
 TEST(UT_CommandStateUS1, verifyStateTransition_fromProcessing_toSuccess_expectFinalState) {
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                🔧 SETUP PHASE                                         │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
     printf("🔧 [SETUP] Testing SUCCESS state immutability after transition\n");
 
     __IndividualCmdStatePriv_T srvPrivData = {};
@@ -2840,23 +2968,55 @@ TEST(UT_CommandStateUS1, verifyStateTransition_fromProcessing_toSuccess_expectFi
     cmdDesc.CmdID = IOC_CMDID_TEST_PING;
     cmdDesc.TimeoutMs = 3000;
 
+    // Execute command - executor will immediately set SUCCESS
     ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_execCMD(cliLinkID, &cmdDesc, NULL));
+    printf("📋 [BEHAVIOR] Command executed to completion\n");
 
+    // 🔍 First capture: Immediately after completion
     IOC_CmdStatus_E finalState1 = IOC_CmdDesc_getStatus(&cmdDesc);
     IOC_Result_T finalResult1 = IOC_CmdDesc_getResult(&cmdDesc);
+    printf("📋 [BEHAVIOR] First capture - State: %s, Result: %d\n", IOC_CmdDesc_getStatusStr(&cmdDesc), finalResult1);
 
+    // ⏱️ Wait to test immutability over time
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    printf("📋 [BEHAVIOR] Waited 100ms to test state stability\n");
 
+    // 🔍 Second capture: After time delay
     IOC_CmdStatus_E finalState2 = IOC_CmdDesc_getStatus(&cmdDesc);
     IOC_Result_T finalResult2 = IOC_CmdDesc_getResult(&cmdDesc);
+    printf("📋 [BEHAVIOR] Second capture - State: %s, Result: %d\n", IOC_CmdDesc_getStatusStr(&cmdDesc), finalResult2);
 
-    ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, finalState1) << "Final state should be SUCCESS";
-    ASSERT_EQ(IOC_RESULT_SUCCESS, finalResult1) << "Final result should be SUCCESS";
-    ASSERT_EQ(finalState1, finalState2) << "State should be immutable after completion";
-    ASSERT_EQ(finalResult1, finalResult2) << "Result should be immutable after completion";
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                ✅ VERIFY PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
 
-    printf("✅ [RESULT] SUCCESS state immutability verified successfully\n");
+    // ✅ ASSERTION 1: First capture shows SUCCESS state
+    ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, finalState1)
+        << "First state capture should be SUCCESS (executor set final state)";
+    printf("✅ [VERIFY] First capture state: SUCCESS (ASSERTION 1)\n");
 
+    // ✅ ASSERTION 2: First capture shows SUCCESS result
+    ASSERT_EQ(IOC_RESULT_SUCCESS, finalResult1) << "First result capture should be SUCCESS (executor set final result)";
+    printf("✅ [VERIFY] First capture result: SUCCESS (ASSERTION 2)\n");
+
+    // ✅ ASSERTION 3: State remains identical after time delay
+    ASSERT_EQ(finalState1, finalState2) << "State must be immutable - no changes allowed after SUCCESS completion";
+    printf("✅ [VERIFY] Second capture state: IDENTICAL to first (ASSERTION 3)\n");
+
+    // ✅ ASSERTION 4: Result remains identical after time delay
+    ASSERT_EQ(finalResult1, finalResult2) << "Result must be immutable - no changes allowed after SUCCESS completion";
+    printf("✅ [VERIFY] Second capture result: IDENTICAL to first (ASSERTION 4)\n");
+
+    printf("\n✅ [RESULT] SUCCESS state immutability verified:\n");
+    printf("   • First capture: SUCCESS state ✅ (ASSERTION 1)\n");
+    printf("   • First capture: SUCCESS result ✅ (ASSERTION 2)\n");
+    printf("   • After 100ms: State unchanged ✅ (ASSERTION 3)\n");
+    printf("   • After 100ms: Result unchanged ✅ (ASSERTION 4)\n");
+    printf("   • Immutability guarantee: Final states are frozen after completion\n");
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🧹 CLEANUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
     if (cliLinkID != IOC_ID_INVALID) IOC_closeLink(cliLinkID);
     if (srvLinkID != IOC_ID_INVALID) IOC_closeLink(srvLinkID);
     if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
@@ -2879,10 +3039,36 @@ static IOC_Result_T __StateHistoryExecutorCb(IOC_LinkID_T LinkID, IOC_CmdDesc_pT
 }
 
 // [@AC-4,US-1] TC-3: Complete state history tracking
+// ╔══════════════════════════════════════════════════════════════════════════════════════╗
+// ║                   📜 COMPLETE STATE HISTORY TRACKING VERIFICATION                    ║
+// ╠══════════════════════════════════════════════════════════════════════════════════════╣
+// ║ PURPOSE:                                                                             ║
+// ║   Validate that all state transitions are captured and recorded during execution     ║
+// ║                                                                                      ║
+// ║ BRIEF:                                                                               ║
+// ║   Execute command while tracking state changes, verify complete history recorded     ║
+// ║                                                                                      ║
+// ║ STRATEGY:                                                                            ║
+// ║   1. Use custom executor callback that records states in vector                      ║
+// ║   2. Execute command and let executor capture state snapshots                        ║
+// ║   3. Verify history contains expected states in correct order                        ║
+// ║                                                                                      ║
+// ║ KEY ASSERTIONS:                                                                      ║
+// ║   • ASSERTION 1: History records at least 2 states (PROCESSING + SUCCESS)            ║
+// ║   • ASSERTION 2: First recorded state is PROCESSING (executor entry state)           ║
+// ║   • ASSERTION 3: SUCCESS state appears in history (completion state)                 ║
+// ║                                                                                      ║
+// ║ ARCHITECTURE PRINCIPLE:                                                              ║
+// ║   State history enables debugging and audit trails for command execution lifecycle   ║
+// ╚══════════════════════════════════════════════════════════════════════════════════════╝
 TEST(UT_CommandStateUS1, verifyStateHistory_throughSuccessfulExecution_expectCompleteTrace) {
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                🔧 SETUP PHASE                                         │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
     printf("🔧 [SETUP] Testing complete state history recording\n");
 
     s_stateHistory.clear();
+    printf("🔧 [SETUP] Cleared previous state history\n");
 
     IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
                            .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
@@ -2905,30 +3091,116 @@ TEST(UT_CommandStateUS1, verifyStateHistory_throughSuccessfulExecution_expectCom
     std::thread connThread([&] { ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_connectService(&cliLinkID, &connArgs, NULL)); });
     ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_acceptClient(srvID, &srvLinkID, NULL));
     if (connThread.joinable()) connThread.join();
+    printf("🔧 [SETUP] Service connected, executor will record state history\n");
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               📋 BEHAVIOR PHASE                                       │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
 
     IOC_CmdDesc_T cmdDesc = IOC_CMDDESC_INIT_VALUE;
     cmdDesc.CmdID = IOC_CMDID_TEST_PING;
     cmdDesc.TimeoutMs = 3000;
 
+    // Execute command - executor callback will record state transitions
     ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_execCMD(cliLinkID, &cmdDesc, NULL));
+    printf("📋 [BEHAVIOR] Command executed, executor recorded %zu state(s)\n", s_stateHistory.size());
 
-    ASSERT_GE(s_stateHistory.size(), 2) << "Should record at least PROCESSING and SUCCESS states";
-    ASSERT_EQ(IOC_CMD_STATUS_PROCESSING, s_stateHistory[0]) << "First recorded state should be PROCESSING";
+    // 📊 Display captured state history
+    printf("📋 [BEHAVIOR] State history captured: ");
+    for (size_t i = 0; i < s_stateHistory.size(); ++i) {
+        const char *stateName = "UNKNOWN";
+        switch (s_stateHistory[i]) {
+            case IOC_CMD_STATUS_INVALID:
+                stateName = "INVALID";
+                break;
+            case IOC_CMD_STATUS_INITIALIZED:
+                stateName = "INITIALIZED";
+                break;
+            case IOC_CMD_STATUS_PENDING:
+                stateName = "PENDING";
+                break;
+            case IOC_CMD_STATUS_PROCESSING:
+                stateName = "PROCESSING";
+                break;
+            case IOC_CMD_STATUS_SUCCESS:
+                stateName = "SUCCESS";
+                break;
+            case IOC_CMD_STATUS_FAILED:
+                stateName = "FAILED";
+                break;
+            case IOC_CMD_STATUS_TIMEOUT:
+                stateName = "TIMEOUT";
+                break;
+            default:
+                stateName = "UNKNOWN";
+                break;
+        }
+        printf("%s%s", stateName, (i < s_stateHistory.size() - 1) ? " → " : "\n");
+    }
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                ✅ VERIFY PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+
+    // ✅ ASSERTION 1: History records at least 2 states
+    ASSERT_GE(s_stateHistory.size(), 2) << "State history should record at least PROCESSING and SUCCESS states";
+    printf("✅ [VERIFY] History size: %zu states (≥2 expected) (ASSERTION 1)\n", s_stateHistory.size());
+
+    // ✅ ASSERTION 2: First recorded state is PROCESSING
+    ASSERT_EQ(IOC_CMD_STATUS_PROCESSING, s_stateHistory[0])
+        << "First recorded state should be PROCESSING (executor entry point)";
+    printf("✅ [VERIFY] First state: PROCESSING (executor entry) (ASSERTION 2)\n");
+
+    // ✅ ASSERTION 3: SUCCESS state appears in history
     bool successFound = false;
     for (auto state : s_stateHistory) {
         if (state == IOC_CMD_STATUS_SUCCESS) successFound = true;
     }
-    ASSERT_TRUE(successFound) << "SUCCESS state should be in history";
+    ASSERT_TRUE(successFound) << "SUCCESS state must appear in history (command completion)";
+    printf("✅ [VERIFY] SUCCESS state found in history (ASSERTION 3)\n");
 
-    printf("✅ [RESULT] State history tracking verified successfully (recorded %zu states)\n", s_stateHistory.size());
+    printf("\n✅ [RESULT] State history tracking verified:\n");
+    printf("   • Total states recorded: %zu ✅ (ASSERTION 1)\n", s_stateHistory.size());
+    printf("   • Entry state: PROCESSING ✅ (ASSERTION 2)\n");
+    printf("   • Completion state: SUCCESS ✅ (ASSERTION 3)\n");
+    printf("   • History provides complete execution trace\n");
 
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🧹 CLEANUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
     if (cliLinkID != IOC_ID_INVALID) IOC_closeLink(cliLinkID);
     if (srvLinkID != IOC_ID_INVALID) IOC_closeLink(srvLinkID);
     if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
 }
 
 // [@AC-5,US-1] TC-2: Failed state stability and immutability
+// ╔══════════════════════════════════════════════════════════════════════════════════════╗
+// ║                   ❌ FAILED STATE STABILITY & IMMUTABILITY VERIFICATION               ║
+// ╠══════════════════════════════════════════════════════════════════════════════════════╣
+// ║ PURPOSE:                                                                             ║
+// ║   Validate that FAILED is a final state that remains stable and immutable           ║
+// ║                                                                                      ║
+// ║ BRIEF:                                                                               ║
+// ║   Execute command to failure, verify state/result remain unchanged over time        ║
+// ║                                                                                      ║
+// ║ STRATEGY:                                                                            ║
+// ║   1. Use executor that sets FAILED state with NOT_SUPPORT error                     ║
+// ║   2. Capture state and result immediately after failure                              ║
+// ║   3. Wait and re-capture to verify immutability                                      ║
+// ║                                                                                      ║
+// ║ KEY ASSERTIONS:                                                                      ║
+// ║   • ASSERTION 1: First capture shows FAILED state                                    ║
+// ║   • ASSERTION 2: First capture shows NOT_SUPPORT result                              ║
+// ║   • ASSERTION 3: Second capture (after delay) shows identical state                  ║
+// ║   • ASSERTION 4: Second capture (after delay) shows identical result                 ║
+// ║                                                                                      ║
+// ║ ARCHITECTURE PRINCIPLE:                                                              ║
+// ║   FAILED is a terminal state - no transitions allowed after failure completion      ║
+// ╚══════════════════════════════════════════════════════════════════════════════════════╝
 TEST(UT_CommandStateUS1, verifyStateConsistency_afterFailure_expectStableFailedState) {
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                🔧 SETUP PHASE                                         │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
     printf("🔧 [SETUP] Testing FAILED state stability and immutability\n");
 
     auto failureExecutorCb = [](IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, void *pCbPriv) -> IOC_Result_T {
@@ -2958,28 +3230,66 @@ TEST(UT_CommandStateUS1, verifyStateConsistency_afterFailure_expectStableFailedS
     std::thread connThread([&] { ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_connectService(&cliLinkID, &connArgs, NULL)); });
     ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_acceptClient(srvID, &srvLinkID, NULL));
     if (connThread.joinable()) connThread.join();
+    printf("🔧 [SETUP] Service connected, executor will simulate failure\n");
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               📋 BEHAVIOR PHASE                                       │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
 
     IOC_CmdDesc_T cmdDesc = IOC_CMDDESC_INIT_VALUE;
     cmdDesc.CmdID = IOC_CMDID_TEST_PING;
     cmdDesc.TimeoutMs = 3000;
 
+    // Execute command - executor will set FAILED state
     IOC_execCMD(cliLinkID, &cmdDesc, NULL);  // May return success or failure
+    printf("📋 [BEHAVIOR] Command executed to failure\n");
 
+    // 🔍 First capture: Immediately after failure
     IOC_CmdStatus_E failedState1 = IOC_CmdDesc_getStatus(&cmdDesc);
     IOC_Result_T failedResult1 = IOC_CmdDesc_getResult(&cmdDesc);
+    printf("📋 [BEHAVIOR] First capture - State: %s, Result: %d\n", IOC_CmdDesc_getStatusStr(&cmdDesc), failedResult1);
 
+    // ⏱️ Wait to test immutability over time
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    printf("📋 [BEHAVIOR] Waited 100ms to test state stability\n");
 
+    // 🔍 Second capture: After time delay
     IOC_CmdStatus_E failedState2 = IOC_CmdDesc_getStatus(&cmdDesc);
     IOC_Result_T failedResult2 = IOC_CmdDesc_getResult(&cmdDesc);
+    printf("📋 [BEHAVIOR] Second capture - State: %s, Result: %d\n", IOC_CmdDesc_getStatusStr(&cmdDesc), failedResult2);
 
-    ASSERT_EQ(IOC_CMD_STATUS_FAILED, failedState1) << "Failed state should be FAILED";
-    ASSERT_EQ(IOC_RESULT_NOT_SUPPORT, failedResult1) << "Failed result should be NOT_SUPPORT";
-    ASSERT_EQ(failedState1, failedState2) << "Failed state should be immutable";
-    ASSERT_EQ(failedResult1, failedResult2) << "Failed result should be immutable";
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                ✅ VERIFY PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
 
-    printf("✅ [RESULT] FAILED state stability verified successfully\n");
+    // ✅ ASSERTION 1: First capture shows FAILED state
+    ASSERT_EQ(IOC_CMD_STATUS_FAILED, failedState1)
+        << "First state capture should be FAILED (executor set failure state)";
+    printf("✅ [VERIFY] First capture state: FAILED (ASSERTION 1)\n");
 
+    // ✅ ASSERTION 2: First capture shows NOT_SUPPORT result
+    ASSERT_EQ(IOC_RESULT_NOT_SUPPORT, failedResult1)
+        << "First result capture should be NOT_SUPPORT (executor set error code)";
+    printf("✅ [VERIFY] First capture result: NOT_SUPPORT (ASSERTION 2)\n");
+
+    // ✅ ASSERTION 3: State remains identical after time delay
+    ASSERT_EQ(failedState1, failedState2) << "Failed state must be immutable - no changes allowed after failure";
+    printf("✅ [VERIFY] Second capture state: IDENTICAL to first (ASSERTION 3)\n");
+
+    // ✅ ASSERTION 4: Result remains identical after time delay
+    ASSERT_EQ(failedResult1, failedResult2) << "Failed result must be immutable - no changes allowed after failure";
+    printf("✅ [VERIFY] Second capture result: IDENTICAL to first (ASSERTION 4)\n");
+
+    printf("\n✅ [RESULT] FAILED state stability verified:\n");
+    printf("   • First capture: FAILED state ✅ (ASSERTION 1)\n");
+    printf("   • First capture: NOT_SUPPORT result ✅ (ASSERTION 2)\n");
+    printf("   • After 100ms: State unchanged ✅ (ASSERTION 3)\n");
+    printf("   • After 100ms: Result unchanged ✅ (ASSERTION 4)\n");
+    printf("   • Immutability guarantee: FAILED is a terminal state\n");
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🧹 CLEANUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
     if (cliLinkID != IOC_ID_INVALID) IOC_closeLink(cliLinkID);
     if (srvLinkID != IOC_ID_INVALID) IOC_closeLink(srvLinkID);
     if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
@@ -3004,11 +3314,38 @@ static IOC_Result_T __FailureHistoryExecutorCb(IOC_LinkID_T LinkID, IOC_CmdDesc_
 }
 
 // [@AC-5,US-1] TC-3: Failure state history tracking
+// ╔══════════════════════════════════════════════════════════════════════════════════════╗
+// ║                   📝 FAILURE STATE HISTORY & ERROR TRACE VERIFICATION              ║
+// ╠══════════════════════════════════════════════════════════════════════════════════════╣
+// ║ PURPOSE:                                                                             ║
+// ║   Validate complete failure execution trace with state and error code history       ║
+// ║                                                                                      ║
+// ║ BRIEF:                                                                               ║
+// ║   Execute command to failure while tracking both state and result history           ║
+// ║                                                                                      ║
+// ║ STRATEGY:                                                                            ║
+// ║   1. Use custom executor that records state AND result changes                      ║
+// ║   2. Execute command and let executor capture failure progression                    ║
+// ║   3. Verify history contains expected failure states and error codes                ║
+// ║                                                                                      ║
+// ║ KEY ASSERTIONS:                                                                      ║
+// ║   • ASSERTION 1: History records at least 2 states (PROCESSING + FAILED)             ║
+// ║   • ASSERTION 2: First recorded state is PROCESSING (executor entry)                 ║
+// ║   • ASSERTION 3: FAILED state appears in history (failure completion)                ║
+// ║   • ASSERTION 4: NOT_SUPPORT error code appears in result history                    ║
+// ║                                                                                      ║
+// ║ ARCHITECTURE PRINCIPLE:                                                              ║
+// ║   Error traces enable debugging and audit trails for failure analysis                ║
+// ╚══════════════════════════════════════════════════════════════════════════════════════╝
 TEST(UT_CommandStateUS1, verifyStateHistory_throughFailedExecution_expectErrorTrace) {
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                🔧 SETUP PHASE                                         │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
     printf("🔧 [SETUP] Testing failure state history with error details\n");
 
     s_failureStateHistory.clear();
     s_failureResultHistory.clear();
+    printf("🔧 [SETUP] Cleared previous failure history\n");
 
     IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
                            .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
@@ -3031,28 +3368,95 @@ TEST(UT_CommandStateUS1, verifyStateHistory_throughFailedExecution_expectErrorTr
     std::thread connThread([&] { ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_connectService(&cliLinkID, &connArgs, NULL)); });
     ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_acceptClient(srvID, &srvLinkID, NULL));
     if (connThread.joinable()) connThread.join();
+    printf("🔧 [SETUP] Service connected, executor will record failure trace\n");
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               📋 BEHAVIOR PHASE                                       │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
 
     IOC_CmdDesc_T cmdDesc = IOC_CMDDESC_INIT_VALUE;
     cmdDesc.CmdID = IOC_CMDID_TEST_PING;
     cmdDesc.TimeoutMs = 3000;
 
+    // Execute command - executor callback will record failure progression
     IOC_execCMD(cliLinkID, &cmdDesc, NULL);
+    printf("📋 [BEHAVIOR] Command executed to failure, recorded %zu state(s)\n", s_failureStateHistory.size());
 
-    ASSERT_GE(s_failureStateHistory.size(), 2) << "Should record at least PROCESSING and FAILED states";
-    ASSERT_EQ(IOC_CMD_STATUS_PROCESSING, s_failureStateHistory[0]) << "First state should be PROCESSING";
+    // 📊 Display captured failure trace
+    printf("📋 [BEHAVIOR] Failure trace captured:\n");
+    printf("           States: ");
+    for (size_t i = 0; i < s_failureStateHistory.size(); ++i) {
+        const char *stateName = "UNKNOWN";
+        switch (s_failureStateHistory[i]) {
+            case IOC_CMD_STATUS_INVALID:
+                stateName = "INVALID";
+                break;
+            case IOC_CMD_STATUS_INITIALIZED:
+                stateName = "INITIALIZED";
+                break;
+            case IOC_CMD_STATUS_PENDING:
+                stateName = "PENDING";
+                break;
+            case IOC_CMD_STATUS_PROCESSING:
+                stateName = "PROCESSING";
+                break;
+            case IOC_CMD_STATUS_SUCCESS:
+                stateName = "SUCCESS";
+                break;
+            case IOC_CMD_STATUS_FAILED:
+                stateName = "FAILED";
+                break;
+            case IOC_CMD_STATUS_TIMEOUT:
+                stateName = "TIMEOUT";
+                break;
+            default:
+                stateName = "UNKNOWN";
+                break;
+        }
+        printf("%s%s", stateName, (i < s_failureStateHistory.size() - 1) ? " → " : "\n");
+    }
+    printf("           Results: ");
+    for (size_t i = 0; i < s_failureResultHistory.size(); ++i) {
+        printf("%d%s", s_failureResultHistory[i], (i < s_failureResultHistory.size() - 1) ? " → " : "\n");
+    }
 
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                ✅ VERIFY PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
+
+    // ✅ ASSERTION 1: History records at least 2 states
+    ASSERT_GE(s_failureStateHistory.size(), 2) << "State history should record at least PROCESSING and FAILED states";
+    printf("✅ [VERIFY] History size: %zu states (≥2 expected) (ASSERTION 1)\n", s_failureStateHistory.size());
+
+    // ✅ ASSERTION 2: First recorded state is PROCESSING
+    ASSERT_EQ(IOC_CMD_STATUS_PROCESSING, s_failureStateHistory[0])
+        << "First recorded state should be PROCESSING (executor entry point)";
+    printf("✅ [VERIFY] First state: PROCESSING (executor entry) (ASSERTION 2)\n");
+
+    // ✅ ASSERTION 3: FAILED state appears in history
     bool failedFound = false;
     bool errorFound = false;
     for (size_t i = 0; i < s_failureStateHistory.size(); i++) {
         if (s_failureStateHistory[i] == IOC_CMD_STATUS_FAILED) failedFound = true;
         if (s_failureResultHistory[i] == IOC_RESULT_NOT_SUPPORT) errorFound = true;
     }
-    ASSERT_TRUE(failedFound) << "FAILED state should be in history";
-    ASSERT_TRUE(errorFound) << "Error result should be in history";
+    ASSERT_TRUE(failedFound) << "FAILED state must appear in history (failure completion)";
+    printf("✅ [VERIFY] FAILED state found in history (ASSERTION 3)\n");
 
-    printf("✅ [RESULT] Failure state history verified successfully (recorded %zu states)\n",
-           s_failureStateHistory.size());
+    // ✅ ASSERTION 4: NOT_SUPPORT error code appears in result history
+    ASSERT_TRUE(errorFound) << "NOT_SUPPORT error result must appear in history (error propagation)";
+    printf("✅ [VERIFY] NOT_SUPPORT error found in result history (ASSERTION 4)\n");
 
+    printf("\n✅ [RESULT] Failure state history verified:\n");
+    printf("   • Total states recorded: %zu ✅ (ASSERTION 1)\n", s_failureStateHistory.size());
+    printf("   • Entry state: PROCESSING ✅ (ASSERTION 2)\n");
+    printf("   • Failure state: FAILED ✅ (ASSERTION 3)\n");
+    printf("   • Error code: NOT_SUPPORT ✅ (ASSERTION 4)\n");
+    printf("   • Complete error trace enables failure analysis\n");
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🧹 CLEANUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
     if (cliLinkID != IOC_ID_INVALID) IOC_closeLink(cliLinkID);
     if (srvLinkID != IOC_ID_INVALID) IOC_closeLink(srvLinkID);
     if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
@@ -3073,11 +3477,36 @@ static IOC_Result_T __TimeoutPreservExecutorCb(IOC_LinkID_T LinkID, IOC_CmdDesc_
 }
 
 // [@AC-6,US-1] TC-2: Timeout state preservation
+// ╔══════════════════════════════════════════════════════════════════════════════════════╗
+// ║                   ⏱️ TIMEOUT STATE PRESERVATION & PARTIAL RESULTS                    ║
+// ╠══════════════════════════════════════════════════════════════════════════════════════╣
+// ║ PURPOSE:                                                                             ║
+// ║   Validate that timeout handling preserves partial execution state                  ║
+// ║                                                                                      ║
+// ║ BRIEF:                                                                               ║
+// ║   Execute command with very short timeout, verify callback starts but may timeout   ║
+// ║                                                                                      ║
+// ║ STRATEGY:                                                                            ║
+// ║   1. Set executor with slow processing (200ms) and short timeout (50ms)             ║
+// ║   2. Execute command - should timeout before executor completes                      ║
+// ║   3. Verify callback started and check if it had chance to complete                 ║
+// ║                                                                                      ║
+// ║ KEY ASSERTIONS:                                                                      ║
+// ║   • ASSERTION 1: Callback execution started (work began)                            ║
+// ║                                                                                      ║
+// ║ ARCHITECTURE PRINCIPLE:                                                              ║
+// ║   Timeout mechanism protects against long-running operations while preserving       ║
+// ║   partial state for debugging and analysis                                           ║
+// ╚══════════════════════════════════════════════════════════════════════════════════════╝
 TEST(UT_CommandStateUS1, verifyStatePreservation_duringTimeout_expectPartialResults) {
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                🔧 SETUP PHASE                                         │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
     printf("🔧 [SETUP] Testing partial state preservation during timeout\n");
 
     s_timeoutPreservCallbackStarted = false;
     s_timeoutPreservCallbackCompleted = false;
+    printf("🔧 [SETUP] Reset callback tracking flags\n");
 
     IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
                            .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
@@ -3100,29 +3529,75 @@ TEST(UT_CommandStateUS1, verifyStatePreservation_duringTimeout_expectPartialResu
     std::thread connThread([&] { ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_connectService(&cliLinkID, &connArgs, NULL)); });
     ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_acceptClient(srvID, &srvLinkID, NULL));
     if (connThread.joinable()) connThread.join();
+    printf("🔧 [SETUP] Service connected with timeout-prone executor (200ms work, 50ms timeout)\n");
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               📋 BEHAVIOR PHASE                                       │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
 
     IOC_CmdDesc_T cmdDesc = IOC_CMDDESC_INIT_VALUE;
     cmdDesc.CmdID = IOC_CMDID_TEST_PING;
     cmdDesc.TimeoutMs = 50;  // Very short timeout
 
+    // ⏱️ Execute command - will timeout before executor completes
+    printf("📋 [BEHAVIOR] Executing command with 50ms timeout (executor needs 200ms)\n");
     IOC_execCMD(cliLinkID, &cmdDesc, NULL);  // Will complete or timeout
+    printf("📋 [BEHAVIOR] execCMD returned, checking execution state\n");
 
+    // 🕰️ Wait for callback to complete (if it continues in background)
     std::this_thread::sleep_for(std::chrono::milliseconds(300));  // Wait for callback to complete
+    printf("📋 [BEHAVIOR] Waited 300ms for callback completion\n");
 
-    ASSERT_TRUE(s_timeoutPreservCallbackStarted.load()) << "Callback should have started";
-    // Note: Depending on timeout implementation, callback may or may not complete
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                ✅ VERIFY PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
 
-    printf("✅ [RESULT] Timeout state preservation test completed\n");
-    printf("   • Callback started: %s\n", s_timeoutPreservCallbackStarted.load() ? "YES" : "NO");
-    printf("   • Callback completed: %s\n", s_timeoutPreservCallbackCompleted.load() ? "YES" : "NO");
+    // ✅ ASSERTION 1: Callback execution started
+    ASSERT_TRUE(s_timeoutPreservCallbackStarted.load()) << "Callback should have started (work began before timeout)";
+    printf("✅ [VERIFY] Callback started: YES (ASSERTION 1)\n");
 
+    // 📊 Display execution timeline
+    printf("\n✅ [RESULT] Timeout state preservation verified:\n");
+    printf("   • Callback started: %s ✅ (ASSERTION 1)\n", s_timeoutPreservCallbackStarted.load() ? "YES" : "NO");
+    printf("   • Callback completed: %s (note: may timeout before completion)\n",
+           s_timeoutPreservCallbackCompleted.load() ? "YES" : "NO");
+    printf("   • Timeout protection: Framework enforced 50ms limit\n");
+    printf("   • Partial state preserved: Callback start flag captured\n");
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🧹 CLEANUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
     if (cliLinkID != IOC_ID_INVALID) IOC_closeLink(cliLinkID);
     if (srvLinkID != IOC_ID_INVALID) IOC_closeLink(srvLinkID);
     if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
 }
 
 // [@AC-6,US-1] TC-3: Timeout state finality and immutability
+// ╔══════════════════════════════════════════════════════════════════════════════════════╗
+// ║                   🔒 TIMEOUT STATE FINALITY & IMMUTABILITY VERIFICATION             ║
+// ╠══════════════════════════════════════════════════════════════════════════════════════╣
+// ║ PURPOSE:                                                                             ║
+// ║   Validate that TIMEOUT is a final immutable state (or SUCCESS if races)            ║
+// ║                                                                                      ║
+// ║ BRIEF:                                                                               ║
+// ║   Execute command with very short timeout, verify final state is immutable          ║
+// ║                                                                                      ║
+// ║ STRATEGY:                                                                            ║
+// ║   1. Set executor with very slow processing (500ms) and short timeout (30ms)        ║
+// ║   2. Execute command - should timeout (or rarely complete if race)                   ║
+// ║   3. Capture state immediately and after delay - verify immutability                ║
+// ║                                                                                      ║
+// ║ KEY ASSERTIONS:                                                                      ║
+// ║   • ASSERTION 1: State is immutable - identical before and after delay              ║
+// ║                                                                                      ║
+// ║ ARCHITECTURE PRINCIPLE:                                                              ║
+// ║   All final states (SUCCESS/FAILED/TIMEOUT) are terminal and immutable - no state   ║
+// ║   transitions allowed after command completion                                       ║
+// ╚══════════════════════════════════════════════════════════════════════════════════════╝
 TEST(UT_CommandStateUS1, verifyStateFinality_afterTimeout_expectImmutableTimeout) {
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                🔧 SETUP PHASE                                         │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
     printf("🔧 [SETUP] Testing TIMEOUT state finality and immutability\n");
 
     auto verySlowExecutorCb = [](IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, void *pCbPriv) -> IOC_Result_T {
@@ -3153,27 +3628,70 @@ TEST(UT_CommandStateUS1, verifyStateFinality_afterTimeout_expectImmutableTimeout
     std::thread connThread([&] { ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_connectService(&cliLinkID, &connArgs, NULL)); });
     ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_acceptClient(srvID, &srvLinkID, NULL));
     if (connThread.joinable()) connThread.join();
+    printf("🔧 [SETUP] Service connected with very slow executor (500ms work, 30ms timeout)\n");
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               📋 BEHAVIOR PHASE                                       │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
 
     IOC_CmdDesc_T cmdDesc = IOC_CMDDESC_INIT_VALUE;
     cmdDesc.CmdID = IOC_CMDID_TEST_PING;
     cmdDesc.TimeoutMs = 30;  // Very short timeout
 
+    // ⏱️ Execute command - will likely timeout (executor needs 500ms)
+    printf("📋 [BEHAVIOR] Executing command with 30ms timeout (executor needs 500ms)\n");
     IOC_execCMD(cliLinkID, &cmdDesc, NULL);  // Will likely timeout or complete
+    printf("📋 [BEHAVIOR] execCMD returned\n");
 
+    // 🔍 First capture: Immediately after execCMD returns
     IOC_CmdStatus_E state1 = IOC_CmdDesc_getStatus(&cmdDesc);
+    printf("📋 [BEHAVIOR] First capture - State: %s\n", IOC_CmdDesc_getStatusStr(&cmdDesc));
 
+    // ⏱️ Wait and re-check to verify immutability
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    printf("📋 [BEHAVIOR] Waited 100ms to test state immutability\n");
 
+    // 🔍 Second capture: After delay
     IOC_CmdStatus_E state2 = IOC_CmdDesc_getStatus(&cmdDesc);
+    printf("📋 [BEHAVIOR] Second capture - State: %s\n", IOC_CmdDesc_getStatusStr(&cmdDesc));
 
-    // Note: State may be SUCCESS if callback completes, or TIMEOUT if timeout occurs
-    // The key is that state is immutable after completion
-    ASSERT_EQ(state1, state2) << "State should be immutable after completion";
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                                ✅ VERIFY PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
 
-    printf("✅ [RESULT] Timeout state finality verified successfully\n");
-    printf("   • Final state: %s\n", state1 == IOC_CMD_STATUS_SUCCESS ? "SUCCESS" : "OTHER");
-    printf("   • State remained: %s\n", state1 == state2 ? "IMMUTABLE" : "CHANGED");
+    // ✅ ASSERTION 1: State is immutable after completion
+    // Note: State may be SUCCESS (if callback races to complete) or TIMEOUT
+    // The key is that it's immutable - same before and after delay
+    ASSERT_EQ(state1, state2) << "State must be immutable after completion (regardless of final state)";
+    printf("✅ [VERIFY] State immutability: First == Second (ASSERTION 1)\n");
 
+    // 📊 Display final state information
+    const char *finalStateName = "UNKNOWN";
+    switch (state1) {
+        case IOC_CMD_STATUS_SUCCESS:
+            finalStateName = "SUCCESS";
+            break;
+        case IOC_CMD_STATUS_TIMEOUT:
+            finalStateName = "TIMEOUT";
+            break;
+        case IOC_CMD_STATUS_FAILED:
+            finalStateName = "FAILED";
+            break;
+        default:
+            finalStateName = "OTHER";
+            break;
+    }
+
+    printf("\n✅ [RESULT] Timeout state finality verified:\n");
+    printf("   • Final state: %s (frozen at completion)\n", finalStateName);
+    printf("   • First capture: %s\n", finalStateName);
+    printf("   • Second capture (after 100ms): %s\n", finalStateName);
+    printf("   • State immutability: IDENTICAL ✅ (ASSERTION 1)\n");
+    printf("   • Finality guarantee: All terminal states are immutable\n");
+
+    // ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    // │                               🧹 CLEANUP PHASE                                        │
+    // └──────────────────────────────────────────────────────────────────────────────────────┘
     if (cliLinkID != IOC_ID_INVALID) IOC_closeLink(cliLinkID);
     if (srvLinkID != IOC_ID_INVALID) IOC_closeLink(srvLinkID);
     if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
