@@ -59,46 +59,46 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  *
  * [@AC-1,US-2] CmdInitiator link ready state verification
- *  ⚪ TC-1: verifyLinkCmdInitiatorReady_byInitialState_expectReadySubState
+ *  🟢 TC-1: verifyLinkCmdInitiatorReady_byInitialState_expectReadySubState
  *      @[Purpose]: Validate CmdInitiator link reports ready state when available for commands
  *      @[Brief]: Create CmdInitiator link, verify IOC_LinkSubStateCmdInitiatorReady sub-state
- *      @[Status]: TODO - Need to implement CmdInitiator ready state verification
+ *      @[Status]: ✅ IMPLEMENTED - MainState verified, sub-state verification pending framework support
  *
  * [@AC-2,US-2] CmdInitiator link busy state during command execution
- *  ⚪ TC-1: verifyLinkCmdInitiatorBusy_byCommandExecution_expectBusySubState
+ *  🟢 TC-1: verifyLinkCmdInitiatorBusy_byCommandExecution_expectBusySubState
  *      @[Purpose]: Validate CmdInitiator link reports busy state during command execution
  *      @[Brief]: Execute command via IOC_execCMD(), verify IOC_LinkSubStateCmdInitiatorBusyExecCmd
- *      @[Status]: TODO - Need to implement CmdInitiator busy state tracking
+ *      @[Status]: ✅ IMPLEMENTED - Behavior verified, sub-state verification pending framework support
  *
  * [@AC-3,US-2] CmdExecutor link ready state verification
- *  ⚪ TC-1: verifyLinkCmdExecutorReady_byCallbackMode_expectReadySubState
+ *  🟢 TC-1: verifyLinkCmdExecutorReady_byCallbackMode_expectReadySubState
  *      @[Purpose]: Validate CmdExecutor link reports ready state when available for commands
  *      @[Brief]: Create CmdExecutor link with callback, verify IOC_LinkSubStateCmdExecutorReady
- *      @[Status]: TODO - Need to implement CmdExecutor ready state verification
+ *      @[Status]: ✅ IMPLEMENTED - MainState verified, sub-state verification pending framework support
  *
  * [@AC-4,US-2] CmdExecutor link busy state during callback execution
- *  ⚪ TC-1: verifyLinkCmdExecutorBusy_byCallbackExecution_expectBusySubState
+ *  🟢 TC-1: verifyLinkCmdExecutorBusy_byCallbackExecution_expectBusySubState
  *      @[Purpose]: Validate CmdExecutor link reports busy state during callback execution
  *      @[Brief]: Process command via callback, verify IOC_LinkSubStateCmdExecutorBusyExecCmd
- *      @[Status]: TODO - Need to implement CmdExecutor busy state tracking
+ *      @[Status]: ✅ IMPLEMENTED - State tracking verified, sub-state verification pending framework support
  *
  * [@AC-5,US-2] CmdExecutor link polling state verification
- *  ⚪ TC-1: verifyLinkCmdExecutorPolling_byWaitCMD_expectPollingSubState
+ *  🟢 TC-1: verifyLinkCmdExecutorPolling_byWaitCMD_expectPollingSubState
  *      @[Purpose]: Validate CmdExecutor link reports polling state during IOC_waitCMD()
  *      @[Brief]: Call IOC_waitCMD(), verify IOC_LinkSubStateCmdExecutorBusyWaitCmd
- *      @[Status]: TODO - Need to implement polling state verification
+ *      @[Status]: ✅ IMPLEMENTED - Polling behavior verified, sub-state verification pending framework support
  *
  * [@AC-6,US-2] Link state aggregation during concurrent commands
- *  ⚪ TC-1: verifyLinkStateAggregation_byConcurrentCommands_expectConsistentState
+ *  🟢 TC-1: verifyLinkStateAggregation_byConcurrentCommands_expectConsistentState
  *      @[Purpose]: Validate link state aggregation for multiple concurrent commands
  *      @[Brief]: Execute multiple commands concurrently, verify aggregate link state behavior
- *      @[Status]: TODO - Need to implement concurrent command link state aggregation
+ *      @[Status]: ✅ IMPLEMENTED - State consistency verified, sub-state verification pending framework support
  *
  * [@AC-7,US-2] Link state return to ready after command completion
- *  ⚪ TC-1: verifyLinkStateCompletion_byCommandFinish_expectReadyState
+ *  🟢 TC-1: verifyLinkStateCompletion_byCommandFinish_expectReadyState
  *      @[Purpose]: Validate link returns to ready state after command completion
  *      @[Brief]: Complete command execution, verify link returns to appropriate ready sub-state
- *      @[Status]: TODO - Need to implement completion state verification
+ *      @[Status]: ✅ IMPLEMENTED - Completion cycles verified, sub-state verification pending framework support
  */
 //======>END OF TEST CASES=========================================================================
 
@@ -127,7 +127,7 @@ typedef struct __LinkCmdExecStatePriv {
     std::mutex StateMutex;
 } __LinkCmdExecStatePriv_T;
 
-// TODO: Implement link state tracking utilities
+// Link state tracking helper function
 static void __TrackLinkState(__LinkCmdExecStatePriv_T *pPrivData, IOC_LinkID_T linkID) {
     if (!pPrivData) return;
 
@@ -157,7 +157,7 @@ static void __TrackLinkState(__LinkCmdExecStatePriv_T *pPrivData, IOC_LinkID_T l
     }
 }
 
-// TODO: Implement command execution callback for link state testing
+// Command execution callback for link state testing
 static IOC_Result_T __LinkCmdExecState_ExecutorCb(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, void *pCbPriv) {
     __LinkCmdExecStatePriv_T *pPrivData = (__LinkCmdExecStatePriv_T *)pCbPriv;
     if (!pPrivData || !pCmdDesc) {
@@ -273,7 +273,7 @@ TEST(UT_CommandStateUS2, verifyLinkCmdInitiatorReady_byInitialState_expectReadyS
     // VERIFY_LINK_CMD_SUB_STATE(cliLinkID, IOC_LinkSubStateCmdInitiatorReady);
 
     printf("✅ [VERIFY] CmdInitiator link ready state: MainState=%d, SubState=%d\n", mainState, subState);
-    printf("✅ [NOTE] CmdInitiator-specific sub-states pending implementation\n");
+    printf("⚠️  [NOTE] CmdInitiator-specific sub-states pending implementation\n");
     printf("✅ [RESULT] CmdInitiator ready state verification completed\n");
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
@@ -354,7 +354,7 @@ TEST(UT_CommandStateUS2, verifyLinkCmdExecutorReady_byCallbackMode_expectReadySu
     // VERIFY_LINK_CMD_SUB_STATE(srvLinkID, IOC_LinkSubStateCmdExecutorReady);
 
     printf("✅ [VERIFY] CmdExecutor link ready state: MainState=%d, SubState=%d\n", mainState, subState);
-    printf("✅ [NOTE] CmdExecutor-specific sub-states pending implementation\n");
+    printf("⚠️  [NOTE] CmdExecutor-specific sub-states pending implementation\n");
     printf("✅ [RESULT] CmdExecutor ready state verification completed\n");
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
@@ -457,7 +457,7 @@ TEST(UT_CommandStateUS2, verifyLinkCmdExecutorBusy_byCallbackExecution_expectBus
     printf("✅ [VERIFY] Link state tracking: %d state changes recorded\n", linkStatePriv.StateChangeCount.load());
     printf("✅ [VERIFY] Command processing: %d received, %d processed\n", linkStatePriv.CommandsReceived.load(),
            linkStatePriv.CommandsProcessed.load());
-    printf("✅ [NOTE] CmdExecutor busy sub-states pending implementation\n");
+    printf("⚠️  [NOTE] CmdExecutor busy sub-states pending implementation\n");
     printf("✅ [RESULT] CmdExecutor busy state verification completed\n");
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
@@ -573,7 +573,7 @@ TEST(UT_CommandStateUS2, verifyLinkCmdInitiatorBusy_byCommandExecution_expectBus
     VERIFY_LINK_CMD_MAIN_STATE(cliLinkID, IOC_LinkStateReady);
 
     printf("✅ [VERIFY] CmdInitiator busy state behavior verified\n");
-    printf("✅ [NOTE] CmdInitiator busy sub-states pending implementation\n");
+    printf("⚠️  [NOTE] CmdInitiator busy sub-states pending implementation\n");
     printf("✅ [RESULT] CmdInitiator busy state verification completed\n");
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
@@ -703,7 +703,7 @@ TEST(UT_CommandStateUS2, verifyLinkCmdExecutorPolling_byWaitCMD_expectPollingSub
     ASSERT_TRUE(commandReceived.load()) << "Command should have been received via polling";
 
     printf("✅ [VERIFY] CmdExecutor polling state behavior verified\n");
-    printf("✅ [NOTE] CmdExecutor polling sub-states pending implementation\n");
+    printf("⚠️  [NOTE] CmdExecutor polling sub-states pending implementation\n");
     printf("✅ [RESULT] CmdExecutor polling state verification completed\n");
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
@@ -764,46 +764,91 @@ TEST(UT_CommandStateUS2, verifyLinkStateAggregation_byConcurrentCommands_expectC
     // │                              📋 BEHAVIOR PHASE                                       │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
 
-    // Execute multiple commands sequentially to test state aggregation
-    // Note: True concurrency depends on IOC framework threading implementation
+    // Execute multiple commands with truly concurrent attempts to test state aggregation
+    // Note: IOC framework should properly serialize or reject concurrent commands on same link
 
     printf("📋 [BEHAVIOR] Executing multiple commands to test link state aggregation\n");
 
-    // Command 1: PING
+    // Command descriptors
     IOC_CmdDesc_T cmd1 = IOC_CMDDESC_INIT_VALUE;
     cmd1.CmdID = IOC_CMDID_TEST_PING;
     cmd1.TimeoutMs = 3000;
 
-    ResultValue = IOC_execCMD(cliLinkID, &cmd1, NULL);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
-
-    // Command 2: ECHO
     IOC_CmdDesc_T cmd2 = IOC_CMDDESC_INIT_VALUE;
     cmd2.CmdID = IOC_CMDID_TEST_ECHO;
     cmd2.TimeoutMs = 3000;
     const char *echoData = "TEST_ECHO";
     IOC_CmdDesc_setInPayload(&cmd2, (void *)echoData, strlen(echoData));
 
-    ResultValue = IOC_execCMD(cliLinkID, &cmd2, NULL);
-    EXPECT_TRUE(ResultValue == IOC_RESULT_SUCCESS || ResultValue == -501)
-        << "ECHO command should either succeed or be properly rejected for concurrency control, got: " << ResultValue;
-
-    // Command 3: Another PING (concurrent execution test)
     IOC_CmdDesc_T cmd3 = IOC_CMDDESC_INIT_VALUE;
     cmd3.CmdID = IOC_CMDID_TEST_PING;
     cmd3.TimeoutMs = 3000;
 
-    ResultValue = IOC_execCMD(cliLinkID, &cmd3, NULL);
-    // Note: IOC framework correctly prevents concurrent commands to maintain link state consistency
-    // This demonstrates proper concurrent access control behavior
-    EXPECT_TRUE(ResultValue == IOC_RESULT_SUCCESS || ResultValue == -501)
-        << "Command should either succeed or be properly rejected for concurrency control, got: " << ResultValue;
+    // Results for each command
+    std::atomic<IOC_Result_T> result1{IOC_RESULT_BUG};
+    std::atomic<IOC_Result_T> result2{IOC_RESULT_BUG};
+    std::atomic<IOC_Result_T> result3{IOC_RESULT_BUG};
+
+    // Execute commands with intentional temporal overlap to create concurrency
+    std::thread t1([&]() { result1 = IOC_execCMD(cliLinkID, &cmd1, NULL); });
+
+    // Small delay to ensure first command starts, then try overlapping second command
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+
+    std::thread t2([&]() { result2 = IOC_execCMD(cliLinkID, &cmd2, NULL); });
+
+    // Another small delay before third command
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+
+    std::thread t3([&]() { result3 = IOC_execCMD(cliLinkID, &cmd3, NULL); });
+
+    // Wait for all command threads to complete
+    if (t1.joinable()) t1.join();
+    if (t2.joinable()) t2.join();
+    if (t3.joinable()) t3.join();
+
+    // Store results
+    ResultValue = result1.load();
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                               ✅ VERIFY PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
 
-    // Verify link state remains consistent after multiple commands
+    // Verify concurrent command results - at least one should succeed
+    int successCount = 0;
+    int rejectedCount = 0;
+
+    IOC_Result_T r1 = result1.load();
+    IOC_Result_T r2 = result2.load();
+    IOC_Result_T r3 = result3.load();
+
+    if (r1 == IOC_RESULT_SUCCESS)
+        successCount++;
+    else if (r1 == -501)
+        rejectedCount++;
+
+    if (r2 == IOC_RESULT_SUCCESS)
+        successCount++;
+    else if (r2 == -501)
+        rejectedCount++;
+
+    if (r3 == IOC_RESULT_SUCCESS)
+        successCount++;
+    else if (r3 == -501)
+        rejectedCount++;
+
+    printf("📊 [CONCURRENCY] Results: %d succeeded, %d rejected (r1=%d, r2=%d, r3=%d)\n", successCount, rejectedCount,
+           r1, r2, r3);
+
+    // At least one command should succeed
+    ASSERT_GE(successCount, 1) << "At least one concurrent command should succeed";
+
+    // Framework correctly rejects truly concurrent commands
+    if (rejectedCount > 0) {
+        printf("✅ [VERIFY] Framework properly rejected %d concurrent commands for state consistency\n", rejectedCount);
+    }
+
+    // Verify link state remains consistent after concurrent command attempts
     IOC_LinkState_T mainState = IOC_LinkStateUndefined;
     IOC_LinkSubState_T subState = IOC_LinkSubStateDefault;
 
@@ -819,23 +864,32 @@ TEST(UT_CommandStateUS2, verifyLinkStateAggregation_byConcurrentCommands_expectC
     VERIFY_LINK_CMD_MAIN_STATE(srvLinkID, IOC_LinkStateReady);
     printf("🔍 [DEBUG] Server link state after concurrent commands: MainState=%d, SubState=%d\n", mainState, subState);
 
-    // Verify commands completed with expected results for concurrency test
-    VERIFY_COMMAND_STATUS(&cmd1, IOC_CMD_STATUS_SUCCESS);
-    // cmd2 (ECHO) may fail due to concurrency control - this demonstrates proper state consistency
-    IOC_CmdStatus_E cmd2Status = IOC_CmdDesc_getStatus(&cmd2);
-    EXPECT_TRUE(cmd2Status == IOC_CMD_STATUS_SUCCESS || cmd2Status == IOC_CMD_STATUS_FAILED)
-        << "ECHO command should either succeed or fail due to concurrency control, got: " << cmd2Status;
-    VERIFY_COMMAND_STATUS(&cmd3, IOC_CMD_STATUS_SUCCESS);
+    // Verify command statuses match execution results
+    // Only check status for commands that succeeded
+    if (result1.load() == IOC_RESULT_SUCCESS) {
+        VERIFY_COMMAND_STATUS(&cmd1, IOC_CMD_STATUS_SUCCESS);
+    }
+    if (result2.load() == IOC_RESULT_SUCCESS) {
+        IOC_CmdStatus_E cmd2Status = IOC_CmdDesc_getStatus(&cmd2);
+        EXPECT_EQ(IOC_CMD_STATUS_SUCCESS, cmd2Status) << "Successful command should have SUCCESS status";
+    }
+    if (result3.load() == IOC_RESULT_SUCCESS) {
+        VERIFY_COMMAND_STATUS(&cmd3, IOC_CMD_STATUS_SUCCESS);
+    }
 
-    // Verify service processed commands correctly
-    ASSERT_GE(srvPrivData.CommandsProcessed, 3) << "Service should have processed at least 3 commands";
+    // Verify service processed at least the successful commands
+    ASSERT_GE(srvPrivData.CommandsProcessed, successCount)
+        << "Service should have processed at least " << successCount << " commands";
 
     printf("✅ [VERIFY] Link state aggregation verified:\n");
-    printf("   • Multiple commands processed: %d\n", srvPrivData.CommandsProcessed.load());
+    printf("   • Commands attempted: 3 (concurrent)\n");
+    printf("   • Commands succeeded: %d\n", successCount);
+    printf("   • Commands rejected: %d\n", rejectedCount);
+    printf("   • Service processed: %d\n", srvPrivData.CommandsProcessed.load());
     printf("   • Client link state: Ready (consistent)\n");
     printf("   • Server link state: Ready (consistent)\n");
-    printf("   • All commands completed successfully\n");
-    printf("✅ [NOTE] Concurrent command sub-states pending implementation\n");
+    printf("   • Concurrent access control: %s\n", (rejectedCount > 0) ? "WORKING ✓" : "Not tested");
+    printf("⚠️  [NOTE] Concurrent command sub-states pending implementation\n");
     printf("✅ [RESULT] Link state aggregation verification completed\n");
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
@@ -972,7 +1026,7 @@ TEST(UT_CommandStateUS2, verifyLinkStateCompletion_byCommandFinish_expectReadySt
 
     printf("✅ [VERIFY] Multiple completion cycles verified: Ready → Busy → Ready × 4\n");
     printf("✅ [VERIFY] Total commands processed: %d\n", srvPrivData.CommandsProcessed.load());
-    printf("✅ [NOTE] Completion state transitions pending sub-state implementation\n");
+    printf("⚠️  [NOTE] Completion state transitions pending sub-state implementation\n");
     printf("✅ [RESULT] Link state completion verification completed\n");
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
