@@ -181,6 +181,10 @@ static IOC_Result_T __LinkCmdExecState_ExecutorCb(IOC_LinkID_T LinkID, IOC_CmdDe
     IOC_Result_T ExecResult = IOC_RESULT_SUCCESS;
 
     if (CmdID == IOC_CMDID_TEST_PING) {
+        // 🎯 TDD: Add delay to allow busy state observation during concurrent testing
+        // This simulates real command processing time and ensures test can verify busy sub-states
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
         IOC_CmdDesc_setOutPayload(pCmdDesc, (void *)"PONG", 4);
         IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_SUCCESS);
         IOC_CmdDesc_setResult(pCmdDesc, IOC_RESULT_SUCCESS);

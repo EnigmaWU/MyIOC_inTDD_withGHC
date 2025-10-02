@@ -73,6 +73,21 @@ struct _IOC_LinkObjectStru {
         time_t LastOperationTime;
     } DatState;
 
+    // 🎯 TDD IMPLEMENTATION: CMD substate tracking for IOC_getLinkState()
+    // Added to support RED→GREEN transition for CMD state verification tests (US-2)
+    struct {
+        IOC_LinkSubState_T CurrentSubState;  // Current CMD substate (Ready, Busy, etc.)
+        pthread_mutex_t SubStateMutex;       // Thread-safe substate updates
+
+        // Operation-specific tracking
+        bool IsExecuting;   // True during IOC_execCMD() operation (CmdInitiator)
+        bool IsWaiting;     // True during IOC_waitCMD() operation (CmdExecutor)
+        bool IsProcessing;  // True during command callback execution (CmdExecutor)
+
+        // Last operation timestamp for debugging
+        time_t LastOperationTime;
+    } CmdState;
+
     void *pProtoPriv;
 };
 

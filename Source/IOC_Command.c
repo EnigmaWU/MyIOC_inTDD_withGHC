@@ -97,9 +97,20 @@ static IOC_Result_T __IOC_executeCommandViaCallback(_IOC_LinkObject_pT pDestLink
         return IOC_RESULT_NOT_SUPPORT;
     }
 
+    // 🎯 TDD IMPLEMENTATION: Set CmdExecutor busy/processing state before callback (US-2 AC-4)
+    pthread_mutex_lock(&pDestLink->CmdState.SubStateMutex);
+    pDestLink->CmdState.IsProcessing = true;
+    pDestLink->CmdState.LastOperationTime = time(NULL);
+    pthread_mutex_unlock(&pDestLink->CmdState.SubStateMutex);
+
     // Execute the command via callback
     pCmdDesc->Status = IOC_CMD_STATUS_PROCESSING;
     IOC_Result_T CallbackResult = pCmdUsageArgs->CbExecCmd_F(pDestLink->ID, pCmdDesc, pCmdUsageArgs->pCbPrivData);
+
+    // 🎯 TDD IMPLEMENTATION: Clear CmdExecutor busy/processing state after callback
+    pthread_mutex_lock(&pDestLink->CmdState.SubStateMutex);
+    pDestLink->CmdState.IsProcessing = false;
+    pthread_mutex_unlock(&pDestLink->CmdState.SubStateMutex);
 
     return CallbackResult;
 }
@@ -266,9 +277,22 @@ IOC_Result_T IOC_execCMD(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, IOC_Optio
         return __IOC_execCMD_legacy(LinkID, pCmdDesc, pOption);
     }
 
+    // 🎯 TDD IMPLEMENTATION: Set CmdInitiator busy state before command execution (US-2 AC-2)
+    pthread_mutex_lock(&pSrcLink->CmdState.SubStateMutex);
+    pSrcLink->CmdState.IsExecuting = true;
+    pSrcLink->CmdState.LastOperationTime = time(NULL);
+    pthread_mutex_unlock(&pSrcLink->CmdState.SubStateMutex);
+
     // Use protocol-specific command execution
     printf("[DEBUG IOC_execCMD] Using protocol-specific method\n");
-    return pSrcLink->pMethods->OpExecCmd_F(pSrcLink, pCmdDesc, pOption);
+    IOC_Result_T result = pSrcLink->pMethods->OpExecCmd_F(pSrcLink, pCmdDesc, pOption);
+
+    // 🎯 TDD IMPLEMENTATION: Clear CmdInitiator busy state after command execution
+    pthread_mutex_lock(&pSrcLink->CmdState.SubStateMutex);
+    pSrcLink->CmdState.IsExecuting = false;
+    pthread_mutex_unlock(&pSrcLink->CmdState.SubStateMutex);
+
+    return result;
 }
 
 IOC_Result_T IOC_waitCMD(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, IOC_Options_pT pOption) {
@@ -291,8 +315,21 @@ IOC_Result_T IOC_waitCMD(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, IOC_Optio
         return IOC_RESULT_NOT_SUPPORT;
     }
 
+    // 🎯 TDD IMPLEMENTATION: Set CmdExecutor busy/waiting state before wait (US-2 AC-5)
+    pthread_mutex_lock(&pLink->CmdState.SubStateMutex);
+    pLink->CmdState.IsWaiting = true;
+    pLink->CmdState.LastOperationTime = time(NULL);
+    pthread_mutex_unlock(&pLink->CmdState.SubStateMutex);
+
     // Use protocol-specific command waiting
-    return pLink->pMethods->OpWaitCmd_F(pLink, pCmdDesc, pOption);
+    IOC_Result_T result = pLink->pMethods->OpWaitCmd_F(pLink, pCmdDesc, pOption);
+
+    // 🎯 TDD IMPLEMENTATION: Clear CmdExecutor busy/waiting state after wait
+    pthread_mutex_lock(&pLink->CmdState.SubStateMutex);
+    pLink->CmdState.IsWaiting = false;
+    pthread_mutex_unlock(&pLink->CmdState.SubStateMutex);
+
+    return result;
 }
 
 IOC_Result_T IOC_ackCMD(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, IOC_Options_pT pOption) {

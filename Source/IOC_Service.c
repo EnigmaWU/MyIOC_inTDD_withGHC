@@ -176,6 +176,19 @@ _IOC_LinkObject_pT __IOC_allocLinkObj(void) {
             pLinkObj->DatState.IsReceiving = false;
             pLinkObj->DatState.LastOperationTime = time(NULL);
 
+            // 🎯 TDD IMPLEMENTATION: Initialize CMD state for IOC_getLinkState() support (US-2)
+            pLinkObj->CmdState.CurrentSubState = IOC_LinkSubStateDefault;
+            if (pthread_mutex_init(&pLinkObj->CmdState.SubStateMutex, NULL) != 0) {
+                _IOC_LogError("Failed to initialize CMD substate mutex for LinkID=%llu", pLinkObj->ID);
+                pthread_mutex_destroy(&pLinkObj->DatState.SubStateMutex);
+                free(pLinkObj);
+                return NULL;
+            }
+            pLinkObj->CmdState.IsExecuting = false;
+            pLinkObj->CmdState.IsWaiting = false;
+            pLinkObj->CmdState.IsProcessing = false;
+            pLinkObj->CmdState.LastOperationTime = time(NULL);
+
             _mIOC_LinkObjTbl[i] = pLinkObj;
             break;
         }

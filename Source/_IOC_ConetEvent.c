@@ -108,9 +108,11 @@ IOC_Result_T _IOC_getLinkState_inConetMode(
     // This matches the test expectation from VERIFY_DAT_LINK_READY_STATE macro
     *pLinkState = IOC_LinkStateReady;
 
-    // Determine DAT-specific substate based on link usage and current operation state
+    // Determine DAT-specific and CMD-specific substate based on link usage and current operation state
     if (pLinkSubState != NULL) {
+        // Need to check both DAT and CMD states, so lock both mutexes
         pthread_mutex_lock(&pLinkObj->DatState.SubStateMutex);
+        pthread_mutex_lock(&pLinkObj->CmdState.SubStateMutex);
 
         // Determine substate based on active DAT operations first, then static usage
         // Note: A LinkID used in IOC_sendDAT becomes a DatSender regardless of initial Usage
@@ -119,6 +121,9 @@ IOC_Result_T _IOC_getLinkState_inConetMode(
             "LastOperationTime=%ld\n",
             LinkID, pLinkObj->Args.Usage, pLinkObj->DatState.IsSending, pLinkObj->DatState.IsReceiving,
             pLinkObj->DatState.CurrentSubState, pLinkObj->DatState.LastOperationTime);
+
+        printf("🔍 [DEBUG] ConetMode: CmdState - IsExecuting=%d, IsWaiting=%d, IsProcessing=%d\n",
+               pLinkObj->CmdState.IsExecuting, pLinkObj->CmdState.IsWaiting, pLinkObj->CmdState.IsProcessing);
 
         // Get current time for role-reversal detection
         time_t currentTime = time(NULL);
@@ -133,6 +138,7 @@ IOC_Result_T _IOC_getLinkState_inConetMode(
 
             *pLinkSubState = IOC_LinkSubStateDatReceiverReady;
             printf("🔍 [DEBUG] ConetMode: NORMAL DatReceiver READY, SubState=%d\n", *pLinkSubState);
+            pthread_mutex_unlock(&pLinkObj->CmdState.SubStateMutex);
             pthread_mutex_unlock(&pLinkObj->DatState.SubStateMutex);
             return IOC_RESULT_SUCCESS;
         }
@@ -194,17 +200,42 @@ IOC_Result_T _IOC_getLinkState_inConetMode(
             *pLinkSubState = IOC_LinkSubStateDatReceiverBusyCbRecvDat;
             printf("🔍 [DEBUG] ConetMode: ACTIVELY RECEIVING, SubState=%d\n", *pLinkSubState);
         }
-        // Priority 4: For normal DatReceiver connections (not doing role-reversal)
+        // Priority 4: Check for CMD busy states - CmdInitiator executing command
+        else if ((pLinkObj->Args.Usage & IOC_LinkUsageCmdInitiator) && pLinkObj->CmdState.IsExecuting) {
+            *pLinkSubState = IOC_LinkSubStateCmdInitiatorBusyExecCmd;
+            printf("🔍 [DEBUG] ConetMode: CmdInitiator BUSY EXEC, SubState=%d\n", *pLinkSubState);
+        }
+        // Priority 5: Check for CMD busy states - CmdExecutor waiting for command (polling)
+        else if ((pLinkObj->Args.Usage & IOC_LinkUsageCmdExecutor) && pLinkObj->CmdState.IsWaiting) {
+            *pLinkSubState = IOC_LinkSubStateCmdExecutorBusyWaitCmd;
+            printf("🔍 [DEBUG] ConetMode: CmdExecutor BUSY WAIT, SubState=%d\n", *pLinkSubState);
+        }
+        // Priority 6: Check for CMD busy states - CmdExecutor processing command (callback)
+        else if ((pLinkObj->Args.Usage & IOC_LinkUsageCmdExecutor) && pLinkObj->CmdState.IsProcessing) {
+            *pLinkSubState = IOC_LinkSubStateCmdExecutorBusyExecCmd;
+            printf("🔍 [DEBUG] ConetMode: CmdExecutor BUSY PROCESS, SubState=%d\n", *pLinkSubState);
+        }
+        // Priority 7: Check for CMD usage - CmdInitiator ready state
+        else if (pLinkObj->Args.Usage & IOC_LinkUsageCmdInitiator) {
+            *pLinkSubState = IOC_LinkSubStateCmdInitiatorReady;
+            printf("🔍 [DEBUG] ConetMode: CmdInitiator READY, SubState=%d\n", *pLinkSubState);
+        }
+        // Priority 8: Check for CMD usage - CmdExecutor ready state
+        else if (pLinkObj->Args.Usage & IOC_LinkUsageCmdExecutor) {
+            *pLinkSubState = IOC_LinkSubStateCmdExecutorReady;
+            printf("🔍 [DEBUG] ConetMode: CmdExecutor READY, SubState=%d\n", *pLinkSubState);
+        }
+        // Priority 9: For normal DatReceiver connections (not doing role-reversal)
         else if (pLinkObj->Args.Usage & IOC_LinkUsageDatReceiver) {
             *pLinkSubState = IOC_LinkSubStateDatReceiverReady;
             printf("🔍 [DEBUG] ConetMode: NORMAL DatReceiver READY, SubState=%d\n", *pLinkSubState);
         }
-        // Priority 5: Determine based on current SubState if set by DAT operations
+        // Priority 7: Determine based on current SubState if set by DAT operations
         else if (pLinkObj->DatState.CurrentSubState != IOC_LinkSubStateDefault) {
             *pLinkSubState = pLinkObj->DatState.CurrentSubState;
             printf("🔍 [DEBUG] ConetMode: USING CURRENT SubState=%d\n", *pLinkSubState);
         }
-        // Priority 6: Fall back to static Usage field for DatSender connections
+        // Priority 8: Fall back to static Usage field for DatSender connections
         else if (pLinkObj->Args.Usage & IOC_LinkUsageDatSender) {
             *pLinkSubState = IOC_LinkSubStateDatSenderReady;
             printf("🔍 [DEBUG] ConetMode: STATIC DatSender READY, SubState=%d\n", *pLinkSubState);
@@ -213,6 +244,7 @@ IOC_Result_T _IOC_getLinkState_inConetMode(
             printf("🔍 [DEBUG] ConetMode: DEFAULT SubState=%d\n", *pLinkSubState);
         }
 
+        pthread_mutex_unlock(&pLinkObj->CmdState.SubStateMutex);
         pthread_mutex_unlock(&pLinkObj->DatState.SubStateMutex);
     }
 
