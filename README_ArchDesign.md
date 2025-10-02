@@ -580,6 +580,35 @@ stateDiagram-v2
   4. **Easy Testing**: Independent state machines are easier to unit test
   5. **Future Extensibility**: Easy to add more complex command patterns
 
+* **Expected Link Sub-States** (for IOC framework implementation):
+  * **IOC_LinkSubStateCmdInitiatorReady**: Link ready to initiate commands via IOC_execCMD()
+  * **IOC_LinkSubStateCmdInitiatorBusyExecCmd**: Link busy executing outbound command, awaiting response
+  * **IOC_LinkSubStateCmdExecutorReady**: Link ready to receive and process commands
+  * **IOC_LinkSubStateCmdExecutorBusyExecCmd**: Link busy processing inbound command (callback mode)
+  * **IOC_LinkSubStateCmdExecutorBusyWaitCmd**: Link actively waiting for commands (polling mode)
+  * **IOC_LinkSubStateCmdExecutorBusyAckCmd**: Link sending acknowledgment/response (polling mode)
+
+* **State Transition Triggers**:
+  * **InitiatorReady → InitiatorBusyExecCmd**: IOC_execCMD() called with synchronous execution
+  * **InitiatorBusyExecCmd → InitiatorReady**: Command response received or timeout/error occurred  
+  * **ExecutorReady → ExecutorBusyCbExecCmd**: Command received, callback CbExecCmd_F() invoked
+  * **ExecutorBusyCbExecCmd → ExecutorReady**: Callback execution completed with result
+  * **ExecutorReady → ExecutorBusyWaitCmd**: IOC_waitCMD() called to actively wait for commands
+  * **ExecutorBusyWaitCmd → ExecutorBusyAckCmd**: Command received via polling, processing begins
+  * **ExecutorBusyAckCmd → ExecutorReady**: IOC_ackCMD() called with response, cycle complete
+
+* **API Integration**:
+  * **State Query**: IOC_getLinkState(LinkID, &MainState, &SubState) - retrieve current link command state
+  * **State Verification**: Unit tests validate link state correlates with command execution phases
+  * **Concurrent Handling**: Multiple commands can be processed while maintaining consistent link state
+  * **Error Recovery**: Failed commands transition link back to Ready state for continued operation
+
+* **Testing Strategy** (see UT_CommandStateUS2.cxx):
+  * **Role-Based Testing**: Separate verification for CmdInitiator vs CmdExecutor link behavior
+  * **Execution Mode Testing**: Validate both callback and polling mode link state transitions
+  * **Concurrency Testing**: Verify link state aggregation during multiple concurrent commands
+  * **State Correlation**: Ensure link states properly reflect underlying individual command states
+
 ## EVT::Conet
 
 ```mermaid

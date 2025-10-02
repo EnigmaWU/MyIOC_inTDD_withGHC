@@ -7,6 +7,9 @@
 //
 // This file implements all test cases for US-2 Acceptance Criteria.
 // See UT_CommandState.h for complete User Story definition and Acceptance Criteria.
+//
+// 📊 LINK STATE DIAGRAM: See README_ArchDesign.md "CMD::Conet" section for complete link-level
+//    command state machine showing Initiator/Executor states and transitions.
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <chrono>
