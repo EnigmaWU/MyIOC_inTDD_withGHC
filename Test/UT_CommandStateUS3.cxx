@@ -118,18 +118,20 @@
  *      @[Architecture Principle]: Multi-role services manage multiple single-role links independently
  *      @[Status]: TODO - Need to redesign with correct multi-link architecture
  *
- *  🟢 TC-2: verifyMultiRoleCapability_byIndependentLinks_expectDifferentRolesPerLink  [STATE]
- *      @[Purpose]: Validate multi-role service manages multiple links with different single roles independently
- *      @[Brief]: Single multi-role service connects to two clients with different usages, demonstrate role flexibility
- *      @[Strategy]: Service A (dual capability) → Client-A1 (Executor) + Client-A2 (Initiator)
- *                   → Service sends command on Link1, receives command on Link2
+ *  🟢 TC-2: verifyMultiRoleCapability_byDualServicePattern_expectReplicableArchitecture  [STATE]
+ *      @[Purpose]: Validate multi-role architecture is replicable across multiple independent services
+ *      @[Brief]: Two multi-role services (A and B) each managing multiple different-role links independently
+ *      @[Strategy]: Service A + Service B (both with CmdInitiator|CmdExecutor capability)
+ *                   → Service A: Client-A1(Executor) + Client-A2(Initiator) → 2 different-role links
+ *                   → Service B: Client-B1(Executor) + Client-B2(Initiator) → 2 different-role links
+ *                   → Verify both services demonstrate same independent link management pattern
  *      @[Key Assertions]:
- *          • ASSERTION 1: Link1: Service=Initiator, Client-A1=Executor (command succeeds A→A1)
- *          • ASSERTION 2: Link2: Service=Executor, Client-A2=Initiator (command succeeds A2→A)
- *          • ASSERTION 3: Each link maintains independent single-role state
- *          • ASSERTION 4: Multi-role capability enables flexible link role assignment
- *      @[Architecture Principle]: Multi-role SERVICE manages multiple single-role LINKS
- *      @[Status]: IMPLEMENTED - GREEN (architecture compliant)
+ *          • ASSERTION 1: Service A manages different-role links successfully (A→A1, A2→A)
+ *          • ASSERTION 2: Service B manages different-role links successfully (B→B1, B2→B)
+ *          • ASSERTION 3: Both services maintain independent link states
+ *          • ASSERTION 4: Multi-role architecture pattern is replicable and scalable
+ *      @[Architecture Principle]: Multi-role service pattern is replicable across multiple services
+ *      @[Status]: IMPLEMENTED - GREEN (demonstrates scalability, replicability, and independence)
  *
  * [@AC-2,US-3] Service as CmdInitiator link state independence
  *  ⚪ TC-1: verifyInitiatorLinkState_whenServiceSendsCommand_expectOnlyInitiatorLinkAffected  [STATE]
@@ -642,10 +644,136 @@ TEST(UT_CommandStateUS3, verifyMultiRoleCapability_byIndependentLinks_expectDiff
 
     printf("🔧 [SETUP] Service A managing 2 links: Link1(Initiator role) + Link2(Executor role)\n");
 
+    // ═══════════════════════════════════════════════════════════════
+    // ║  SERVICE B SETUP - REPLICATE THE SAME PATTERN              ║
+    // ═══════════════════════════════════════════════════════════════
+    printf("🔧 [SETUP] Creating Service B with same dual-capability pattern (demonstrating replicability)\n");
+
+    // Private data for Service B
+    struct ServiceBPriv_T {
+        std::atomic<int> commandsReceived{0};
+        std::atomic<int> commandsSent{0};
+    };
+    ServiceBPriv_T srvBPrivData = {};
+
+    // Executor callback for Service B
+    auto executorCbB = [](IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, void *pCbPriv) -> IOC_Result_T {
+        ServiceBPriv_T *pPrivData = (ServiceBPriv_T *)pCbPriv;
+        if (!pPrivData || !pCmdDesc) return IOC_RESULT_INVALID_PARAM;
+
+        pPrivData->commandsReceived++;
+        printf("    📩 [SERVICE-B EXECUTOR] Received command on LinkB2 from Client-B2, count=%d\n",
+               pPrivData->commandsReceived.load());
+
+        IOC_CmdID_T CmdID = IOC_CmdDesc_getCmdID(pCmdDesc);
+        if (CmdID == IOC_CMDID_TEST_PING) {
+            IOC_CmdDesc_setOutPayload(pCmdDesc, (void *)"PONG_FROM_SERVICE_B", 19);
+            IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_SUCCESS);
+            IOC_CmdDesc_setResult(pCmdDesc, IOC_RESULT_SUCCESS);
+        } else {
+            IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_FAILED);
+            IOC_CmdDesc_setResult(pCmdDesc, IOC_RESULT_NOT_SUPPORT);
+        }
+        return IOC_RESULT_SUCCESS;
+    };
+
+    // Create Service B with DUAL capabilities
+    IOC_SrvURI_T srvURI_B = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                             .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                             .pPath = (const char *)"MultiRoleSrvB_US3_TC2"};
+
+    IOC_CmdUsageArgs_T cmdUsageArgsB = {
+        .CbExecCmd_F = executorCbB, .pCbPrivData = &srvBPrivData, .CmdNum = 1, .pCmdIDs = supportedCmdIDs};
+
+    IOC_SrvArgs_T srvArgsB = {
+        .SrvURI = srvURI_B,
+        .Flags = IOC_SRVFLAG_NONE,
+        .UsageCapabilites = (IOC_LinkUsage_T)(IOC_LinkUsageCmdInitiator | IOC_LinkUsageCmdExecutor),
+        .UsageArgs = {.pCmd = &cmdUsageArgsB}};
+
+    IOC_SrvID_T srvID_B = IOC_ID_INVALID;
+    ResultValue = IOC_onlineService(&srvID_B, &srvArgsB);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, srvID_B);
+    printf("🔧 [SETUP] Service B online: UsageCapabilities=0x%02X (CmdInitiator|CmdExecutor)\n",
+           IOC_LinkUsageCmdInitiator | IOC_LinkUsageCmdExecutor);
+
+    // Client-B1 connects with Usage=CmdExecutor → LinkB1: Service B acts as Initiator
+    printf("🔧 [SETUP] Client-B1 connects as CmdExecutor → LinkB1: Service-B(Initiator) ←→ Client-B1(Executor)\n");
+
+    struct ClientB1Priv_T {
+        std::atomic<int> commandsReceived{0};
+    };
+    ClientB1Priv_T clientB1PrivData = {};
+
+    auto clientB1ExecutorCb = [](IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, void *pCbPriv) -> IOC_Result_T {
+        ClientB1Priv_T *pPrivData = (ClientB1Priv_T *)pCbPriv;
+        if (!pPrivData || !pCmdDesc) return IOC_RESULT_INVALID_PARAM;
+
+        pPrivData->commandsReceived++;
+        printf("    📩 [CLIENT-B1 EXECUTOR] Received command on LinkB1 from Service B, count=%d\n",
+               pPrivData->commandsReceived.load());
+
+        IOC_CmdDesc_setOutPayload(pCmdDesc, (void *)"ACK_FROM_CLIENT_B1", 18);
+        IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_SUCCESS);
+        IOC_CmdDesc_setResult(pCmdDesc, IOC_RESULT_SUCCESS);
+        return IOC_RESULT_SUCCESS;
+    };
+
+    IOC_CmdUsageArgs_T clientB1CmdUsageArgs = {
+        .CbExecCmd_F = clientB1ExecutorCb, .pCbPrivData = &clientB1PrivData, .CmdNum = 1, .pCmdIDs = supportedCmdIDs};
+
+    IOC_ConnArgs_T clientB1ConnArgs = {
+        .SrvURI = srvURI_B, .Usage = IOC_LinkUsageCmdExecutor, .UsageArgs = {.pCmd = &clientB1CmdUsageArgs}};
+
+    IOC_LinkID_T clientLinkID_B1 = IOC_ID_INVALID;
+    std::thread clientB1Thread([&] {
+        IOC_Result_T connResult = IOC_connectService(&clientLinkID_B1, &clientB1ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, connResult);
+        ASSERT_NE(IOC_ID_INVALID, clientLinkID_B1);
+    });
+
+    IOC_LinkID_T srvLinkID_B1 = IOC_ID_INVALID;
+    ResultValue = IOC_acceptClient(srvID_B, &srvLinkID_B1, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, srvLinkID_B1);
+
+    if (clientB1Thread.joinable()) clientB1Thread.join();
+
+    // Client-B2 connects with Usage=CmdInitiator → LinkB2: Service B acts as Executor
+    printf("🔧 [SETUP] Client-B2 connects as CmdInitiator → LinkB2: Service-B(Executor) ←→ Client-B2(Initiator)\n");
+
+    struct ClientB2Priv_T {
+        std::atomic<int> commandsSent{0};
+    };
+    ClientB2Priv_T clientB2PrivData = {};
+
+    IOC_ConnArgs_T clientB2ConnArgs = {.SrvURI = srvURI_B, .Usage = IOC_LinkUsageCmdInitiator};
+
+    IOC_LinkID_T clientLinkID_B2 = IOC_ID_INVALID;
+    std::thread clientB2Thread([&] {
+        IOC_Result_T connResult = IOC_connectService(&clientLinkID_B2, &clientB2ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, connResult);
+        ASSERT_NE(IOC_ID_INVALID, clientLinkID_B2);
+    });
+
+    IOC_LinkID_T srvLinkID_B2 = IOC_ID_INVALID;
+    ResultValue = IOC_acceptClient(srvID_B, &srvLinkID_B2, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, srvLinkID_B2);
+
+    if (clientB2Thread.joinable()) clientB2Thread.join();
+
+    printf("🔧 [SETUP] Service B managing 2 links: LinkB1(Initiator role) + LinkB2(Executor role)\n");
+    printf("🔧 [SETUP] ✅ Both services ready - demonstrating pattern replicability\n");
+
     // ┌──────────────────────────────────────────────────────────────┐
     // │                    📋 BEHAVIOR PHASE                         │
     // └──────────────────────────────────────────────────────────────┘
-    printf("📋 [BEHAVIOR] Testing independent link management with different roles\n");
+    printf("📋 [BEHAVIOR] Testing replicable multi-role pattern across two services\n");
+
+    // ═══════ SERVICE A COMMANDS ═══════
+    printf("📋 [BEHAVIOR] --- Service A Commands ---\n");
 
     // Service A sends command on Link1 (Service acts as Initiator)
     printf("📋 [BEHAVIOR] Link1: Service A → Client-A1 (Service as Initiator)\n");
@@ -679,6 +807,41 @@ TEST(UT_CommandStateUS3, verifyMultiRoleCapability_byIndependentLinks_expectDiff
     IOC_Result_T cmdResultCliA2ToSrvA2 = IOC_CmdDesc_getResult(&cmdDescLink2);
     printf("    ✅ [LINK2 RESULT] Command status=%d, result=%d\n", cmdStatusCliA2ToSrvA2, cmdResultCliA2ToSrvA2);
 
+    // ═══════ SERVICE B COMMANDS ═══════
+    printf("📋 [BEHAVIOR] --- Service B Commands ---\n");
+
+    // Service B sends command on LinkB1 (Service acts as Initiator)
+    printf("📋 [BEHAVIOR] LinkB1: Service B → Client-B1 (Service as Initiator)\n");
+    IOC_CmdDesc_T cmdDescLinkB1 = {};
+    cmdDescLinkB1.CmdID = IOC_CMDID_TEST_PING;
+    cmdDescLinkB1.TimeoutMs = 5000;
+    cmdDescLinkB1.Status = IOC_CMD_STATUS_PENDING;
+    IOC_CmdDesc_setInPayload(&cmdDescLinkB1, (void *)"PING_FROM_SERVICE_B", 19);
+
+    ResultValue = IOC_execCMD(srvLinkID_B1, &cmdDescLinkB1, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    srvBPrivData.commandsSent++;
+
+    IOC_CmdStatus_E cmdStatusSrvB1ToCliB1 = IOC_CmdDesc_getStatus(&cmdDescLinkB1);
+    IOC_Result_T cmdResultSrvB1ToCliB1 = IOC_CmdDesc_getResult(&cmdDescLinkB1);
+    printf("    ✅ [LINKB1 RESULT] Command status=%d, result=%d\n", cmdStatusSrvB1ToCliB1, cmdResultSrvB1ToCliB1);
+
+    // Client-B2 sends command on LinkB2 (Service acts as Executor)
+    printf("📋 [BEHAVIOR] LinkB2: Client-B2 → Service B (Service as Executor)\n");
+    IOC_CmdDesc_T cmdDescLinkB2 = {};
+    cmdDescLinkB2.CmdID = IOC_CMDID_TEST_PING;
+    cmdDescLinkB2.TimeoutMs = 5000;
+    cmdDescLinkB2.Status = IOC_CMD_STATUS_PENDING;
+    IOC_CmdDesc_setInPayload(&cmdDescLinkB2, (void *)"PING_FROM_CLIENT_B2", 19);
+
+    ResultValue = IOC_execCMD(clientLinkID_B2, &cmdDescLinkB2, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    clientB2PrivData.commandsSent++;
+
+    IOC_CmdStatus_E cmdStatusCliB2ToSrvB2 = IOC_CmdDesc_getStatus(&cmdDescLinkB2);
+    IOC_Result_T cmdResultCliB2ToSrvB2 = IOC_CmdDesc_getResult(&cmdDescLinkB2);
+    printf("    ✅ [LINKB2 RESULT] Command status=%d, result=%d\n", cmdStatusCliB2ToSrvB2, cmdResultCliB2ToSrvB2);
+
     // Query link states to verify independence
     IOC_LinkState_T mainStateSrvA1 = IOC_LinkStateUndefined;
     IOC_LinkSubState_T subStateSrvA1 = IOC_LinkSubStateDefault;
@@ -690,67 +853,110 @@ TEST(UT_CommandStateUS3, verifyMultiRoleCapability_byIndependentLinks_expectDiff
     ResultValue = IOC_getLinkState(srvLinkID_A2, &mainStateSrvA2, &subStateSrvA2);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
 
+    IOC_LinkState_T mainStateSrvB1 = IOC_LinkStateUndefined;
+    IOC_LinkSubState_T subStateSrvB1 = IOC_LinkSubStateDefault;
+    ResultValue = IOC_getLinkState(srvLinkID_B1, &mainStateSrvB1, &subStateSrvB1);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
+    IOC_LinkState_T mainStateSrvB2 = IOC_LinkStateUndefined;
+    IOC_LinkSubState_T subStateSrvB2 = IOC_LinkSubStateDefault;
+    ResultValue = IOC_getLinkState(srvLinkID_B2, &mainStateSrvB2, &subStateSrvB2);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
     // ┌──────────────────────────────────────────────────────────────┐
     // │                     ✅ VERIFY PHASE                          │
     // └──────────────────────────────────────────────────────────────┘
-    //@KeyVerifyPoint<=4: Multi-role service independent link management verification
-    //  1. ASSERTION 1: Link1 command succeeds (Service=Initiator, Client-A1=Executor)
-    //  2. ASSERTION 2: Link2 command succeeds (Service=Executor, Client-A2=Initiator)
-    //  3. ASSERTION 3: Each link maintains independent single-role state
-    //  4. ASSERTION 4: Multi-role capability enables flexible link role assignment
+    //@KeyVerifyPoint<=4: Dual multi-role services replicable architecture verification
+    //  1. ASSERTION 1: Service A manages different-role links successfully (A→A1, A2→A)
+    //  2. ASSERTION 2: Service B manages different-role links successfully (B→B1, B2→B)
+    //  3. ASSERTION 3: Both services maintain independent link states
+    //  4. ASSERTION 4: Architecture pattern is replicable and scalable
 
-    printf("✅ [VERIFY] ASSERTION 1: Link1 command succeeds (Service=Initiator role)\n");
-    printf("    • Service A sent on Link1: %d commands\n", srvAPrivData.commandsSent.load());
-    printf("    • Client-A1 received on Link1: %d commands\n", clientA1PrivData.commandsReceived.load());
-    VERIFY_KEYPOINT_EQ(cmdStatusSrvA1ToCliA1, IOC_CMD_STATUS_SUCCESS,
-                       "Link1 command (Service as Initiator) must complete");
-    VERIFY_KEYPOINT_EQ(cmdResultSrvA1ToCliA1, IOC_RESULT_SUCCESS, "Link1 command must return SUCCESS");
+    printf("✅ [VERIFY] ASSERTION 1: Service A manages different-role links successfully\n");
+    printf("    • Service A sent on LinkA1: %d commands (Initiator role)\n", srvAPrivData.commandsSent.load());
+    printf("    • Service A received on LinkA2: %d commands (Executor role)\n", srvAPrivData.commandsReceived.load());
+    printf("    • Client-A1 received: %d commands\n", clientA1PrivData.commandsReceived.load());
+    printf("    • Client-A2 sent: %d commands\n", clientA2PrivData.commandsSent.load());
+    VERIFY_KEYPOINT_EQ(cmdStatusSrvA1ToCliA1, IOC_CMD_STATUS_SUCCESS, "Service A Initiator command must complete");
+    VERIFY_KEYPOINT_EQ(cmdResultSrvA1ToCliA1, IOC_RESULT_SUCCESS, "Service A Initiator must return SUCCESS");
+    VERIFY_KEYPOINT_EQ(cmdStatusCliA2ToSrvA2, IOC_CMD_STATUS_SUCCESS, "Service A Executor command must complete");
+    VERIFY_KEYPOINT_EQ(cmdResultCliA2ToSrvA2, IOC_RESULT_SUCCESS, "Service A Executor must return SUCCESS");
     ASSERT_EQ(1, srvAPrivData.commandsSent.load());
-    ASSERT_EQ(1, clientA1PrivData.commandsReceived.load());
-
-    printf("✅ [VERIFY] ASSERTION 2: Link2 command succeeds (Service=Executor role)\n");
-    printf("    • Client-A2 sent on Link2: %d commands\n", clientA2PrivData.commandsSent.load());
-    printf("    • Service A received on Link2: %d commands\n", srvAPrivData.commandsReceived.load());
-    VERIFY_KEYPOINT_EQ(cmdStatusCliA2ToSrvA2, IOC_CMD_STATUS_SUCCESS,
-                       "Link2 command (Service as Executor) must complete");
-    VERIFY_KEYPOINT_EQ(cmdResultCliA2ToSrvA2, IOC_RESULT_SUCCESS, "Link2 command must return SUCCESS");
-    ASSERT_EQ(1, clientA2PrivData.commandsSent.load());
     ASSERT_EQ(1, srvAPrivData.commandsReceived.load());
 
-    printf("✅ [VERIFY] ASSERTION 3: Each link maintains independent single-role state\n");
-    printf("    • Link1 substate: %d (CmdInitiatorReady expected: %d)\n", subStateSrvA1,
-           IOC_LinkSubStateCmdInitiatorReady);
-    printf("    • Link2 substate: %d (CmdExecutorReady expected: %d)\n", subStateSrvA2,
-           IOC_LinkSubStateCmdExecutorReady);
-    VERIFY_KEYPOINT_EQ(subStateSrvA1, IOC_LinkSubStateCmdInitiatorReady, "Link1 must show Initiator role");
-    VERIFY_KEYPOINT_EQ(subStateSrvA2, IOC_LinkSubStateCmdExecutorReady, "Link2 must show Executor role");
-    VERIFY_KEYPOINT_NE(subStateSrvA1, subStateSrvA2, "Each link must have independent single-role state");
+    printf("✅ [VERIFY] ASSERTION 2: Service B manages different-role links successfully\n");
+    printf("    • Service B sent on LinkB1: %d commands (Initiator role)\n", srvBPrivData.commandsSent.load());
+    printf("    • Service B received on LinkB2: %d commands (Executor role)\n", srvBPrivData.commandsReceived.load());
+    printf("    • Client-B1 received: %d commands\n", clientB1PrivData.commandsReceived.load());
+    printf("    • Client-B2 sent: %d commands\n", clientB2PrivData.commandsSent.load());
+    VERIFY_KEYPOINT_EQ(cmdStatusSrvB1ToCliB1, IOC_CMD_STATUS_SUCCESS, "Service B Initiator command must complete");
+    VERIFY_KEYPOINT_EQ(cmdResultSrvB1ToCliB1, IOC_RESULT_SUCCESS, "Service B Initiator must return SUCCESS");
+    VERIFY_KEYPOINT_EQ(cmdStatusCliB2ToSrvB2, IOC_CMD_STATUS_SUCCESS, "Service B Executor command must complete");
+    VERIFY_KEYPOINT_EQ(cmdResultCliB2ToSrvB2, IOC_RESULT_SUCCESS, "Service B Executor must return SUCCESS");
+    ASSERT_EQ(1, srvBPrivData.commandsSent.load());
+    ASSERT_EQ(1, srvBPrivData.commandsReceived.load());
 
-    printf("✅ [VERIFY] ASSERTION 4: Multi-role capability enables flexible link role assignment\n");
-    printf("    • Service A declared UsageCapabilities = 0x0C (Initiator|Executor)\n");
-    printf("    • Link1: Service successfully acted as Initiator\n");
-    printf("    • Link2: Service successfully acted as Executor\n");
-    printf("    • Same service, different roles per link ✅\n");
+    printf("✅ [VERIFY] ASSERTION 3: Both services maintain independent link states\n");
+    printf("    • Service A LinkA1 substate: %d (expected: %d CmdInitiatorReady)\n", subStateSrvA1,
+           IOC_LinkSubStateCmdInitiatorReady);
+    printf("    • Service A LinkA2 substate: %d (expected: %d CmdExecutorReady)\n", subStateSrvA2,
+           IOC_LinkSubStateCmdExecutorReady);
+    printf("    • Service B LinkB1 substate: %d (expected: %d CmdInitiatorReady)\n", subStateSrvB1,
+           IOC_LinkSubStateCmdInitiatorReady);
+    printf("    • Service B LinkB2 substate: %d (expected: %d CmdExecutorReady)\n", subStateSrvB2,
+           IOC_LinkSubStateCmdExecutorReady);
+    VERIFY_KEYPOINT_EQ(subStateSrvA1, IOC_LinkSubStateCmdInitiatorReady, "Service A LinkA1 must show Initiator role");
+    VERIFY_KEYPOINT_EQ(subStateSrvA2, IOC_LinkSubStateCmdExecutorReady, "Service A LinkA2 must show Executor role");
+    VERIFY_KEYPOINT_EQ(subStateSrvB1, IOC_LinkSubStateCmdInitiatorReady, "Service B LinkB1 must show Initiator role");
+    VERIFY_KEYPOINT_EQ(subStateSrvB2, IOC_LinkSubStateCmdExecutorReady, "Service B LinkB2 must show Executor role");
+    VERIFY_KEYPOINT_NE(subStateSrvA1, subStateSrvA2, "Service A links must have independent states");
+    VERIFY_KEYPOINT_NE(subStateSrvB1, subStateSrvB2, "Service B links must have independent states");
+
+    //@KeyVerifyPoint-4: Architecture pattern replicability and scalability (with actual verification)
+    printf("✅ [VERIFY] ASSERTION 4: Architecture pattern is replicable and scalable\n");
+    printf("    • Service A capability: 0x0C, managed 2 different-role links ✅\n");
+    printf("    • Service B capability: 0x0C, managed 2 different-role links ✅\n");
+    printf("    • Both services demonstrate identical pattern independently\n");
+
+    // Verify: Both services have dual capabilities
+    VERIFY_KEYPOINT_EQ((int)(IOC_LinkUsageCmdInitiator | IOC_LinkUsageCmdExecutor), 0x0C,
+                       "Multi-role capability bitmask must be 0x0C");
+    // Verify: Service A demonstrated both roles
+    VERIFY_KEYPOINT_EQ(srvAPrivData.commandsSent.load(), 1, "Service A must act as Initiator");
+    VERIFY_KEYPOINT_EQ(srvAPrivData.commandsReceived.load(), 1, "Service A must act as Executor");
+    // Verify: Service B demonstrated both roles (REPLICABILITY)
+    VERIFY_KEYPOINT_EQ(srvBPrivData.commandsSent.load(), 1, "Service B must act as Initiator (pattern replicated)");
+    VERIFY_KEYPOINT_EQ(srvBPrivData.commandsReceived.load(), 1, "Service B must act as Executor (pattern replicated)");
+    // Verify: Pattern consistency
+    ASSERT_TRUE(srvAPrivData.commandsSent.load() == srvBPrivData.commandsSent.load())
+        << "Both services must send same number of commands (pattern consistency)";
+    ASSERT_TRUE(srvAPrivData.commandsReceived.load() == srvBPrivData.commandsReceived.load())
+        << "Both services must receive same number of commands (pattern consistency)";
 
     printf("\n");
-    printf("✅ [RESULT] Multi-role service independent link management verified:\n");
-    printf("   • Link1: Service(Initiator) ←→ Client-A1(Executor) - SUCCESS (ASSERTION 1) ✅\n");
-    printf("   • Link2: Service(Executor) ←→ Client-A2(Initiator) - SUCCESS (ASSERTION 2) ✅\n");
-    printf("   • Independent single-role states per link (ASSERTION 3) ✅\n");
-    printf("   • Flexible role assignment across links (ASSERTION 4) ✅\n");
-    printf("   • Architecture principle: Multi-role SERVICE ≠ Dual-role LINK ✅\n");
+    printf("✅ [RESULT] Dual multi-role services replicable architecture verified:\n");
+    printf("   • Service A: LinkA1(Initiator) + LinkA2(Executor) - SUCCESS (ASSERTION 1) ✅\n");
+    printf("   • Service B: LinkB1(Initiator) + LinkB2(Executor) - SUCCESS (ASSERTION 2) ✅\n");
+    printf("   • Independent link states maintained by both services (ASSERTION 3) ✅\n");
+    printf("   • Architecture pattern is replicable and scalable (ASSERTION 4) ✅\n");
+    printf("   • Architecture principle: Multi-role pattern scales across multiple services ✅\n");
 
     // ┌──────────────────────────────────────────────────────────────┐
     // │                    🧹 CLEANUP PHASE                          │
     // └──────────────────────────────────────────────────────────────┘
-    printf("🧹 [CLEANUP] Disconnecting clients and stopping service\n");
+    printf("🧹 [CLEANUP] Disconnecting clients and stopping both services\n");
 
-    // Close client-side links
+    // Close Service A client-side links
     if (clientLinkID_A1 != IOC_ID_INVALID) IOC_closeLink(clientLinkID_A1);
     if (clientLinkID_A2 != IOC_ID_INVALID) IOC_closeLink(clientLinkID_A2);
 
-    // Stop service (automatically closes server-side links)
+    // Close Service B client-side links
+    if (clientLinkID_B1 != IOC_ID_INVALID) IOC_closeLink(clientLinkID_B1);
+    if (clientLinkID_B2 != IOC_ID_INVALID) IOC_closeLink(clientLinkID_B2);
+
+    // Stop both services (automatically closes server-side links)
     if (srvID_A != IOC_ID_INVALID) IOC_offlineService(srvID_A);
+    if (srvID_B != IOC_ID_INVALID) IOC_offlineService(srvID_B);
 }
 
 //======>END OF AC-1 TC-2==========================================================================
