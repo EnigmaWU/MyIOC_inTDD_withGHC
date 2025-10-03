@@ -545,6 +545,27 @@ static IOC_Result_T __IOC_acceptClient_ofProtoFifo(_IOC_ServiceObject_pT pSrvObj
             _IOC_LinkObject_pT pClientLinkObj = pFifoSrvObj->pConnLinkObj;
             pFifoSrvObj->pConnLinkObj = NULL;  // clear the connection link object
 
+            // 🎯 TDD GREEN FIX for US-3: Negotiate actual link role based on client's requested usage
+            // Multi-role services must act as COMPLEMENTARY role to client on each specific link:
+            //  • If Client=CmdExecutor → Service=CmdInitiator on that link
+            //  • If Client=CmdInitiator → Service=CmdExecutor on that link
+            //
+            // BEFORE: pLinkObj->Args.Usage = pSrvObj->Args.UsageCapabilites (WRONG - assigns full 0x0C to all links)
+            // AFTER: Negotiate per-link role using shared helper function (eliminates code duplication)
+            if (pClientLinkObj && pSrvObj) {
+                IOC_LinkUsage_T ClientRequestedUsage = pClientLinkObj->Args.Usage;
+                IOC_LinkUsage_T ServiceCapabilities = pSrvObj->Args.UsageCapabilites;
+
+                // Use shared role negotiation logic from IOC_Service.c
+                IOC_LinkUsage_T ServiceLinkRole = _IOC_negotiateLinkRole(ServiceCapabilities, ClientRequestedUsage);
+
+                // Override the server link's Usage with negotiated role (NOT full service capabilities!)
+                pLinkObj->Args.Usage = ServiceLinkRole;
+
+                printf("🎯 [ROLE NEGOTIATION] ServiceCap=0x%02X, ClientUsage=0x%02X → ServiceLinkRole=0x%02X\n",
+                       ServiceCapabilities, ClientRequestedUsage, ServiceLinkRole);
+            }
+
             // 🔧 TDD FIX: Setup DAT receiver for both server and client scenarios
             // In US-1: Server is DatReceiver, setup server-side callbacks from service args
             // In US-2: Client is DatReceiver, setup client-side callbacks from connection args

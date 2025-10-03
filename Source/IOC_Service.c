@@ -385,9 +385,11 @@ static void *__IOC_ServiceAutoAcceptDaemonThread(void *pArg) {
         } else {
             _IOC_LogInfo("Auto-accepted new client connection, LinkID=%" PRIu64 "", pLinkObj->ID);
 
-            // [🔧 TDD GREEN] Initialize auto-accepted connection properties based on service configuration
-            pLinkObj->Args.Usage = pSrvObj->Args.UsageCapabilites;  // Set Usage for IOC_getLinkState()
-            pLinkObj->pMethods = pSrvObj->pMethods;                 // Copy protocol methods from Service
+            // 🎯 [TDD GREEN] pLinkObj->Args.Usage is already set by OpAcceptClient_F with negotiated role
+            // DO NOT overwrite with full service capabilities here!
+            // OLD WRONG CODE: pLinkObj->Args.Usage = pSrvObj->Args.UsageCapabilites;
+
+            pLinkObj->pMethods = pSrvObj->pMethods;  // Copy protocol methods from Service
 
             // 🔧 [TDD GREEN] Copy DAT callback configuration to auto-accepted connection
             if (pSrvObj->Args.UsageArgs.pDat) {
@@ -584,6 +586,76 @@ IOC_Result_T IOC_offlineService(
     return IOC_RESULT_SUCCESS;
 }
 
+/**
+ * @brief Negotiate the actual link role for service based on client's requested role
+ *
+ * 🎯 TDD GREEN IMPLEMENTATION for US-3: Multi-Role Service State Verification
+ *
+ * When a multi-role service (e.g., CmdInitiator | CmdExecutor) accepts a client connection,
+ * the service must act as the COMPLEMENTARY role to the client on that specific link:
+ *
+ * ROLE NEGOTIATION RULES:
+ *  • If Client requests CmdExecutor role → Service acts as CmdInitiator on that link
+ *  • If Client requests CmdInitiator role → Service acts as CmdExecutor on that link
+ *  • Similar logic applies to Event and Data usage pairs
+ *
+ * ARCHITECTURE PRINCIPLE:
+ *  • SERVICE Capabilities: UsageCapabilites = multiple roles (e.g., 0x0C = both Initiator+Executor)
+ *  • LINK Usage: Each LinkID has ONLY ONE role pair (e.g., Service=Initiator ↔ Client=Executor)
+ *  • Multi-Role Service = Service managing MULTIPLE links with DIFFERENT single roles
+ *
+ * @param ServiceCapabilities: The service's full capabilities bitmask (what it CAN do)
+ * @param ClientRequestedUsage: The client's requested role on this link (what client WANTS to be)
+ * @return IOC_LinkUsage_T: The service's actual role on this specific link (complementary to client)
+ */
+IOC_LinkUsage_T _IOC_negotiateLinkRole(IOC_LinkUsage_T ServiceCapabilities, IOC_LinkUsage_T ClientRequestedUsage) {
+    IOC_LinkUsage_T ServiceLinkRole = IOC_LinkUsageUndefined;
+
+    // Negotiate Command role
+    if (ClientRequestedUsage & IOC_LinkUsageCmdExecutor) {
+        // Client wants to be Executor → Service must be Initiator
+        if (ServiceCapabilities & IOC_LinkUsageCmdInitiator) {
+            ServiceLinkRole |= IOC_LinkUsageCmdInitiator;
+        }
+    }
+    if (ClientRequestedUsage & IOC_LinkUsageCmdInitiator) {
+        // Client wants to be Initiator → Service must be Executor
+        if (ServiceCapabilities & IOC_LinkUsageCmdExecutor) {
+            ServiceLinkRole |= IOC_LinkUsageCmdExecutor;
+        }
+    }
+
+    // Negotiate Event role
+    if (ClientRequestedUsage & IOC_LinkUsageEvtProducer) {
+        // Client wants to be Producer → Service must be Consumer
+        if (ServiceCapabilities & IOC_LinkUsageEvtConsumer) {
+            ServiceLinkRole |= IOC_LinkUsageEvtConsumer;
+        }
+    }
+    if (ClientRequestedUsage & IOC_LinkUsageEvtConsumer) {
+        // Client wants to be Consumer → Service must be Producer
+        if (ServiceCapabilities & IOC_LinkUsageEvtProducer) {
+            ServiceLinkRole |= IOC_LinkUsageEvtProducer;
+        }
+    }
+
+    // Negotiate Data role
+    if (ClientRequestedUsage & IOC_LinkUsageDatReceiver) {
+        // Client wants to be Receiver → Service must be Sender
+        if (ServiceCapabilities & IOC_LinkUsageDatSender) {
+            ServiceLinkRole |= IOC_LinkUsageDatSender;
+        }
+    }
+    if (ClientRequestedUsage & IOC_LinkUsageDatSender) {
+        // Client wants to be Sender → Service must be Receiver
+        if (ServiceCapabilities & IOC_LinkUsageDatReceiver) {
+            ServiceLinkRole |= IOC_LinkUsageDatReceiver;
+        }
+    }
+
+    return ServiceLinkRole;
+}
+
 IOC_Result_T IOC_acceptClient(
     /*ARG_IN*/ IOC_SrvID_T SrvID,
     /*ARG_OUT*/ IOC_LinkID_pT pLinkID,
@@ -607,11 +679,13 @@ IOC_Result_T IOC_acceptClient(
     } else {
         pLinkObj->pMethods = pSrvObj->pMethods;
 
-        // 🔧 TDD FIX: Inherit service configuration into the accepted client link
-        // This ensures that the server-side link has the correct Usage and URI information
-        // for proper command routing and path matching
-        pLinkObj->Args.Usage = pSrvObj->Args.UsageCapabilites;
-        pLinkObj->Args.SrvURI = pSrvObj->Args.SrvURI;  // Copy service URI including path
+        // 🎯 TDD GREEN FIX for US-3: DO NOT assign full service capabilities here!
+        // The protocol layer's OpAcceptClient_F will negotiate and set the actual link role.
+        // OLD WRONG CODE: pLinkObj->Args.Usage = pSrvObj->Args.UsageCapabilites;
+
+        // However, we DO need to temporarily store service capabilities for protocol negotiation
+        pLinkObj->Args.Usage = pSrvObj->Args.UsageCapabilites;  // Temp for negotiation, will be overwritten
+        pLinkObj->Args.SrvURI = pSrvObj->Args.SrvURI;           // Copy service URI including path
 
         // Copy usage-specific arguments based on the inherited capabilities
         if (pSrvObj->Args.UsageCapabilites & IOC_LinkUsageEvtConsumer) {
@@ -637,6 +711,10 @@ IOC_Result_T IOC_acceptClient(
         return Result;
     } else {
         *pLinkID = pLinkObj->ID;
+
+        // 🎯 TDD GREEN FIX for US-3: Role negotiation is done inside OpAcceptClient_F
+        // The protocol layer has access to both peer links and performs the negotiation
+        // pLinkObj->Args.Usage has been updated to the negotiated service role
 
         // Step-4: Track manually accepted link for cleanup during service shutdown
         pthread_mutex_lock(&pSrvObj->ManualAccept.Mutex);

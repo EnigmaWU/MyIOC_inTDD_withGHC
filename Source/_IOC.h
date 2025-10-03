@@ -32,6 +32,10 @@ extern "C" {
 // 🎯 TDD GREEN: ConlesEvent SubState bridge function for DAT operations
 void _IOC_updateConlesEventSubState(IOC_LinkID_T linkID, IOC_LinkSubState_T subState);
 
+// 🎯 TDD GREEN: Role negotiation helper for multi-role service support (US-3)
+// Computes complementary link role: Client=Executor → Service=Initiator on that link
+IOC_LinkUsage_T _IOC_negotiateLinkRole(IOC_LinkUsage_T ServiceCapabilities, IOC_LinkUsage_T ClientRequestedUsage);
+
 #ifdef __cplusplus
 }
 #endif

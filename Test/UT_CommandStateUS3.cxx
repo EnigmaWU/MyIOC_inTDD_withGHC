@@ -453,10 +453,32 @@ TEST(UT_CommandStateUS3, verifyMultiRoleServiceReady_byDualCapability_expectMult
     // └──────────────────────────────────────────────────────────────┘
     printf("🧹 [CLEANUP] Disconnecting clients and stopping service\n");
 
+    // 🎯 CLEANUP STRATEGY: Follow clear ownership model
+    //
+    // WHY: Avoid double-close errors by respecting resource ownership:
+    //  • Client-side links (client1LinkID, client2LinkID): Test owns → Test closes
+    //  • Server-side links (srvLinkID1, srvLinkID2): Service owns → Service closes
+    //
+    // IOC_offlineService() automatically closes all manually accepted links unless
+    // KEEP_ACCEPTED_LINK flag is set. Since we didn't set that flag, the service
+    // will handle srvLinkID1 and srvLinkID2 cleanup.
+    //
+    // OLD WRONG CODE (caused double-close errors):
+    //   IOC_closeLink(srvLinkID1);  // ← First close
+    //   IOC_closeLink(srvLinkID2);  // ← First close
+    //   IOC_offlineService(srvID);   // ← Tries to close AGAIN → ERROR!
+    //
+    // CORRECT CODE: Only close client-side links, let service handle its own links
+
+    // Close client-side links (test owns these)
     if (client1LinkID != IOC_ID_INVALID) IOC_closeLink(client1LinkID);
     if (client2LinkID != IOC_ID_INVALID) IOC_closeLink(client2LinkID);
-    if (srvLinkID1 != IOC_ID_INVALID) IOC_closeLink(srvLinkID1);
-    if (srvLinkID2 != IOC_ID_INVALID) IOC_closeLink(srvLinkID2);
+
+    // DO NOT close srvLinkID1/srvLinkID2 here - IOC_offlineService will handle them
+    // if (srvLinkID1 != IOC_ID_INVALID) IOC_closeLink(srvLinkID1);  // ← REMOVED: Let service handle
+    // if (srvLinkID2 != IOC_ID_INVALID) IOC_closeLink(srvLinkID2);  // ← REMOVED: Let service handle
+
+    // Stop service (automatically closes all accepted links)
     if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
 }
 
