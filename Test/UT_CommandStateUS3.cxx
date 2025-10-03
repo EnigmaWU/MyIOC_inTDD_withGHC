@@ -361,10 +361,10 @@ TEST(UT_CommandStateUS3, verifyMultiRoleServiceReady_byDualCapability_expectMult
     });
 
     // Service accepts Client1
-    IOC_LinkID_T srvLink1 = IOC_ID_INVALID;
-    ResultValue = IOC_acceptClient(srvID, &srvLink1, NULL);
+    IOC_LinkID_T srvLinkID1 = IOC_ID_INVALID;
+    ResultValue = IOC_acceptClient(srvID, &srvLinkID1, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
-    ASSERT_NE(IOC_ID_INVALID, srvLink1);
+    ASSERT_NE(IOC_ID_INVALID, srvLinkID1);
 
     if (client1Thread.joinable()) client1Thread.join();
 
@@ -381,10 +381,10 @@ TEST(UT_CommandStateUS3, verifyMultiRoleServiceReady_byDualCapability_expectMult
     });
 
     // Service accepts Client2
-    IOC_LinkID_T srvLink2 = IOC_ID_INVALID;
-    ResultValue = IOC_acceptClient(srvID, &srvLink2, NULL);
+    IOC_LinkID_T srvLinkID2 = IOC_ID_INVALID;
+    ResultValue = IOC_acceptClient(srvID, &srvLinkID2, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
-    ASSERT_NE(IOC_ID_INVALID, srvLink2);
+    ASSERT_NE(IOC_ID_INVALID, srvLinkID2);
 
     if (client2Thread.joinable()) client2Thread.join();
 
@@ -396,24 +396,29 @@ TEST(UT_CommandStateUS3, verifyMultiRoleServiceReady_byDualCapability_expectMult
     IOC_LinkState_T mainState1 = IOC_LinkStateUndefined;
     IOC_LinkSubState_T subState1 = IOC_LinkSubStateDefault;
     printf("📋 [BEHAVIOR] Link1 (Service=Initiator) state query\n");
-    ResultValue = IOC_getLinkState(srvLink1, &mainState1, &subState1);
+    ResultValue = IOC_getLinkState(srvLinkID1, &mainState1, &subState1);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
 
     IOC_LinkState_T mainState2 = IOC_LinkStateUndefined;
     IOC_LinkSubState_T subState2 = IOC_LinkSubStateDefault;
     printf("📋 [BEHAVIOR] Link2 (Service=Executor) state query\n");
-    ResultValue = IOC_getLinkState(srvLink2, &mainState2, &subState2);
+    ResultValue = IOC_getLinkState(srvLinkID2, &mainState2, &subState2);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
 
     // ┌──────────────────────────────────────────────────────────────┐
     // │                     ✅ VERIFY PHASE                          │
     // └──────────────────────────────────────────────────────────────┘
+    //@KeyVerifyPoint<=3: Multi-role SERVICE managing multiple single-role LINKS verification
+    //  1. ASSERTION 3: Link1 substate = CmdInitiatorReady (service as Initiator on Link1)
+    //  2. ASSERTION 4: Link2 substate = CmdExecutorReady (service as Executor on Link2) ← KEY!
+    //  3. ASSERTION 5: Both links have independent single-role states (architectural principle)
+
     printf("✅ [VERIFY] ASSERTION 1: Service accepted Client1, Link1 established\n");
-    ASSERT_NE(IOC_ID_INVALID, srvLink1);
+    ASSERT_NE(IOC_ID_INVALID, srvLinkID1);
     ASSERT_NE(IOC_ID_INVALID, client1LinkID);
 
     printf("✅ [VERIFY] ASSERTION 2: Service accepted Client2, Link2 established\n");
-    ASSERT_NE(IOC_ID_INVALID, srvLink2);
+    ASSERT_NE(IOC_ID_INVALID, srvLinkID2);
     ASSERT_NE(IOC_ID_INVALID, client2LinkID);
 
     printf("✅ [VERIFY] ASSERTION 3: Link1 substate = CmdInitiatorReady (Service can send on Link1)\n");
@@ -421,11 +426,13 @@ TEST(UT_CommandStateUS3, verifyMultiRoleServiceReady_byDualCapability_expectMult
            IOC_LinkSubStateCmdInitiatorReady);
     ASSERT_EQ(IOC_LinkSubStateCmdInitiatorReady, subState1);
 
+    //@KeyVerifyPoint-1: Verify Link2 substate correctly reflects Executor role (THIS IS THE CRITICAL TEST!)
     printf("✅ [VERIFY] ASSERTION 4: Link2 substate = CmdExecutorReady (Service can receive on Link2)\n");
     printf("    • Link2 mainState: %d, subState: %d (expected: %d)\n", mainState2, subState2,
            IOC_LinkSubStateCmdExecutorReady);
     ASSERT_EQ(IOC_LinkSubStateCmdExecutorReady, subState2);
 
+    //@KeyVerifyPoint-2: Verify each link maintains independent single-role state
     printf("✅ [VERIFY] ASSERTION 5: Each link has independent single-role state\n");
     printf("    • Link1: Service role = Initiator (substate = %d)\n", subState1);
     printf("    • Link2: Service role = Executor (substate = %d)\n", subState2);
@@ -446,8 +453,8 @@ TEST(UT_CommandStateUS3, verifyMultiRoleServiceReady_byDualCapability_expectMult
 
     if (client1LinkID != IOC_ID_INVALID) IOC_closeLink(client1LinkID);
     if (client2LinkID != IOC_ID_INVALID) IOC_closeLink(client2LinkID);
-    if (srvLink1 != IOC_ID_INVALID) IOC_closeLink(srvLink1);
-    if (srvLink2 != IOC_ID_INVALID) IOC_closeLink(srvLink2);
+    if (srvLinkID1 != IOC_ID_INVALID) IOC_closeLink(srvLinkID1);
+    if (srvLinkID2 != IOC_ID_INVALID) IOC_closeLink(srvLinkID2);
     if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
 }
 
