@@ -424,19 +424,21 @@ TEST(UT_CommandStateUS3, verifyMultiRoleServiceReady_byDualCapability_expectMult
     printf("✅ [VERIFY] ASSERTION 3: Link1 substate = CmdInitiatorReady (Service can send on Link1)\n");
     printf("    • Link1 mainState: %d, subState: %d (expected: %d)\n", mainState1, subState1,
            IOC_LinkSubStateCmdInitiatorReady);
-    ASSERT_EQ(IOC_LinkSubStateCmdInitiatorReady, subState1);
+    VERIFY_KEYPOINT_EQ(subState1, IOC_LinkSubStateCmdInitiatorReady,
+                       "Link1 must show Initiator role (Service acts as Initiator on Link1)");
 
     //@KeyVerifyPoint-1: Verify Link2 substate correctly reflects Executor role (THIS IS THE CRITICAL TEST!)
     printf("✅ [VERIFY] ASSERTION 4: Link2 substate = CmdExecutorReady (Service can receive on Link2)\n");
     printf("    • Link2 mainState: %d, subState: %d (expected: %d)\n", mainState2, subState2,
            IOC_LinkSubStateCmdExecutorReady);
-    ASSERT_EQ(IOC_LinkSubStateCmdExecutorReady, subState2);
+    VERIFY_KEYPOINT_EQ(subState2, IOC_LinkSubStateCmdExecutorReady,
+                       "Link2 must show Executor role (multi-role service architecture)");
 
     //@KeyVerifyPoint-2: Verify each link maintains independent single-role state
     printf("✅ [VERIFY] ASSERTION 5: Each link has independent single-role state\n");
     printf("    • Link1: Service role = Initiator (substate = %d)\n", subState1);
     printf("    • Link2: Service role = Executor (substate = %d)\n", subState2);
-    ASSERT_NE(subState1, subState2);  // Different roles
+    VERIFY_KEYPOINT_NE(subState1, subState2, "Each link must have independent single-role state (different substates)");
 
     printf("\n");
     printf("✅ [RESULT] Multi-role service ready state verified:\n");
