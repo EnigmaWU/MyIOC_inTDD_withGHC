@@ -659,9 +659,9 @@ TEST(UT_CommandStateUS3, verifyMultiRoleCapability_byIndependentLinks_expectDiff
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
     srvAPrivData.commandsSent++;
 
-    IOC_CmdStatus_E statusLink1 = IOC_CmdDesc_getStatus(&cmdDescLink1);
-    IOC_Result_T resultLink1 = IOC_CmdDesc_getResult(&cmdDescLink1);
-    printf("    ✅ [LINK1 RESULT] Command status=%d, result=%d\n", statusLink1, resultLink1);
+    IOC_CmdStatus_E cmdStatusSrvA1ToCliA1 = IOC_CmdDesc_getStatus(&cmdDescLink1);
+    IOC_Result_T cmdResultSrvA1ToCliA1 = IOC_CmdDesc_getResult(&cmdDescLink1);
+    printf("    ✅ [LINK1 RESULT] Command status=%d, result=%d\n", cmdStatusSrvA1ToCliA1, cmdResultSrvA1ToCliA1);
 
     // Client-A2 sends command on Link2 (Service acts as Executor)
     printf("📋 [BEHAVIOR] Link2: Client-A2 → Service A (Service as Executor)\n");
@@ -675,19 +675,19 @@ TEST(UT_CommandStateUS3, verifyMultiRoleCapability_byIndependentLinks_expectDiff
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
     clientA2PrivData.commandsSent++;
 
-    IOC_CmdStatus_E statusLink2 = IOC_CmdDesc_getStatus(&cmdDescLink2);
-    IOC_Result_T resultLink2 = IOC_CmdDesc_getResult(&cmdDescLink2);
-    printf("    ✅ [LINK2 RESULT] Command status=%d, result=%d\n", statusLink2, resultLink2);
+    IOC_CmdStatus_E cmdStatusCliA2ToSrvA2 = IOC_CmdDesc_getStatus(&cmdDescLink2);
+    IOC_Result_T cmdResultCliA2ToSrvA2 = IOC_CmdDesc_getResult(&cmdDescLink2);
+    printf("    ✅ [LINK2 RESULT] Command status=%d, result=%d\n", cmdStatusCliA2ToSrvA2, cmdResultCliA2ToSrvA2);
 
     // Query link states to verify independence
-    IOC_LinkState_T mainState1 = IOC_LinkStateUndefined;
-    IOC_LinkSubState_T subState1 = IOC_LinkSubStateDefault;
-    ResultValue = IOC_getLinkState(srvLinkID_A1, &mainState1, &subState1);
+    IOC_LinkState_T mainStateSrvA1 = IOC_LinkStateUndefined;
+    IOC_LinkSubState_T subStateSrvA1 = IOC_LinkSubStateDefault;
+    ResultValue = IOC_getLinkState(srvLinkID_A1, &mainStateSrvA1, &subStateSrvA1);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
 
-    IOC_LinkState_T mainState2 = IOC_LinkStateUndefined;
-    IOC_LinkSubState_T subState2 = IOC_LinkSubStateDefault;
-    ResultValue = IOC_getLinkState(srvLinkID_A2, &mainState2, &subState2);
+    IOC_LinkState_T mainStateSrvA2 = IOC_LinkStateUndefined;
+    IOC_LinkSubState_T subStateSrvA2 = IOC_LinkSubStateDefault;
+    ResultValue = IOC_getLinkState(srvLinkID_A2, &mainStateSrvA2, &subStateSrvA2);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
 
     // ┌──────────────────────────────────────────────────────────────┐
@@ -702,25 +702,29 @@ TEST(UT_CommandStateUS3, verifyMultiRoleCapability_byIndependentLinks_expectDiff
     printf("✅ [VERIFY] ASSERTION 1: Link1 command succeeds (Service=Initiator role)\n");
     printf("    • Service A sent on Link1: %d commands\n", srvAPrivData.commandsSent.load());
     printf("    • Client-A1 received on Link1: %d commands\n", clientA1PrivData.commandsReceived.load());
-    VERIFY_KEYPOINT_EQ(statusLink1, IOC_CMD_STATUS_SUCCESS, "Link1 command (Service as Initiator) must complete");
-    VERIFY_KEYPOINT_EQ(resultLink1, IOC_RESULT_SUCCESS, "Link1 command must return SUCCESS");
+    VERIFY_KEYPOINT_EQ(cmdStatusSrvA1ToCliA1, IOC_CMD_STATUS_SUCCESS,
+                       "Link1 command (Service as Initiator) must complete");
+    VERIFY_KEYPOINT_EQ(cmdResultSrvA1ToCliA1, IOC_RESULT_SUCCESS, "Link1 command must return SUCCESS");
     ASSERT_EQ(1, srvAPrivData.commandsSent.load());
     ASSERT_EQ(1, clientA1PrivData.commandsReceived.load());
 
     printf("✅ [VERIFY] ASSERTION 2: Link2 command succeeds (Service=Executor role)\n");
     printf("    • Client-A2 sent on Link2: %d commands\n", clientA2PrivData.commandsSent.load());
     printf("    • Service A received on Link2: %d commands\n", srvAPrivData.commandsReceived.load());
-    VERIFY_KEYPOINT_EQ(statusLink2, IOC_CMD_STATUS_SUCCESS, "Link2 command (Service as Executor) must complete");
-    VERIFY_KEYPOINT_EQ(resultLink2, IOC_RESULT_SUCCESS, "Link2 command must return SUCCESS");
+    VERIFY_KEYPOINT_EQ(cmdStatusCliA2ToSrvA2, IOC_CMD_STATUS_SUCCESS,
+                       "Link2 command (Service as Executor) must complete");
+    VERIFY_KEYPOINT_EQ(cmdResultCliA2ToSrvA2, IOC_RESULT_SUCCESS, "Link2 command must return SUCCESS");
     ASSERT_EQ(1, clientA2PrivData.commandsSent.load());
     ASSERT_EQ(1, srvAPrivData.commandsReceived.load());
 
     printf("✅ [VERIFY] ASSERTION 3: Each link maintains independent single-role state\n");
-    printf("    • Link1 substate: %d (CmdInitiatorReady expected: %d)\n", subState1, IOC_LinkSubStateCmdInitiatorReady);
-    printf("    • Link2 substate: %d (CmdExecutorReady expected: %d)\n", subState2, IOC_LinkSubStateCmdExecutorReady);
-    VERIFY_KEYPOINT_EQ(subState1, IOC_LinkSubStateCmdInitiatorReady, "Link1 must show Initiator role");
-    VERIFY_KEYPOINT_EQ(subState2, IOC_LinkSubStateCmdExecutorReady, "Link2 must show Executor role");
-    VERIFY_KEYPOINT_NE(subState1, subState2, "Each link must have independent single-role state");
+    printf("    • Link1 substate: %d (CmdInitiatorReady expected: %d)\n", subStateSrvA1,
+           IOC_LinkSubStateCmdInitiatorReady);
+    printf("    • Link2 substate: %d (CmdExecutorReady expected: %d)\n", subStateSrvA2,
+           IOC_LinkSubStateCmdExecutorReady);
+    VERIFY_KEYPOINT_EQ(subStateSrvA1, IOC_LinkSubStateCmdInitiatorReady, "Link1 must show Initiator role");
+    VERIFY_KEYPOINT_EQ(subStateSrvA2, IOC_LinkSubStateCmdExecutorReady, "Link2 must show Executor role");
+    VERIFY_KEYPOINT_NE(subStateSrvA1, subStateSrvA2, "Each link must have independent single-role state");
 
     printf("✅ [VERIFY] ASSERTION 4: Multi-role capability enables flexible link role assignment\n");
     printf("    • Service A declared UsageCapabilities = 0x0C (Initiator|Executor)\n");
