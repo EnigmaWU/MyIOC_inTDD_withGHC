@@ -238,73 +238,217 @@
 //======>END OF TEST CASES=========================================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF AC-1 TC-1: MULTI-ROLE LINK READY STATE==========================================
+//======>BEGIN OF AC-1 TC-1: MULTI-ROLE SERVICE READY STATE=======================================
 
-TEST(UT_CommandStateUS3, verifyMultiRoleLinkReady_byDualCapability_expectBothRolesAvailable) {
-    // TODO: Implement multi-role link ready state verification
-    //
+TEST(UT_CommandStateUS3, verifyMultiRoleServiceReady_byDualCapability_expectMultipleSingleRoleLinks) {
     // ╔══════════════════════════════════════════════════════════════════════════════════════════╗
-    // ║          🔗 MULTI-ROLE LINK READY STATE VERIFICATION                                     ║
+    // ║          🔗 MULTI-ROLE SERVICE READY STATE VERIFICATION                                  ║
     // ╠══════════════════════════════════════════════════════════════════════════════════════════╣
-    // ║ 🎯 TEST PURPOSE: Validate link with both CmdInitiator+CmdExecutor capabilities shows    ║
-    // ║                  appropriate ready state for bidirectional command support              ║
+    // ║ 🎯 TEST PURPOSE: Validate service with both CmdInitiator+CmdExecutor capabilities can   ║
+    // ║                  establish multiple links, each with different single role              ║
     // ║                                                                                          ║
-    // ║ 📋 TEST BRIEF: Configure service with dual command capabilities (both Initiator and     ║
-    // ║                Executor), connect client, verify link state indicates readiness for     ║
-    // ║                both sending and receiving commands                                       ║
+    // ║ 📋 TEST BRIEF: Service declares dual capabilities (Initiator|Executor), accepts two     ║
+    // ║                clients with different usages, verify each link has correct single role  ║
     // ║                                                                                          ║
     // ║ 🔧 TEST STRATEGY:                                                                        ║
     // ║    1. Create service with UsageCapabilities = (CmdInitiator | CmdExecutor) = 0x0C       ║
-    // ║    2. Configure both executor callback (for receiving) and allow sending commands       ║
-    // ║    3. Connect client to service, establish multi-role link                              ║
-    // ║    4. Query IOC_getLinkState() for link substate                                        ║
-    // ║    5. Verify substate indicates ready for one or both roles                             ║
-    // ║    6. Test actual bidirectional capability: send command AND receive command            ║
+    // ║    2. Client1 connects with Usage=CmdExecutor → Link1: Service(Initiator)               ║
+    // ║    3. Client2 connects with Usage=CmdInitiator → Link2: Service(Executor)               ║
+    // ║    4. Query IOC_getLinkState() for both links independently                             ║
+    // ║    5. Verify Link1 shows CmdInitiatorReady (service can send)                           ║
+    // ║    6. Verify Link2 shows CmdExecutorReady (service can receive)                         ║
     // ║                                                                                          ║
     // ║ ✅ KEY ASSERTIONS:                                                                       ║
-    // ║   • ASSERTION 1: Link main state = IOC_LinkStateReady                                   ║
-    // ║   • ASSERTION 2: Link substate = CmdInitiatorReady OR CmdExecutorReady (dual roles)     ║
-    // ║   • ASSERTION 3: Service can send command successfully (CmdInitiator capability)        ║
-    // ║   • ASSERTION 4: Service can receive command successfully (CmdExecutor capability)      ║
+    // ║   • ASSERTION 1: Service accepts Client1, Link1 established (Service=Initiator)         ║
+    // ║   • ASSERTION 2: Service accepts Client2, Link2 established (Service=Executor)          ║
+    // ║   • ASSERTION 3: Link1 substate = CmdInitiatorReady (single-role)                       ║
+    // ║   • ASSERTION 4: Link2 substate = CmdExecutorReady (single-role)                        ║
+    // ║   • ASSERTION 5: Each link has independent single-role state                            ║
     // ║                                                                                          ║
-    // ║ 🏛️ ARCHITECTURE PRINCIPLE: Multi-role links enable flexible bidirectional command      ║
-    // ║                              communication patterns without separate connections        ║
+    // ║ 🏛️ ARCHITECTURE PRINCIPLE: Multi-role SERVICE manages multiple single-role LINKS       ║
+    // ║                              independently, NOT dual-role on single link                ║
     // ╚══════════════════════════════════════════════════════════════════════════════════════════╝
-    //
-    // IMPLEMENTATION PLAN:
-    //  ┌──────────────────────────────────────────────────────────────┐
-    //  │                      🔧 SETUP PHASE                          │
-    //  └──────────────────────────────────────────────────────────────┘
-    //  • Create service with UsageCapabilities = (IOC_LinkUsageCmdInitiator | IOC_LinkUsageCmdExecutor)
-    //  • Register executor callback for receiving commands
-    //  • Start service and wait for ready state
-    //  • Connect client with compatible usage (client also multi-role or single-role)
-    //  • Get link ID from service
-    //
-    //  ┌──────────────────────────────────────────────────────────────┐
-    //  │                    📋 BEHAVIOR PHASE                         │
-    //  └──────────────────────────────────────────────────────────────┘
-    //  • Query IOC_getLinkState(linkID, &mainState, &subState)
-    //  • Record current link substate
-    //  • Attempt to send command from service (test CmdInitiator capability)
-    //  • Attempt to receive command at service (test CmdExecutor capability)
-    //
-    //  ┌──────────────────────────────────────────────────────────────┐
-    //  │                     ✅ VERIFY PHASE                          │
-    //  └──────────────────────────────────────────────────────────────┘
-    //  • ASSERTION 1: VERIFY_LINK_CMD_MAIN_STATE(linkID, IOC_LinkStateReady)
-    //  • ASSERTION 2: Verify subState is CmdInitiatorReady OR CmdExecutorReady
-    //  • ASSERTION 3: Verify service sent command result = SUCCESS
-    //  • ASSERTION 4: Verify service received command via callback
-    //
-    //  ┌──────────────────────────────────────────────────────────────┐
-    //  │                    🧹 CLEANUP PHASE                          │
-    //  └──────────────────────────────────────────────────────────────┘
-    //  • Disconnect client
-    //  • Stop service
-    //  • Release all resources
 
-    GTEST_SKIP() << "AC-1 TC-1: Multi-role link ready state verification - DESIGN COMPLETE, implementation pending";
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
+
+    // ┌──────────────────────────────────────────────────────────────┐
+    // │                      🔧 SETUP PHASE                          │
+    // └──────────────────────────────────────────────────────────────┘
+    printf("🔧 [SETUP] Creating multi-role service with dual capabilities (CmdInitiator | CmdExecutor)\n");
+
+    // Private data for service executor callback
+    struct MultiRoleSrvPriv_T {
+        std::atomic<int> commandCount{0};
+    };
+
+    MultiRoleSrvPriv_T srvPrivData = {};
+
+    // Executor callback for receiving commands on Executor links
+    auto executorCb = [](IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, void *pCbPriv) -> IOC_Result_T {
+        MultiRoleSrvPriv_T *pPrivData = (MultiRoleSrvPriv_T *)pCbPriv;
+        if (!pPrivData || !pCmdDesc) return IOC_RESULT_INVALID_PARAM;
+
+        pPrivData->commandCount++;
+
+        // Simple PING/ECHO handler
+        IOC_CmdID_T CmdID = IOC_CmdDesc_getCmdID(pCmdDesc);
+        if (CmdID == IOC_CMDID_TEST_PING) {
+            IOC_CmdDesc_setOutPayload(pCmdDesc, (void *)"PONG", 4);
+            IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_SUCCESS);
+            IOC_CmdDesc_setResult(pCmdDesc, IOC_RESULT_SUCCESS);
+        } else {
+            IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_FAILED);
+            IOC_CmdDesc_setResult(pCmdDesc, IOC_RESULT_NOT_SUPPORT);
+        }
+
+        return IOC_RESULT_SUCCESS;
+    };
+
+    // Create service with DUAL capabilities: CmdInitiator | CmdExecutor
+    IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char *)"MultiRoleSrv_US3_TC1"};
+
+    static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_PING};
+    IOC_CmdUsageArgs_T cmdUsageArgs = {
+        .CbExecCmd_F = executorCb, .pCbPrivData = &srvPrivData, .CmdNum = 1, .pCmdIDs = supportedCmdIDs};
+
+    IOC_SrvArgs_T srvArgs = {
+        .SrvURI = srvURI,
+        .Flags = IOC_SRVFLAG_NONE,
+        .UsageCapabilites = (IOC_LinkUsage_T)(IOC_LinkUsageCmdInitiator | IOC_LinkUsageCmdExecutor),
+        .UsageArgs = {.pCmd = &cmdUsageArgs}};
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    ResultValue = IOC_onlineService(&srvID, &srvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, srvID);
+
+    printf("🔧 [SETUP] Service capability: 0x%02X (CmdInitiator | CmdExecutor)\n",
+           IOC_LinkUsageCmdInitiator | IOC_LinkUsageCmdExecutor);
+
+    // Client1 connects with Usage=CmdExecutor → Service will act as Initiator on this link
+    printf("🔧 [SETUP] Client1 connects with Usage=CmdExecutor → Link1: Service acts as Initiator\n");
+
+    IOC_ConnArgs_T client1ConnArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdExecutor};
+
+    // Client1 needs executor callback too
+    struct Client1Priv_T {
+        std::atomic<int> commandCount{0};
+    };
+    Client1Priv_T client1PrivData = {};
+
+    auto client1ExecutorCb = [](IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, void *pCbPriv) -> IOC_Result_T {
+        Client1Priv_T *pPrivData = (Client1Priv_T *)pCbPriv;
+        if (!pPrivData || !pCmdDesc) return IOC_RESULT_INVALID_PARAM;
+
+        pPrivData->commandCount++;
+        IOC_CmdDesc_setOutPayload(pCmdDesc, (void *)"ACK", 3);
+        IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_SUCCESS);
+        IOC_CmdDesc_setResult(pCmdDesc, IOC_RESULT_SUCCESS);
+        return IOC_RESULT_SUCCESS;
+    };
+
+    IOC_CmdUsageArgs_T client1CmdUsageArgs = {
+        .CbExecCmd_F = client1ExecutorCb, .pCbPrivData = &client1PrivData, .CmdNum = 1, .pCmdIDs = supportedCmdIDs};
+    client1ConnArgs.UsageArgs.pCmd = &client1CmdUsageArgs;
+
+    IOC_LinkID_T client1LinkID = IOC_ID_INVALID;
+    std::thread client1Thread([&] {
+        IOC_Result_T connResult = IOC_connectService(&client1LinkID, &client1ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, connResult);
+        ASSERT_NE(IOC_ID_INVALID, client1LinkID);
+    });
+
+    // Service accepts Client1
+    IOC_LinkID_T srvLink1 = IOC_ID_INVALID;
+    ResultValue = IOC_acceptClient(srvID, &srvLink1, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, srvLink1);
+
+    if (client1Thread.joinable()) client1Thread.join();
+
+    // Client2 connects with Usage=CmdInitiator → Service will act as Executor on this link
+    printf("🔧 [SETUP] Client2 connects with Usage=CmdInitiator → Link2: Service acts as Executor\n");
+
+    IOC_ConnArgs_T client2ConnArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
+    IOC_LinkID_T client2LinkID = IOC_ID_INVALID;
+
+    std::thread client2Thread([&] {
+        IOC_Result_T connResult = IOC_connectService(&client2LinkID, &client2ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, connResult);
+        ASSERT_NE(IOC_ID_INVALID, client2LinkID);
+    });
+
+    // Service accepts Client2
+    IOC_LinkID_T srvLink2 = IOC_ID_INVALID;
+    ResultValue = IOC_acceptClient(srvID, &srvLink2, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, srvLink2);
+
+    if (client2Thread.joinable()) client2Thread.join();
+
+    // ┌──────────────────────────────────────────────────────────────┐
+    // │                    📋 BEHAVIOR PHASE                         │
+    // └──────────────────────────────────────────────────────────────┘
+    printf("📋 [BEHAVIOR] Querying link states for both connections\n");
+
+    IOC_LinkState_T mainState1 = IOC_LinkStateUndefined;
+    IOC_LinkSubState_T subState1 = IOC_LinkSubStateDefault;
+    printf("📋 [BEHAVIOR] Link1 (Service=Initiator) state query\n");
+    ResultValue = IOC_getLinkState(srvLink1, &mainState1, &subState1);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
+    IOC_LinkState_T mainState2 = IOC_LinkStateUndefined;
+    IOC_LinkSubState_T subState2 = IOC_LinkSubStateDefault;
+    printf("📋 [BEHAVIOR] Link2 (Service=Executor) state query\n");
+    ResultValue = IOC_getLinkState(srvLink2, &mainState2, &subState2);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
+    // ┌──────────────────────────────────────────────────────────────┐
+    // │                     ✅ VERIFY PHASE                          │
+    // └──────────────────────────────────────────────────────────────┘
+    printf("✅ [VERIFY] ASSERTION 1: Service accepted Client1, Link1 established\n");
+    ASSERT_NE(IOC_ID_INVALID, srvLink1);
+    ASSERT_NE(IOC_ID_INVALID, client1LinkID);
+
+    printf("✅ [VERIFY] ASSERTION 2: Service accepted Client2, Link2 established\n");
+    ASSERT_NE(IOC_ID_INVALID, srvLink2);
+    ASSERT_NE(IOC_ID_INVALID, client2LinkID);
+
+    printf("✅ [VERIFY] ASSERTION 3: Link1 substate = CmdInitiatorReady (Service can send on Link1)\n");
+    printf("    • Link1 mainState: %d, subState: %d (expected: %d)\n", mainState1, subState1,
+           IOC_LinkSubStateCmdInitiatorReady);
+    ASSERT_EQ(IOC_LinkSubStateCmdInitiatorReady, subState1);
+
+    printf("✅ [VERIFY] ASSERTION 4: Link2 substate = CmdExecutorReady (Service can receive on Link2)\n");
+    printf("    • Link2 mainState: %d, subState: %d (expected: %d)\n", mainState2, subState2,
+           IOC_LinkSubStateCmdExecutorReady);
+    ASSERT_EQ(IOC_LinkSubStateCmdExecutorReady, subState2);
+
+    printf("✅ [VERIFY] ASSERTION 5: Each link has independent single-role state\n");
+    printf("    • Link1: Service role = Initiator (substate = %d)\n", subState1);
+    printf("    • Link2: Service role = Executor (substate = %d)\n", subState2);
+    ASSERT_NE(subState1, subState2);  // Different roles
+
+    printf("\n");
+    printf("✅ [RESULT] Multi-role service ready state verified:\n");
+    printf("   • Service capabilities: CmdInitiator | CmdExecutor (ASSERTION 1+2) ✅\n");
+    printf("   • Link1: Service=Initiator, Client1=Executor (ASSERTION 3) ✅\n");
+    printf("   • Link2: Service=Executor, Client2=Initiator (ASSERTION 4) ✅\n");
+    printf("   • Independent single-role links (ASSERTION 5) ✅\n");
+    printf("   • Architecture principle: Multi-role SERVICE ≠ Dual-role LINK ✅\n");
+
+    // ┌──────────────────────────────────────────────────────────────┐
+    // │                    🧹 CLEANUP PHASE                          │
+    // └──────────────────────────────────────────────────────────────┘
+    printf("🧹 [CLEANUP] Disconnecting clients and stopping service\n");
+
+    if (client1LinkID != IOC_ID_INVALID) IOC_closeLink(client1LinkID);
+    if (client2LinkID != IOC_ID_INVALID) IOC_closeLink(client2LinkID);
+    if (srvLink1 != IOC_ID_INVALID) IOC_closeLink(srvLink1);
+    if (srvLink2 != IOC_ID_INVALID) IOC_closeLink(srvLink2);
+    if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
 }
 
 //======>END OF AC-1 TC-1==========================================================================
