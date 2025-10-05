@@ -133,109 +133,142 @@
  *      @[Architecture Principle]: Multi-role service pattern is replicable across multiple services
  *      @[Status]: IMPLEMENTED - GREEN (demonstrates scalability, replicability, and independence)
  *
- * [@AC-2,US-3] Service as CmdInitiator link state independence
- *  ⚪ TC-1: verifyInitiatorLinkState_whenServiceSendsCommand_expectOnlyInitiatorLinkAffected  [STATE]
- *      @[Purpose]: Validate only Initiator link state changes when service sends command
- *      @[Brief]: Service with Link1(Initiator) + Link2(Executor), send command on Link1
- *      @[Strategy]: Check Link1 state during command → Verify Link2 state unchanged
+ * [@AC-2,US-3] Link state independence during Initiator operations
+ *  ⚪ TC-1: verifyInitiatorLinkState_whenSendingCommand_expectIndependentState  [STATE]
+ *      @[Purpose]: Validate only the active Initiator link changes state, other links unaffected
+ *      @[Brief]: Multi-role service with 2 links, send command on Link1(Initiator), verify Link2(Executor) unchanged
+ *      @[Strategy]: Service with LinkA1(Initiator) + LinkA2(Executor)
+ *                   → Check initial states (both Ready)
+ *                   → Send command on LinkA1 (with slow executor to observe busy state)
+ *                   → Query states during execution: LinkA1=Busy, LinkA2=Ready (unchanged)
+ *                   → Verify LinkA1 returns to Ready after completion
  *      @[Key Assertions]:
- *          • ASSERTION 1: Before send: Link1=CmdInitiatorReady, Link2=CmdExecutorReady
- *          • ASSERTION 2: During send: Link1=CmdInitiatorBusyExecCmd
- *          • ASSERTION 3: During send: Link2 STILL =CmdExecutorReady (unaffected)
- *          • ASSERTION 4: After send: Link1 returns to CmdInitiatorReady
- *          • ASSERTION 5: Link2 state never changed throughout Link1 operation
+ *          • ASSERTION 1: Initial: LinkA1=CmdInitiatorReady, LinkA2=CmdExecutorReady
+ *          • ASSERTION 2: During send: LinkA1=CmdInitiatorBusyExecCmd (active link state changed)
+ *          • ASSERTION 3: During send: LinkA2=CmdExecutorReady (inactive link unchanged) ← KEY!
+ *          • ASSERTION 4: After send: LinkA1 returns to CmdInitiatorReady
+ *          • ASSERTION 5: LinkA2 state never changed (complete isolation verified)
  *      @[Architecture Principle]: Link state isolation - operations on one link don't affect others
- *      @[Status]: TODO - Need multi-link state tracking test
+ *      @[Status]: TODO - Implementation requires state query during command execution
  *
- *  ⚪ TC-2: verifyConcurrentCapability_whileInitiatorBusy_expectExecutorLinkAcceptsCommands  [STATE]
- *      @[Purpose]: Validate Executor link can accept commands while Initiator link is busy
- *      @[Brief]: Service Link1(Initiator) sends command, simultaneously receive on Link2(Executor)
- *      @[Strategy]: Link1 sends slow command (500ms) → Client2 sends to Link2 during Link1 wait
+ *  ⚪ TC-2: verifyConcurrentOperations_whileInitiatorBusy_expectExecutorAccepts  [STATE]
+ *      @[Purpose]: Validate Executor link independently accepts commands while Initiator link is busy
+ *      @[Brief]: Multi-role service with 2 links, concurrent operations on both links
+ *      @[Strategy]: Service with LinkA1(Initiator) + LinkA2(Executor)
+ *                   → LinkA1 sends slow command (500ms executor delay)
+ *                   → During LinkA1 busy, Client2 sends to LinkA2 (Executor)
+ *                   → Verify both commands complete successfully
  *      @[Key Assertions]:
- *          • ASSERTION 1: Link1 busy with outbound command (CmdInitiatorBusyExecCmd)
- *          • ASSERTION 2: Link2 accepts inbound command from Client2 (independent operation)
- *          • ASSERTION 3: Both commands complete successfully
- *          • ASSERTION 4: Link1 and Link2 states tracked independently
+ *          • ASSERTION 1: LinkA1 busy with outbound command (CmdInitiatorBusyExecCmd observed)
+ *          • ASSERTION 2: LinkA2 accepts inbound command from Client2 (concurrent operation) ← KEY!
+ *          • ASSERTION 3: Both commands complete successfully (no blocking)
+ *          • ASSERTION 4: Link states tracked independently (no interference)
  *      @[Architecture Principle]: Multi-role service supports concurrent operations on different links
- *      @[Status]: TODO - Need concurrent multi-link operation test
+ *      @[Status]: TODO - Implementation requires timing control and concurrent execution
  *
- * [@AC-3,US-3] Service as CmdExecutor link state independence
- *  ⚪ TC-1: verifyExecutorLinkState_whenServiceReceivesCommand_expectOnlyExecutorLinkAffected  [STATE]
- *      @[Purpose]: Validate only Executor link state changes when service processes command
- *      @[Brief]: Service with Link1(Executor) + Link2(Initiator), receive command on Link1
- *      @[Strategy]: Client1 sends command to Link1 → Check Link1 state → Verify Link2 unchanged
+ * [@AC-3,US-3] Link state independence during Executor operations
+ *  ⚪ TC-1: verifyExecutorLinkState_whenProcessingCommand_expectIndependentState  [STATE]
+ *      @[Purpose]: Validate only the active Executor link changes state, other links unaffected
+ *      @[Brief]: Multi-role service with 2 links, process command on Link1(Executor), verify Link2(Initiator) unchanged
+ *      @[Strategy]: Service with LinkA1(Executor) + LinkA2(Initiator)
+ *                   → Check initial states (both Ready)
+ *                   → Client1 sends to LinkA1 (with slow callback to observe busy state)
+ *                   → Query states during callback: LinkA1=Busy, LinkA2=Ready (unchanged)
+ *                   → Verify LinkA1 returns to Ready after callback
  *      @[Key Assertions]:
- *          • ASSERTION 1: Before receive: Link1=CmdExecutorReady, Link2=CmdInitiatorReady
- *          • ASSERTION 2: During callback: Link1=CmdExecutorBusyExecCmd
- *          • ASSERTION 3: During callback: Link2 STILL =CmdInitiatorReady (unaffected)
- *          • ASSERTION 4: After callback: Link1 returns to CmdExecutorReady
- *          • ASSERTION 5: Link2 state never changed throughout Link1 operation
- *      @[Architecture Principle]: Link state isolation applies to all roles
- *      @[Status]: TODO - Need executor link state isolation test
+ *          • ASSERTION 1: Initial: LinkA1=CmdExecutorReady, LinkA2=CmdInitiatorReady
+ *          • ASSERTION 2: During callback: LinkA1=CmdExecutorBusyExecCmd (active link state changed)
+ *          • ASSERTION 3: During callback: LinkA2=CmdInitiatorReady (inactive link unchanged) ← KEY!
+ *          • ASSERTION 4: After callback: LinkA1 returns to CmdExecutorReady
+ *          • ASSERTION 5: LinkA2 state never changed (complete isolation verified)
+ *      @[Architecture Principle]: Link state isolation applies to all roles (symmetric principle)
+ *      @[Status]: TODO - Implementation requires state query from within callback
  *
- *  ⚪ TC-2: verifyConcurrentCapability_whileExecutorBusy_expectInitiatorLinkSendsCommands  [STATE]
- *      @[Purpose]: Validate Initiator link can send commands while Executor link is busy
- *      @[Brief]: Service Link1(Executor) processes command, simultaneously send on Link2(Initiator)
- *      @[Strategy]: Client1 sends to Link1 (slow callback 500ms) → Service sends on Link2 during callback
+ *  ⚪ TC-2: verifyConcurrentOperations_whileExecutorBusy_expectInitiatorSends  [STATE]
+ *      @[Purpose]: Validate Initiator link independently sends commands while Executor link is busy
+ *      @[Brief]: Multi-role service with 2 links, concurrent operations on both links
+ *      @[Strategy]: Service with LinkA1(Executor) + LinkA2(Initiator)
+ *                   → Client1 sends to LinkA1 (500ms callback delay)
+ *                   → During LinkA1 callback, Service sends on LinkA2 (Initiator)
+ *                   → Verify both commands complete successfully
  *      @[Key Assertions]:
- *          • ASSERTION 1: Link1 busy with inbound command (CmdExecutorBusyExecCmd)
- *          • ASSERTION 2: Link2 sends outbound command successfully (independent operation)
- *          • ASSERTION 3: Both commands complete successfully
- *          • ASSERTION 4: Link1 and Link2 states tracked independently
- *      @[Architecture Principle]: Service can use different role links concurrently
- *      @[Status]: TODO - Need concurrent cross-role operation test
+ *          • ASSERTION 1: LinkA1 busy with inbound command (CmdExecutorBusyExecCmd observed)
+ *          • ASSERTION 2: LinkA2 sends outbound command successfully (concurrent operation) ← KEY!
+ *          • ASSERTION 3: Both commands complete successfully (no blocking)
+ *          • ASSERTION 4: Link states tracked independently (symmetric to AC-2 TC-2)
+ *      @[Architecture Principle]: Service can use different role links concurrently (full duplex)
+ *      @[Status]: TODO - Implementation requires callback-initiated send operation
  *
- * [@AC-4,US-3] Concurrent multi-link operations with different roles
- *  ⚪ TC-1: verifyConcurrentMultiLink_bySimultaneousOperations_expectIndependentCompletion  [STATE]
- *      @[Purpose]: Validate simultaneous operations on multiple links complete independently
- *      @[Brief]: Service with 3 links (2 Initiator, 1 Executor), trigger all simultaneously
- *      @[Strategy]: Link1 sends → Link2 sends → Link3 receives → All concurrent
+ * [@AC-4,US-3] Concurrent multi-link operations scalability
+ *  ⚪ TC-1: verifyConcurrentMultiLink_byMultipleOperations_expectAllComplete  [STATE]
+ *      @[Purpose]: Validate service scales to many concurrent link operations independently
+ *      @[Brief]: Multi-role service with 4 links (2 Initiator + 2 Executor), all active concurrently
+ *      @[Strategy]: Service with LinkA1/A2(Initiator) + LinkA3/A4(Executor)
+ *                   → LinkA1 sends command (100ms delay)
+ *                   → LinkA2 sends command (200ms delay)
+ *                   → Client3 sends to LinkA3 (150ms callback)
+ *                   → Client4 sends to LinkA4 (250ms callback)
+ *                   → All start within 50ms window (concurrent)
+ *                   → Verify all 4 operations complete successfully
  *      @[Key Assertions]:
- *          • ASSERTION 1: All three operations execute concurrently
- *          • ASSERTION 2: Link1 state = CmdInitiatorBusyExecCmd (independent)
- *          • ASSERTION 3: Link2 state = CmdInitiatorBusyExecCmd (independent)
- *          • ASSERTION 4: Link3 state = CmdExecutorBusyExecCmd (independent)
- *          • ASSERTION 5: All commands complete successfully
- *          • ASSERTION 6: No cross-link state contamination
+ *          • ASSERTION 1: All four operations execute concurrently (timing verified)
+ *          • ASSERTION 2: LinkA1 state = CmdInitiatorBusyExecCmd (during operation)
+ *          • ASSERTION 3: LinkA2 state = CmdInitiatorBusyExecCmd (independent)
+ *          • ASSERTION 4: LinkA3 state = CmdExecutorBusyExecCmd (independent)
+ *          • ASSERTION 5: LinkA4 state = CmdExecutorBusyExecCmd (independent)
+ *          • ASSERTION 6: All commands complete successfully (no interference)
  *      @[Architecture Principle]: Multi-role services scale to many concurrent link operations
- *      @[Status]: TODO - Need multi-link concurrent operation test
+ *      @[Status]: TODO - Complex test requiring precise timing and state observation
  *
- *  ⚪ TC-2: verifyCommandIsolation_acrossMultipleLinks_expectNoInterference  [STATE]
- *      @[Purpose]: Validate command state (Level 1) isolated across different links
- *      @[Brief]: Execute commands on Link1 and Link2, verify each IOC_CmdDesc_T independent
- *      @[Strategy]: Link1 command + Link2 command concurrent → Track both CmdDesc states
+ *  ⚪ TC-2: verifyCommandIsolation_acrossLinks_expectNoInterference  [STATE]
+ *      @[Purpose]: Validate command descriptors (Level 1 state) isolated across different links
+ *      @[Brief]: Execute different commands on Link1 and Link2, verify each IOC_CmdDesc_T independent
+ *      @[Strategy]: Service with LinkA1(Initiator) + LinkA2(Initiator)
+ *                   → Send PING on LinkA1 → expect SUCCESS result
+ *                   → Send ECHO on LinkA2 → expect SUCCESS result (different command)
+ *                   → Verify both CmdDesc states independent (no cross-contamination)
  *      @[Key Assertions]:
- *          • ASSERTION 1: Link1 command status/result independent
- *          • ASSERTION 2: Link2 command status/result independent
- *          • ASSERTION 3: Both complete with correct results
- *          • ASSERTION 4: No command state cross-contamination
+ *          • ASSERTION 1: LinkA1 PING command: status=SUCCESS, result specific to PING
+ *          • ASSERTION 2: LinkA2 ECHO command: status=SUCCESS, result specific to ECHO
+ *          • ASSERTION 3: Command results are different (proves independence) ← KEY!
+ *          • ASSERTION 4: No command state cross-contamination (Level 1 + Level 2 isolation)
  *      @[Architecture Principle]: Command state (Level 1) + Link state (Level 2) both isolated per link
- *      @[Status]: TODO - Need dual-level state isolation verification
+ *      @[Status]: TODO - Implementation straightforward with different CmdIDs
  *
- * [@AC-5,US-3] Multi-link role-specific operation management
- *  ⚪ TC-1: verifyRoleSpecificOperation_onCorrectLink_expectProperExecution  [STATE]
- *      @[Purpose]: Validate service executes role-specific operations on correct link
- *      @[Brief]: Service with mixed-role links, verify Initiator ops only on Initiator links
- *      @[Strategy]: Try execCMD on Executor link (should fail?) vs execCMD on Initiator link (succeed)
+ * [@AC-5,US-3] Link role enforcement and lifecycle management
+ *  ⚪ TC-1: verifyRoleEnforcement_byOperationRestriction_expectRoleMatching  [STATE]
+ *      @[Purpose]: Validate link role determines allowed operations (architectural constraint)
+ *      @[Brief]: Multi-role service with mixed-role links, verify role-specific operations
+ *      @[Strategy]: Service with LinkA1(Initiator) + LinkA2(Executor)
+ *                   → Verify: Service CAN send command on LinkA1 (Initiator role) ✅
+ *                   → Verify: Client CAN send command on LinkA2 (Service=Executor role) ✅
+ *                   → Document: Architecture prevents reverse operations (design-by-contract)
  *      @[Key Assertions]:
- *          • ASSERTION 1: Service can send command on Initiator link
- *          • ASSERTION 2: Service cannot send command on Executor link (role mismatch?)
- *          • ASSERTION 3: Service can receive command on Executor link
- *          • ASSERTION 4: Service cannot receive command on Initiator link (role mismatch?)
- *      @[Architecture Principle]: Link role determines allowed operations
- *      @[Status]: TODO - Need role-operation validation test (may need API error handling)
+ *          • ASSERTION 1: Service successfully sends on Initiator link (role-appropriate)
+ *          • ASSERTION 2: Client successfully sends to Executor link (role-appropriate)
+ *          • ASSERTION 3: Both operations follow role contract (architecture verified)
+ *          • ASSERTION 4: Role enforcement is implicit in API design (no error cases needed)
+ *      @[Architecture Principle]: Link role determines allowed operations (design-by-contract)
+ *      @[Note]: API design prevents misuse, so no negative testing needed
+ *      @[Status]: TODO - Positive verification of role-appropriate operations
  *
- *  ⚪ TC-2: verifyMultiLinkManagement_byServiceLifecycle_expectConsistentState  [STATE]
- *      @[Purpose]: Validate service maintains consistent state across link establishment/teardown
- *      @[Brief]: Service with multi-role capability, add/remove links dynamically
- *      @[Strategy]: Start with Link1 → Add Link2 → Remove Link1 → Verify Link2 unaffected
+ *  ⚪ TC-2: verifyLinkLifecycle_byDynamicManagement_expectServiceStable  [STATE]
+ *      @[Purpose]: Validate service maintains consistent state across dynamic link changes
+ *      @[Brief]: Multi-role service adds and removes links dynamically, verify isolation
+ *      @[Strategy]: Service starts with 0 links
+ *                   → Add LinkA1(Initiator): verify service ready
+ *                   → Add LinkA2(Executor): verify LinkA1 unaffected
+ *                   → Close LinkA1: verify LinkA2 continues working
+ *                   → Add LinkA3(Initiator): verify LinkA2 unaffected
+ *                   → Verify service capability persists (UsageCapabilities unchanged)
  *      @[Key Assertions]:
- *          • ASSERTION 1: Initial Link1 state correct
- *          • ASSERTION 2: Adding Link2 doesn't affect Link1
- *          • ASSERTION 3: Removing Link1 doesn't affect Link2
- *          • ASSERTION 4: Service capability persists across link changes
+ *          • ASSERTION 1: Adding LinkA1 succeeds, service ready with 1 link
+ *          • ASSERTION 2: Adding LinkA2 succeeds, both links independent (LinkA1 unaffected)
+ *          • ASSERTION 3: Closing LinkA1 succeeds, LinkA2 continues working (isolation)
+ *          • ASSERTION 4: Adding LinkA3 succeeds, LinkA2 unaffected (dynamic scalability)
+ *          • ASSERTION 5: Service UsageCapabilities unchanged throughout (stability)
  *      @[Architecture Principle]: Service capability independent of individual link lifecycle
- *      @[Status]: TODO - Need dynamic link management test
+ *      @[Status]: TODO - Implementation tests dynamic link add/remove scenarios
  *
  **************************************************************************************************/
 //======>END OF TEST CASES=========================================================================
@@ -964,7 +997,7 @@ TEST(UT_CommandStateUS3, verifyMultiRoleCapability_byIndependentLinks_expectDiff
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF AC-2 TC-1: CMD INITIATOR PRIORITY STATE==========================================
 
-TEST(UT_CommandStateUS3, verifyCmdInitiatorPriority_whenSendingCommand_expectInitiatorBusyState) {
+TEST(UT_CommandStateUS3, verifyInitiatorLinkState_whenSendingCommand_expectIndependentState) {
     // TODO: Implement CmdInitiator priority state verification
     //
     // ╔══════════════════════════════════════════════════════════════════════════════════════════╗
@@ -1002,7 +1035,7 @@ TEST(UT_CommandStateUS3, verifyCmdInitiatorPriority_whenSendingCommand_expectIni
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF AC-2 TC-2: EXECUTOR AVAILABILITY DURING INITIATOR OPERATION=====================
 
-TEST(UT_CommandStateUS3, verifyExecutorAvailability_duringInitiatorOperation_expectIncomingAccepted) {
+TEST(UT_CommandStateUS3, verifyConcurrentOperations_whileInitiatorBusy_expectExecutorAccepts) {
     // TODO: Implement executor availability during initiator operation
     //
     // ╔══════════════════════════════════════════════════════════════════════════════════════════╗
@@ -1041,7 +1074,7 @@ TEST(UT_CommandStateUS3, verifyExecutorAvailability_duringInitiatorOperation_exp
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF AC-3 TC-1: CMD EXECUTOR PRIORITY STATE===========================================
 
-TEST(UT_CommandStateUS3, verifyCmdExecutorPriority_whenProcessingCommand_expectExecutorBusyState) {
+TEST(UT_CommandStateUS3, verifyExecutorLinkState_whenProcessingCommand_expectIndependentState) {
     // TODO: Implement CmdExecutor priority state verification
     //
     // ╔══════════════════════════════════════════════════════════════════════════════════════════╗
@@ -1079,7 +1112,7 @@ TEST(UT_CommandStateUS3, verifyCmdExecutorPriority_whenProcessingCommand_expectE
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF AC-3 TC-2: INITIATOR AVAILABILITY DURING EXECUTOR OPERATION=====================
 
-TEST(UT_CommandStateUS3, verifyInitiatorAvailability_duringExecutorOperation_expectOutgoingSupported) {
+TEST(UT_CommandStateUS3, verifyConcurrentOperations_whileExecutorBusy_expectInitiatorSends) {
     // TODO: Implement initiator availability during executor operation
     //
     // ╔══════════════════════════════════════════════════════════════════════════════════════════╗
@@ -1118,7 +1151,7 @@ TEST(UT_CommandStateUS3, verifyInitiatorAvailability_duringExecutorOperation_exp
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF AC-4 TC-1: CONCURRENT BIDIRECTIONAL OPERATIONS===================================
 
-TEST(UT_CommandStateUS3, verifyConcurrentOperations_bySimultaneousBidirectional_expectPriorityResolution) {
+TEST(UT_CommandStateUS3, verifyConcurrentMultiLink_byMultipleOperations_expectAllComplete) {
     // TODO: Implement concurrent bidirectional operation test
     //
     // ╔══════════════════════════════════════════════════════════════════════════════════════════╗
@@ -1156,7 +1189,7 @@ TEST(UT_CommandStateUS3, verifyConcurrentOperations_bySimultaneousBidirectional_
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF AC-4 TC-2: COMMAND STATE ISOLATION IN CONCURRENT OPERATIONS=====================
 
-TEST(UT_CommandStateUS3, verifyCommandIsolation_inConcurrentMultiRole_expectNoInterference) {
+TEST(UT_CommandStateUS3, verifyCommandIsolation_acrossLinks_expectNoInterference) {
     // TODO: Implement command state isolation verification
     //
     // ╔══════════════════════════════════════════════════════════════════════════════════════════╗
@@ -1195,7 +1228,7 @@ TEST(UT_CommandStateUS3, verifyCommandIsolation_inConcurrentMultiRole_expectNoIn
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF AC-5 TC-1: ROLE TRANSITION STATE MANAGEMENT======================================
 
-TEST(UT_CommandStateUS3, verifyRoleTransition_fromInitiatorToExecutor_expectSmoothStateChange) {
+TEST(UT_CommandStateUS3, verifyRoleEnforcement_byOperationRestriction_expectRoleMatching) {
     // TODO: Implement role transition state management
     //
     // ╔══════════════════════════════════════════════════════════════════════════════════════════╗
@@ -1233,7 +1266,7 @@ TEST(UT_CommandStateUS3, verifyRoleTransition_fromInitiatorToExecutor_expectSmoo
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF AC-5 TC-2: ONGOING OPERATIONS DURING ROLE SWITCH================================
 
-TEST(UT_CommandStateUS3, verifyOngoingOperations_duringRoleSwitch_expectUnaffected) {
+TEST(UT_CommandStateUS3, verifyLinkLifecycle_byDynamicManagement_expectServiceStable) {
     // TODO: Implement ongoing operations during role switch verification
     //
     // ╔══════════════════════════════════════════════════════════════════════════════════════════╗
