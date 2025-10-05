@@ -998,36 +998,303 @@ TEST(UT_CommandStateUS3, verifyMultiRoleCapability_byIndependentLinks_expectDiff
 //======>BEGIN OF AC-2 TC-1: CMD INITIATOR PRIORITY STATE==========================================
 
 TEST(UT_CommandStateUS3, verifyInitiatorLinkState_whenSendingCommand_expectIndependentState) {
-    // TODO: Implement CmdInitiator priority state verification
-    //
     // ╔══════════════════════════════════════════════════════════════════════════════════════════╗
-    // ║          ⬆️ CMD INITIATOR PRIORITY STATE VERIFICATION                                    ║
+    // ║          🔗 INITIATOR LINK STATE INDEPENDENCE VERIFICATION                              ║
     // ╠══════════════════════════════════════════════════════════════════════════════════════════╣
-    // ║ 🎯 TEST PURPOSE: Validate link shows CmdInitiator busy substate when multi-role link    ║
-    // ║                  is actively sending an outbound command                                 ║
+    // ║ 🎯 TEST PURPOSE: Validate only the active Initiator link changes state during send,     ║
+    // ║                  while other links (Executor) remain completely unaffected              ║
     // ║                                                                                          ║
-    // ║ 📋 TEST BRIEF: Multi-role link executes outbound command, verify link substate          ║
-    // ║                prioritizes CmdInitiatorBusyExecCmd during operation                      ║
+    // ║ 📋 TEST BRIEF: Multi-role service with 2 links sends command on LinkA1(Initiator),      ║
+    // ║                verify LinkA2(Executor) state unchanged throughout the operation         ║
     // ║                                                                                          ║
-    // ║ 🔧 TEST STRATEGY:                                                                        ║
-    // ║    1. Setup multi-role service and client                                                ║
-    // ║    2. Query initial link substate (should be Ready)                                      ║
-    // ║    3. Service sends command to client (CmdInitiator role)                               ║
-    // ║    4. During command execution, query link substate                                      ║
-    // ║    5. Verify substate = IOC_LinkSubStateCmdInitiatorBusyExecCmd                          ║
-    // ║    6. After command completion, verify substate returns to Ready                         ║
+    // ║ � TEST STRATEGY:                                                                        ║
+    // ║    1. Service A with LinkA1(Initiator) + LinkA2(Executor)                               ║
+    // ║    2. Query initial states: LinkA1=CmdInitiatorReady, LinkA2=CmdExecutorReady           ║
+    // ║    3. Service sends command on LinkA1 (Client1 executor has 500ms delay)                ║
+    // ║    4. During execution (T+100ms), query states:                                          ║
+    // ║       → LinkA1 = CmdInitiatorBusyExecCmd (active link state changed) ✅                 ║
+    // ║       → LinkA2 = CmdExecutorReady (inactive link UNCHANGED) ← KEY! 🔑                  ║
+    // ║    5. After completion, verify LinkA1 returns to Ready, LinkA2 still unchanged          ║
     // ║                                                                                          ║
     // ║ ✅ KEY ASSERTIONS:                                                                       ║
-    // ║   • ASSERTION 1: Initial substate = Ready (Initiator or Executor)                       ║
-    // ║   • ASSERTION 2: During outbound command = CmdInitiatorBusyExecCmd                      ║
-    // ║   • ASSERTION 3: After completion substate = Ready                                       ║
-    // ║   • ASSERTION 4: CmdExecutor capability remains available (can accept incoming)         ║
+    // ║   • ASSERTION 1: Initial: LinkA1=CmdInitiatorReady, LinkA2=CmdExecutorReady            ║
+    // ║   • ASSERTION 2: During send: LinkA1=CmdInitiatorBusyExecCmd (active link changed)     ║
+    // ║   • ASSERTION 3: During send: LinkA2=CmdExecutorReady (inactive link unchanged) ← KEY! ║
+    // ║   • ASSERTION 4: After send: LinkA1 returns to CmdInitiatorReady                        ║
+    // ║   • ASSERTION 5: LinkA2 state never changed (complete isolation verified)               ║
     // ║                                                                                          ║
-    // ║ 🏛️ ARCHITECTURE PRINCIPLE: Active operation determines displayed link substate,        ║
-    // ║                              providing clear visibility of current link activity        ║
+    // ║ 🏛️ ARCHITECTURE PRINCIPLE: Link state isolation - operations on one link don't        ║
+    // ║                              affect other links (independent state tracking)            ║
     // ╚══════════════════════════════════════════════════════════════════════════════════════════╝
 
-    GTEST_SKIP() << "AC-2 TC-1: CmdInitiator priority state - DESIGN COMPLETE, implementation pending";
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
+
+    // ┌──────────────────────────────────────────────────────────────┐
+    // │                      🔧 SETUP PHASE                          │
+    // └──────────────────────────────────────────────────────────────┘
+    printf("🔧 [SETUP] Creating multi-role service with 2 independent links\n");
+
+    // Service A private data
+    struct ServiceAPriv_T {
+        std::atomic<int> commandsReceived{0};
+        std::atomic<int> commandsSent{0};
+    };
+    ServiceAPriv_T srvAPrivData = {};
+
+    // Service A executor callback (for LinkA2 Executor role)
+    auto executorCbA = [](IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, void *pCbPriv) -> IOC_Result_T {
+        ServiceAPriv_T *pPrivData = (ServiceAPriv_T *)pCbPriv;
+        if (!pPrivData || !pCmdDesc) return IOC_RESULT_INVALID_PARAM;
+
+        pPrivData->commandsReceived++;
+        printf("    📩 [SERVICE-A EXECUTOR] Received command on LinkA2, count=%d\n",
+               pPrivData->commandsReceived.load());
+
+        IOC_CmdDesc_setOutPayload(pCmdDesc, (void *)"PONG_FROM_SERVICE_A", 19);
+        IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_SUCCESS);
+        IOC_CmdDesc_setResult(pCmdDesc, IOC_RESULT_SUCCESS);
+        return IOC_RESULT_SUCCESS;
+    };
+
+    // Create Service A with dual capabilities
+    IOC_SrvURI_T srvURI_A = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                             .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                             .pPath = (const char *)"MultiRoleSrvA_AC2_TC1"};
+
+    static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_PING};
+    IOC_CmdUsageArgs_T cmdUsageArgsA = {
+        .CbExecCmd_F = executorCbA, .pCbPrivData = &srvAPrivData, .CmdNum = 1, .pCmdIDs = supportedCmdIDs};
+
+    IOC_SrvArgs_T srvArgsA = {
+        .SrvURI = srvURI_A,
+        .Flags = IOC_SRVFLAG_NONE,
+        .UsageCapabilites = (IOC_LinkUsage_T)(IOC_LinkUsageCmdInitiator | IOC_LinkUsageCmdExecutor),
+        .UsageArgs = {.pCmd = &cmdUsageArgsA}};
+
+    IOC_SrvID_T srvID_A = IOC_ID_INVALID;
+    ResultValue = IOC_onlineService(&srvID_A, &srvArgsA);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, srvID_A);
+    printf("🔧 [SETUP] Service A online: UsageCapabilities=0x0C (CmdInitiator|CmdExecutor)\n");
+
+    // Client-A1 connects as Executor → LinkA1: Service A acts as Initiator
+    printf("🔧 [SETUP] Client-A1 connects as Executor → LinkA1: Service-A(Initiator) ←→ Client-A1(Executor)\n");
+
+    struct ClientA1Priv_T {
+        std::atomic<int> commandsReceived{0};
+        std::atomic<bool> executingCommand{false};
+    };
+    ClientA1Priv_T clientA1PrivData = {};
+
+    // Client-A1 executor with SLOW callback (500ms) to create observation window
+    auto clientA1ExecutorCb = [](IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, void *pCbPriv) -> IOC_Result_T {
+        ClientA1Priv_T *pPrivData = (ClientA1Priv_T *)pCbPriv;
+        if (!pPrivData || !pCmdDesc) return IOC_RESULT_INVALID_PARAM;
+
+        pPrivData->commandsReceived++;
+        pPrivData->executingCommand = true;
+        printf("    📩 [CLIENT-A1 EXECUTOR] Received command on LinkA1, count=%d (SLOW callback: 500ms)\n",
+               pPrivData->commandsReceived.load());
+
+        // SLOW execution: 500ms delay to create observation window
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+        IOC_CmdDesc_setOutPayload(pCmdDesc, (void *)"ACK_FROM_CLIENT_A1", 18);
+        IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_SUCCESS);
+        IOC_CmdDesc_setResult(pCmdDesc, IOC_RESULT_SUCCESS);
+
+        pPrivData->executingCommand = false;
+        return IOC_RESULT_SUCCESS;
+    };
+
+    IOC_CmdUsageArgs_T clientA1CmdUsageArgs = {
+        .CbExecCmd_F = clientA1ExecutorCb, .pCbPrivData = &clientA1PrivData, .CmdNum = 1, .pCmdIDs = supportedCmdIDs};
+
+    IOC_ConnArgs_T clientA1ConnArgs = {
+        .SrvURI = srvURI_A, .Usage = IOC_LinkUsageCmdExecutor, .UsageArgs = {.pCmd = &clientA1CmdUsageArgs}};
+
+    IOC_LinkID_T clientLinkID_A1 = IOC_ID_INVALID;
+    std::thread clientA1Thread([&] {
+        IOC_Result_T connResult = IOC_connectService(&clientLinkID_A1, &clientA1ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, connResult);
+        ASSERT_NE(IOC_ID_INVALID, clientLinkID_A1);
+    });
+
+    IOC_LinkID_T srvLinkID_A1 = IOC_ID_INVALID;
+    ResultValue = IOC_acceptClient(srvID_A, &srvLinkID_A1, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, srvLinkID_A1);
+
+    if (clientA1Thread.joinable()) clientA1Thread.join();
+
+    // Client-A2 connects as Initiator → LinkA2: Service A acts as Executor
+    printf("🔧 [SETUP] Client-A2 connects as Initiator → LinkA2: Service-A(Executor) ←→ Client-A2(Initiator)\n");
+
+    IOC_ConnArgs_T clientA2ConnArgs = {.SrvURI = srvURI_A, .Usage = IOC_LinkUsageCmdInitiator};
+
+    IOC_LinkID_T clientLinkID_A2 = IOC_ID_INVALID;
+    std::thread clientA2Thread([&] {
+        IOC_Result_T connResult = IOC_connectService(&clientLinkID_A2, &clientA2ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, connResult);
+        ASSERT_NE(IOC_ID_INVALID, clientLinkID_A2);
+    });
+
+    IOC_LinkID_T srvLinkID_A2 = IOC_ID_INVALID;
+    ResultValue = IOC_acceptClient(srvID_A, &srvLinkID_A2, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, srvLinkID_A2);
+
+    if (clientA2Thread.joinable()) clientA2Thread.join();
+
+    printf("🔧 [SETUP] Service A managing 2 links: LinkA1(Initiator) + LinkA2(Executor)\n");
+
+    // ┌──────────────────────────────────────────────────────────────┐
+    // │                    📋 BEHAVIOR PHASE                         │
+    // └──────────────────────────────────────────────────────────────┘
+    printf("📋 [BEHAVIOR] Phase 1: Query initial link states (baseline)\n");
+
+    IOC_LinkState_T mainStateA1_Initial = IOC_LinkStateUndefined;
+    IOC_LinkSubState_T subStateA1_Initial = IOC_LinkSubStateDefault;
+    ResultValue = IOC_getLinkState(srvLinkID_A1, &mainStateA1_Initial, &subStateA1_Initial);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    printf("    • LinkA1 initial: mainState=%d, subState=%d\n", mainStateA1_Initial, subStateA1_Initial);
+
+    IOC_LinkState_T mainStateA2_Initial = IOC_LinkStateUndefined;
+    IOC_LinkSubState_T subStateA2_Initial = IOC_LinkSubStateDefault;
+    ResultValue = IOC_getLinkState(srvLinkID_A2, &mainStateA2_Initial, &subStateA2_Initial);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    printf("    • LinkA2 initial: mainState=%d, subState=%d\n", mainStateA2_Initial, subStateA2_Initial);
+
+    // Prepare command descriptor for LinkA1 send
+    IOC_CmdDesc_T cmdDescA1 = {};
+    cmdDescA1.CmdID = IOC_CMDID_TEST_PING;
+    cmdDescA1.TimeoutMs = 5000;
+    cmdDescA1.Status = IOC_CMD_STATUS_PENDING;
+    IOC_CmdDesc_setInPayload(&cmdDescA1, (void *)"PING_FROM_SERVICE_A", 19);
+
+    printf("📋 [BEHAVIOR] Phase 2: Service A sends command on LinkA1 (async with 500ms executor delay)\n");
+
+    // Variables to capture states during execution
+    std::atomic<bool> statesCaptured{false};
+    IOC_LinkState_T mainStateA1_DuringExec = IOC_LinkStateUndefined;
+    IOC_LinkSubState_T subStateA1_DuringExec = IOC_LinkSubStateDefault;
+    IOC_LinkState_T mainStateA2_DuringExec = IOC_LinkStateUndefined;
+    IOC_LinkSubState_T subStateA2_DuringExec = IOC_LinkSubStateDefault;
+
+    // Start command execution in separate thread
+    std::thread cmdThread([&]() {
+        printf("    ⚡ [CMD THREAD] Starting IOC_execCMD on LinkA1...\n");
+        IOC_Result_T execResult = IOC_execCMD(srvLinkID_A1, &cmdDescA1, NULL);
+        EXPECT_EQ(IOC_RESULT_SUCCESS, execResult);
+        printf("    ✅ [CMD THREAD] IOC_execCMD completed with result=%d\n", execResult);
+    });
+
+    // Wait for executor to start (give it 100ms to enter callback)
+    printf("📋 [BEHAVIOR] Phase 3: Wait 100ms for executor to start, then query states\n");
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // KEY OBSERVATION: Query states during command execution
+    printf("    🔍 [STATE OBSERVATION] Querying LinkA1 state during execution...\n");
+    ResultValue = IOC_getLinkState(srvLinkID_A1, &mainStateA1_DuringExec, &subStateA1_DuringExec);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    printf("    • LinkA1 during exec: mainState=%d, subState=%d\n", mainStateA1_DuringExec, subStateA1_DuringExec);
+
+    printf("    🔍 [STATE OBSERVATION] Querying LinkA2 state during LinkA1 execution...\n");
+    ResultValue = IOC_getLinkState(srvLinkID_A2, &mainStateA2_DuringExec, &subStateA2_DuringExec);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    printf("    • LinkA2 during exec: mainState=%d, subState=%d\n", mainStateA2_DuringExec, subStateA2_DuringExec);
+
+    statesCaptured = true;
+
+    // Wait for command to complete
+    if (cmdThread.joinable()) cmdThread.join();
+
+    printf("📋 [BEHAVIOR] Phase 4: Query final link states (after completion)\n");
+
+    IOC_LinkState_T mainStateA1_Final = IOC_LinkStateUndefined;
+    IOC_LinkSubState_T subStateA1_Final = IOC_LinkSubStateDefault;
+    ResultValue = IOC_getLinkState(srvLinkID_A1, &mainStateA1_Final, &subStateA1_Final);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    printf("    • LinkA1 final: mainState=%d, subState=%d\n", mainStateA1_Final, subStateA1_Final);
+
+    IOC_LinkState_T mainStateA2_Final = IOC_LinkStateUndefined;
+    IOC_LinkSubState_T subStateA2_Final = IOC_LinkSubStateDefault;
+    ResultValue = IOC_getLinkState(srvLinkID_A2, &mainStateA2_Final, &subStateA2_Final);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    printf("    • LinkA2 final: mainState=%d, subState=%d\n", mainStateA2_Final, subStateA2_Final);
+
+    // ┌──────────────────────────────────────────────────────────────┐
+    // │                     ✅ VERIFY PHASE                          │
+    // └──────────────────────────────────────────────────────────────┘
+    //@KeyVerifyPoint<=5: Link state independence verification during Initiator operation
+    //  1. ASSERTION 1: Initial states both Ready (baseline)
+    //  2. ASSERTION 2: LinkA1 becomes Busy during send (active link state changed)
+    //  3. ASSERTION 3: LinkA2 stays Ready during send (inactive link unchanged) ← KEY!
+    //  4. ASSERTION 4: LinkA1 returns to Ready after send (state restored)
+    //  5. ASSERTION 5: LinkA2 never changed throughout (complete isolation)
+
+    printf("✅ [VERIFY] ASSERTION 1: Initial states - both links Ready (baseline)\n");
+    printf("    • LinkA1 initial: subState=%d (expected: %d CmdInitiatorReady)\n", subStateA1_Initial,
+           IOC_LinkSubStateCmdInitiatorReady);
+    printf("    • LinkA2 initial: subState=%d (expected: %d CmdExecutorReady)\n", subStateA2_Initial,
+           IOC_LinkSubStateCmdExecutorReady);
+    ASSERT_EQ(subStateA1_Initial, IOC_LinkSubStateCmdInitiatorReady);
+    ASSERT_EQ(subStateA2_Initial, IOC_LinkSubStateCmdExecutorReady);
+
+    printf("✅ [VERIFY] ASSERTION 2: During send - LinkA1 became Busy (active link state changed)\n");
+    printf("    • LinkA1 during exec: subState=%d (expected: %d CmdInitiatorBusyExecCmd)\n", subStateA1_DuringExec,
+           IOC_LinkSubStateCmdInitiatorBusyExecCmd);
+    ASSERT_TRUE(statesCaptured) << "States must be captured during execution";
+    ASSERT_EQ(subStateA1_DuringExec, IOC_LinkSubStateCmdInitiatorBusyExecCmd)
+        << "LinkA1 must show Busy state during send operation";
+
+    //@KeyVerifyPoint-3: THE CRITICAL TEST - LinkA2 must remain unchanged during LinkA1 operation
+    printf("✅ [VERIFY] ASSERTION 3: During send - LinkA2 stayed Ready (inactive link UNCHANGED) ← KEY! 🔑\n");
+    printf("    • LinkA2 during exec: subState=%d (expected: %d CmdExecutorReady - UNCHANGED!)\n",
+           subStateA2_DuringExec, IOC_LinkSubStateCmdExecutorReady);
+    VERIFY_KEYPOINT_EQ(subStateA2_DuringExec, IOC_LinkSubStateCmdExecutorReady,
+                       "LinkA2 must remain Ready (unchanged) while LinkA1 is busy - CRITICAL ISOLATION TEST!");
+
+    printf("✅ [VERIFY] ASSERTION 4: After send - LinkA1 returned to Ready (state restored)\n");
+    printf("    • LinkA1 final: subState=%d (expected: %d CmdInitiatorReady)\n", subStateA1_Final,
+           IOC_LinkSubStateCmdInitiatorReady);
+    ASSERT_EQ(subStateA1_Final, IOC_LinkSubStateCmdInitiatorReady) << "LinkA1 must return to Ready after completion";
+
+    //@KeyVerifyPoint-5: Verify LinkA2 never changed throughout entire operation
+    printf("✅ [VERIFY] ASSERTION 5: LinkA2 never changed throughout (complete isolation verified)\n");
+    printf("    • LinkA2 initial:    subState=%d\n", subStateA2_Initial);
+    printf("    • LinkA2 during exec: subState=%d\n", subStateA2_DuringExec);
+    printf("    • LinkA2 final:      subState=%d\n", subStateA2_Final);
+    VERIFY_KEYPOINT_EQ(subStateA2_Initial, subStateA2_DuringExec,
+                       "LinkA2 must not change from Initial to DuringExec (isolation phase 1)");
+    VERIFY_KEYPOINT_EQ(subStateA2_DuringExec, subStateA2_Final,
+                       "LinkA2 must not change from DuringExec to Final (isolation phase 2)");
+    VERIFY_KEYPOINT_EQ(subStateA2_Initial, subStateA2_Final,
+                       "LinkA2 must not change from Initial to Final (complete isolation)");
+
+    // Verify command completed successfully
+    IOC_CmdStatus_E cmdStatus = IOC_CmdDesc_getStatus(&cmdDescA1);
+    IOC_Result_T cmdResult = IOC_CmdDesc_getResult(&cmdDescA1);
+    printf("✅ [VERIFY] Command execution: status=%d, result=%d\n", cmdStatus, cmdResult);
+    ASSERT_EQ(cmdStatus, IOC_CMD_STATUS_SUCCESS);
+    ASSERT_EQ(cmdResult, IOC_RESULT_SUCCESS);
+
+    printf("\n");
+    printf("✅ [RESULT] Link state independence during Initiator operation verified:\n");
+    printf("   • Initial: LinkA1=Ready, LinkA2=Ready (ASSERTION 1) ✅\n");
+    printf("   • During: LinkA1=Busy, LinkA2=Ready (ASSERTION 2+3) ✅\n");
+    printf("   • Final: LinkA1=Ready, LinkA2=Ready (ASSERTION 4+5) ✅\n");
+    printf("   • KEY PROOF: LinkA2 never changed (Initial=During=Final=%d) ← CRITICAL! 🔑\n", subStateA2_Initial);
+    printf("   • Architecture principle: Link state isolation verified ✅\n");
+
+    // ┌──────────────────────────────────────────────────────────────┐
+    // │                    🧹 CLEANUP PHASE                          │
+    // └──────────────────────────────────────────────────────────────┘
+    printf("🧹 [CLEANUP] Disconnecting clients and stopping service\n");
+
+    if (clientLinkID_A1 != IOC_ID_INVALID) IOC_closeLink(clientLinkID_A1);
+    if (clientLinkID_A2 != IOC_ID_INVALID) IOC_closeLink(clientLinkID_A2);
+    if (srvID_A != IOC_ID_INVALID) IOC_offlineService(srvID_A);
 }
 
 //======>END OF AC-2 TC-1==========================================================================
