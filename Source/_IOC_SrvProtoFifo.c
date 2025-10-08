@@ -1989,9 +1989,25 @@ static IOC_Result_T __IOC_execCmd_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_C
     // 🎯 TIMEOUT ENFORCEMENT: Execute command via callback with timeout monitoring
     pCmdDesc->Status = IOC_CMD_STATUS_PROCESSING;
 
-    // Extract timeout value from command descriptor
-    ULONG_T timeoutMs = pCmdDesc->TimeoutMs;
-    if (timeoutMs == 0) timeoutMs = 5000;  // Default 5s timeout
+    // Extract timeout value: Priority order - pOption > pCmdDesc > default
+    ULONG_T timeoutMs = 0;
+
+    // 1. Check pOption->TimeoutUS first (API-level timeout, highest priority)
+    if (pOption && (pOption->IDs & IOC_OPTID_TIMEOUT)) {
+        timeoutMs = pOption->Payload.TimeoutUS / 1000;  // Convert microseconds to milliseconds
+        printf("[DEBUG execCmd_ofProtoFifo] TIMEOUT: Using pOption->TimeoutUS=%lu us (%lu ms)\n",
+               pOption->Payload.TimeoutUS, timeoutMs);
+    }
+    // 2. Fall back to pCmdDesc->TimeoutMs (descriptor-level timeout)
+    else if (pCmdDesc->TimeoutMs > 0) {
+        timeoutMs = pCmdDesc->TimeoutMs;
+        printf("[DEBUG execCmd_ofProtoFifo] TIMEOUT: Using pCmdDesc->TimeoutMs=%lu ms\n", timeoutMs);
+    }
+    // 3. Default timeout if neither specified
+    else {
+        timeoutMs = 5000;  // Default 5s timeout
+        printf("[DEBUG execCmd_ofProtoFifo] TIMEOUT: Using default timeout=%lu ms\n", timeoutMs);
+    }
 
     printf("[DEBUG execCmd_ofProtoFifo] TIMEOUT ENFORCEMENT: Starting callback with %lums timeout\n", timeoutMs);
 
