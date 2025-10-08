@@ -677,13 +677,166 @@ TEST(UT_CommandStateUS4, verifyCommandTimeout_byWaitCmdOptionTimeout_expectTimeo
 //======>BEGIN OF AC-1 TC-3: EXECCMD OPTION TIMEOUT IN CALLBACK MODE==============================
 
 TEST(UT_CommandStateUS4, verifyCommandTimeout_byExecCmdOptionTimeout_expectTimeoutStatus) {
-    // TODO: Implement IOC_execCMD with pOption timeout verification
-    // Test IOC_execCMD(LinkID, &cmdDesc, &option) times out with slow callback
-    // Set cmdDesc.TimeoutMs=0 (no descriptor timeout)
-    // Use IOC_Option_defineTimeout(opt, 100000) to set 100ms API-level timeout
-    // Callback delays 200ms - should timeout at ~100ms via pOption
+    printf("\n");
+    printf("╔══════════════════════════════════════════════════════════════════════════════════════════╗\n");
+    printf("║  🧪 AC-1 TC-3: execCMD Option Timeout in Callback Mode                                  ║\n");
+    printf("║  Purpose: Validate pOption->TimeoutUS limits entire execCMD operation duration          ║\n");
+    printf("║  Strategy: Set TimeoutMs=0, pOption=100ms, callback delays 200ms, verify timeout        ║\n");
+    printf("╚══════════════════════════════════════════════════════════════════════════════════════════╝\n");
 
-    GTEST_SKIP() << "AC-1 TC-3: execCMD pOption timeout testing pending implementation";
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
+
+    // ┌──────────────────────────────────────────────────────────────┐
+    // │                    🏗️ SETUP PHASE                            │
+    // └──────────────────────────────────────────────────────────────┘
+    printf("🏗️ [SETUP] Creating Service with CmdInitiator capability\n");
+
+    // Service URI configuration
+    IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = "ExecCmdOptionTimeoutTestService"};
+
+    // Client-A1 configuration: CmdExecutor with slow callback (200ms delay)
+    printf("🏗️ [SETUP] Client-A1 will act as Executor with 200ms callback delay\n");
+
+    struct Client1PrivData {
+        int callbackInvoked = 0;
+        std::chrono::steady_clock::time_point callbackStartTime;
+        std::chrono::steady_clock::time_point callbackEndTime;
+    } client1PrivData;
+
+    auto client1ExecutorCb = [](IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, void* pPrivData) -> IOC_Result_T {
+        auto* privData = static_cast<Client1PrivData*>(pPrivData);
+        privData->callbackStartTime = std::chrono::steady_clock::now();
+        privData->callbackInvoked++;
+
+        IOC_CmdID_T cmdID = IOC_CmdDesc_getCmdID(pCmdDesc);
+        printf("⏱️  [CALLBACK] Executor callback invoked (cmdID=%llu), delaying 200ms...\n", (unsigned long long)cmdID);
+
+        // Simulate slow execution - EXCEEDS pOption timeout!
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+        privData->callbackEndTime = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(privData->callbackEndTime -
+                                                                             privData->callbackStartTime)
+                           .count();
+        printf("⏱️  [CALLBACK] Callback completed after %lldms\n", (long long)elapsed);
+
+        return IOC_RESULT_SUCCESS;
+    };
+
+    IOC_CmdID_T supportedCmdIDs[] = {1};
+    IOC_CmdUsageArgs_T client1CmdUsageArgs = {
+        .CbExecCmd_F = client1ExecutorCb, .pCbPrivData = &client1PrivData, .CmdNum = 1, .pCmdIDs = supportedCmdIDs};
+
+    // Service configuration: CmdInitiator capability
+    IOC_SrvArgs_T srvArgs = {
+        .SrvURI = SrvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageCmdInitiator};
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    ResultValue = IOC_onlineService(&srvID, &srvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, srvID);
+    printf("🏗️ [SETUP] Service online: SrvID=%llu\n", (unsigned long long)srvID);
+
+    // Client connection args
+    IOC_ConnArgs_T client1ConnArgs = {
+        .SrvURI = SrvURI, .Usage = IOC_LinkUsageCmdExecutor, .UsageArgs = {.pCmd = &client1CmdUsageArgs}};
+
+    IOC_LinkID_T client1LinkID = IOC_ID_INVALID;
+    std::thread client1Thread([&] {
+        IOC_Result_T connResult = IOC_connectService(&client1LinkID, &client1ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, connResult);
+        ASSERT_NE(IOC_ID_INVALID, client1LinkID);
+    });
+
+    // Service accepts Client1
+    IOC_LinkID_T srvLinkID1 = IOC_ID_INVALID;
+    ResultValue = IOC_acceptClient(srvID, &srvLinkID1, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, srvLinkID1);
+
+    if (client1Thread.joinable()) client1Thread.join();
+
+    printf("🏗️ [SETUP] Link established: Service(LinkID=%llu) ←→ Client-A1(LinkID=%llu)\n",
+           (unsigned long long)srvLinkID1, (unsigned long long)client1LinkID);
+
+    // ┌──────────────────────────────────────────────────────────────┐
+    // │                    📋 BEHAVIOR PHASE                         │
+    // └──────────────────────────────────────────────────────────────┘
+    printf("📋 [BEHAVIOR] Preparing command with NO descriptor timeout but WITH pOption timeout\n");
+
+    // KEY DIFFERENCE from TC-1: TimeoutMs=0 (NO descriptor timeout)
+    IOC_CmdDesc_T cmdDesc = {};
+    cmdDesc.CmdID = 1;
+    cmdDesc.TimeoutMs = 0;  // CRITICAL: NO descriptor-level timeout!
+
+    printf("📋 [BEHAVIOR] Command configured: CmdID=1, TimeoutMs=0 (NO descriptor timeout)\n");
+    printf("📋 [BEHAVIOR] Executor callback will delay 200ms (exceeds pOption timeout by 100ms)\n");
+
+    // Define API-level timeout option: 100ms = 100,000 microseconds
+    IOC_Option_defineTimeout(execOpt, 100000);
+    printf("📋 [BEHAVIOR] Created pOption with TimeoutUS=100000us (100ms) - API-LEVEL TIMEOUT\n");
+    printf("📋 [BEHAVIOR] IOC_execCMD called with pOption (API-level timeout enforcement)\n");
+    printf("📋 [BEHAVIOR] Expected: pOption timeout enforces at ~100ms (NOT 200ms!)\n");
+    printf("📋 [BEHAVIOR] Executing command (expecting API-level timeout)...\n");
+
+    auto execStartTime = std::chrono::steady_clock::now();
+
+    ResultValue = IOC_execCMD(srvLinkID1, &cmdDesc, &execOpt);
+
+    auto execEndTime = std::chrono::steady_clock::now();
+    auto execDuration = std::chrono::duration_cast<std::chrono::milliseconds>(execEndTime - execStartTime).count();
+
+    printf("📋 [BEHAVIOR] IOC_execCMD returned: result=%d, duration=%lldms\n", ResultValue, (long long)execDuration);
+    printf("📋 [BEHAVIOR] Callback invoked: %d times\n", client1PrivData.callbackInvoked);
+
+    // ┌──────────────────────────────────────────────────────────────┐
+    // │                     ✅ VERIFY PHASE                          │
+    // └──────────────────────────────────────────────────────────────┘
+
+    //@KeyVerifyPoint-1: Command status must be TIMEOUT
+    printf("✅ [VERIFY] ASSERTION 1: Command status transitions to TIMEOUT\n");
+    IOC_CmdStatus_E actualStatus = IOC_CmdDesc_getStatus(&cmdDesc);
+    printf("    • Command status: %d (expected: IOC_CMD_STATUS_TIMEOUT=%d)\n", actualStatus, IOC_CMD_STATUS_TIMEOUT);
+    VERIFY_KEYPOINT_EQ(actualStatus, IOC_CMD_STATUS_TIMEOUT,
+                       "Command must transition to TIMEOUT when pOption timeout exceeded");
+
+    //@KeyVerifyPoint-2: Command result must be IOC_RESULT_TIMEOUT
+    printf("✅ [VERIFY] ASSERTION 2: Command result = IOC_RESULT_TIMEOUT\n");
+    IOC_Result_T actualResult = IOC_CmdDesc_getResult(&cmdDesc);
+    printf("    • Command result: %d (expected: IOC_RESULT_TIMEOUT=%d)\n", actualResult, IOC_RESULT_TIMEOUT);
+    VERIFY_KEYPOINT_EQ(actualResult, IOC_RESULT_TIMEOUT, "Command result must reflect API option timeout");
+
+    //@KeyVerifyPoint-3: pOption timeout enforced PRECISELY at ~100ms (NOT 200ms!)
+    printf("✅ [VERIFY] ASSERTION 3: IOC_execCMD returned at ~100ms (pOption timeout enforcement)\n");
+    printf("    • Actual execution duration: %lldms\n", (long long)execDuration);
+    printf("    • Expected pOption timeout: 100ms ± 10ms tolerance\n");
+    // ⚠️ CRITICAL: Verify pOption timeout enforced at 100ms, NOT descriptor (0ms) or callback (200ms)
+    ASSERT_GE(execDuration, 90);   // Minimum: timeout - 10ms tolerance
+    ASSERT_LE(execDuration, 120);  // Maximum: timeout + 20ms tolerance
+    printf("    • ✅ pOption timeout enforced precisely! (API-level timeout at 100ms, NOT 200ms)\n");
+
+    //@KeyVerifyPoint-4: Callback was invoked despite timeout
+    printf("✅ [VERIFY] ASSERTION 4: Executor callback was invoked\n");
+    printf("    • Callback invocations: %d (expected: 1)\n", client1PrivData.callbackInvoked);
+    VERIFY_KEYPOINT_EQ(client1PrivData.callbackInvoked, 1, "Callback must be invoked even if pOption times out");
+
+    printf("\n");
+    printf("✅ [RESULT] execCMD pOption timeout in callback mode verified:\n");
+    printf("   • TimeoutMs=0 (NO descriptor timeout) ✅\n");
+    printf("   • pOption->TimeoutUS=100000us (100ms API-level timeout) ✅\n");
+    printf("   • Callback delayed 200ms (BEHAVIOR) ✅\n");
+    printf("   • Status = TIMEOUT (ASSERTION 1) ✅\n");
+    printf("   • Result = IOC_RESULT_TIMEOUT (ASSERTION 2) ✅\n");
+    printf("   • Timeout enforced at ~100ms (ASSERTION 3) ✅ ← CRITICAL!\n");
+    printf("   • Callback was invoked (ASSERTION 4) ✅\n");
+    printf("   • API option timeout prevents indefinite execCMD blocking (PRINCIPLE) ✅\n");
+
+    // Cleanup
+    if (client1LinkID != IOC_ID_INVALID) IOC_closeLink(client1LinkID);
+    if (srvLinkID1 != IOC_ID_INVALID) IOC_closeLink(srvLinkID1);
+    if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
