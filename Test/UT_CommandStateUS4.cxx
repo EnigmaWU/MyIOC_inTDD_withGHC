@@ -24,16 +24,11 @@
  * @brief US-4 Implementation: Command Timeout and Error State Verification
  *
  * Implements test cases for User Story 4 (see UT_CommandState.h for complete US/AC specification):
- *  - TC-1a: Command timeout in callback mode (AC-1)
- *  - TC-1b: Command timeout in polling mode (AC-1)
- *  - TC-2a: Link recovery after callback timeout (AC-2)
- *  - TC-2b: Link recovery after polling timeout (AC-2)
- *  - TC-3a: Error propagation in callback mode (AC-3)
- *  - TC-3b: Error propagation in polling mode (AC-3)
- *  - TC-4a: Mixed results in callback mode (AC-4)
- *  - TC-4b: Mixed results in polling mode (AC-4)
- *  - TC-5a: Error recovery in callback mode (AC-5)
- *  - TC-5b: Error recovery in polling mode (AC-5)
+ *  - AC-1: Command timeout mechanisms (TC-1: Descriptor, TC-2: waitCMD option, TC-3: execCMD option)
+ *  - AC-2: Link recovery after timeout (TC-1: Callback, TC-2: Polling)
+ *  - AC-3: Error propagation (TC-1: Callback, TC-2: Polling)
+ *  - AC-4: Mixed results independence (TC-1: Callback, TC-2: Polling)
+ *  - AC-5: Error recovery and cleanup (TC-1: Callback, TC-2: Polling)
  *
  * 🔧 Implementation Focus:
  *  - Command timeout detection in BOTH execution patterns (callback + polling)
@@ -69,7 +64,7 @@
  *      Field: pCmdDesc->TimeoutMs  // Timeout in milliseconds for callback execution
  *      Usage: cmdDesc.TimeoutMs = 100;  // Executor callback must complete within 100ms
  *      Scope: Protocol enforces timeout during callback execution (CbExecCmd_F)
- *      TC Coverage: TC-1a tests this mechanism
+ *      TC Coverage: AC-1 TC-1 tests this mechanism
  *
  *    LEVEL 2: API Call Option Timeout (execCMD/waitCMD Call Timeout)
  *      Parameter: pOption->Payload.TimeoutUS  // Timeout in microseconds for API call
@@ -79,7 +74,7 @@
  *        - IOC_execCMD(LinkID, pCmdDesc, pOption) - timeout for entire command execution
  *        - IOC_waitCMD(LinkID, pCmdDesc, pOption) - timeout for waiting for command arrival
  *        - IOC_ackCMD(LinkID, pCmdDesc, pOption) - timeout for sending acknowledgment
- *      TC Coverage: TC-1c (execCMD option), TC-1b (waitCMD option) test these mechanisms
+ *      TC Coverage: AC-1 TC-3 (execCMD option), AC-1 TC-2 (waitCMD option) test these mechanisms
  *
  *    INTERACTION: Both mechanisms can coexist
  *      - pCmdDesc->TimeoutMs: Limits callback execution duration (executor-side)
@@ -122,13 +117,21 @@
  *
  * 📊 COVERAGE PLAN (EXPANDED FOR BOTH EXECUTION PATTERNS + TIMEOUT MECHANISMS):
  *    ⚪ AC-1: 0/3 tests planned - Command timeout mechanisms
- *       • TC-1a: Descriptor timeout (pCmdDesc->TimeoutMs) in callback mode
- *       • TC-1b: API option timeout (pOption->TimeoutUS) in IOC_waitCMD
- *       • TC-1c: API option timeout (pOption->TimeoutUS) in IOC_execCMD
- *    ⚪ AC-2: 0/2 tests planned - Link recovery after timeout (callback + polling)
- *    ⚪ AC-3: 0/2 tests planned - Error propagation (callback return + polling ack)
- *    ⚪ AC-4: 0/2 tests planned - Mixed success/failure (callback + polling)
- *    ⚪ AC-5: 0/2 tests planned - Error recovery (callback + polling)
+ *       • TC-1: Descriptor timeout (pCmdDesc->TimeoutMs) in callback mode
+ *       • TC-2: API option timeout (pOption->TimeoutUS) in IOC_waitCMD
+ *       • TC-3: API option timeout (pOption->TimeoutUS) in IOC_execCMD
+ *    ⚪ AC-2: 0/2 tests planned - Link recovery after timeout
+ *       • TC-1: Callback mode recovery
+ *       • TC-2: Polling mode recovery
+ *    ⚪ AC-3: 0/2 tests planned - Error propagation
+ *       • TC-1: Callback return error
+ *       • TC-2: Polling ackCMD error
+ *    ⚪ AC-4: 0/2 tests planned - Mixed success/failure independence
+ *       • TC-1: Callback mode sequential commands
+ *       • TC-2: Polling mode wait/ack cycles
+ *    ⚪ AC-5: 0/2 tests planned - Error recovery and cleanup
+ *       • TC-1: Callback mode recovery
+ *       • TC-2: Polling mode recovery
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * 📋 [US-4]: COMMAND TIMEOUT AND ERROR STATE VERIFICATION
@@ -138,10 +141,10 @@
  *    ✅ DESCRIPTOR TIMEOUT: Use pCmdDesc->TimeoutMs for callback execution timeout
  *    ✅ API OPTION TIMEOUT: Use pOption->Payload.TimeoutUS for API call timeout
  *    ✅ CALLBACK MODE:
- *       - TC-1a: Test descriptor timeout (callback exceeds TimeoutMs)
- *       - TC-1c: Test API option timeout (IOC_execCMD with pOption timeout)
+ *       - AC-1 TC-1: Test descriptor timeout (callback exceeds TimeoutMs)
+ *       - AC-1 TC-3: Test API option timeout (IOC_execCMD with pOption timeout)
  *    ✅ POLLING MODE:
- *       - TC-1b: Test API option timeout (IOC_waitCMD with pOption timeout)
+ *       - AC-1 TC-2: Test API option timeout (IOC_waitCMD with pOption timeout)
  *    ✅ Executor callback delays (std::this_thread::sleep_for) to trigger timeout
  *    ✅ Executor callback returns error codes to trigger failure states
  *    ✅ Polling mode: set error in descriptor before IOC_ackCMD
@@ -150,7 +153,7 @@
  *    ✅ Verify symmetry: both patterns and both timeout mechanisms behave consistently
  *
  * [@AC-1,US-4] Command timeout state transitions (THREE TIMEOUT MECHANISMS)
- *  🟢 TC-1a: verifyCommandTimeout_byDescriptorTimeout_expectTimeoutStatus  [TIMEOUT-DESCRIPTOR]
+ *  🟢 TC-1: verifyCommandTimeout_byDescriptorTimeout_expectTimeoutStatus  [TIMEOUT-DESCRIPTOR]
  *      @[Purpose]: Validate command transitions to TIMEOUT when callback execution exceeds pCmdDesc->TimeoutMs
  *      @[Brief]: Descriptor timeout (100ms), callback delays 200ms, verify TIMEOUT status
  *      @[Strategy]: Service with LinkA1(Initiator) + Client-A1(Executor with slow callback)
@@ -167,7 +170,7 @@
  *      @[TDD Expectation]: Timeout already implemented, test validates correct behavior
  *      @[Status]: ✅ COMPLETE - 4 assertions GREEN, descriptor timeout validated
  *
- *  ⚪ TC-1b: verifyCommandTimeout_byWaitCmdOptionTimeout_expectTimeoutStatus  [TIMEOUT-WAITCMD-OPTION]
+ *  ⚪ TC-2: verifyCommandTimeout_byWaitCmdOptionTimeout_expectTimeoutStatus  [TIMEOUT-WAITCMD-OPTION]
  *      @[Purpose]: Validate IOC_waitCMD times out via pOption when no command arrives within timeout
  *      @[Brief]: Executor calls IOC_waitCMD with pOption timeout, no command sent, verify timeout
  *      @[Strategy]: Service with LinkA1(Executor in polling mode) + Client-A1(Initiator)
@@ -185,7 +188,7 @@
  *      @[TDD Expectation]: Verify pOption timeout enforcement in IOC_waitCMD
  *      @[Status]: TODO - Implementation will test waitCMD pOption timeout mechanism
  *
- *  ⚪ TC-1c: verifyCommandTimeout_byExecCmdOptionTimeout_expectTimeoutStatus  [TIMEOUT-EXECCMD-OPTION]
+ *  ⚪ TC-3: verifyCommandTimeout_byExecCmdOptionTimeout_expectTimeoutStatus  [TIMEOUT-EXECCMD-OPTION]
  *      @[Purpose]: Validate IOC_execCMD times out via pOption when callback exceeds timeout
  *      @[Brief]: API option timeout (100ms), callback delays 200ms, verify TIMEOUT status
  *      @[Strategy]: Service with LinkA1(Initiator) + Client-A1(Executor with slow callback)
@@ -204,7 +207,7 @@
  *      @[Status]: TODO - Implementation will test execCMD pOption timeout mechanism
  *
  * [@AC-2,US-4] Link state recovery after timeout (BOTH execution patterns)
- *  ⚪ TC-2a: verifyLinkRecovery_afterCallbackTimeout_expectReadyState  [RECOVERY-CALLBACK]
+ *  ⚪ TC-1: verifyLinkRecovery_afterCallbackTimeout_expectReadyState  [RECOVERY-CALLBACK]
  *      @[Purpose]: Validate link recovers to Ready state after callback timeout
  *      @[Brief]: After command timeout in callback mode, link substate returns to Ready
  *      @[Strategy]: Service with LinkA1(Initiator) + Client-A1(Executor with slow callback)
@@ -222,7 +225,7 @@
  *      @[TDD Expectation]: Verify link state cleanup in callback timeout path
  *      @[Status]: TODO - Validate link recovery mechanism
  *
- *  ⚪ TC-2b: verifyLinkRecovery_afterPollingTimeout_expectReadyState  [RECOVERY-POLLING]
+ *  ⚪ TC-2: verifyLinkRecovery_afterPollingTimeout_expectReadyState  [RECOVERY-POLLING]
  *      @[Purpose]: Validate link recovers to Ready state after polling wait timeout
  *      @[Brief]: After IOC_waitCMD timeout, link returns to Ready for next operation
  *      @[Strategy]: Service with LinkA1(Executor in polling mode)
@@ -242,7 +245,7 @@
  *      @[Status]: TODO - Validate polling recovery mechanism
  *
  * [@AC-3,US-4] Error state propagation (BOTH execution patterns)
- *  ⚪ TC-3a: verifyErrorPropagation_byCallbackReturnError_expectFailedStatus  [ERROR-CALLBACK]
+ *  ⚪ TC-1: verifyErrorPropagation_byCallbackReturnError_expectFailedStatus  [ERROR-CALLBACK]
  *      @[Purpose]: Validate callback return error propagates to command status FAILED
  *      @[Brief]: Executor callback returns error code, verify status→FAILED, result←error code
  *      @[Strategy]: Service with LinkA1(Initiator) + Client-A1(Executor with error callback)
@@ -260,7 +263,7 @@
  *      @[TDD Expectation]: Verify callback error code mapping to command status
  *      @[Status]: TODO - Test error propagation path in callback mode
  *
- *  ⚪ TC-3b: verifyErrorPropagation_byAckCmdWithError_expectFailedStatus  [ERROR-POLLING]
+ *  ⚪ TC-2: verifyErrorPropagation_byAckCmdWithError_expectFailedStatus  [ERROR-POLLING]
  *      @[Purpose]: Validate IOC_ackCMD with error descriptor propagates to command status FAILED
  *      @[Brief]: Executor sets error in descriptor before IOC_ackCMD, verify status→FAILED
  *      @[Strategy]: Service with LinkA1(Executor in polling mode) + Client-A1(Initiator)
@@ -281,7 +284,7 @@
  *      @[Status]: TODO - Test error propagation path in polling mode
  *
  * [@AC-4,US-4] Mixed success/failure command independence (BOTH execution patterns)
- *  ⚪ TC-4a: verifyMixedResults_bySequentialCallbacks_expectIndependentStates  [ISOLATION-CALLBACK]
+ *  ⚪ TC-1: verifyMixedResults_bySequentialCallbacks_expectIndependentStates  [ISOLATION-CALLBACK]
  *      @[Purpose]: Validate commands with different outcomes maintain independent states (callback mode)
  *      @[Brief]: Two sequential commands on same link: Cmd1 succeeds, Cmd2 fails, verify isolation
  *      @[Strategy]: Service with LinkA1(Initiator) + Client-A1(Executor)
@@ -298,7 +301,7 @@
  *      @[TDD Expectation]: Verify independent command descriptor states in callback mode
  *      @[Status]: TODO - Verify callback mode command isolation
  *
- *  ⚪ TC-4b: verifyMixedResults_byWaitAckCycle_expectIndependentStates  [ISOLATION-POLLING]
+ *  ⚪ TC-2: verifyMixedResults_byWaitAckCycle_expectIndependentStates  [ISOLATION-POLLING]
  *      @[Purpose]: Validate commands with different outcomes maintain independent states (polling mode)
  *      @[Brief]: Two wait/ack cycles on same link: Cmd1 succeeds, Cmd2 fails, verify isolation
  *      @[Strategy]: Service with LinkA1(Executor in polling mode) + Client-A1(Initiator)
@@ -316,7 +319,7 @@
  *      @[Status]: TODO - Verify polling mode command isolation
  *
  * [@AC-5,US-4] Error recovery and state cleanup (BOTH execution patterns)
- *  ⚪ TC-5a: verifyErrorRecovery_byCallbackSuccessAfterFailure_expectStateCleanup  [RECOVERY-CALLBACK]
+ *  ⚪ TC-1: verifyErrorRecovery_byCallbackSuccessAfterFailure_expectStateCleanup  [RECOVERY-CALLBACK]
  *      @[Purpose]: Validate system recovers from callback errors, subsequent operations succeed normally
  *      @[Brief]: Failed command followed by successful command (callback mode), verify state cleanup
  *      @[Strategy]: Service with LinkA1(Initiator) + Client-A1(Executor)
@@ -334,7 +337,7 @@
  *      @[TDD Expectation]: Verify state cleanup mechanism after callback errors
  *      @[Status]: TODO - Verify callback mode error recovery
  *
- *  ⚪ TC-5b: verifyErrorRecovery_byPollingSuccessAfterFailure_expectStateCleanup  [RECOVERY-POLLING]
+ *  ⚪ TC-2: verifyErrorRecovery_byPollingSuccessAfterFailure_expectStateCleanup  [RECOVERY-POLLING]
  *      @[Purpose]: Validate system recovers from polling errors, subsequent operations succeed normally
  *      @[Brief]: Failed command followed by successful command (polling mode), verify state cleanup
  *      @[Strategy]: Service with LinkA1(Executor in polling mode) + Client-A1(Initiator)
@@ -356,12 +359,12 @@
 //======>END OF TEST CASES=========================================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF AC-1 TC-1a: DESCRIPTOR TIMEOUT IN CALLBACK MODE=================================
+//======>BEGIN OF AC-1 TC-1: DESCRIPTOR TIMEOUT IN CALLBACK MODE==================================
 
 TEST(UT_CommandStateUS4, verifyCommandTimeout_byDescriptorTimeout_expectTimeoutStatus) {
     printf("\n");
     printf("╔══════════════════════════════════════════════════════════════════════════════════════════╗\n");
-    printf("║  🧪 AC-1 TC-1a: Descriptor Timeout in Callback Mode                                     ║\n");
+    printf("║  🧪 AC-1 TC-1: Descriptor Timeout in Callback Mode                                      ║\n");
     printf("║  Purpose: Validate pCmdDesc->TimeoutMs limits callback execution duration               ║\n");
     printf("║  Strategy: Set TimeoutMs=100ms, callback delays 200ms, verify TIMEOUT at ~100ms        ║\n");
     printf("╚══════════════════════════════════════════════════════════════════════════════════════════╝\n");
@@ -523,18 +526,18 @@ TEST(UT_CommandStateUS4, verifyCommandTimeout_byDescriptorTimeout_expectTimeoutS
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF AC-1 TC-1b: WAITCMD OPTION TIMEOUT IN POLLING MODE==============================
+//======>BEGIN OF AC-1 TC-2: WAITCMD OPTION TIMEOUT IN POLLING MODE===============================
 
 TEST(UT_CommandStateUS4, verifyCommandTimeout_byWaitCmdOptionTimeout_expectTimeoutStatus) {
     // TODO: Implement IOC_waitCMD with pOption timeout verification
     // Test IOC_waitCMD(LinkID, &cmdDesc, &option) times out when no command arrives
     // Use IOC_Option_defineTimeout(opt, 100000) to set 100ms timeout
 
-    GTEST_SKIP() << "AC-1 TC-1b: waitCMD pOption timeout testing pending implementation";
+    GTEST_SKIP() << "AC-1 TC-2: waitCMD pOption timeout testing pending implementation";
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF AC-1 TC-1c: EXECCMD OPTION TIMEOUT IN CALLBACK MODE=============================
+//======>BEGIN OF AC-1 TC-3: EXECCMD OPTION TIMEOUT IN CALLBACK MODE==============================
 
 TEST(UT_CommandStateUS4, verifyCommandTimeout_byExecCmdOptionTimeout_expectTimeoutStatus) {
     // TODO: Implement IOC_execCMD with pOption timeout verification
@@ -543,87 +546,87 @@ TEST(UT_CommandStateUS4, verifyCommandTimeout_byExecCmdOptionTimeout_expectTimeo
     // Use IOC_Option_defineTimeout(opt, 100000) to set 100ms API-level timeout
     // Callback delays 200ms - should timeout at ~100ms via pOption
 
-    GTEST_SKIP() << "AC-1 TC-1c: execCMD pOption timeout testing pending implementation";
+    GTEST_SKIP() << "AC-1 TC-3: execCMD pOption timeout testing pending implementation";
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF AC-2 TC-2a: LINK RECOVERY AFTER CALLBACK TIMEOUT================================
+//======>BEGIN OF AC-2 TC-1: LINK RECOVERY AFTER CALLBACK TIMEOUT=================================
 
 TEST(UT_CommandStateUS4, verifyLinkRecovery_afterCallbackTimeout_expectReadyState) {
     // TODO: Implement callback timeout link recovery verification
     // Verify link state returns to Ready after callback timeout
 
-    GTEST_SKIP() << "AC-2 TC-2a: Callback timeout link recovery testing pending implementation";
+    GTEST_SKIP() << "AC-2 TC-1: Callback timeout link recovery testing pending implementation";
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF AC-2 TC-2b: LINK RECOVERY AFTER POLLING TIMEOUT=================================
+//======>BEGIN OF AC-2 TC-2: LINK RECOVERY AFTER POLLING TIMEOUT==================================
 
 TEST(UT_CommandStateUS4, verifyLinkRecovery_afterPollingTimeout_expectReadyState) {
     // TODO: Implement polling timeout link recovery verification
     // Verify link state returns to Ready after IOC_waitCMD timeout
 
-    GTEST_SKIP() << "AC-2 TC-2b: Polling timeout link recovery testing pending implementation";
+    GTEST_SKIP() << "AC-2 TC-2: Polling timeout link recovery testing pending implementation";
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF AC-3 TC-3a: ERROR PROPAGATION IN CALLBACK MODE==================================
+//======>BEGIN OF AC-3 TC-1: ERROR PROPAGATION IN CALLBACK MODE===================================
 
 TEST(UT_CommandStateUS4, verifyErrorPropagation_byCallbackReturnError_expectFailedStatus) {
     // TODO: Implement callback return error propagation verification
     // Verify callback error code propagates to command status FAILED
 
-    GTEST_SKIP() << "AC-3 TC-3a: Callback error propagation testing pending implementation";
+    GTEST_SKIP() << "AC-3 TC-1: Callback error propagation testing pending implementation";
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF AC-3 TC-3b: ERROR PROPAGATION IN POLLING MODE===================================
+//======>BEGIN OF AC-3 TC-2: ERROR PROPAGATION IN POLLING MODE====================================
 
 TEST(UT_CommandStateUS4, verifyErrorPropagation_byAckCmdWithError_expectFailedStatus) {
     // TODO: Implement IOC_ackCMD error descriptor propagation verification
     // Verify error in descriptor before ackCMD propagates to initiator
 
-    GTEST_SKIP() << "AC-3 TC-3b: Polling ackCMD error propagation testing pending implementation";
+    GTEST_SKIP() << "AC-3 TC-2: Polling ackCMD error propagation testing pending implementation";
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF AC-4 TC-4a: MIXED RESULTS IN CALLBACK MODE======================================
+//======>BEGIN OF AC-4 TC-1: MIXED RESULTS IN CALLBACK MODE=======================================
 
 TEST(UT_CommandStateUS4, verifyMixedResults_bySequentialCallbacks_expectIndependentStates) {
     // TODO: Implement callback mode mixed results verification
     // Verify sequential callback commands maintain independent states
 
-    GTEST_SKIP() << "AC-4 TC-4a: Callback mixed success/failure testing pending implementation";
+    GTEST_SKIP() << "AC-4 TC-1: Callback mixed success/failure testing pending implementation";
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF AC-4 TC-4b: MIXED RESULTS IN POLLING MODE=======================================
+//======>BEGIN OF AC-4 TC-2: MIXED RESULTS IN POLLING MODE========================================
 
 TEST(UT_CommandStateUS4, verifyMixedResults_byWaitAckCycle_expectIndependentStates) {
     // TODO: Implement polling mode mixed results verification
     // Verify wait/ack cycle commands maintain independent states
 
-    GTEST_SKIP() << "AC-4 TC-4b: Polling mixed success/failure testing pending implementation";
+    GTEST_SKIP() << "AC-4 TC-2: Polling mixed success/failure testing pending implementation";
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF AC-5 TC-5a: ERROR RECOVERY IN CALLBACK MODE=====================================
+//======>BEGIN OF AC-5 TC-1: ERROR RECOVERY IN CALLBACK MODE======================================
 
 TEST(UT_CommandStateUS4, verifyErrorRecovery_byCallbackSuccessAfterFailure_expectStateCleanup) {
     // TODO: Implement callback mode error recovery verification
     // Verify system recovers from callback errors, subsequent callbacks succeed
 
-    GTEST_SKIP() << "AC-5 TC-5a: Callback error recovery testing pending implementation";
+    GTEST_SKIP() << "AC-5 TC-1: Callback error recovery testing pending implementation";
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF AC-5 TC-5b: ERROR RECOVERY IN POLLING MODE======================================
+//======>BEGIN OF AC-5 TC-2: ERROR RECOVERY IN POLLING MODE=======================================
 
 TEST(UT_CommandStateUS4, verifyErrorRecovery_byPollingSuccessAfterFailure_expectStateCleanup) {
     // TODO: Implement polling mode error recovery verification
     // Verify system recovers from polling errors, subsequent wait/ack cycles succeed
 
-    GTEST_SKIP() << "AC-5 TC-5b: Polling error recovery testing pending implementation";
+    GTEST_SKIP() << "AC-5 TC-2: Polling error recovery testing pending implementation";
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -637,9 +640,9 @@ TEST(UT_CommandStateUS4, verifyErrorRecovery_byPollingSuccessAfterFailure_expect
  * ║ 📋 FRAMEWORK STATUS: DESIGNED (1/11 tests - 9%)                                          ║
  * ║   • Error and timeout state verification framework DESIGNED for BOTH execution patterns║
  * ║   • 5 Acceptance criteria with 11 test specifications (AC-1 has 3 timeout tests)       ║
- * ║   • TC-1a COMPLETE: Descriptor timeout (pCmdDesc->TimeoutMs) validated ✅               ║
- * ║   • TC-1b PENDING: waitCMD API option timeout (pOption->TimeoutUS) ⚪                   ║
- * ║   • TC-1c PENDING: execCMD API option timeout (pOption->TimeoutUS) ⚪                   ║
+ * ║   • AC-1 TC-1 COMPLETE: Descriptor timeout (pCmdDesc->TimeoutMs) validated ✅          ║
+ * ║   • AC-1 TC-2 PENDING: waitCMD API option timeout (pOption->TimeoutUS) ⚪              ║
+ * ║   • AC-1 TC-3 PENDING: execCMD API option timeout (pOption->TimeoutUS) ⚪              ║
  * ║   • Test case placeholders created with comprehensive documentation                     ║
  * ║   • API discovery complete (all required enums/fields/options exist)                    ║
  * ║   • Ready for TDD implementation phase (both patterns + both timeout mechanisms)        ║
@@ -671,9 +674,9 @@ TEST(UT_CommandStateUS4, verifyErrorRecovery_byPollingSuccessAfterFailure_expect
  * ║                                                                                          ║
  * ║ 📋 IMPLEMENTATION REQUIREMENTS IDENTIFIED:                                               ║
  * ║   • AC-1: Command timeout state transition verification (THREE mechanisms)             ║
- * ║     - TC-1a ✅: Descriptor timeout (pCmdDesc->TimeoutMs=100) in callback mode         ║
- * ║     - TC-1b ⚪: API option timeout in IOC_waitCMD(pOption->TimeoutUS=100000)          ║
- * ║     - TC-1c ⚪: API option timeout in IOC_execCMD(pOption->TimeoutUS=100000)          ║
+ * ║     - TC-1 ✅: Descriptor timeout (pCmdDesc->TimeoutMs=100) in callback mode          ║
+ * ║     - TC-2 ⚪: API option timeout in IOC_waitCMD(pOption->TimeoutUS=100000)           ║
+ * ║     - TC-3 ⚪: API option timeout in IOC_execCMD(pOption->TimeoutUS=100000)           ║
  * ║     - Verify status transitions INITIALIZED→PROCESSING→TIMEOUT (all mechanisms)       ║
  * ║     - Verify result = IOC_RESULT_TIMEOUT in all mechanisms                            ║
  * ║     - Verify timing precision ~100ms ± tolerance (all mechanisms)                     ║
@@ -713,21 +716,21 @@ TEST(UT_CommandStateUS4, verifyErrorRecovery_byPollingSuccessAfterFailure_expect
  * ║                                                                                          ║
  * ║ 📊 TEST COVERAGE PLAN (EXPANDED FOR THREE TIMEOUT MECHANISMS):                          ║
  * ║   🟢 AC-1 (Timeout State):      3 tests (1✅/3 complete - 33%)                         ║
- * ║      • TC-1a ✅: Descriptor timeout (pCmdDesc->TimeoutMs) - COMPLETE                  ║
- * ║      • TC-1b ⚪: waitCMD option timeout (pOption->TimeoutUS) - TODO                   ║
- * ║      • TC-1c ⚪: execCMD option timeout (pOption->TimeoutUS) - TODO                   ║
- * ║   ⚪ AC-2 (Link Recovery):      2 tests - Callback recovery + Polling recovery         ║
- * ║   ⚪ AC-3 (Error Propagation):  2 tests - Callback return + Polling ackCMD             ║
- * ║   ⚪ AC-4 (Mixed Results):      2 tests - Callback sequence + Polling cycles           ║
- * ║   ⚪ AC-5 (Error Recovery):     2 tests - Callback recovery + Polling recovery         ║
+ * ║      • TC-1 ✅: Descriptor timeout (pCmdDesc->TimeoutMs) - COMPLETE                   ║
+ * ║      • TC-2 ⚪: waitCMD option timeout (pOption->TimeoutUS) - TODO                    ║
+ * ║      • TC-3 ⚪: execCMD option timeout (pOption->TimeoutUS) - TODO                    ║
+ * ║   ⚪ AC-2 (Link Recovery):      2 tests - TC-1 Callback + TC-2 Polling                 ║
+ * ║   ⚪ AC-3 (Error Propagation):  2 tests - TC-1 Callback + TC-2 Polling                 ║
+ * ║   ⚪ AC-4 (Mixed Results):      2 tests - TC-1 Callback + TC-2 Polling                 ║
+ * ║   ⚪ AC-5 (Error Recovery):     2 tests - TC-1 Callback + TC-2 Polling                 ║
  * ║   TOTAL: 11 tests planned (1 complete, 10 pending) - 3 timeout + 8 error tests        ║
  * ║                                                                                          ║
  * ║ 🚀 NEXT STEPS:                                                                           ║
- * ║   1. ✅ COMPLETE: AC-1 TC-1a - Descriptor timeout validated                            ║
- * ║   2. Implement AC-1 TC-1b: waitCMD pOption timeout                                     ║
+ * ║   1. ✅ COMPLETE: AC-1 TC-1 - Descriptor timeout validated                             ║
+ * ║   2. Implement AC-1 TC-2: waitCMD pOption timeout                                      ║
  * ║   3. Build → Expect COMPILATION SUCCESS (pOption APIs exist)                           ║
  * ║   4. Run → Discover if pOption timeout implemented in waitCMD                          ║
- * ║   5. Implement AC-1 TC-1c: execCMD pOption timeout                                     ║
+ * ║   5. Implement AC-1 TC-3: execCMD pOption timeout                                      ║
  * ║   6. Run → Discover if pOption timeout implemented in execCMD                          ║
  * ║   7. Repeat TDD cycle for remaining 8 tests (AC-2 through AC-5)                        ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
