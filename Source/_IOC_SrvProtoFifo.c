@@ -1979,6 +1979,13 @@ static IOC_Result_T __IOC_execCmd_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_C
         return IOC_RESULT_NOT_SUPPORT;
     }
 
+    // 🎯 TDD FIX (AC-3 TC-1): Set CmdExecutor busy/processing state before callback
+    // This ensures link state correctly reflects "CmdExecutorBusyExecCmd" during callback execution
+    pthread_mutex_lock(&pPeerLinkObj->CmdState.SubStateMutex);
+    pPeerLinkObj->CmdState.IsProcessing = true;
+    pPeerLinkObj->CmdState.LastOperationTime = time(NULL);
+    pthread_mutex_unlock(&pPeerLinkObj->CmdState.SubStateMutex);
+
     // 🎯 TIMEOUT ENFORCEMENT: Execute command via callback with timeout monitoring
     pCmdDesc->Status = IOC_CMD_STATUS_PROCESSING;
 
@@ -2049,6 +2056,11 @@ static IOC_Result_T __IOC_execCmd_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, IOC_C
     // Cleanup timeout tracking
     pthread_mutex_destroy(&timeoutContext.completionMutex);
     pthread_cond_destroy(&timeoutContext.completionCond);
+
+    // 🎯 TDD FIX (AC-3 TC-1): Clear CmdExecutor busy/processing state after callback
+    pthread_mutex_lock(&pPeerLinkObj->CmdState.SubStateMutex);
+    pPeerLinkObj->CmdState.IsProcessing = false;
+    pthread_mutex_unlock(&pPeerLinkObj->CmdState.SubStateMutex);
 
     // 🎯 STRICT TIMEOUT STATE UPDATE: Based on timeout enforcement result
     if (Result == IOC_RESULT_TIMEOUT) {
