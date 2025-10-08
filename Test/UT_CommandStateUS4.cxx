@@ -529,11 +529,148 @@ TEST(UT_CommandStateUS4, verifyCommandTimeout_byDescriptorTimeout_expectTimeoutS
 //======>BEGIN OF AC-1 TC-2: WAITCMD OPTION TIMEOUT IN POLLING MODE===============================
 
 TEST(UT_CommandStateUS4, verifyCommandTimeout_byWaitCmdOptionTimeout_expectTimeoutStatus) {
-    // TODO: Implement IOC_waitCMD with pOption timeout verification
-    // Test IOC_waitCMD(LinkID, &cmdDesc, &option) times out when no command arrives
-    // Use IOC_Option_defineTimeout(opt, 100000) to set 100ms timeout
+    printf("\n");
+    printf("╔══════════════════════════════════════════════════════════════════════════════════════════╗\n");
+    printf("║  🧪 AC-1 TC-2: waitCMD Option Timeout in Polling Mode                                   ║\n");
+    printf("║  Purpose: Validate pOption->TimeoutUS prevents indefinite blocking in IOC_waitCMD       ║\n");
+    printf("║  Strategy: Executor calls waitCMD with 100ms timeout, no command sent, verify timeout   ║\n");
+    printf("╚══════════════════════════════════════════════════════════════════════════════════════════╝\n");
 
-    GTEST_SKIP() << "AC-1 TC-2: waitCMD pOption timeout testing pending implementation";
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
+
+    // ┌──────────────────────────────────────────────────────────────┐
+    // │                    🏗️ SETUP PHASE                            │
+    // └──────────────────────────────────────────────────────────────┘
+    printf("🏗️ [SETUP] Creating Service with CmdExecutor capability (POLLING MODE)\n");
+
+    // Service URI configuration
+    IOC_SrvURI_T SrvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO, .pHost = IOC_SRV_HOST_LOCAL_PROCESS, .pPath = "WaitCmdTimeoutTestService"};
+
+    // Client-A1 configuration: CmdInitiator (will NOT send command)
+    printf("🏗️ [SETUP] Client-A1 will act as Initiator (but will NOT send command)\n");
+
+    // Service configuration: CmdExecutor capability (POLLING MODE - NO callback!)
+    IOC_SrvArgs_T srvArgs = {.SrvURI = SrvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageCmdExecutor};
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    ResultValue = IOC_onlineService(&srvID, &srvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, srvID);
+    printf("🏗️ [SETUP] Service online: SrvID=%llu (Executor in polling mode)\n", (unsigned long long)srvID);
+
+    // Client connection args: CmdInitiator (no callback setup needed)
+    IOC_ConnArgs_T client1ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageCmdInitiator, .UsageArgs = {}};
+
+    IOC_LinkID_T client1LinkID = IOC_ID_INVALID;
+    std::thread client1Thread([&] {
+        IOC_Result_T connResult = IOC_connectService(&client1LinkID, &client1ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, connResult);
+        ASSERT_NE(IOC_ID_INVALID, client1LinkID);
+    });
+
+    // Service accepts Client1
+    IOC_LinkID_T srvLinkID1 = IOC_ID_INVALID;
+    ResultValue = IOC_acceptClient(srvID, &srvLinkID1, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, srvLinkID1);
+
+    if (client1Thread.joinable()) client1Thread.join();
+
+    printf("🏗️ [SETUP] Link established: Service(LinkID=%llu, Executor) ←→ Client-A1(LinkID=%llu, Initiator)\n",
+           (unsigned long long)srvLinkID1, (unsigned long long)client1LinkID);
+
+    // ┌──────────────────────────────────────────────────────────────┐
+    // │                    📋 BEHAVIOR PHASE                         │
+    // └──────────────────────────────────────────────────────────────┘
+    printf("📋 [BEHAVIOR] Preparing to call IOC_waitCMD with 100ms API-level timeout\n");
+    printf("📋 [BEHAVIOR] Client-A1 will NOT send command → Executor would wait indefinitely\n");
+    printf("📋 [BEHAVIOR] pOption->TimeoutUS=100000 (100ms) should prevent indefinite blocking\n");
+
+    // Define timeout option: 100ms = 100,000 microseconds
+    IOC_Option_defineTimeout(waitOpt, 100000);
+    printf("📋 [BEHAVIOR] Created pOption with TimeoutUS=100000us (100ms)\n");
+
+    IOC_CmdDesc_T cmdDesc = {};  // Will NOT be populated (no command sent)
+    printf("📋 [BEHAVIOR] Calling IOC_waitCMD (expecting timeout)...\n");
+
+    auto waitStartTime = std::chrono::steady_clock::now();
+
+    ResultValue = IOC_waitCMD(srvLinkID1, &cmdDesc, &waitOpt);
+
+    auto waitEndTime = std::chrono::steady_clock::now();
+    auto waitDuration = std::chrono::duration_cast<std::chrono::milliseconds>(waitEndTime - waitStartTime).count();
+
+    printf("📋 [BEHAVIOR] IOC_waitCMD returned: result=%d, duration=%lldms\n", ResultValue, (long long)waitDuration);
+
+    // ┌──────────────────────────────────────────────────────────────┐
+    // │                     ✅ VERIFY PHASE                          │
+    // └──────────────────────────────────────────────────────────────┘
+
+    //@KeyVerifyPoint-1: IOC_waitCMD must return IOC_RESULT_TIMEOUT
+    printf("✅ [VERIFY] ASSERTION 1: IOC_waitCMD returns IOC_RESULT_TIMEOUT\n");
+    printf("    • Actual result: %d (expected: IOC_RESULT_TIMEOUT=%d)\n", ResultValue, IOC_RESULT_TIMEOUT);
+    VERIFY_KEYPOINT_EQ(ResultValue, IOC_RESULT_TIMEOUT,
+                       "IOC_waitCMD must return TIMEOUT when no command arrives within timeout");
+
+    //@KeyVerifyPoint-2: Timeout enforced PRECISELY at ~100ms (NOT indefinite wait!)
+    printf("✅ [VERIFY] ASSERTION 2: IOC_waitCMD returned at ~100ms (timeout enforcement)\n");
+    printf("    • Actual wait duration: %lldms\n", (long long)waitDuration);
+    printf("    • Expected timeout: 100ms ± 20ms tolerance\n");
+    // ⚠️ CRITICAL: Verify timeout enforced at 100ms, proving pOption timeout works
+    ASSERT_GE(waitDuration, 80);   // Minimum: timeout - 20ms tolerance
+    ASSERT_LE(waitDuration, 130);  // Maximum: timeout + 30ms tolerance (pthread scheduling overhead)
+    printf("    • ✅ Timeout enforced precisely! (IOC didn't wait indefinitely)\n");
+
+    //@KeyVerifyPoint-3: Link state must be ExecutorReady (recovered)
+    printf("✅ [VERIFY] ASSERTION 3: Link state = IOC_LinkSubStateCmdExecutorReady (recovery)\n");
+    IOC_LinkState_T linkMainState = IOC_LinkStateUndefined;
+    IOC_LinkSubState_T linkSubState = IOC_LinkSubStateDefault;
+    ResultValue = IOC_getLinkState(srvLinkID1, &linkMainState, &linkSubState);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    printf("    • Link main state: %d (expected: IOC_LinkStateReady=%d)\n", linkMainState, IOC_LinkStateReady);
+    printf("    • Link sub state: %d (expected: IOC_LinkSubStateCmdExecutorReady=%d)\n", linkSubState,
+           IOC_LinkSubStateCmdExecutorReady);
+    VERIFY_KEYPOINT_EQ(linkMainState, IOC_LinkStateReady, "Link main state must be Ready after timeout");
+    VERIFY_KEYPOINT_EQ(linkSubState, IOC_LinkSubStateCmdExecutorReady,
+                       "Link sub state must return to ExecutorReady after timeout (auto recovery)");
+
+    //@KeyVerifyPoint-4: No command descriptor populated (timeout before arrival)
+    printf("✅ [VERIFY] ASSERTION 4: No command descriptor populated (timeout before command arrival)\n");
+    IOC_CmdID_T cmdID = IOC_CmdDesc_getCmdID(&cmdDesc);
+    printf("    • Command ID: %llu (expected: 0 - no command)\n", (unsigned long long)cmdID);
+    VERIFY_KEYPOINT_EQ(cmdID, 0ULL, "No command should be populated when timeout occurs before arrival");
+
+    //@KeyVerifyPoint-5: Subsequent IOC_waitCMD succeeds (link operational)
+    printf("✅ [VERIFY] ASSERTION 5: Subsequent IOC_waitCMD succeeds (link operational)\n");
+    IOC_CmdDesc_T cmdDesc2 = {};
+    IOC_Option_defineTimeout(waitOpt2, 50000);  // 50ms timeout for quick test
+    printf("    • Calling IOC_waitCMD again with 50ms timeout...\n");
+
+    auto wait2StartTime = std::chrono::steady_clock::now();
+    ResultValue = IOC_waitCMD(srvLinkID1, &cmdDesc2, &waitOpt2);
+    auto wait2EndTime = std::chrono::steady_clock::now();
+    auto wait2Duration = std::chrono::duration_cast<std::chrono::milliseconds>(wait2EndTime - wait2StartTime).count();
+
+    printf("    • Second IOC_waitCMD returned: result=%d, duration=%lldms\n", ResultValue, (long long)wait2Duration);
+    VERIFY_KEYPOINT_EQ(ResultValue, IOC_RESULT_TIMEOUT, "Subsequent waitCMD should also timeout (link operational)");
+    printf("    • ✅ Link remains operational after first timeout!\n");
+
+    printf("\n");
+    printf("✅ [RESULT] waitCMD pOption timeout in polling mode verified:\n");
+    printf("   • pOption->TimeoutUS=100000us (100ms) configured ✅\n");
+    printf("   • No command sent (would wait indefinitely without timeout) ✅\n");
+    printf("   • IOC_waitCMD returned IOC_RESULT_TIMEOUT (ASSERTION 1) ✅\n");
+    printf("   • Timeout enforced at ~%lldms (ASSERTION 2) ✅ ← CRITICAL!\n", (long long)waitDuration);
+    printf("   • Link state = ExecutorReady (ASSERTION 3) ✅\n");
+    printf("   • No command populated (ASSERTION 4) ✅\n");
+    printf("   • Subsequent waitCMD succeeds (ASSERTION 5) ✅\n");
+    printf("   • API option timeout prevents indefinite blocking (PRINCIPLE) ✅\n");
+
+    // Cleanup
+    if (client1LinkID != IOC_ID_INVALID) IOC_closeLink(client1LinkID);
+    if (srvLinkID1 != IOC_ID_INVALID) IOC_closeLink(srvLinkID1);
+    if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
