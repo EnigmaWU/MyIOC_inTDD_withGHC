@@ -63,13 +63,28 @@
  *   - IOC_LinkSubStateCmdExecutorReady (8)        - Ready after timeout/error
  *   - IOC_LinkSubStateCmdExecutorBusyExecCmd (9)  - During callback processing
  *
- * 🎯 TIMEOUT MECHANISMS:
- *    Command Descriptor Field: ULONG_T TimeoutMs  // Command timeout in milliseconds (0 = no timeout)
- *    Usage: pCmdDesc->TimeoutMs = 100;  // Set 100ms timeout
+ * 🎯 TIMEOUT MECHANISMS (TWO INDEPENDENT LEVELS):
  *
- *    Callback Mode: Protocol enforces timeout in callback thread
- *    Polling Mode: IOC_waitCMD() timeout parameter in IOC_Options_pT
- *                  IOC_ackCMD() timeout parameter in IOC_Options_pT
+ *    LEVEL 1: Command Descriptor Timeout (Callback Execution Timeout)
+ *      Field: pCmdDesc->TimeoutMs  // Timeout in milliseconds for callback execution
+ *      Usage: cmdDesc.TimeoutMs = 100;  // Executor callback must complete within 100ms
+ *      Scope: Protocol enforces timeout during callback execution (CbExecCmd_F)
+ *      TC Coverage: TC-1a tests this mechanism
+ *
+ *    LEVEL 2: API Call Option Timeout (execCMD/waitCMD Call Timeout)
+ *      Parameter: pOption->Payload.TimeoutUS  // Timeout in microseconds for API call
+ *      Usage: IOC_Option_defineTimeout(opt, 100000);  // API call must complete within 100ms (100,000us)
+ *      Macros: IOC_Option_defineTimeout(), IOC_Option_defineNonBlock(), IOC_Option_defineMayBlock()
+ *      Scope:
+ *        - IOC_execCMD(LinkID, pCmdDesc, pOption) - timeout for entire command execution
+ *        - IOC_waitCMD(LinkID, pCmdDesc, pOption) - timeout for waiting for command arrival
+ *        - IOC_ackCMD(LinkID, pCmdDesc, pOption) - timeout for sending acknowledgment
+ *      TC Coverage: TC-1c (execCMD option), TC-1b (waitCMD option) test these mechanisms
+ *
+ *    INTERACTION: Both mechanisms can coexist
+ *      - pCmdDesc->TimeoutMs: Limits callback execution duration (executor-side)
+ *      - pOption->TimeoutUS: Limits API call blocking duration (caller-side)
+ *      - Timeout occurs at whichever limit is reached first
  *
  * 🏗️ ARCHITECTURE PRINCIPLES:
  *    ✅ Principle 1: TIMEOUT INDEPENDENCE - Timeout doesn't affect link availability
@@ -105,8 +120,11 @@
  *    ✅ Polling APIs identified (IOC_waitCMD, IOC_ackCMD)
  *    ⚠️ TDD EXPECTATION: Tests will likely REVEAL missing timeout enforcement logic
  *
- * 📊 COVERAGE PLAN (EXPANDED FOR BOTH EXECUTION PATTERNS):
- *    ⚪ AC-1: 0/2 tests planned - Command timeout (callback + polling wait)
+ * 📊 COVERAGE PLAN (EXPANDED FOR BOTH EXECUTION PATTERNS + TIMEOUT MECHANISMS):
+ *    ⚪ AC-1: 0/3 tests planned - Command timeout mechanisms
+ *       • TC-1a: Descriptor timeout (pCmdDesc->TimeoutMs) in callback mode
+ *       • TC-1b: API option timeout (pOption->TimeoutUS) in IOC_waitCMD
+ *       • TC-1c: API option timeout (pOption->TimeoutUS) in IOC_execCMD
  *    ⚪ AC-2: 0/2 tests planned - Link recovery after timeout (callback + polling)
  *    ⚪ AC-3: 0/2 tests planned - Error propagation (callback return + polling ack)
  *    ⚪ AC-4: 0/2 tests planned - Mixed success/failure (callback + polling)
@@ -116,52 +134,74 @@
  * 📋 [US-4]: COMMAND TIMEOUT AND ERROR STATE VERIFICATION
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  *
- * 🎯 TEST STRATEGY:
- *    ✅ CALLBACK MODE: Use TimeoutMs field in IOC_CmdDesc_T, executor callback delays
- *    ✅ POLLING MODE: Use IOC_waitCMD with timeout option, explicit IOC_ackCMD
+ * 🎯 TEST STRATEGY (COMPREHENSIVE TIMEOUT COVERAGE):
+ *    ✅ DESCRIPTOR TIMEOUT: Use pCmdDesc->TimeoutMs for callback execution timeout
+ *    ✅ API OPTION TIMEOUT: Use pOption->Payload.TimeoutUS for API call timeout
+ *    ✅ CALLBACK MODE:
+ *       - TC-1a: Test descriptor timeout (callback exceeds TimeoutMs)
+ *       - TC-1c: Test API option timeout (IOC_execCMD with pOption timeout)
+ *    ✅ POLLING MODE:
+ *       - TC-1b: Test API option timeout (IOC_waitCMD with pOption timeout)
  *    ✅ Executor callback delays (std::this_thread::sleep_for) to trigger timeout
  *    ✅ Executor callback returns error codes to trigger failure states
  *    ✅ Polling mode: set error in descriptor before IOC_ackCMD
  *    ✅ Query command status/result with IOC_CmdDesc_getStatus/getResult
  *    ✅ Query link state with IOC_getLinkState to verify recovery
- *    ✅ Verify symmetry: both patterns handle errors consistently
+ *    ✅ Verify symmetry: both patterns and both timeout mechanisms behave consistently
  *
- * [@AC-1,US-4] Command timeout state transitions (BOTH execution patterns)
- *  🟢 TC-1a: verifyCommandTimeout_byCallbackExceedingTimeout_expectTimeoutStatus  [TIMEOUT-CALLBACK]
- *      @[Purpose]: Validate command transitions to TIMEOUT when callback execution exceeds TimeoutMs
- *      @[Brief]: Command with 100ms timeout, executor callback delays 200ms, verify status→TIMEOUT
+ * [@AC-1,US-4] Command timeout state transitions (THREE TIMEOUT MECHANISMS)
+ *  🟢 TC-1a: verifyCommandTimeout_byDescriptorTimeout_expectTimeoutStatus  [TIMEOUT-DESCRIPTOR]
+ *      @[Purpose]: Validate command transitions to TIMEOUT when callback execution exceeds pCmdDesc->TimeoutMs
+ *      @[Brief]: Descriptor timeout (100ms), callback delays 200ms, verify TIMEOUT status
  *      @[Strategy]: Service with LinkA1(Initiator) + Client-A1(Executor with slow callback)
- *                   → Setup: pCmdDesc->TimeoutMs = 100 (100ms timeout specified)
+ *                   → Setup: pCmdDesc->TimeoutMs = 100 (descriptor-level timeout)
  *                   → Client-A1 callback delays 200ms (exceeds timeout by 100ms)
- *                   → IOC_execCMD called, protocol enforces timeout
- *                   → Query command status: expect TIMEOUT (6)
- *                   → Query command result: expect IOC_RESULT_TIMEOUT (-506)
+ *                   → IOC_execCMD(LinkID, &cmdDesc, NULL) - NO pOption timeout
+ *                   → Protocol enforces descriptor timeout during callback execution
  *      @[Key Assertions]:
  *          • ASSERTION 1: Command status = IOC_CMD_STATUS_TIMEOUT (6)
  *          • ASSERTION 2: Command result = IOC_RESULT_TIMEOUT (-506)
  *          • ASSERTION 3: Callback was invoked (even if it times out)
  *          • ASSERTION 4: IOC_execCMD returned at ~100ms (NOT 200ms!) ← CRITICAL TIMING!
- *      @[Architecture Principle]: Callback timeout prevents indefinite blocking
+ *      @[Architecture Principle]: Descriptor timeout limits callback execution duration
  *      @[TDD Expectation]: Timeout already implemented, test validates correct behavior
- *      @[Status]: ✅ COMPLETE - 4 assertions GREEN, timeout enforcement validated
+ *      @[Status]: ✅ COMPLETE - 4 assertions GREEN, descriptor timeout validated
  *
- *  ⚪ TC-1b: verifyCommandTimeout_byPollingWaitTimeout_expectTimeoutStatus  [TIMEOUT-POLLING]
- *      @[Purpose]: Validate IOC_waitCMD times out when no command arrives within timeout
- *      @[Brief]: Executor calls IOC_waitCMD with 100ms timeout, no command sent, verify timeout
+ *  ⚪ TC-1b: verifyCommandTimeout_byWaitCmdOptionTimeout_expectTimeoutStatus  [TIMEOUT-WAITCMD-OPTION]
+ *      @[Purpose]: Validate IOC_waitCMD times out via pOption when no command arrives within timeout
+ *      @[Brief]: Executor calls IOC_waitCMD with pOption timeout, no command sent, verify timeout
  *      @[Strategy]: Service with LinkA1(Executor in polling mode) + Client-A1(Initiator)
- *                   → Client-A1 does NOT send command (executor waits indefinitely)
- *                   → Executor calls IOC_waitCMD(LinkA1, &cmdDesc, timeout=100ms)
+ *                   → Client-A1 does NOT send command (executor would wait indefinitely)
+ *                   → IOC_Option_defineTimeout(waitOpt, 100000); // 100ms = 100,000 microseconds
+ *                   → Executor calls IOC_waitCMD(LinkA1, &cmdDesc, &waitOpt)
  *                   → After 100ms, IOC_waitCMD returns IOC_RESULT_TIMEOUT
- *                   → Verify: No command received, cmdDesc status unchanged
  *      @[Key Assertions]:
- *          • ASSERTION 1: IOC_waitCMD returns IOC_RESULT_TIMEOUT (-506) after 100ms
- *          • ASSERTION 2: Link state during wait = IOC_LinkSubStateCmdExecutorBusyWaitCmd (10)
+ *          • ASSERTION 1: IOC_waitCMD returns IOC_RESULT_TIMEOUT (-506) after ~100ms
+ *          • ASSERTION 2: Actual duration ~100ms ± 20ms (NOT indefinite wait)
  *          • ASSERTION 3: Link state after timeout = IOC_LinkSubStateCmdExecutorReady (8) ← RECOVERY!
- *          • ASSERTION 4: No command descriptor populated (timeout before command arrival)
+ *          • ASSERTION 4: No command descriptor populated (timeout before arrival)
  *          • ASSERTION 5: Subsequent IOC_waitCMD succeeds (link operational)
- *      @[Architecture Principle]: Polling mode timeout prevents indefinite blocking
- *      @[TDD Expectation]: Verify waitCMD timeout enforcement in protocol layer
- *      @[Status]: TODO - Implementation will test waitCMD timeout mechanism
+ *      @[Architecture Principle]: API option timeout prevents indefinite blocking in waitCMD
+ *      @[TDD Expectation]: Verify pOption timeout enforcement in IOC_waitCMD
+ *      @[Status]: TODO - Implementation will test waitCMD pOption timeout mechanism
+ *
+ *  ⚪ TC-1c: verifyCommandTimeout_byExecCmdOptionTimeout_expectTimeoutStatus  [TIMEOUT-EXECCMD-OPTION]
+ *      @[Purpose]: Validate IOC_execCMD times out via pOption when callback exceeds timeout
+ *      @[Brief]: API option timeout (100ms), callback delays 200ms, verify TIMEOUT status
+ *      @[Strategy]: Service with LinkA1(Initiator) + Client-A1(Executor with slow callback)
+ *                   → Setup: cmdDesc.TimeoutMs = 0 (NO descriptor timeout)
+ *                   → Client-A1 callback delays 200ms
+ *                   → IOC_Option_defineTimeout(execOpt, 100000); // 100ms = 100,000 microseconds
+ *                   → IOC_execCMD(LinkID, &cmdDesc, &execOpt) - API-level timeout
+ *                   → Protocol enforces pOption timeout on entire execCMD operation
+ *      @[Key Assertions]:
+ *          • ASSERTION 1: Command status = IOC_CMD_STATUS_TIMEOUT (6)
+ *          • ASSERTION 2: Command result = IOC_RESULT_TIMEOUT (-506)
+ *          • ASSERTION 3: IOC_execCMD returned at ~100ms (NOT 200ms!) ← CRITICAL!
+ *          • ASSERTION 4: Callback was invoked (timeout during execution)
+ *      @[Architecture Principle]: API option timeout limits entire execCMD call duration
+ *      @[TDD Expectation]: MAY reveal gap if pOption timeout not implemented for execCMD
+ *      @[Status]: TODO - Implementation will test execCMD pOption timeout mechanism
  *
  * [@AC-2,US-4] Link state recovery after timeout (BOTH execution patterns)
  *  ⚪ TC-2a: verifyLinkRecovery_afterCallbackTimeout_expectReadyState  [RECOVERY-CALLBACK]
@@ -316,14 +356,14 @@
 //======>END OF TEST CASES=========================================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF AC-1 TC-1a: COMMAND TIMEOUT IN CALLBACK MODE====================================
+//======>BEGIN OF AC-1 TC-1a: DESCRIPTOR TIMEOUT IN CALLBACK MODE=================================
 
-TEST(UT_CommandStateUS4, verifyCommandTimeout_byCallbackExceedingTimeout_expectTimeoutStatus) {
+TEST(UT_CommandStateUS4, verifyCommandTimeout_byDescriptorTimeout_expectTimeoutStatus) {
     printf("\n");
     printf("╔══════════════════════════════════════════════════════════════════════════════════════════╗\n");
-    printf("║  🧪 AC-1 TC-1a: Command Timeout in Callback Mode                                        ║\n");
-    printf("║  Purpose: Validate command transitions to TIMEOUT when callback exceeds TimeoutMs       ║\n");
-    printf("║  Strategy: Set 100ms timeout, executor callback delays 200ms, verify TIMEOUT state      ║\n");
+    printf("║  🧪 AC-1 TC-1a: Descriptor Timeout in Callback Mode                                     ║\n");
+    printf("║  Purpose: Validate pCmdDesc->TimeoutMs limits callback execution duration               ║\n");
+    printf("║  Strategy: Set TimeoutMs=100ms, callback delays 200ms, verify TIMEOUT at ~100ms        ║\n");
     printf("╚══════════════════════════════════════════════════════════════════════════════════════════╝\n");
 
     IOC_Result_T ResultValue = IOC_RESULT_BUG;
@@ -413,14 +453,15 @@ TEST(UT_CommandStateUS4, verifyCommandTimeout_byCallbackExceedingTimeout_expectT
     //    • TIMEOUT (6)     - Set by protocol when callback exceeds TimeoutMs
     IOC_CmdDesc_T cmdDesc = {};  // Status = INITIALIZED (1) - Let protocol manage transitions!
     cmdDesc.CmdID = 1;
-    cmdDesc.TimeoutMs = 100;  // KEY: Set 100ms timeout (callback will take 200ms!)
+    cmdDesc.TimeoutMs = 100;  // KEY: Set 100ms descriptor timeout (callback will take 200ms!)
 
-    printf("📋 [BEHAVIOR] Command configured: CmdID=1, TimeoutMs=100ms\n");
+    printf("📋 [BEHAVIOR] Command configured: CmdID=1, TimeoutMs=100ms (DESCRIPTOR TIMEOUT)\n");
     printf("📋 [BEHAVIOR] Executor callback will delay 200ms (exceeds timeout by 100ms)\n");
+    printf("📋 [BEHAVIOR] IOC_execCMD called with pOption=NULL (NO API-level timeout)\n");
     printf(
         "📋 [BEHAVIOR] Protocol will manage state: INITIALIZED → PROCESSING → TIMEOUT\n");  //@KeyVerifyPoint-1: Initial
-                                                                                            //status must be PENDING
-                                                                                            //after IOC_execCMD
+                                                                                            // status must be PENDING
+                                                                                            // after IOC_execCMD
     printf("📋 [BEHAVIOR] Executing command (expecting timeout)...\n");
     auto execStartTime = std::chrono::steady_clock::now();
 
@@ -465,14 +506,15 @@ TEST(UT_CommandStateUS4, verifyCommandTimeout_byCallbackExceedingTimeout_expectT
     printf("    • ✅ Timeout enforced precisely! (IOC didn't wait for 200ms callback completion)\n");
 
     printf("\n");
-    printf("✅ [RESULT] Command timeout in callback mode verified:\n");
-    printf("   • TimeoutMs=100ms configured (SETUP) ✅\n");
+    printf("✅ [RESULT] Descriptor timeout in callback mode verified:\n");
+    printf("   • TimeoutMs=100ms configured (DESCRIPTOR TIMEOUT) ✅\n");
+    printf("   • pOption=NULL (NO API-level timeout) ✅\n");
     printf("   • Callback delayed 200ms (BEHAVIOR) ✅\n");
     printf("   • Status = TIMEOUT (ASSERTION 1) ✅\n");
     printf("   • Result = IOC_RESULT_TIMEOUT (ASSERTION 2) ✅\n");
     printf("   • Callback was invoked (ASSERTION 3) ✅\n");
     printf("   • Timeout enforced at ~100ms (ASSERTION 4) ✅ ← CRITICAL!\n");
-    printf("   • Timeout prevents indefinite blocking (PRINCIPLE) ✅\n");
+    printf("   • Descriptor timeout prevents indefinite callback execution (PRINCIPLE) ✅\n");
 
     // Cleanup
     if (client1LinkID != IOC_ID_INVALID) IOC_closeLink(client1LinkID);
@@ -481,13 +523,27 @@ TEST(UT_CommandStateUS4, verifyCommandTimeout_byCallbackExceedingTimeout_expectT
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF AC-1 TC-1b: COMMAND TIMEOUT IN POLLING MODE=====================================
+//======>BEGIN OF AC-1 TC-1b: WAITCMD OPTION TIMEOUT IN POLLING MODE==============================
 
-TEST(UT_CommandStateUS4, verifyCommandTimeout_byPollingWaitTimeout_expectTimeoutStatus) {
-    // TODO: Implement polling mode IOC_waitCMD timeout verification
-    // Test IOC_waitCMD times out when no command arrives within timeout
+TEST(UT_CommandStateUS4, verifyCommandTimeout_byWaitCmdOptionTimeout_expectTimeoutStatus) {
+    // TODO: Implement IOC_waitCMD with pOption timeout verification
+    // Test IOC_waitCMD(LinkID, &cmdDesc, &option) times out when no command arrives
+    // Use IOC_Option_defineTimeout(opt, 100000) to set 100ms timeout
 
-    GTEST_SKIP() << "AC-1 TC-1b: Polling wait timeout state testing pending implementation";
+    GTEST_SKIP() << "AC-1 TC-1b: waitCMD pOption timeout testing pending implementation";
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF AC-1 TC-1c: EXECCMD OPTION TIMEOUT IN CALLBACK MODE=============================
+
+TEST(UT_CommandStateUS4, verifyCommandTimeout_byExecCmdOptionTimeout_expectTimeoutStatus) {
+    // TODO: Implement IOC_execCMD with pOption timeout verification
+    // Test IOC_execCMD(LinkID, &cmdDesc, &option) times out with slow callback
+    // Set cmdDesc.TimeoutMs=0 (no descriptor timeout)
+    // Use IOC_Option_defineTimeout(opt, 100000) to set 100ms API-level timeout
+    // Callback delays 200ms - should timeout at ~100ms via pOption
+
+    GTEST_SKIP() << "AC-1 TC-1c: execCMD pOption timeout testing pending implementation";
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -578,12 +634,15 @@ TEST(UT_CommandStateUS4, verifyErrorRecovery_byPollingSuccessAfterFailure_expect
  * ╠══════════════════════════════════════════════════════════════════════════════════════════╣
  * ║ 🎯 PURPOSE: Command Timeout and Error State Verification - User Story 4                ║
  * ║                                                                                          ║
- * ║ 📋 FRAMEWORK STATUS: DESIGNED (0/10 tests - 0%)                                         ║
+ * ║ 📋 FRAMEWORK STATUS: DESIGNED (1/11 tests - 9%)                                          ║
  * ║   • Error and timeout state verification framework DESIGNED for BOTH execution patterns║
- * ║   • 5 Acceptance criteria with 10 test specifications (5 callback + 5 polling)         ║
+ * ║   • 5 Acceptance criteria with 11 test specifications (AC-1 has 3 timeout tests)       ║
+ * ║   • TC-1a COMPLETE: Descriptor timeout (pCmdDesc->TimeoutMs) validated ✅               ║
+ * ║   • TC-1b PENDING: waitCMD API option timeout (pOption->TimeoutUS) ⚪                   ║
+ * ║   • TC-1c PENDING: execCMD API option timeout (pOption->TimeoutUS) ⚪                   ║
  * ║   • Test case placeholders created with comprehensive documentation                     ║
- * ║   • API discovery complete (all required enums/fields exist)                            ║
- * ║   • Ready for TDD implementation phase (callback AND polling modes)                     ║
+ * ║   • API discovery complete (all required enums/fields/options exist)                    ║
+ * ║   • Ready for TDD implementation phase (both patterns + both timeout mechanisms)        ║
  * ║                                                                                          ║
  * ║ 🔧 DESIGN APPROACH:                                                                      ║
  * ║   • DUAL EXECUTION PATTERNS: Callback (CbExecCmd_F) + Polling (waitCMD/ackCMD)        ║
@@ -595,9 +654,12 @@ TEST(UT_CommandStateUS4, verifyErrorRecovery_byPollingSuccessAfterFailure_expect
  * ║   • Command isolation: errors don't contaminate other commands                         ║
  * ║                                                                                          ║
  * ║ 💡 ERROR STATE INSIGHTS:                                                                ║
- * ║   • TimeoutMs field in IOC_CmdDesc_T enables timeout specification                     ║
- * ║   • Callback timeout: Protocol enforces timeout in callback thread                     ║
- * ║   • Polling timeout: IOC_Options_pT timeout parameter for waitCMD/ackCMD              ║
+ * ║   • TWO TIMEOUT MECHANISMS IDENTIFIED:                                                  ║
+ * ║     1. Descriptor Timeout (pCmdDesc->TimeoutMs) - Limits callback execution            ║
+ * ║     2. API Option Timeout (pOption->Payload.TimeoutUS) - Limits API call blocking      ║
+ * ║   • Descriptor timeout: Protocol enforces during callback thread execution             ║
+ * ║   • API option timeout: Framework enforces on execCMD/waitCMD/ackCMD calls            ║
+ * ║   • Both mechanisms can coexist - timeout occurs at whichever limit reached first      ║
  * ║   • IOC_CMD_STATUS_TIMEOUT (6) and IOC_CMD_STATUS_FAILED (5) exist                     ║
  * ║   • IOC_RESULT_TIMEOUT (-506) and IOC_RESULT_CMD_EXEC_FAILED (-509) available         ║
  * ║   • Protocol layer has timeout enforcement infrastructure                               ║
@@ -608,12 +670,13 @@ TEST(UT_CommandStateUS4, verifyErrorRecovery_byPollingSuccessAfterFailure_expect
  * ║   • Recovery mechanisms ensure link availability after errors                          ║
  * ║                                                                                          ║
  * ║ 📋 IMPLEMENTATION REQUIREMENTS IDENTIFIED:                                               ║
- * ║   • AC-1: Command timeout state transition verification (BOTH patterns)                ║
- * ║     - CALLBACK: Set TimeoutMs=100, executor callback delays 200ms to trigger timeout  ║
- * ║     - POLLING: IOC_waitCMD with timeout=100ms, no command arrives                     ║
- * ║     - Verify status transitions PENDING→PROCESSING→TIMEOUT (callback)                 ║
- * ║     - Verify IOC_waitCMD returns IOC_RESULT_TIMEOUT (polling)                         ║
- * ║     - Verify result = IOC_RESULT_TIMEOUT in both patterns                             ║
+ * ║   • AC-1: Command timeout state transition verification (THREE mechanisms)             ║
+ * ║     - TC-1a ✅: Descriptor timeout (pCmdDesc->TimeoutMs=100) in callback mode         ║
+ * ║     - TC-1b ⚪: API option timeout in IOC_waitCMD(pOption->TimeoutUS=100000)          ║
+ * ║     - TC-1c ⚪: API option timeout in IOC_execCMD(pOption->TimeoutUS=100000)          ║
+ * ║     - Verify status transitions INITIALIZED→PROCESSING→TIMEOUT (all mechanisms)       ║
+ * ║     - Verify result = IOC_RESULT_TIMEOUT in all mechanisms                            ║
+ * ║     - Verify timing precision ~100ms ± tolerance (all mechanisms)                     ║
  * ║                                                                                          ║
  * ║   • AC-2: Link state recovery after timeout (BOTH patterns)                            ║
  * ║     - CALLBACK: Query link state during timeout (expect BusyExecCmd-9)                ║
@@ -648,22 +711,25 @@ TEST(UT_CommandStateUS4, verifyErrorRecovery_byPollingSuccessAfterFailure_expect
  * ║   • Opportunity to improve error handling robustness for both patterns                ║
  * ║   • TRUE TDD: Tests drive production code improvements for both execution patterns!   ║
  * ║                                                                                          ║
- * ║ 📊 TEST COVERAGE PLAN (EXPANDED FOR BOTH EXECUTION PATTERNS):                           ║
- * ║   ⚪ AC-1 (Timeout State):      2 tests - Callback timeout + Polling wait timeout      ║
+ * ║ 📊 TEST COVERAGE PLAN (EXPANDED FOR THREE TIMEOUT MECHANISMS):                          ║
+ * ║   🟢 AC-1 (Timeout State):      3 tests (1✅/3 complete - 33%)                         ║
+ * ║      • TC-1a ✅: Descriptor timeout (pCmdDesc->TimeoutMs) - COMPLETE                  ║
+ * ║      • TC-1b ⚪: waitCMD option timeout (pOption->TimeoutUS) - TODO                   ║
+ * ║      • TC-1c ⚪: execCMD option timeout (pOption->TimeoutUS) - TODO                   ║
  * ║   ⚪ AC-2 (Link Recovery):      2 tests - Callback recovery + Polling recovery         ║
  * ║   ⚪ AC-3 (Error Propagation):  2 tests - Callback return + Polling ackCMD             ║
  * ║   ⚪ AC-4 (Mixed Results):      2 tests - Callback sequence + Polling cycles           ║
  * ║   ⚪ AC-5 (Error Recovery):     2 tests - Callback recovery + Polling recovery         ║
- * ║   TOTAL: 10 tests planned (0 implemented, 0 passing) - 5 callback + 5 polling         ║
+ * ║   TOTAL: 11 tests planned (1 complete, 10 pending) - 3 timeout + 8 error tests        ║
  * ║                                                                                          ║
  * ║ 🚀 NEXT STEPS:                                                                           ║
- * ║   1. Implement AC-1 TC-1a: Callback mode command timeout                               ║
- * ║   2. Build → Expect COMPILATION SUCCESS (APIs exist)                                   ║
- * ║   3. Run → Expect TEST FAILURE (timeout not enforced?)                                 ║
- * ║   4. Fix production code to enforce callback timeout                                   ║
- * ║   5. Re-run → Expect TEST PASS (GREEN!)                                                ║
- * ║   6. Implement AC-1 TC-1b: Polling mode IOC_waitCMD timeout                            ║
- * ║   7. Repeat TDD cycle for remaining 8 tests (AC-2 through AC-5, both patterns)        ║
+ * ║   1. ✅ COMPLETE: AC-1 TC-1a - Descriptor timeout validated                            ║
+ * ║   2. Implement AC-1 TC-1b: waitCMD pOption timeout                                     ║
+ * ║   3. Build → Expect COMPILATION SUCCESS (pOption APIs exist)                           ║
+ * ║   4. Run → Discover if pOption timeout implemented in waitCMD                          ║
+ * ║   5. Implement AC-1 TC-1c: execCMD pOption timeout                                     ║
+ * ║   6. Run → Discover if pOption timeout implemented in execCMD                          ║
+ * ║   7. Repeat TDD cycle for remaining 8 tests (AC-2 through AC-5)                        ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
 //======>END OF IMPLEMENTATION SUMMARY=============================================================
