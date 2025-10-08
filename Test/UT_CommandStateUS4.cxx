@@ -1013,10 +1013,145 @@ TEST(UT_CommandStateUS4, verifyLinkRecovery_afterCallbackTimeout_expectReadyStat
 //======>BEGIN OF AC-2 TC-2: LINK RECOVERY AFTER POLLING TIMEOUT==================================
 
 TEST(UT_CommandStateUS4, verifyLinkRecovery_afterPollingTimeout_expectReadyState) {
-    // TODO: Implement polling timeout link recovery verification
-    // Verify link state returns to Ready after IOC_waitCMD timeout
+    printf("\n");
+    printf("╔══════════════════════════════════════════════════════════════════════════════════════════╗\n");
+    printf("║  🧪 AC-2 TC-2: Link Recovery After Polling Timeout                                      ║\n");
+    printf("║  Purpose: Validate link returns to Ready state after waitCMD timeout                    ║\n");
+    printf("║  Strategy: waitCMD timeout → verify recovery → call waitCMD again successfully          ║\n");
+    printf("╚══════════════════════════════════════════════════════════════════════════════════════════╝\n");
 
-    GTEST_SKIP() << "AC-2 TC-2: Polling timeout link recovery testing pending implementation";
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
+
+    // ┌──────────────────────────────────────────────────────────────┐
+    // │                    🏗️ SETUP PHASE                            │
+    // └──────────────────────────────────────────────────────────────┘
+    printf("🏗️ [SETUP] Creating Service with CmdExecutor capability (POLLING MODE)\n");
+
+    // Service URI configuration
+    IOC_SrvURI_T SrvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO, .pHost = IOC_SRV_HOST_LOCAL_PROCESS, .pPath = "PollingRecoveryTestService"};
+
+    // Client-A1 configuration: CmdInitiator (will NOT send command initially)
+    printf("🏗️ [SETUP] Client-A1 will act as Initiator\n");
+
+    // Service configuration: CmdExecutor capability (POLLING MODE - NO callback!)
+    IOC_SrvArgs_T srvArgs = {.SrvURI = SrvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageCmdExecutor};
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    ResultValue = IOC_onlineService(&srvID, &srvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, srvID);
+    printf("🏗️ [SETUP] Service online: SrvID=%llu (Executor in polling mode)\n", (unsigned long long)srvID);
+
+    // Client connection args: CmdInitiator (no callback setup needed)
+    IOC_ConnArgs_T client1ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageCmdInitiator, .UsageArgs = {}};
+
+    IOC_LinkID_T client1LinkID = IOC_ID_INVALID;
+    std::thread client1Thread([&] {
+        IOC_Result_T connResult = IOC_connectService(&client1LinkID, &client1ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, connResult);
+        ASSERT_NE(IOC_ID_INVALID, client1LinkID);
+    });
+
+    // Service accepts Client1
+    IOC_LinkID_T srvLinkID1 = IOC_ID_INVALID;
+    ResultValue = IOC_acceptClient(srvID, &srvLinkID1, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, srvLinkID1);
+
+    if (client1Thread.joinable()) client1Thread.join();
+
+    printf("🏗️ [SETUP] Link established: Service(LinkID=%llu, Executor) ←→ Client-A1(LinkID=%llu, Initiator)\n",
+           (unsigned long long)srvLinkID1, (unsigned long long)client1LinkID);
+
+    // ┌──────────────────────────────────────────────────────────────┐
+    // │                    📋 BEHAVIOR PHASE                         │
+    // └──────────────────────────────────────────────────────────────┘
+    printf("📋 [BEHAVIOR] Calling IOC_waitCMD with 100ms timeout (no command will arrive)\n");
+
+    // Define timeout option: 100ms = 100,000 microseconds
+    IOC_Option_defineTimeout(waitOpt, 100000);
+    printf("📋 [BEHAVIOR] Created pOption with TimeoutUS=100000us (100ms)\n");
+    printf("📋 [BEHAVIOR] Expected: Timeout at ~100ms, link should auto-recover\n");
+
+    IOC_CmdDesc_T cmdDesc1 = {};  // Will NOT be populated (no command sent)
+
+    auto wait1StartTime = std::chrono::steady_clock::now();
+    ResultValue = IOC_waitCMD(srvLinkID1, &cmdDesc1, &waitOpt);
+    auto wait1EndTime = std::chrono::steady_clock::now();
+    auto wait1Duration = std::chrono::duration_cast<std::chrono::milliseconds>(wait1EndTime - wait1StartTime).count();
+
+    printf("📋 [BEHAVIOR] IOC_waitCMD returned: result=%d, duration=%lldms\n", ResultValue, (long long)wait1Duration);
+    ASSERT_EQ(IOC_RESULT_TIMEOUT, ResultValue);
+
+    // ┌──────────────────────────────────────────────────────────────┐
+    // │                     ✅ VERIFY PHASE                          │
+    // └──────────────────────────────────────────────────────────────┘
+
+    //@KeyVerifyPoint-1: Link substate after timeout = ExecutorReady (recovery)
+    printf("✅ [VERIFY] ASSERTION 1: Link recovered to ExecutorReady after timeout\n");
+    IOC_LinkState_T linkMainState = IOC_LinkStateUndefined;
+    IOC_LinkSubState_T linkSubState = IOC_LinkSubStateDefault;
+    ResultValue = IOC_getLinkState(srvLinkID1, &linkMainState, &linkSubState);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    printf("    • Link main state: %d (expected: IOC_LinkStateReady=%d)\n", linkMainState, IOC_LinkStateReady);
+    printf("    • Link sub state: %d (expected: IOC_LinkSubStateCmdExecutorReady=%d)\n", linkSubState,
+           IOC_LinkSubStateCmdExecutorReady);
+    VERIFY_KEYPOINT_EQ(linkMainState, IOC_LinkStateReady, "Link main state must be Ready after timeout");
+    VERIFY_KEYPOINT_EQ(linkSubState, IOC_LinkSubStateCmdExecutorReady,
+                       "Link sub state must return to ExecutorReady after timeout (auto recovery)");
+
+    //@KeyVerifyPoint-2: Timeout isolated to operation, didn't propagate to link failure
+    printf("✅ [VERIFY] ASSERTION 2: Timeout isolated to operation (no link failure)\n");
+    printf("    • IOC_waitCMD result: TIMEOUT (isolated to wait operation) ✅\n");
+    printf("    • Link state: Ready (NOT failed) ✅\n");
+    printf("    • Architecture: Timeout doesn't cause link failure ✅\n");
+
+    //@KeyVerifyPoint-3: No command descriptor populated (timeout before arrival)
+    printf("✅ [VERIFY] ASSERTION 3: No command descriptor populated\n");
+    IOC_CmdID_T cmdID1 = IOC_CmdDesc_getCmdID(&cmdDesc1);
+    printf("    • Command ID: %llu (expected: 0 - no command)\n", (unsigned long long)cmdID1);
+    VERIFY_KEYPOINT_EQ(cmdID1, 0ULL, "No command should be populated when timeout occurs before arrival");
+
+    //@KeyVerifyPoint-4: Subsequent IOC_waitCMD succeeds (link operational)
+    printf("✅ [VERIFY] ASSERTION 4: Subsequent IOC_waitCMD succeeds (link recovered)\n");
+    IOC_CmdDesc_T cmdDesc2 = {};
+    IOC_Option_defineTimeout(waitOpt2, 50000);  // 50ms timeout for quick test
+    printf("    • Calling IOC_waitCMD again with 50ms timeout...\n");
+
+    auto wait2StartTime = std::chrono::steady_clock::now();
+    ResultValue = IOC_waitCMD(srvLinkID1, &cmdDesc2, &waitOpt2);
+    auto wait2EndTime = std::chrono::steady_clock::now();
+    auto wait2Duration = std::chrono::duration_cast<std::chrono::milliseconds>(wait2EndTime - wait2StartTime).count();
+
+    printf("    • Second IOC_waitCMD returned: result=%d, duration=%lldms\n", ResultValue, (long long)wait2Duration);
+    VERIFY_KEYPOINT_EQ(ResultValue, IOC_RESULT_TIMEOUT, "Subsequent waitCMD should also timeout (link operational)");
+    printf("    • ✅ Link remains operational after first timeout!\n");
+
+    //@KeyVerifyPoint-5: Final link state remains Ready
+    printf("✅ [VERIFY] ASSERTION 5: Final link state remains Ready\n");
+    ResultValue = IOC_getLinkState(srvLinkID1, &linkMainState, &linkSubState);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    printf("    • Final link main state: %d (expected: IOC_LinkStateReady=%d)\n", linkMainState, IOC_LinkStateReady);
+    printf("    • Final link sub state: %d (expected: IOC_LinkSubStateCmdExecutorReady=%d)\n", linkSubState,
+           IOC_LinkSubStateCmdExecutorReady);
+    VERIFY_KEYPOINT_EQ(linkMainState, IOC_LinkStateReady, "Final link main state must remain Ready");
+    VERIFY_KEYPOINT_EQ(linkSubState, IOC_LinkSubStateCmdExecutorReady, "Final link sub state must be ExecutorReady");
+
+    printf("\n");
+    printf("✅ [RESULT] Link recovery after polling timeout verified:\n");
+    printf("   • 1st waitCMD timeout occurred (TimeoutUS=100000us) ✅\n");
+    printf("   • Link recovered to ExecutorReady after timeout (ASSERTION 1) ✅\n");
+    printf("   • Timeout isolated to operation, no link failure (ASSERTION 2) ✅\n");
+    printf("   • No command populated during timeout (ASSERTION 3) ✅\n");
+    printf("   • 2nd waitCMD operational after recovery (ASSERTION 4) ✅\n");
+    printf("   • Final link state Ready (ASSERTION 5) ✅\n");
+    printf("   • Architecture: Link resilience after polling timeout (PRINCIPLE) ✅\n");
+
+    // Cleanup
+    if (client1LinkID != IOC_ID_INVALID) IOC_closeLink(client1LinkID);
+    if (srvLinkID1 != IOC_ID_INVALID) IOC_closeLink(srvLinkID1);
+    if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
