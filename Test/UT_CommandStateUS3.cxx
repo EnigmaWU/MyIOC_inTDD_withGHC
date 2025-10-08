@@ -2299,13 +2299,13 @@ TEST(UT_CommandStateUS3, verifyConcurrentMultiLink_byMultipleOperations_expectAl
         pPrivData->commandsReceivedA3++;
         printf("    📩 [SERVICE-A3 EXECUTOR] Received command on LinkA3, count=%d (150ms delay)\n",
                pPrivData->commandsReceivedA3.load());
-        
+
         std::this_thread::sleep_for(std::chrono::milliseconds(150));
-        
+
         IOC_CmdDesc_setOutPayload(pCmdDesc, (void *)"A3_ACK", 6);
         IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_SUCCESS);
         IOC_CmdDesc_setResult(pCmdDesc, IOC_RESULT_SUCCESS);
-        
+
         printf("    ✅ [SERVICE-A3 EXECUTOR] Processing complete\n");
         return IOC_RESULT_SUCCESS;
     };
@@ -2317,13 +2317,13 @@ TEST(UT_CommandStateUS3, verifyConcurrentMultiLink_byMultipleOperations_expectAl
         pPrivData->commandsReceivedA4++;
         printf("    📩 [SERVICE-A4 EXECUTOR] Received command on LinkA4, count=%d (250ms delay)\n",
                pPrivData->commandsReceivedA4.load());
-        
+
         std::this_thread::sleep_for(std::chrono::milliseconds(250));
-        
+
         IOC_CmdDesc_setOutPayload(pCmdDesc, (void *)"A4_ACK", 6);
         IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_SUCCESS);
         IOC_CmdDesc_setResult(pCmdDesc, IOC_RESULT_SUCCESS);
-        
+
         printf("    ✅ [SERVICE-A4 EXECUTOR] Processing complete\n");
         return IOC_RESULT_SUCCESS;
     };
@@ -2356,7 +2356,7 @@ TEST(UT_CommandStateUS3, verifyConcurrentMultiLink_byMultipleOperations_expectAl
 
     // Setup Client-A1 (Executor for LinkA1) with 100ms delay
     printf("🔧 [SETUP] Client-A1 connects as Executor → LinkA1: Service(Initiator) ←→ Client-A1(Executor)\n");
-    
+
     struct ClientA1Priv_T {
         std::atomic<int> commandsReceived{0};
     };
@@ -2369,9 +2369,9 @@ TEST(UT_CommandStateUS3, verifyConcurrentMultiLink_byMultipleOperations_expectAl
         pPrivData->commandsReceived++;
         printf("    📩 [CLIENT-A1 EXECUTOR] Received command on LinkA1, count=%d (100ms delay)\n",
                pPrivData->commandsReceived.load());
-        
+
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        
+
         IOC_CmdDesc_setOutPayload(pCmdDesc, (void *)"A1_ACK", 6);
         IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_SUCCESS);
         IOC_CmdDesc_setResult(pCmdDesc, IOC_RESULT_SUCCESS);
@@ -2399,7 +2399,7 @@ TEST(UT_CommandStateUS3, verifyConcurrentMultiLink_byMultipleOperations_expectAl
 
     // Setup Client-A2 (Executor for LinkA2) with 200ms delay
     printf("🔧 [SETUP] Client-A2 connects as Executor → LinkA2: Service(Initiator) ←→ Client-A2(Executor)\n");
-    
+
     struct ClientA2Priv_T {
         std::atomic<int> commandsReceived{0};
     };
@@ -2412,9 +2412,9 @@ TEST(UT_CommandStateUS3, verifyConcurrentMultiLink_byMultipleOperations_expectAl
         pPrivData->commandsReceived++;
         printf("    📩 [CLIENT-A2 EXECUTOR] Received command on LinkA2, count=%d (200ms delay)\n",
                pPrivData->commandsReceived.load());
-        
+
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
-        
+
         IOC_CmdDesc_setOutPayload(pCmdDesc, (void *)"A2_ACK", 6);
         IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_SUCCESS);
         IOC_CmdDesc_setResult(pCmdDesc, IOC_RESULT_SUCCESS);
@@ -2489,8 +2489,9 @@ TEST(UT_CommandStateUS3, verifyConcurrentMultiLink_byMultipleOperations_expectAl
 
     // Track completion times and results
     std::atomic<bool> cmdA1Complete{false}, cmdA2Complete{false}, cmdA3Complete{false}, cmdA4Complete{false};
-    IOC_Result_T resultA1 = IOC_RESULT_BUG, resultA2 = IOC_RESULT_BUG, resultA3 = IOC_RESULT_BUG, resultA4 = IOC_RESULT_BUG;
-    
+    IOC_Result_T resultA1 = IOC_RESULT_BUG, resultA2 = IOC_RESULT_BUG, resultA3 = IOC_RESULT_BUG,
+                 resultA4 = IOC_RESULT_BUG;
+
     auto startTime = std::chrono::steady_clock::now();
     std::chrono::time_point<std::chrono::steady_clock> completeTimeA1, completeTimeA2, completeTimeA3, completeTimeA4;
 
@@ -2569,26 +2570,26 @@ TEST(UT_CommandStateUS3, verifyConcurrentMultiLink_byMultipleOperations_expectAl
 
     IOC_LinkState_T mainStateA1, mainStateA2, mainStateA3, mainStateA4;
     IOC_LinkSubState_T subStateA1, subStateA2, subStateA3, subStateA4;
-    
+
     ResultValue = IOC_getLinkState(srvLinkID_A1, &mainStateA1, &subStateA1);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
-    printf("    🔍 [STATE] LinkA1: mainState=%d, subState=%d (expected: 7 CmdInitiatorBusyExecCmd)\n", 
-           mainStateA1, subStateA1);
+    printf("    🔍 [STATE] LinkA1: mainState=%d, subState=%d (expected: 7 CmdInitiatorBusyExecCmd)\n", mainStateA1,
+           subStateA1);
 
     ResultValue = IOC_getLinkState(srvLinkID_A2, &mainStateA2, &subStateA2);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
-    printf("    🔍 [STATE] LinkA2: mainState=%d, subState=%d (expected: 7 CmdInitiatorBusyExecCmd)\n", 
-           mainStateA2, subStateA2);
+    printf("    🔍 [STATE] LinkA2: mainState=%d, subState=%d (expected: 7 CmdInitiatorBusyExecCmd)\n", mainStateA2,
+           subStateA2);
 
     ResultValue = IOC_getLinkState(srvLinkID_A3, &mainStateA3, &subStateA3);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
-    printf("    🔍 [STATE] LinkA3: mainState=%d, subState=%d (expected: 9 CmdExecutorBusyExecCmd)\n", 
-           mainStateA3, subStateA3);
+    printf("    🔍 [STATE] LinkA3: mainState=%d, subState=%d (expected: 9 CmdExecutorBusyExecCmd)\n", mainStateA3,
+           subStateA3);
 
     ResultValue = IOC_getLinkState(srvLinkID_A4, &mainStateA4, &subStateA4);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
-    printf("    🔍 [STATE] LinkA4: mainState=%d, subState=%d (expected: 9 CmdExecutorBusyExecCmd)\n", 
-           mainStateA4, subStateA4);
+    printf("    🔍 [STATE] LinkA4: mainState=%d, subState=%d (expected: 9 CmdExecutorBusyExecCmd)\n", mainStateA4,
+           subStateA4);
 
     // Wait for all operations to complete
     printf("📋 [BEHAVIOR] Waiting for all 4 operations to complete...\n");
@@ -2630,29 +2631,29 @@ TEST(UT_CommandStateUS3, verifyConcurrentMultiLink_byMultipleOperations_expectAl
     ASSERT_TRUE(cmdA1Complete.load());
     ASSERT_EQ(IOC_RESULT_SUCCESS, resultA1);
     ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, cmdDescA1.Status);
-    printf("    • LinkA1 command: complete=%d, result=%d, status=%d ✅\n", 
-           cmdA1Complete.load(), resultA1, cmdDescA1.Status);
+    printf("    • LinkA1 command: complete=%d, result=%d, status=%d ✅\n", cmdA1Complete.load(), resultA1,
+           cmdDescA1.Status);
     printf("🔑 [KEY VERIFY POINT] LinkA1 command must complete successfully\n");
 
     ASSERT_TRUE(cmdA2Complete.load());
     ASSERT_EQ(IOC_RESULT_SUCCESS, resultA2);
     ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, cmdDescA2.Status);
-    printf("    • LinkA2 command: complete=%d, result=%d, status=%d ✅\n", 
-           cmdA2Complete.load(), resultA2, cmdDescA2.Status);
+    printf("    • LinkA2 command: complete=%d, result=%d, status=%d ✅\n", cmdA2Complete.load(), resultA2,
+           cmdDescA2.Status);
     printf("🔑 [KEY VERIFY POINT] LinkA2 command must complete successfully\n");
 
     ASSERT_TRUE(cmdA3Complete.load());
     ASSERT_EQ(IOC_RESULT_SUCCESS, resultA3);
     ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, cmdDescA3.Status);
-    printf("    • LinkA3 command: complete=%d, result=%d, status=%d ✅\n", 
-           cmdA3Complete.load(), resultA3, cmdDescA3.Status);
+    printf("    • LinkA3 command: complete=%d, result=%d, status=%d ✅\n", cmdA3Complete.load(), resultA3,
+           cmdDescA3.Status);
     printf("🔑 [KEY VERIFY POINT] LinkA3 command must complete successfully\n");
 
     ASSERT_TRUE(cmdA4Complete.load());
     ASSERT_EQ(IOC_RESULT_SUCCESS, resultA4);
     ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, cmdDescA4.Status);
-    printf("    • LinkA4 command: complete=%d, result=%d, status=%d ✅\n", 
-           cmdA4Complete.load(), resultA4, cmdDescA4.Status);
+    printf("    • LinkA4 command: complete=%d, result=%d, status=%d ✅\n", cmdA4Complete.load(), resultA4,
+           cmdDescA4.Status);
     printf("🔑 [KEY VERIFY POINT] LinkA4 command must complete successfully\n");
 
     printf("✅ [VERIFY] ASSERTION 7: All operations completed within expected timeframe\n");
@@ -2676,15 +2677,15 @@ TEST(UT_CommandStateUS3, verifyConcurrentMultiLink_byMultipleOperations_expectAl
     printf("    • LinkA1 final: subState=%d (expected: 6 CmdInitiatorReady)\n", subStateA1);
     ASSERT_EQ(IOC_LinkSubStateCmdInitiatorReady, subStateA1);
     printf("🔑 [KEY VERIFY POINT] LinkA1 must return to Ready\n");
-    
+
     printf("    • LinkA2 final: subState=%d (expected: 6 CmdInitiatorReady)\n", subStateA2);
     ASSERT_EQ(IOC_LinkSubStateCmdInitiatorReady, subStateA2);
     printf("🔑 [KEY VERIFY POINT] LinkA2 must return to Ready\n");
-    
+
     printf("    • LinkA3 final: subState=%d (expected: 8 CmdExecutorReady)\n", subStateA3);
     ASSERT_EQ(IOC_LinkSubStateCmdExecutorReady, subStateA3);
     printf("🔑 [KEY VERIFY POINT] LinkA3 must return to Ready\n");
-    
+
     printf("    • LinkA4 final: subState=%d (expected: 8 CmdExecutorReady)\n", subStateA4);
     ASSERT_EQ(IOC_LinkSubStateCmdExecutorReady, subStateA4);
     printf("🔑 [KEY VERIFY POINT] LinkA4 must return to Ready\n");
