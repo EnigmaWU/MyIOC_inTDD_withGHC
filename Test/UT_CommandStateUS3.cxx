@@ -3339,7 +3339,7 @@ TEST(UT_CommandStateUS3, verifyLinkLifecycle_byDynamicManagement_expectServiceSt
     ResultValue = IOC_onlineService(&srvID_A, &srvArgsA);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
     ASSERT_NE(IOC_ID_INVALID, srvID_A);
-    
+
     IOC_LinkUsage_T initialCap = srvArgsA.UsageCapabilites;
     printf("    ✅ Service A online with 0 links, Capabilities=0x%02X\n", initialCap);
 
@@ -3360,7 +3360,7 @@ TEST(UT_CommandStateUS3, verifyLinkLifecycle_byDynamicManagement_expectServiceSt
         if (!pPrivData || !pCmdDesc) return IOC_RESULT_INVALID_PARAM;
 
         pPrivData->commandsReceived++;
-        
+
         IOC_CmdDesc_setOutPayload(pCmdDesc, (void *)"A1_ACK", 6);
         IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_SUCCESS);
         IOC_CmdDesc_setResult(pCmdDesc, IOC_RESULT_SUCCESS);
@@ -3374,9 +3374,7 @@ TEST(UT_CommandStateUS3, verifyLinkLifecycle_byDynamicManagement_expectServiceSt
         .SrvURI = srvURI_A, .Usage = IOC_LinkUsageCmdExecutor, .UsageArgs = {.pCmd = &clientA1CmdUsageArgs}};
 
     IOC_LinkID_T cliLinkID_A1 = IOC_ID_INVALID;
-    std::thread clientA1Thread([&] {
-        IOC_connectService(&cliLinkID_A1, &clientA1ConnArgs, NULL);
-    });
+    std::thread clientA1Thread([&] { IOC_connectService(&cliLinkID_A1, &clientA1ConnArgs, NULL); });
 
     IOC_LinkID_T srvLinkID_A1 = IOC_ID_INVALID;
     ResultValue = IOC_acceptClient(srvID_A, &srvLinkID_A1, NULL);
@@ -3399,9 +3397,7 @@ TEST(UT_CommandStateUS3, verifyLinkLifecycle_byDynamicManagement_expectServiceSt
         .SrvURI = srvURI_A, .Usage = IOC_LinkUsageCmdInitiator, .UsageArgs = {.pCmd = nullptr}};
 
     IOC_LinkID_T cliLinkID_A2 = IOC_ID_INVALID;
-    std::thread clientA2Thread([&] {
-        IOC_connectService(&cliLinkID_A2, &clientA2ConnArgs, NULL);
-    });
+    std::thread clientA2Thread([&] { IOC_connectService(&cliLinkID_A2, &clientA2ConnArgs, NULL); });
 
     IOC_LinkID_T srvLinkID_A2 = IOC_ID_INVALID;
     ResultValue = IOC_acceptClient(srvID_A, &srvLinkID_A2, NULL);
@@ -3463,7 +3459,7 @@ TEST(UT_CommandStateUS3, verifyLinkLifecycle_byDynamicManagement_expectServiceSt
         if (!pPrivData || !pCmdDesc) return IOC_RESULT_INVALID_PARAM;
 
         pPrivData->commandsReceived++;
-        
+
         IOC_CmdDesc_setOutPayload(pCmdDesc, (void *)"A3_ACK", 6);
         IOC_CmdDesc_setStatus(pCmdDesc, IOC_CMD_STATUS_SUCCESS);
         IOC_CmdDesc_setResult(pCmdDesc, IOC_RESULT_SUCCESS);
@@ -3477,9 +3473,7 @@ TEST(UT_CommandStateUS3, verifyLinkLifecycle_byDynamicManagement_expectServiceSt
         .SrvURI = srvURI_A, .Usage = IOC_LinkUsageCmdExecutor, .UsageArgs = {.pCmd = &clientA3CmdUsageArgs}};
 
     IOC_LinkID_T cliLinkID_A3 = IOC_ID_INVALID;
-    std::thread clientA3Thread([&] {
-        IOC_connectService(&cliLinkID_A3, &clientA3ConnArgs, NULL);
-    });
+    std::thread clientA3Thread([&] { IOC_connectService(&cliLinkID_A3, &clientA3ConnArgs, NULL); });
 
     IOC_LinkID_T srvLinkID_A3 = IOC_ID_INVALID;
     ResultValue = IOC_acceptClient(srvID_A, &srvLinkID_A3, NULL);
