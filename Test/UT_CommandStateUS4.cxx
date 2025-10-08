@@ -843,10 +843,170 @@ TEST(UT_CommandStateUS4, verifyCommandTimeout_byExecCmdOptionTimeout_expectTimeo
 //======>BEGIN OF AC-2 TC-1: LINK RECOVERY AFTER CALLBACK TIMEOUT=================================
 
 TEST(UT_CommandStateUS4, verifyLinkRecovery_afterCallbackTimeout_expectReadyState) {
-    // TODO: Implement callback timeout link recovery verification
-    // Verify link state returns to Ready after callback timeout
+    printf("\n");
+    printf("╔══════════════════════════════════════════════════════════════════════════════════════════╗\n");
+    printf("║  🧪 AC-2 TC-1: Link Recovery After Callback Timeout                                     ║\n");
+    printf("║  Purpose: Validate link returns to Ready state after callback timeout                   ║\n");
+    printf("║  Strategy: Timeout command → verify recovery → send 2nd command successfully            ║\n");
+    printf("╚══════════════════════════════════════════════════════════════════════════════════════════╝\n");
 
-    GTEST_SKIP() << "AC-2 TC-1: Callback timeout link recovery testing pending implementation";
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
+
+    // ┌──────────────────────────────────────────────────────────────┐
+    // │                    🏗️ SETUP PHASE                            │
+    // └──────────────────────────────────────────────────────────────┘
+    printf("🏗️ [SETUP] Creating Service with CmdInitiator capability\n");
+
+    // Service URI configuration
+    IOC_SrvURI_T SrvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO, .pHost = IOC_SRV_HOST_LOCAL_PROCESS, .pPath = "LinkRecoveryTestService"};
+
+    // Client-A1 configuration: CmdExecutor with configurable callback delay
+    printf("🏗️ [SETUP] Client-A1 will act as Executor with variable callback delay\n");
+
+    struct Client1PrivData {
+        int callbackInvoked = 0;
+        int delayMs = 200;  // Can be changed for 2nd command
+    } client1PrivData;
+
+    auto client1ExecutorCb = [](IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, void* pPrivData) -> IOC_Result_T {
+        auto* privData = static_cast<Client1PrivData*>(pPrivData);
+        privData->callbackInvoked++;
+
+        IOC_CmdID_T cmdID = IOC_CmdDesc_getCmdID(pCmdDesc);
+        printf("⏱️  [CALLBACK] Executor callback invoked (cmdID=%llu, invocation #%d), delaying %dms...\n",
+               (unsigned long long)cmdID, privData->callbackInvoked, privData->delayMs);
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(privData->delayMs));
+
+        printf("⏱️  [CALLBACK] Callback completed (cmdID=%llu)\n", (unsigned long long)cmdID);
+        return IOC_RESULT_SUCCESS;
+    };
+
+    IOC_CmdID_T supportedCmdIDs[] = {1, 2};
+    IOC_CmdUsageArgs_T client1CmdUsageArgs = {
+        .CbExecCmd_F = client1ExecutorCb, .pCbPrivData = &client1PrivData, .CmdNum = 2, .pCmdIDs = supportedCmdIDs};
+
+    // Service configuration: CmdInitiator capability
+    IOC_SrvArgs_T srvArgs = {
+        .SrvURI = SrvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageCmdInitiator};
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    ResultValue = IOC_onlineService(&srvID, &srvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, srvID);
+    printf("🏗️ [SETUP] Service online: SrvID=%llu\n", (unsigned long long)srvID);
+
+    // Client connection args
+    IOC_ConnArgs_T client1ConnArgs = {
+        .SrvURI = SrvURI, .Usage = IOC_LinkUsageCmdExecutor, .UsageArgs = {.pCmd = &client1CmdUsageArgs}};
+
+    IOC_LinkID_T client1LinkID = IOC_ID_INVALID;
+    std::thread client1Thread([&] {
+        IOC_Result_T connResult = IOC_connectService(&client1LinkID, &client1ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, connResult);
+        ASSERT_NE(IOC_ID_INVALID, client1LinkID);
+    });
+
+    // Service accepts Client1
+    IOC_LinkID_T srvLinkID1 = IOC_ID_INVALID;
+    ResultValue = IOC_acceptClient(srvID, &srvLinkID1, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, srvLinkID1);
+
+    if (client1Thread.joinable()) client1Thread.join();
+
+    printf("🏗️ [SETUP] Link established: Service(LinkID=%llu) ←→ Client-A1(LinkID=%llu)\n",
+           (unsigned long long)srvLinkID1, (unsigned long long)client1LinkID);
+
+    // ┌──────────────────────────────────────────────────────────────┐
+    // │                    📋 BEHAVIOR PHASE                         │
+    // └──────────────────────────────────────────────────────────────┘
+    printf("📋 [BEHAVIOR] Executing 1st command with timeout (will timeout)\n");
+
+    // Cmd1: TimeoutMs=100ms, callback delays 200ms → timeout occurs
+    IOC_CmdDesc_T cmdDesc1 = {};
+    cmdDesc1.CmdID = 1;
+    cmdDesc1.TimeoutMs = 100;       // 100ms timeout
+    client1PrivData.delayMs = 200;  // Callback will take 200ms
+
+    printf("📋 [BEHAVIOR] Cmd1 configured: CmdID=1, TimeoutMs=100ms, callback will delay 200ms\n");
+    printf("📋 [BEHAVIOR] Expected: Timeout at ~100ms, link should auto-recover\n");
+
+    ResultValue = IOC_execCMD(srvLinkID1, &cmdDesc1, NULL);
+
+    printf("📋 [BEHAVIOR] Cmd1 returned: result=%d (expected: TIMEOUT=%d)\n", ResultValue, IOC_RESULT_TIMEOUT);
+    ASSERT_EQ(IOC_RESULT_TIMEOUT, ResultValue);
+    ASSERT_EQ(IOC_CMD_STATUS_TIMEOUT, IOC_CmdDesc_getStatus(&cmdDesc1));
+
+    // ┌──────────────────────────────────────────────────────────────┐
+    // │                     ✅ VERIFY PHASE                          │
+    // └──────────────────────────────────────────────────────────────┘
+
+    //@KeyVerifyPoint-1: Link substate after timeout = ExecutorReady (recovery)
+    printf("✅ [VERIFY] ASSERTION 1: Link recovered to ExecutorReady after timeout\n");
+    IOC_LinkState_T linkMainState = IOC_LinkStateUndefined;
+    IOC_LinkSubState_T linkSubState = IOC_LinkSubStateDefault;
+    ResultValue = IOC_getLinkState(client1LinkID, &linkMainState, &linkSubState);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    printf("    • Link main state: %d (expected: IOC_LinkStateReady=%d)\n", linkMainState, IOC_LinkStateReady);
+    printf("    • Link sub state: %d (expected: IOC_LinkSubStateCmdExecutorReady=%d)\n", linkSubState,
+           IOC_LinkSubStateCmdExecutorReady);
+    VERIFY_KEYPOINT_EQ(linkMainState, IOC_LinkStateReady, "Link main state must be Ready after timeout");
+    VERIFY_KEYPOINT_EQ(linkSubState, IOC_LinkSubStateCmdExecutorReady,
+                       "Link sub state must return to ExecutorReady after timeout (auto recovery)");
+
+    //@KeyVerifyPoint-2: Timeout isolated to command, didn't propagate to link failure
+    printf("✅ [VERIFY] ASSERTION 2: Timeout isolated to command (no link failure)\n");
+    printf("    • Command status: TIMEOUT (isolated to Cmd1) ✅\n");
+    printf("    • Link state: Ready (NOT failed) ✅\n");
+    printf("    • Architecture: Timeout doesn't cause link failure ✅\n");
+
+    //@KeyVerifyPoint-3: Send 2nd command to verify link operational
+    printf("✅ [VERIFY] ASSERTION 3: 2nd command executes successfully (link recovered)\n");
+
+    IOC_CmdDesc_T cmdDesc2 = {};
+    cmdDesc2.CmdID = 2;
+    cmdDesc2.TimeoutMs = 200;      // Give enough time for 2nd command
+    client1PrivData.delayMs = 50;  // Callback will take 50ms (well within timeout)
+
+    printf("    • Executing Cmd2: CmdID=2, TimeoutMs=200ms, callback will delay 50ms\n");
+
+    ResultValue = IOC_execCMD(srvLinkID1, &cmdDesc2, NULL);
+
+    printf("    • Cmd2 returned: result=%d (expected: SUCCESS=%d)\n", ResultValue, IOC_RESULT_SUCCESS);
+    VERIFY_KEYPOINT_EQ(ResultValue, IOC_RESULT_SUCCESS, "2nd command must succeed after link recovery");
+    VERIFY_KEYPOINT_EQ(IOC_CmdDesc_getStatus(&cmdDesc2), IOC_CMD_STATUS_SUCCESS, "2nd command status must be SUCCESS");
+
+    //@KeyVerifyPoint-4: Callback invoked twice (once per command)
+    printf("✅ [VERIFY] ASSERTION 4: Callback invoked for both commands\n");
+    printf("    • Callback invocations: %d (expected: 2)\n", client1PrivData.callbackInvoked);
+    VERIFY_KEYPOINT_EQ(client1PrivData.callbackInvoked, 2, "Callback must be invoked twice (once per command)");
+
+    //@KeyVerifyPoint-5: Final link state remains Ready
+    printf("✅ [VERIFY] ASSERTION 5: Final link state remains Ready\n");
+    ResultValue = IOC_getLinkState(client1LinkID, &linkMainState, &linkSubState);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    printf("    • Final link main state: %d (expected: IOC_LinkStateReady=%d)\n", linkMainState, IOC_LinkStateReady);
+    printf("    • Final link sub state: %d (expected: IOC_LinkSubStateCmdExecutorReady=%d)\n", linkSubState,
+           IOC_LinkSubStateCmdExecutorReady);
+    VERIFY_KEYPOINT_EQ(linkMainState, IOC_LinkStateReady, "Final link main state must remain Ready");
+    VERIFY_KEYPOINT_EQ(linkSubState, IOC_LinkSubStateCmdExecutorReady, "Final link sub state must be ExecutorReady");
+
+    printf("\n");
+    printf("✅ [RESULT] Link recovery after callback timeout verified:\n");
+    printf("   • Cmd1 timeout occurred (TimeoutMs=100ms, callback=200ms) ✅\n");
+    printf("   • Link recovered to ExecutorReady after Cmd1 timeout (ASSERTION 1) ✅\n");
+    printf("   • Timeout isolated to command, no link failure (ASSERTION 2) ✅\n");
+    printf("   • Cmd2 executed successfully after recovery (ASSERTION 3) ✅\n");
+    printf("   • Both callbacks invoked (ASSERTION 4) ✅\n");
+    printf("   • Final link state Ready (ASSERTION 5) ✅\n");
+    printf("   • Architecture: Link resilience after timeout (PRINCIPLE) ✅\n");
+
+    // Cleanup
+    if (client1LinkID != IOC_ID_INVALID) IOC_closeLink(client1LinkID);
+    if (srvLinkID1 != IOC_ID_INVALID) IOC_closeLink(srvLinkID1);
+    if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
