@@ -8,6 +8,7 @@ Principles
 - Improve Value, Avoid Lost, Balance Skill vs Cost
 - Design before code; draft freely, then systematize
 - Track status: GREEN/PASSED, RED/IMPLEMENTED, TODO/PLANNED, ISSUES
+ - Risk-driven ordering: prioritize by impact × likelihood × uncertainty
 
 Workflow
 1) Design Principles: define coverage axes and scope
@@ -40,15 +41,43 @@ Status indicators
 - ISSUES: known problem needing fix
 
 Classification guide (priority order)
+- Default order: Typical → Boundary → Misuse → State → Fault → Performance → Concurrency → Capability → Robust → Demo/Example → Compatibility → Configuration
+
 1) Typical (must): core workflows
 2) Boundary (important): edge and limits (min/max/null, Block/NonBlock/Timeout)
-3) State (key): lifecycle and transitions
-4) Fault (reliability): failures and recovery
-5) Performance (as needed): latency, throughput, memory
-6) Concurrency (complex): race/deadlock/safety
-7) Robust (stability): stress and repetition
-8) Misuse (hardening): illegal sequences, bad params
-9) Demo/Example, Compatibility, Configuration, Others
+3) Misuse (hardening): illegal sequences, bad params, wrong states
+4) State (key): lifecycle and transitions
+5) Fault (reliability): failures and recovery (deps, IO, timeouts)
+6) Performance (as needed): latency, throughput, memory
+7) Concurrency (complex): race/deadlock/safety
+8) Capability (limits): capacity, queue/buffer maxima
+9) Robust (stability): stress, repetition, soak
+10) Demo/Example, 11) Compatibility, 12) Configuration
+
+Priority varies by context (quick picks)
+- New public API: Typical → Boundary → Misuse → State → Fault → Performance → Concurrency → Capability → Robust
+- Stateful/FSM-heavy: Typical → Boundary → State → Misuse → Fault → Concurrency → Performance → Capability → Robust
+- Reliability-critical service: Typical → Boundary → Fault → State → Misuse → Concurrency → Performance → Capability → Robust
+- Throughput/latency SLOs: Typical → Boundary → Performance → State → Concurrency → Fault → Capability → Robust
+- Highly concurrent design: Typical → Boundary → Concurrency → State → Fault → Performance → Capability → Robust
+
+Risk scoring to reorder
+- Score each category: Impact (1–3) × Likelihood (1–3) × Uncertainty (1–3)
+- If score ≥ 18, pull category forward right after Boundary
+
+Gates before advancing layers
+- Before leaving Typical: happy-path coverage ~80–90%, no critical correctness bugs
+- Before Performance: Boundary + Misuse green; basic leak/memory checks clean
+- Before Concurrency: State tests green; no known deadlock-prone paths; sanitizers/static checks clean on core paths
+- Before Robust: Capability/limits characterized; key fault handling verified
+
+Fast-fail six (run early)
+- Null/empty input handling
+- Zero/negative timeout
+- Duplicate registration/subscription
+- Illegal call sequence (e.g., post-before-init)
+- Buffer full/empty boundaries
+- Double-close/re-init idempotency
 
 Test naming
 verifyBehavior_byCondition_expectResult
