@@ -316,10 +316,10 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byBasicPolling_expectEventReceived) {
 
     // Client subscribes to events for polling (manual IOC_subEVT approach)
     IOC_EvtID_T SubEvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
-    IOC_SubEvtArgs_T SubEvtArgs = {.pEvtIDs = SubEvtIDs,
+    IOC_SubEvtArgs_T SubEvtArgs = {.CbProcEvt_F = nullptr,  // No callback, only polling
+                                   .pCbPrivData = nullptr,
                                    .EvtNum = sizeof(SubEvtIDs) / sizeof(SubEvtIDs[0]),
-                                   .CbProcEvt_F = nullptr,  // No callback, only polling
-                                   .pCbPrivData = nullptr};
+                                   .pEvtIDs = SubEvtIDs};
     ResultValue = IOC_subEVT(CliLinkID, &SubEvtArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
 
@@ -364,10 +364,10 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byConnArgsSubscription_expectEventRecei
 
     // Client setup (Conet consumer) - specify events to subscribe via ConnArgs
     IOC_EvtID_T SubEvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
-    IOC_EvtUsageArgs_T EvtUsageArgs = {.pEvtIDs = SubEvtIDs,
+    IOC_EvtUsageArgs_T EvtUsageArgs = {.CbProcEvt_F = nullptr,  // No callback, only polling
+                                       .pCbPrivData = nullptr,
                                        .EvtNum = sizeof(SubEvtIDs) / sizeof(SubEvtIDs[0]),
-                                       .CbProcEvt_F = nullptr,  // No callback, only polling
-                                       .pCbPrivData = nullptr};
+                                       .pEvtIDs = SubEvtIDs};
     IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageEvtConsumer};
     ConnArgs.UsageArgs.pEvt = &EvtUsageArgs;  // Specify events to subscribe during connect
 
@@ -430,10 +430,10 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byMultipleEvents_expectFIFOOrder) {
 
     // Client setup (Conet consumer) - specify events to subscribe via ConnArgs
     IOC_EvtID_T SubEvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
-    IOC_EvtUsageArgs_T EvtUsageArgs = {.pEvtIDs = SubEvtIDs,
+    IOC_EvtUsageArgs_T EvtUsageArgs = {.CbProcEvt_F = nullptr,  // No callback, only polling
+                                       .pCbPrivData = nullptr,
                                        .EvtNum = sizeof(SubEvtIDs) / sizeof(SubEvtIDs[0]),
-                                       .CbProcEvt_F = nullptr,  // No callback, only polling
-                                       .pCbPrivData = nullptr};
+                                       .pEvtIDs = SubEvtIDs};
     IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageEvtConsumer};
     ConnArgs.UsageArgs.pEvt = &EvtUsageArgs;  // Specify events to subscribe during connect
 
@@ -490,8 +490,10 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byMultipleEvents_expectFIFOOrder) {
 
     // Verify no more events available
     IOC_EvtDesc_T ExtraEvt = {};
-    IOC_Options_T NonBlockingOptions[] = {{.IDs = IOC_OPTID_TIMEOUT, .Payload.TimeoutUS = 0}};
-    ResultValue = IOC_pullEVT(CliLinkID, &ExtraEvt, NonBlockingOptions);
+    IOC_Options_T NonBlockingOption = {};
+    NonBlockingOption.IDs = IOC_OPTID_TIMEOUT;
+    NonBlockingOption.Payload.TimeoutUS = 0;
+    ResultValue = IOC_pullEVT(CliLinkID, &ExtraEvt, &NonBlockingOption);
     ASSERT_EQ(IOC_RESULT_NO_EVENT_PENDING, ResultValue) << "Unexpected extra event found";
 
     // Cleanup
@@ -515,10 +517,10 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byNonBlockingMode_expectImmediateReturn
 
     // Client setup (Conet consumer) - specify events to subscribe via ConnArgs
     IOC_EvtID_T SubEvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
-    IOC_EvtUsageArgs_T EvtUsageArgs = {.pEvtIDs = SubEvtIDs,
+    IOC_EvtUsageArgs_T EvtUsageArgs = {.CbProcEvt_F = nullptr,  // No callback, only polling
+                                       .pCbPrivData = nullptr,
                                        .EvtNum = sizeof(SubEvtIDs) / sizeof(SubEvtIDs[0]),
-                                       .CbProcEvt_F = nullptr,  // No callback, only polling
-                                       .pCbPrivData = nullptr};
+                                       .pEvtIDs = SubEvtIDs};
     IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageEvtConsumer};
     ConnArgs.UsageArgs.pEvt = &EvtUsageArgs;  // Specify events to subscribe during connect
 
@@ -542,8 +544,10 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byNonBlockingMode_expectImmediateReturn
     auto startTime = std::chrono::high_resolution_clock::now();
 
     IOC_EvtDesc_T PulledEvt = {};
-    IOC_Options_T Options[] = {{.IDs = IOC_OPTID_TIMEOUT, .Payload.TimeoutUS = 0}};  // Non-blocking
-    ResultValue = IOC_pullEVT(CliLinkID, &PulledEvt, Options);
+    IOC_Options_T Options = {};
+    Options.IDs = IOC_OPTID_TIMEOUT;
+    Options.Payload.TimeoutUS = 0;  // Non-blocking
+    ResultValue = IOC_pullEVT(CliLinkID, &PulledEvt, &Options);
 
     auto endTime = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
@@ -555,7 +559,7 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byNonBlockingMode_expectImmediateReturn
     // Multiple consecutive calls should behave consistently
     for (int i = 0; i < 5; ++i) {
         IOC_EvtDesc_T ExtraEvt = {};
-        ResultValue = IOC_pullEVT(CliLinkID, &ExtraEvt, Options);
+        ResultValue = IOC_pullEVT(CliLinkID, &ExtraEvt, &Options);
         ASSERT_EQ(IOC_RESULT_NO_EVENT_PENDING, ResultValue)
             << "Repeated call #" << (i + 1) << " should return NO_EVENT_PENDING";
     }
@@ -582,10 +586,10 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byBlockingTimeout_expectTimeoutBehavior
 
     // Client setup (Conet consumer) - specify events to subscribe via ConnArgs
     IOC_EvtID_T SubEvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
-    IOC_EvtUsageArgs_T EvtUsageArgs = {.pEvtIDs = SubEvtIDs,
+    IOC_EvtUsageArgs_T EvtUsageArgs = {.CbProcEvt_F = nullptr,  // No callback, only polling
+                                       .pCbPrivData = nullptr,
                                        .EvtNum = sizeof(SubEvtIDs) / sizeof(SubEvtIDs[0]),
-                                       .CbProcEvt_F = nullptr,  // No callback, only polling
-                                       .pCbPrivData = nullptr};
+                                       .pEvtIDs = SubEvtIDs};
     IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageEvtConsumer};
     ConnArgs.UsageArgs.pEvt = &EvtUsageArgs;  // Specify events to subscribe during connect
 
@@ -609,8 +613,10 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byBlockingTimeout_expectTimeoutBehavior
     auto startTime = std::chrono::high_resolution_clock::now();
 
     IOC_EvtDesc_T PulledEvt = {};
-    IOC_Options_T Options[] = {{.IDs = IOC_OPTID_TIMEOUT, .Payload.TimeoutUS = TimeoutUS}};
-    ResultValue = IOC_pullEVT(CliLinkID, &PulledEvt, Options);
+    IOC_Options_T Options = {};
+    Options.IDs = IOC_OPTID_TIMEOUT;
+    Options.Payload.TimeoutUS = TimeoutUS;
+    ResultValue = IOC_pullEVT(CliLinkID, &PulledEvt, &Options);
 
     auto endTime = std::chrono::high_resolution_clock::now();
     auto actualDuration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
@@ -646,10 +652,10 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byInfiniteTimeout_expectEventualSuccess
 
     // Client setup (Conet consumer) - specify events to subscribe via ConnArgs
     IOC_EvtID_T SubEvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
-    IOC_EvtUsageArgs_T EvtUsageArgs = {.pEvtIDs = SubEvtIDs,
+    IOC_EvtUsageArgs_T EvtUsageArgs = {.CbProcEvt_F = nullptr,  // No callback, only polling
+                                       .pCbPrivData = nullptr,
                                        .EvtNum = sizeof(SubEvtIDs) / sizeof(SubEvtIDs[0]),
-                                       .CbProcEvt_F = nullptr,  // No callback, only polling
-                                       .pCbPrivData = nullptr};
+                                       .pEvtIDs = SubEvtIDs};
     IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageEvtConsumer};
     ConnArgs.UsageArgs.pEvt = &EvtUsageArgs;  // Specify events to subscribe during connect
 
@@ -685,8 +691,10 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byInfiniteTimeout_expectEventualSuccess
     auto startTime = std::chrono::high_resolution_clock::now();
 
     IOC_EvtDesc_T PulledEvt = {};
-    IOC_Options_T Options[] = {{.IDs = IOC_OPTID_TIMEOUT, .Payload.TimeoutUS = IOC_TIMEOUT_INFINITE}};
-    ResultValue = IOC_pullEVT(CliLinkID, &PulledEvt, Options);
+    IOC_Options_T Options = {};
+    Options.IDs = IOC_OPTID_TIMEOUT;
+    Options.Payload.TimeoutUS = IOC_TIMEOUT_INFINITE;
+    ResultValue = IOC_pullEVT(CliLinkID, &PulledEvt, &Options);
 
     auto endTime = std::chrono::high_resolution_clock::now();
     auto actualDuration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
@@ -725,10 +733,10 @@ TEST(UT_ConetEventTypical, verifyPullEVT_byDefaultBlocking_expectEventualSuccess
 
     // Client setup (Conet consumer) - specify events to subscribe via ConnArgs
     IOC_EvtID_T SubEvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
-    IOC_EvtUsageArgs_T EvtUsageArgs = {.pEvtIDs = SubEvtIDs,
+    IOC_EvtUsageArgs_T EvtUsageArgs = {.CbProcEvt_F = nullptr,  // No callback, only polling
+                                       .pCbPrivData = nullptr,
                                        .EvtNum = sizeof(SubEvtIDs) / sizeof(SubEvtIDs[0]),
-                                       .CbProcEvt_F = nullptr,  // No callback, only polling
-                                       .pCbPrivData = nullptr};
+                                       .pEvtIDs = SubEvtIDs};
     IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageEvtConsumer};
     ConnArgs.UsageArgs.pEvt = &EvtUsageArgs;  // Specify events to subscribe during connect
 
@@ -867,8 +875,10 @@ TEST(UT_ConetEventTypical, verifyPullEVT_withMixedConsumers_expectFirstComeFirst
         } else {
             // Attempt to pull this event via polling (odd indices)
             IOC_EvtDesc_T PulledEvt = {};
-            IOC_Options_T NonBlockingOptions[] = {{.IDs = IOC_OPTID_TIMEOUT, .Payload.TimeoutUS = 0}};
-            IOC_Result_T PullResultValue = IOC_pullEVT(CliLinkID, &PulledEvt, NonBlockingOptions);
+            IOC_Options_T NonBlockingOption = {};
+            NonBlockingOption.IDs = IOC_OPTID_TIMEOUT;
+            NonBlockingOption.Payload.TimeoutUS = 0;
+            IOC_Result_T PullResultValue = IOC_pullEVT(CliLinkID, &PulledEvt, &NonBlockingOption);
             if (PullResultValue == IOC_RESULT_SUCCESS) {
                 std::lock_guard<std::mutex> lock(TestContext.EventMutex);
                 TestContext.PullEvents.push_back(IOC_EvtDesc_getEvtID(&PulledEvt));
@@ -891,8 +901,10 @@ TEST(UT_ConetEventTypical, verifyPullEVT_withMixedConsumers_expectFirstComeFirst
 
     // Verify no events are left pending
     IOC_EvtDesc_T ExtraEvt = {};
-    IOC_Options_T NonBlockingOptions[] = {{.IDs = IOC_OPTID_TIMEOUT, .Payload.TimeoutUS = 0}};
-    ResultValue = IOC_pullEVT(CliLinkID, &ExtraEvt, NonBlockingOptions);
+    IOC_Options_T NonBlockingOption2 = {};
+    NonBlockingOption2.IDs = IOC_OPTID_TIMEOUT;
+    NonBlockingOption2.Payload.TimeoutUS = 0;
+    ResultValue = IOC_pullEVT(CliLinkID, &ExtraEvt, &NonBlockingOption2);
     ASSERT_EQ(IOC_RESULT_NO_EVENT_PENDING, ResultValue) << "No events should remain after mixed consumption";
 
     // Verify event distribution statistics
