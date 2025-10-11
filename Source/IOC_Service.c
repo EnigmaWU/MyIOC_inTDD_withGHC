@@ -127,7 +127,6 @@ static _IOC_ServiceObject_pT __IOC_getSrvObjBySrvID(IOC_SrvID_T SrvID) {
         _IOC_LogError("Invalid SrvID=%" PRIu64 "", SrvID);
     }
 
-    _IOC_LogNotTested();
     return NULL;
 }
 
@@ -235,27 +234,22 @@ _IOC_LinkObject_pT _IOC_getLinkObjByLinkID(IOC_LinkID_T LinkID) {
 //=================================================================================================
 static IOC_BoolResult_T __IOC_isValidSrvArgs(const IOC_SrvArgs_pT pSrvArgs) {
     if (NULL == pSrvArgs) {
-        _IOC_LogNotTested();
         return IOC_RESULT_NO;
     }
 
     if (NULL == pSrvArgs->SrvURI.pProtocol) {
-        _IOC_LogNotTested();
         return IOC_RESULT_NO;
     }
 
     if (NULL == pSrvArgs->SrvURI.pHost) {
-        _IOC_LogNotTested();
         return IOC_RESULT_NO;
     }
 
     if (NULL == pSrvArgs->SrvURI.pPath) {
-        _IOC_LogNotTested();
         return IOC_RESULT_NO;
     }
 
     if (!(pSrvArgs->UsageCapabilites & IOC_LinkUsageMask)) {
-        _IOC_LogNotTested();
         return IOC_RESULT_NO;
     }
 
@@ -434,12 +428,10 @@ IOC_Result_T IOC_onlineService(
     /*ARG_IN*/ const IOC_SrvArgs_pT pSrvArgs) {
     if (NULL == pSrvID) {
         _IOC_LogWarn("Invalid parameter, pSrvID is NULL");
-        _IOC_LogNotTested();
         return IOC_RESULT_INVALID_PARAM;
     }
     if (IOC_RESULT_YES != __IOC_isValidSrvArgs(pSrvArgs)) {
         _IOC_LogWarn("Invalid parameter, pSrvArgs is invalid");
-        _IOC_LogNotTested();
         return IOC_RESULT_INVALID_PARAM;
     }
 
@@ -515,7 +507,6 @@ _RetFail_createBroadcastDaemonThread:
     }
 _RetFail_onlineServiceByProto:
     __IOC_freeSrvObj(pSrvObj);
-    _IOC_LogNotTested();
     return Result;
 }
 
@@ -524,7 +515,6 @@ IOC_Result_T IOC_offlineService(
     _IOC_ServiceObject_pT pSrvObj = __IOC_getSrvObjBySrvID(SrvID);
     if (NULL == pSrvObj) {
         _IOC_LogWarn("Failed to get service object by SrvID=%" PRIu64 "", SrvID);
-        _IOC_LogNotTested();
         return IOC_RESULT_NOT_EXIST_SERVICE;
     }
 
@@ -576,7 +566,6 @@ IOC_Result_T IOC_offlineService(
     IOC_Result_T Result = pSrvObj->pMethods->OpOfflineService_F(pSrvObj);
     if (IOC_RESULT_SUCCESS != Result) {
         _IOC_LogWarn("Failed to offline service by protocol, Resuld=%d", Result);
-        _IOC_LogNotTested();
         return Result;
     }
 
@@ -666,7 +655,6 @@ IOC_Result_T IOC_acceptClient(
     _IOC_ServiceObject_pT pSrvObj = __IOC_getSrvObjBySrvID(SrvID);
     if (NULL == pSrvObj) {
         _IOC_LogWarn("Failed to get service object by SrvID=%" PRIu64, SrvID);
-        _IOC_LogNotTested();
         return IOC_RESULT_NOT_EXIST_SERVICE;
     }
 
@@ -769,13 +757,11 @@ static IOC_BoolResult_T __IOC_isValidConnSrvArgs(
     /*ARG_IN_OPTIONAL*/ const IOC_Options_pT pOption) {
     if (NULL == pLinkID) {
         _IOC_LogWarn("Invalid parameter, pLinkID is NULL");
-        _IOC_LogNotTested();
         return IOC_RESULT_NO;
     }
 
     if (NULL == pConnArgs) {
         _IOC_LogWarn("Invalid parameter, pConnArgs is NULL");
-        _IOC_LogNotTested();
         return IOC_RESULT_NO;
     }
 
@@ -836,7 +822,6 @@ IOC_Result_T IOC_connectService(
 
     // Step-1: Check Parameters
     if (IOC_RESULT_YES != __IOC_isValidConnSrvArgs(pLinkID, pConnArgs, pOption)) {
-        _IOC_LogNotTested();
         return IOC_RESULT_INVALID_PARAM;
     }
 
