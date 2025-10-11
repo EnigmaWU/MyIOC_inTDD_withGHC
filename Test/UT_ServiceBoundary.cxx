@@ -72,18 +72,18 @@
  *
  * CLASSIC LIST FORMAT (per AC)
  *  [@US-1/AC-1]
- *   🔴 TC: verifyOnlineService_byNullSrvID_expectInvalidParam
- *   🔴 TC: verifyOnlineService_byInvalidSrvArgs_expectInvalidParam
- *   🔴 TC: verifyGetServiceLinkIDs_byNullParams_expectInvalidParam
+ *   � TC: verifyOnlineService_byNullSrvID_expectInvalidParam
+ *   � TC: verifyOnlineService_byInvalidSrvArgs_expectInvalidParam
+ *   � TC: verifyGetServiceLinkIDs_byNullParams_expectInvalidParam
  *
  *  [@US-1/AC-2]
- *   🔴 TC: verifyConnectService_byNotExistService_expectNotExistService
- *   🔴 TC: verifyAcceptClient_byInvalidSrvID_expectNotExistService
- *   🔴 TC: verifyCloseLink_byInvalidLink_expectNotExistLink
- *   🔴 TC: verifyOfflineService_byInvalidSrvID_expectNotExistService
+ *   � TC: verifyConnectService_byNotExistService_expectNotExistService
+ *   � TC: verifyAcceptClient_byInvalidSrvID_expectNotExistService
+ *   � TC: verifyCloseLink_byInvalidLink_expectNotExistLink
+ *   � TC: verifyOfflineService_byInvalidSrvID_expectNotExistService
  *
  *  [@US-2/AC-1]
- *   🔴 TC: verifyBroadcastEVT_withoutFlag_expectNotSupportBroadcastEvent
+ *   � TC: verifyBroadcastEVT_withoutFlag_expectNotSupportBroadcastEvent
  *
  *  [@US-2/AC-2]
  *   ⚪ TC: DISABLED_verifyGetServiceLinkIDs_bySmallBuffer_expectBufferTooSmall
@@ -103,7 +103,23 @@
 // - Prefer short names: verifyX_byY_expectZ
 
 //=== US-1/AC-1: INVALID_PARAM on bad inputs ===
+/**
+ * @[Name]: verifyOnlineService_byNullSrvID_expectInvalidParam
+ * @[Purpose]: Ensure API guards invalid output parameter and returns INVALID_PARAM without aborting
+ * @[Brief]: Call IOC_onlineService with nullptr pSrvID and valid args; expect INVALID_PARAM
+ * @[Steps]:
+ *   1) 🔧 Prepare minimal valid IOC_SrvArgs_T
+ *   2) 🎯 Call IOC_onlineService(nullptr, &args)
+ *   3) ✅ Assert return is IOC_RESULT_INVALID_PARAM
+ * @[Expect]: No assertion; explicit invalid-parameter return code
+ * @[Status]: PASSED/GREEN ✅
+ * @[Notes]: Boundary path; logging is allowed, assertion removed in service code
+ */
 TEST(UT_ServiceBoundary, verifyOnlineService_byNullSrvID_expectInvalidParam) {
+    // US-1/AC-1
+    // GIVEN: null output parameter pSrvID
+    // WHEN: calling IOC_onlineService(nullptr, &args)
+    // THEN: function returns IOC_RESULT_INVALID_PARAM and does not assert
     // SETUP
     IOC_SrvArgs_T args{};
     args.SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO, .pHost = IOC_SRV_HOST_LOCAL_PROCESS, .pPath = "boundary-nullid"};
@@ -117,7 +133,23 @@ TEST(UT_ServiceBoundary, verifyOnlineService_byNullSrvID_expectInvalidParam) {
     ASSERT_EQ(IOC_RESULT_INVALID_PARAM, r);
 }
 
+/**
+ * @[Name]: verifyOnlineService_byInvalidSrvArgs_expectInvalidParam
+ * @[Purpose]: Validate rejection of invalid service arguments (missing capabilities)
+ * @[Brief]: Call IOC_onlineService with zero UsageCapabilites; expect INVALID_PARAM
+ * @[Steps]:
+ *   1) 🔧 Create IOC_SrvArgs_T with UsageCapabilites=0
+ *   2) 🎯 Call IOC_onlineService(&srvID, &badArgs)
+ *   3) ✅ Assert return is IOC_RESULT_INVALID_PARAM
+ * @[Expect]: No assertion; explicit invalid-parameter return code
+ * @[Status]: PASSED/GREEN ✅
+ * @[Notes]: Complements null pSrvID boundary
+ */
 TEST(UT_ServiceBoundary, verifyOnlineService_byInvalidSrvArgs_expectInvalidParam) {
+    // US-1/AC-1
+    // GIVEN: invalid service args (no usage capabilities)
+    // WHEN: calling IOC_onlineService(&srvID, &badArgs)
+    // THEN: function returns IOC_RESULT_INVALID_PARAM and does not assert
     // SETUP: missing usage capabilities
     IOC_SrvID_T srvID = IOC_ID_INVALID;
     IOC_SrvArgs_T badArgs{};
@@ -132,7 +164,23 @@ TEST(UT_ServiceBoundary, verifyOnlineService_byInvalidSrvArgs_expectInvalidParam
     ASSERT_EQ(IOC_RESULT_INVALID_PARAM, r);
 }
 
+/**
+ * @[Name]: verifyGetServiceLinkIDs_byNullParams_expectInvalidParam
+ * @[Purpose]: Ensure inspection API validates output pointers
+ * @[Brief]: Call IOC_getServiceLinkIDs with null outputs; expect INVALID_PARAM
+ * @[Steps]:
+ *   1) 🔧 Choose any SrvID value
+ *   2) 🎯 Call IOC_getServiceLinkIDs(anySrv, nullptr, 0, nullptr)
+ *   3) ✅ Assert return is IOC_RESULT_INVALID_PARAM
+ * @[Expect]: No assertion; explicit invalid-parameter return code
+ * @[Status]: PASSED/GREEN ✅
+ * @[Notes]: Keeps API contract consistent across getters
+ */
 TEST(UT_ServiceBoundary, verifyGetServiceLinkIDs_byNullParams_expectInvalidParam) {
+    // US-1/AC-1
+    // GIVEN: null output buffers for LinkIDs and count
+    // WHEN: calling IOC_getServiceLinkIDs(anySrv, nullptr, 0, nullptr)
+    // THEN: function returns IOC_RESULT_INVALID_PARAM
     // SETUP
     IOC_SrvID_T anySrv = 12345;  // any value; API checks null outputs first
 
@@ -145,7 +193,23 @@ TEST(UT_ServiceBoundary, verifyGetServiceLinkIDs_byNullParams_expectInvalidParam
 }
 
 //=== US-1/AC-2: NOT_EXIST_* on missing resources ===
+/**
+ * @[Name]: verifyConnectService_byNotExistService_expectNotExistService
+ * @[Purpose]: Ensure connect rejects non-existent services
+ * @[Brief]: Connect to a never-onlined SrvURI; expect NOT_EXIST_SERVICE
+ * @[Steps]:
+ *   1) 🔧 Build ConnArgs with path to a non-existent service
+ *   2) 🎯 Call IOC_connectService(&linkID, &conn, nullptr)
+ *   3) ✅ Assert return is IOC_RESULT_NOT_EXIST_SERVICE
+ * @[Expect]: Clear warning log; no assertion abort
+ * @[Status]: PASSED/GREEN ✅
+ * @[Notes]: Negative path for service discovery
+ */
 TEST(UT_ServiceBoundary, verifyConnectService_byNotExistService_expectNotExistService) {
+    // US-1/AC-2
+    // GIVEN: a SrvURI that does not correspond to any onlined service
+    // WHEN: calling IOC_connectService(&linkID, &conn, nullptr)
+    // THEN: function returns IOC_RESULT_NOT_EXIST_SERVICE
     // SETUP: connect to a service path that was never onlined
     IOC_SrvURI_T uri = {.pProtocol = IOC_SRV_PROTO_FIFO, .pHost = IOC_SRV_HOST_LOCAL_PROCESS, .pPath = "no-such-svc"};
     IOC_ConnArgs_T conn = {.SrvURI = uri, .Usage = IOC_LinkUsageEvtConsumer};
@@ -159,7 +223,23 @@ TEST(UT_ServiceBoundary, verifyConnectService_byNotExistService_expectNotExistSe
     ASSERT_EQ(IOC_RESULT_NOT_EXIST_SERVICE, r);
 }
 
+/**
+ * @[Name]: verifyAcceptClient_byInvalidSrvID_expectNotExistService
+ * @[Purpose]: Ensure accept client validates service existence
+ * @[Brief]: Call IOC_acceptClient with invalid SrvID; expect NOT_EXIST_SERVICE
+ * @[Steps]:
+ *   1) 🔧 Prepare invalid SrvID and link placeholder
+ *   2) 🎯 Call IOC_acceptClient(badSrv, &linkID, nullptr)
+ *   3) ✅ Assert return is IOC_RESULT_NOT_EXIST_SERVICE
+ * @[Expect]: Error+warn logs; no assertion abort
+ * @[Status]: PASSED/GREEN ✅
+ * @[Notes]: Relies on __IOC_getSrvObjBySrvID to return NULL for bad IDs
+ */
 TEST(UT_ServiceBoundary, verifyAcceptClient_byInvalidSrvID_expectNotExistService) {
+    // US-1/AC-2
+    // GIVEN: an invalid service ID
+    // WHEN: calling IOC_acceptClient(badSrv, &linkID, nullptr)
+    // THEN: function returns IOC_RESULT_NOT_EXIST_SERVICE
     // SETUP
     IOC_SrvID_T badSrv = 0xFFFF;  // invalid
     IOC_LinkID_T linkID = IOC_ID_INVALID;
@@ -172,7 +252,23 @@ TEST(UT_ServiceBoundary, verifyAcceptClient_byInvalidSrvID_expectNotExistService
     ASSERT_EQ(IOC_RESULT_NOT_EXIST_SERVICE, r);
 }
 
+/**
+ * @[Name]: verifyCloseLink_byInvalidLink_expectNotExistLink
+ * @[Purpose]: Ensure link close handles invalid IDs cleanly
+ * @[Brief]: Close a non-existent LinkID; expect NOT_EXIST_LINK
+ * @[Steps]:
+ *   1) 🔧 Choose an invalid/random LinkID
+ *   2) 🎯 Call IOC_closeLink(LinkID)
+ *   3) ✅ Assert return is IOC_RESULT_NOT_EXIST_LINK
+ * @[Expect]: Error log only; no assertion
+ * @[Status]: PASSED/GREEN ✅
+ * @[Notes]: Uses safer LinkID validation in helper
+ */
 TEST(UT_ServiceBoundary, verifyCloseLink_byInvalidLink_expectNotExistLink) {
+    // US-1/AC-2
+    // GIVEN: a non-existent LinkID
+    // WHEN: calling IOC_closeLink(0xDEADBEEF)
+    // THEN: function returns IOC_RESULT_NOT_EXIST_LINK
     // BEHAVIOR
     printf("🎯 BEHAVIOR: closeLink on non-existent link\n");
     IOC_Result_T r = IOC_closeLink(0xDEADBEEF);
@@ -181,7 +277,23 @@ TEST(UT_ServiceBoundary, verifyCloseLink_byInvalidLink_expectNotExistLink) {
     ASSERT_EQ(IOC_RESULT_NOT_EXIST_LINK, r);
 }
 
+/**
+ * @[Name]: verifyOfflineService_byInvalidSrvID_expectNotExistService
+ * @[Purpose]: Ensure offline validates SrvID and reports NOT_EXIST_SERVICE
+ * @[Brief]: Offline an invalid service ID; expect NOT_EXIST_SERVICE
+ * @[Steps]:
+ *   1) 🔧 Choose invalid SrvID
+ *   2) 🎯 Call IOC_offlineService(bad)
+ *   3) ✅ Assert return is IOC_RESULT_NOT_EXIST_SERVICE
+ * @[Expect]: Error+warn logs; no assertion
+ * @[Status]: PASSED/GREEN ✅
+ * @[Notes]: Matches connect/accept negative paths
+ */
 TEST(UT_ServiceBoundary, verifyOfflineService_byInvalidSrvID_expectNotExistService) {
+    // US-1/AC-2
+    // GIVEN: an invalid service ID
+    // WHEN: calling IOC_offlineService(0xBEEF)
+    // THEN: function returns IOC_RESULT_NOT_EXIST_SERVICE
     // BEHAVIOR
     printf("🎯 BEHAVIOR: offlineService on invalid service ID\n");
     IOC_Result_T r = IOC_offlineService(0xBEEF);
@@ -191,7 +303,23 @@ TEST(UT_ServiceBoundary, verifyOfflineService_byInvalidSrvID_expectNotExistServi
 }
 
 //=== US-2/AC-1: Unsupported operation signals ===
+/**
+ * @[Name]: verifyBroadcastEVT_withoutFlag_expectNotSupportBroadcastEvent
+ * @[Purpose]: Ensure broadcast requires IOC_SRVFLAG_BROADCAST_EVENT
+ * @[Brief]: Online a producer without the flag and call broadcastEVT; expect NOT_SUPPORT_BROADCAST_EVENT
+ * @[Steps]:
+ *   1) 🔧 Online service with UsageCapabilites=EvtProducer and Flags=0
+ *   2) 🎯 Call IOC_broadcastEVT(srvID, &evt, nullptr)
+ *   3) ✅ Assert return is IOC_RESULT_NOT_SUPPORT_BROADCAST_EVENT
+ * @[Expect]: No crash; explicit not-supported code
+ * @[Status]: PASSED/GREEN ✅
+ * @[Notes]: Cleans up by IOC_offlineService(srvID)
+ */
 TEST(UT_ServiceBoundary, verifyBroadcastEVT_withoutFlag_expectNotSupportBroadcastEvent) {
+    // US-2/AC-1
+    // GIVEN: a service onlined without IOC_SRVFLAG_BROADCAST_EVENT
+    // WHEN: calling IOC_broadcastEVT(srvID, &evt, nullptr)
+    // THEN: function returns IOC_RESULT_NOT_SUPPORT_BROADCAST_EVENT
     // SETUP: online a regular EvtProducer service WITHOUT broadcast flag
     IOC_SrvID_T srvID = IOC_ID_INVALID;
     IOC_SrvURI_T uri = {
