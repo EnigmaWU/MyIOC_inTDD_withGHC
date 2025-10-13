@@ -49,7 +49,7 @@
  *  - STATUS LEGEND: ⚪ Planned/TODO, 🔴 Implemented/RED, 🟢 Passed/GREEN, ⚠️ Issues
  *
  *  [@US-1/AC-1]
- *   ⚪ TC: DISABLED_verifyOnlineService_byRepeatedCall_expectAlreadyExist
+ *   🔴 TC: verifyOnlineService_byRepeatedCall_expectConflictSrvArgs
  *
  *  [@US-1/AC-2]
  *   ⚪ TC: DISABLED_verifyOfflineService_byDoubleCall_expectNotExistService
@@ -80,36 +80,100 @@
 // - Keep assertions focused (≤3) to spotlight key misuse signals.
 
 //=== US-1/AC-1 ===
-TEST(UT_ServiceMisuse, DISABLED_verifyOnlineService_byRepeatedCall_expectAlreadyExist) {
-    GTEST_SKIP() << "TODO: Online once, retry with identical args, expect ALREADY_EXIST_SERVICE.";
+/**
+ * @[Name]: verifyOnlineService_byRepeatedCall_expectConflictSrvArgs
+ * @[Purpose]: Guard against duplicate online attempts reusing the same service arguments.
+ * @[Brief]: Online once, retry with identical URI/capabilities, expect IOC_RESULT_CONFLICT_SRVARGS.
+ * @[Steps]:
+ *   1) 🔧 Build minimal FIFO service args and online the service.
+ *   2) 🎯 Call IOC_onlineService again with identical args.
+ *   3) ✅ Verify duplicate attempt returns IOC_RESULT_CONFLICT_SRVARGS.
+ *   4) 🧹 Offline original service (and any accidental duplicate) to reset state.
+ * @[Expect]: Retry call is rejected with conflict while original service remains intact.
+ * @[Status]: RED 🔴
+ */
+TEST(UT_ServiceMisuse, verifyOnlineService_byRepeatedCall_expectConflictSrvArgs) {
+    // GIVEN: a service already onlined with specific arguments
+    IOC_SrvArgs_T args{};
+    args.SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO, .pHost = IOC_SRV_HOST_LOCAL_PROCESS, .pPath = "misuse-reonline"};
+    args.UsageCapabilites = IOC_LinkUsageEvtProducer;
+    args.Flags = IOC_SRVFLAG_NONE;
+
+    IOC_SrvID_T firstSrv = IOC_ID_INVALID;
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&firstSrv, &args));
+    ASSERT_NE(IOC_ID_INVALID, firstSrv);
+
+    // WHEN: attempting to online the same service again with identical arguments
+    IOC_SrvID_T duplicateSrv = IOC_ID_INVALID;
+    IOC_Result_T retryResult = IOC_onlineService(&duplicateSrv, &args);
+
+    // THEN: expect the API to reject the duplicate with a conflict code
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_CONFLICT_SRVARGS, retryResult, "KP1: duplicate online returns conflict");
+
+    // CLEANUP: ensure the original service is properly taken offline
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_offlineService(firstSrv));
+    if (duplicateSrv != IOC_ID_INVALID) {
+        IOC_offlineService(duplicateSrv);
+    }
 }
 
 //=== US-1/AC-2 ===
+/**
+ * @[Name]: verifyOfflineService_byDoubleCall_expectNotExistService
+ * @[Purpose]: Confirm double-offline attempts signal NOT_EXIST_SERVICE.
+ * @[Brief]: Offline once successfully, repeat call to observe NOT_EXIST_SERVICE.
+ * @[Status]: ⚪ Planned
+ */
 TEST(UT_ServiceMisuse, DISABLED_verifyOfflineService_byDoubleCall_expectNotExistService) {
     GTEST_SKIP() << "TODO: Offline twice, ensure second call returns NOT_EXIST_SERVICE.";
 }
 
 //=== US-2/AC-1 ===
+/**
+ * @[Name]: verifyAcceptClient_beforeOnline_expectNotExistService
+ * @[Purpose]: Ensure accept before online hints caller about missing service.
+ * @[Status]: ⚪ Planned
+ */
 TEST(UT_ServiceMisuse, DISABLED_verifyAcceptClient_beforeOnline_expectNotExistService) {
     GTEST_SKIP() << "TODO: Accept before online to confirm NOT_EXIST_SERVICE response.";
 }
 
 //=== US-2/AC-2 ===
+/**
+ * @[Name]: verifyCloseLink_byDoubleClose_expectNotExistLink
+ * @[Purpose]: Detect repeated close operations on the same link.
+ * @[Status]: ⚪ Planned
+ */
 TEST(UT_ServiceMisuse, DISABLED_verifyCloseLink_byDoubleClose_expectNotExistLink) {
     GTEST_SKIP() << "TODO: Close link twice, verify NOT_EXIST_LINK on second attempt.";
 }
 
 //=== US-2/AC-3 ===
+/**
+ * @[Name]: verifyConnectService_afterOffline_expectNotExistService
+ * @[Purpose]: Validate connect attempts after explicit offline receive NOT_EXIST_SERVICE.
+ * @[Status]: ⚪ Planned
+ */
 TEST(UT_ServiceMisuse, DISABLED_verifyConnectService_afterOffline_expectNotExistService) {
     GTEST_SKIP() << "TODO: Connect after service offline, expect NOT_EXIST_SERVICE.";
 }
 
 //=== US-3/AC-1 ===
+/**
+ * @[Name]: verifyOnlineService_byFailedAlloc_expectNoLeakIndicators
+ * @[Purpose]: Future fault-injection hook to ensure allocator rollbacks leave no residue.
+ * @[Status]: ⚪ Planned
+ */
 TEST(UT_ServiceMisuse, DISABLED_verifyOnlineService_byFailedAlloc_expectNoLeakIndicators) {
     GTEST_SKIP() << "TODO: Inject allocation failure, confirm diagnostics and no leak.";
 }
 
 //=== US-3/AC-2 ===
+/**
+ * @[Name]: verifyAcceptClient_onEmptyQueue_expectNoDanglingLink
+ * @[Purpose]: Ensure repeated accepts on empty queue don't leak handles.
+ * @[Status]: ⚪ Planned
+ */
 TEST(UT_ServiceMisuse, DISABLED_verifyAcceptClient_onEmptyQueue_expectNoDanglingLink) {
     GTEST_SKIP() << "TODO: Repeated accept with empty queue, ensure no phantom links remain.";
 }

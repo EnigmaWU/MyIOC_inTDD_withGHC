@@ -10,7 +10,35 @@ static inline void ___IOC_lockSrvObjTbl(void) { pthread_mutex_lock(&_mIOC_SrvObj
 static inline void ___IOC_unlockSrvObjTbl(void) { pthread_mutex_unlock(&_mIOC_SrvObjTblMutex); }
 
 static inline IOC_BoolResult_T ___IOC_isSrvObjConflicted(IOC_SrvArgs_pT pArgsNew) {
-    return IOC_RESULT_NO;  // TODO: JUST ENOUGH CODE
+    if (NULL == pArgsNew) {
+        return IOC_RESULT_NO;
+    }
+
+    for (int i = 0; i < _MAX_IOC_SRV_OBJ_NUM; ++i) {
+        _IOC_ServiceObject_pT pExisting = _mIOC_SrvObjTbl[i];
+        if (NULL == pExisting) {
+            continue;
+        }
+
+        const IOC_SrvURI_T *pExistingURI = &pExisting->Args.SrvURI;
+        const IOC_SrvURI_T *pNewURI = &pArgsNew->SrvURI;
+
+        bool protoEqual = (pExistingURI->pProtocol && pNewURI->pProtocol)
+                              ? (strcmp(pExistingURI->pProtocol, pNewURI->pProtocol) == 0)
+                              : (pExistingURI->pProtocol == pNewURI->pProtocol);
+        bool hostEqual = (pExistingURI->pHost && pNewURI->pHost) ? (strcmp(pExistingURI->pHost, pNewURI->pHost) == 0)
+                                                                 : (pExistingURI->pHost == pNewURI->pHost);
+        bool pathEqual = (pExistingURI->pPath && pNewURI->pPath) ? (strcmp(pExistingURI->pPath, pNewURI->pPath) == 0)
+                                                                 : (pExistingURI->pPath == pNewURI->pPath);
+        bool portEqual = (pExistingURI->Port == pNewURI->Port);
+
+        if (protoEqual && hostEqual && pathEqual && portEqual) {
+            // Treat identical URI as conflicting regardless of flags/capabilities to keep uniqueness.
+            return IOC_RESULT_YES;
+        }
+    }
+
+    return IOC_RESULT_NO;
 }
 
 /**
@@ -32,7 +60,8 @@ static IOC_Result_T __IOC_allocSrvObj(/*ARG_INCONST*/ IOC_SrvArgs_pT pSrvArgs,
     ___IOC_lockSrvObjTbl();
     if (IOC_RESULT_YES == ___IOC_isSrvObjConflicted(pSrvArgs)) {
         Result = IOC_RESULT_CONFLICT_SRVARGS;
-        _IOC_LogNotTested();
+        _IOC_LogWarn("Service conflict detected for URI(%s)",
+                     IOC_Helper_printSingleLineSrvURI(&pSrvArgs->SrvURI, NULL, 0));
         goto _RetResult;
     }
 
