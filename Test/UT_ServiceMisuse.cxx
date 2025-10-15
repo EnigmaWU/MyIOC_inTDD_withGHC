@@ -36,7 +36,7 @@
  *  AC-2: GIVEN link already closed, WHEN IOC_closeLink invoked again, THEN return IOC_RESULT_NOT_EXIST_LINK.
  *  AC-3: GIVEN service offline, WHEN IOC_connectService executed, THEN return IOC_RESULT_NOT_EXIST_SERVICE.
  */
-/**
+/**>
  * US-3 (Fault Containment): As an operator, I want resource leaks avoided when misuse occurs,
  *  so failed operations still clean up temporary allocations.
  *
@@ -50,9 +50,13 @@
  *
  *  [@US-1/AC-1]
  *   � TC: verifyOnlineService_byRepeatedCall_expectConflictSrvArgs
+ *  [@US-1/AC-1]
+ *   🟢 TC: verifyOnlineService_byRepeatedCall_expectConflictSrvArgs
  *
  *  [@US-1/AC-2]
- *   🔴 TC: verifyOfflineService_byDoubleCall_expectNotExistService
+ *  [@US-1/AC-2]
+ *   � TC: verifyOfflineService_byDoubleCall_expectNotExistService
+ *   �🔴 TC: verifyOfflineService_byDoubleCall_expectNotExistService
  *
  *  [@US-2/AC-1]
  *   ⚪ TC: DISABLED_verifyAcceptClient_beforeOnline_expectNotExistService
@@ -68,10 +72,16 @@
  *
  *  [@US-3/AC-2]
  *   ⚪ TC: DISABLED_verifyAcceptClient_onEmptyQueue_expectNoDanglingLink
+ *  [@US-2/AC-1]
+ *   🟢 TC: verifyAcceptClient_beforeOnline_expectNotExistService
+ *
+ *  [@US-2/AC-2]
+ *   🟢 TC: verifyCloseLink_byDoubleClose_expectNotExistLink
+ *
+ *  [@US-2/AC-3]
+ *   🟢 TC: verifyConnectService_afterOffline_expectNotExistService
  */
 //======>END OF UNIT TESTING DESIGN================================================================
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
 //======BEGIN OF UNIT TESTING IMPLEMENTATION=======================================================
 #include "_UT_IOC_Common.h"
 
@@ -90,7 +100,7 @@
  *   3) ✅ Verify duplicate attempt returns IOC_RESULT_CONFLICT_SRVARGS.
  *   4) 🧹 Offline original service (and any accidental duplicate) to reset state.
  * @[Expect]: Retry call is rejected with conflict while original service remains intact.
- * @[Status]: RED 🔴
+ * @[Status]: GREEN �
  */
 TEST(UT_ServiceMisuse, verifyOnlineService_byRepeatedCall_expectConflictSrvArgs) {
     // GIVEN: a service already onlined with specific arguments
@@ -128,7 +138,7 @@ TEST(UT_ServiceMisuse, verifyOnlineService_byRepeatedCall_expectConflictSrvArgs)
  *   3) 🎯 Call IOC_offlineService again on the same SrvID.
  *   4) ✅ Verify the second call yields IOC_RESULT_NOT_EXIST_SERVICE.
  * @[Expect]: Second offline attempt reports NOT_EXIST_SERVICE without side effects.
- * @[Status]: RED 🔴
+ * @[Status]: GREEN �
  */
 TEST(UT_ServiceMisuse, verifyOfflineService_byDoubleCall_expectNotExistService) {
     IOC_SrvArgs_T args{};
@@ -157,8 +167,16 @@ TEST(UT_ServiceMisuse, verifyOfflineService_byDoubleCall_expectNotExistService) 
  * @[Purpose]: Ensure accept before online hints caller about missing service.
  * @[Status]: ⚪ Planned
  */
-TEST(UT_ServiceMisuse, DISABLED_verifyAcceptClient_beforeOnline_expectNotExistService) {
-    GTEST_SKIP() << "TODO: Accept before online to confirm NOT_EXIST_SERVICE response.";
+TEST(UT_ServiceMisuse, verifyAcceptClient_beforeOnline_expectNotExistService) {
+    // GIVEN: no service is onlined
+    IOC_LinkID_T linkID = IOC_ID_INVALID;
+
+    // WHEN: attempting to accept a client on a non-existent service
+    IOC_Result_T result = IOC_acceptClient(IOC_ID_INVALID, &linkID, NULL);
+
+    // THEN: expect NOT_EXIST_SERVICE
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_NOT_EXIST_SERVICE, result,
+                       "KP1: accept before online returns NOT_EXIST_SERVICE");
 }
 
 //=== US-2/AC-2 ===
@@ -167,8 +185,35 @@ TEST(UT_ServiceMisuse, DISABLED_verifyAcceptClient_beforeOnline_expectNotExistSe
  * @[Purpose]: Detect repeated close operations on the same link.
  * @[Status]: ⚪ Planned
  */
-TEST(UT_ServiceMisuse, DISABLED_verifyCloseLink_byDoubleClose_expectNotExistLink) {
-    GTEST_SKIP() << "TODO: Close link twice, verify NOT_EXIST_LINK on second attempt.";
+TEST(UT_ServiceMisuse, verifyCloseLink_byDoubleClose_expectNotExistLink) {
+    // GIVEN: a simple service with AUTO_ACCEPT to establish a connection easily
+    IOC_SrvArgs_T srvArgs{};
+    srvArgs.SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO, .pHost = IOC_SRV_HOST_LOCAL_PROCESS, .pPath = "misuse-double-close"};
+    srvArgs.UsageCapabilites = IOC_LinkUsageEvtProducer;
+    srvArgs.Flags = (IOC_SrvFlags_T)(IOC_SRVFLAG_AUTO_ACCEPT);
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
+    ASSERT_NE(IOC_ID_INVALID, srvID);
+
+    // AND: a client connects to the service
+    IOC_ConnArgs_T connArgs{};
+    connArgs.SrvURI = srvArgs.SrvURI;
+    connArgs.Usage = IOC_LinkUsageEvtConsumer;
+    IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_connectService(&cliLinkID, &connArgs, NULL));
+    ASSERT_NE(IOC_ID_INVALID, cliLinkID);
+
+    // WHEN: closing the link twice
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_closeLink(cliLinkID));
+    IOC_Result_T secondClose = IOC_closeLink(cliLinkID);
+
+    // THEN: the second close should report NOT_EXIST_LINK
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_NOT_EXIST_LINK, secondClose,
+                       "KP1: double close returns NOT_EXIST_LINK");
+
+    // CLEANUP
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_offlineService(srvID));
 }
 
 //=== US-2/AC-3 ===
@@ -177,8 +222,28 @@ TEST(UT_ServiceMisuse, DISABLED_verifyCloseLink_byDoubleClose_expectNotExistLink
  * @[Purpose]: Validate connect attempts after explicit offline receive NOT_EXIST_SERVICE.
  * @[Status]: ⚪ Planned
  */
-TEST(UT_ServiceMisuse, DISABLED_verifyConnectService_afterOffline_expectNotExistService) {
-    GTEST_SKIP() << "TODO: Connect after service offline, expect NOT_EXIST_SERVICE.";
+TEST(UT_ServiceMisuse, verifyConnectService_afterOffline_expectNotExistService) {
+    // GIVEN: a service that was online and then taken offline
+    IOC_SrvArgs_T srvArgs{};
+    srvArgs.SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO, .pHost = IOC_SRV_HOST_LOCAL_PROCESS, .pPath = "misuse-connect-after-offline"};
+    srvArgs.UsageCapabilites = IOC_LinkUsageEvtProducer;
+    srvArgs.Flags = IOC_SRVFLAG_NONE;
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
+    ASSERT_NE(IOC_ID_INVALID, srvID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_offlineService(srvID));
+
+    // WHEN: attempting to connect to the now-offline service
+    IOC_ConnArgs_T connArgs{};
+    connArgs.SrvURI = srvArgs.SrvURI;
+    connArgs.Usage = IOC_LinkUsageEvtConsumer;
+    IOC_LinkID_T linkID = IOC_ID_INVALID;
+    IOC_Result_T result = IOC_connectService(&linkID, &connArgs, NULL);
+
+    // THEN: expect NOT_EXIST_SERVICE
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_NOT_EXIST_SERVICE, result,
+                       "KP1: connect after offline returns NOT_EXIST_SERVICE");
 }
 
 //=== US-3/AC-1 ===
