@@ -49,10 +49,10 @@
  *  - STATUS LEGEND: ⚪ Planned/TODO, 🔴 Implemented/RED, 🟢 Passed/GREEN, ⚠️ Issues
  *
  *  [@US-1/AC-1]
- *   🔴 TC: verifyOnlineService_byRepeatedCall_expectConflictSrvArgs
+ *   � TC: verifyOnlineService_byRepeatedCall_expectConflictSrvArgs
  *
  *  [@US-1/AC-2]
- *   ⚪ TC: DISABLED_verifyOfflineService_byDoubleCall_expectNotExistService
+ *   🔴 TC: verifyOfflineService_byDoubleCall_expectNotExistService
  *
  *  [@US-2/AC-1]
  *   ⚪ TC: DISABLED_verifyAcceptClient_beforeOnline_expectNotExistService
@@ -120,12 +120,35 @@ TEST(UT_ServiceMisuse, verifyOnlineService_byRepeatedCall_expectConflictSrvArgs)
 //=== US-1/AC-2 ===
 /**
  * @[Name]: verifyOfflineService_byDoubleCall_expectNotExistService
- * @[Purpose]: Confirm double-offline attempts signal NOT_EXIST_SERVICE.
- * @[Brief]: Offline once successfully, repeat call to observe NOT_EXIST_SERVICE.
- * @[Status]: ⚪ Planned
+ * @[Purpose]: Ensure repeated offline calls surface NOT_EXIST_SERVICE instead of silently succeeding.
+ * @[Brief]: Online/offline once successfully, call offline again to confirm NOT_EXIST_SERVICE is returned.
+ * @[Steps]:
+ *   1) 🔧 Online a minimal FIFO service.
+ *   2) 🔧 Offline the service successfully.
+ *   3) 🎯 Call IOC_offlineService again on the same SrvID.
+ *   4) ✅ Verify the second call yields IOC_RESULT_NOT_EXIST_SERVICE.
+ * @[Expect]: Second offline attempt reports NOT_EXIST_SERVICE without side effects.
+ * @[Status]: RED 🔴
  */
-TEST(UT_ServiceMisuse, DISABLED_verifyOfflineService_byDoubleCall_expectNotExistService) {
-    GTEST_SKIP() << "TODO: Offline twice, ensure second call returns NOT_EXIST_SERVICE.";
+TEST(UT_ServiceMisuse, verifyOfflineService_byDoubleCall_expectNotExistService) {
+    IOC_SrvArgs_T args{};
+    args.SrvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "misuse-double-offline"
+    };
+    args.UsageCapabilites = IOC_LinkUsageEvtProducer;
+    args.Flags = IOC_SRVFLAG_NONE;
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &args));
+    ASSERT_NE(IOC_ID_INVALID, srvID);
+
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_offlineService(srvID));
+
+    IOC_Result_T secondResult = IOC_offlineService(srvID);
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_NOT_EXIST_SERVICE, secondResult,
+        "KP1: double offline returns NOT_EXIST_SERVICE");
 }
 
 //=== US-2/AC-1 ===
