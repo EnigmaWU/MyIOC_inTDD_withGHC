@@ -195,7 +195,7 @@ TEST(UT_ServiceMisuse, verifyOfflineService_byDoubleCall_expectNotExistService) 
 /**
  * @[Name]: verifyAcceptClient_beforeOnline_expectNotExistService
  * @[Purpose]: Ensure accept before online hints caller about missing service.
- * @[Status]: ⚪ Planned
+ * @[Status]: 🟢 GREEN
  */
 TEST(UT_ServiceMisuse, verifyAcceptClient_beforeOnline_expectNotExistService) {
     // GIVEN: no service is onlined
@@ -213,7 +213,7 @@ TEST(UT_ServiceMisuse, verifyAcceptClient_beforeOnline_expectNotExistService) {
 /**
  * @[Name]: verifyCloseLink_byDoubleClose_expectNotExistLink
  * @[Purpose]: Detect repeated close operations on the same link.
- * @[Status]: ⚪ Planned
+ * @[Status]: 🟢 GREEN
  */
 TEST(UT_ServiceMisuse, verifyCloseLink_byDoubleClose_expectNotExistLink) {
     // GIVEN: a simple service with AUTO_ACCEPT to establish a connection easily
@@ -250,7 +250,7 @@ TEST(UT_ServiceMisuse, verifyCloseLink_byDoubleClose_expectNotExistLink) {
 /**
  * @[Name]: verifyConnectService_afterOffline_expectNotExistService
  * @[Purpose]: Validate connect attempts after explicit offline receive NOT_EXIST_SERVICE.
- * @[Status]: ⚪ Planned
+ * @[Status]: 🟢 GREEN
  */
 TEST(UT_ServiceMisuse, verifyConnectService_afterOffline_expectNotExistService) {
     // GIVEN: a service that was online and then taken offline
