@@ -687,6 +687,13 @@ IOC_Result_T IOC_acceptClient(
         return IOC_RESULT_NOT_EXIST_SERVICE;
     }
 
+    // 🐛 TDD FIX for US-4/AC-1: Reject manual accept on AUTO_ACCEPT services
+    // AUTO_ACCEPT services manage their own accept loop via daemon thread
+    if (pSrvObj->Args.Flags & IOC_SRVFLAG_AUTO_ACCEPT) {
+        _IOC_LogWarn("Manual IOC_acceptClient not allowed on AUTO_ACCEPT service (SrvID=%" PRIu64 ")", SrvID);
+        return IOC_RESULT_NOT_SUPPORT_MANUAL_ACCEPT;
+    }
+
     // Step-2: Create a Link Object
     _IOC_LinkObject_pT pLinkObj = __IOC_allocLinkObj();
     if (NULL == pLinkObj) {

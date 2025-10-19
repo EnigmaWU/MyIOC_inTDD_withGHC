@@ -298,25 +298,42 @@ TEST(UT_ServiceMisuse, DISABLED_verifyAcceptClient_onEmptyQueue_expectNoDangling
 //=== US-4/AC-1 ===
 /**
  * @[Name]: verifyAcceptClient_onAutoAcceptService_expectNotSupportManualAccept
- * @[Purpose]: Document that manual accept on AUTO_ACCEPT services is not currently prevented.
- * @[Brief]: Online service with AUTO_ACCEPT flag, document current behavior with manual acceptClient.
+ * @[Purpose]: Prevent manual accept on AUTO_ACCEPT services to avoid interfering with automatic link management.
+ * @[Brief]: Online service with AUTO_ACCEPT flag, attempt manual acceptClient, expect rejection.
  * @[Steps]:
  *   1) 🔧 Online service with IOC_SRVFLAG_AUTO_ACCEPT.
- *   2) 📝 Document that manual IOC_acceptClient is currently ALLOWED but will block waiting for client.
- *   3) ⚠️  SKIP test to avoid blocking - implementation needs enhancement.
- * @[Expect]: FUTURE: Manual accept should be rejected immediately on AUTO_ACCEPT services.
- *           CURRENT: Manual accept is allowed but will block (test skipped to prevent hang).
- * @[Status]: SKIPPED ⚠️ - Implementation allows manual accept (should reject immediately)
- * @[TODO]: Enhance IOC_acceptClient to check AUTO_ACCEPT flag and return error immediately.
+ *   2) 🎯 Call IOC_acceptClient manually on the AUTO_ACCEPT service.
+ *   3) ✅ Verify the call returns IOC_RESULT_NOT_SUPPORT_MANUAL_ACCEPT immediately.
+ *   4) 🧹 Offline service to cleanup.
+ * @[Expect]: Manual accept attempt is rejected immediately since AUTO_ACCEPT manages links automatically.
+ * @[Status]: GREEN 🟢
  */
-TEST(UT_ServiceMisuse, DISABLED_verifyAcceptClient_onAutoAcceptService_expectNotSupportManualAccept) {
-    GTEST_SKIP() << "IMPLEMENTATION LIMITATION: IOC_acceptClient on AUTO_ACCEPT service doesn't reject immediately.\n"
-                 << "  Current behavior: Manual accept is allowed and will block waiting for client.\n"
-                 << "  Expected behavior: Should return IOC_RESULT_NOT_SUPPORT_MANUAL_ACCEPT immediately.\n"
-                 << "  TODO: Add check in IOC_acceptClient implementation:\n"
-                 << "        if (pSrvObj->Args.Flags & IOC_SRVFLAG_AUTO_ACCEPT) {\n"
-                 << "            return IOC_RESULT_NOT_SUPPORT_MANUAL_ACCEPT;\n"
-                 << "        }";
+TEST(UT_ServiceMisuse, verifyAcceptClient_onAutoAcceptService_expectNotSupportManualAccept) {
+    // GIVEN: a service with AUTO_ACCEPT flag enabled
+    IOC_SrvArgs_T args{};
+    args.SrvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "misuse-manual-accept-on-auto"
+    };
+    args.UsageCapabilites = IOC_LinkUsageEvtProducer;
+    args.Flags = IOC_SRVFLAG_AUTO_ACCEPT;
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &args));
+    ASSERT_NE(IOC_ID_INVALID, srvID);
+
+    // WHEN: attempting to manually accept a client on AUTO_ACCEPT service
+    IOC_LinkID_T linkID = IOC_ID_INVALID;
+    IOC_Result_T result = IOC_acceptClient(srvID, &linkID, NULL);
+
+    // THEN: expect the operation to be rejected immediately
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_NOT_SUPPORT_MANUAL_ACCEPT, result,
+                       "KP1: manual accept on AUTO_ACCEPT service should be rejected immediately");
+    EXPECT_EQ(IOC_ID_INVALID, linkID) << "No link should be created on rejected accept";
+
+    // CLEANUP
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_offlineService(srvID));
 }
 
 //=== US-5/AC-1 ===
