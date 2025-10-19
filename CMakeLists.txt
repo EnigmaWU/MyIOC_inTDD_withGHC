@@ -99,6 +99,9 @@ if(CONFIG_BUILD_UNIT_TESTING)
             get_filename_component(UT_EXE_NAME ${UT_CXX_FILE} NAME_WE)
             add_executable(${UT_EXE_NAME} ${UT_CXX_FILE})
             
+            # Define CONFIG_BUILD_WITH_UNIT_TESTING so test code can see test hooks
+            target_compile_definitions(${UT_EXE_NAME} PRIVATE CONFIG_BUILD_WITH_UNIT_TESTING)
+            
             # Use modern Google Test if available, otherwise fallback to manual
             if(GTest_FOUND)
                 target_link_libraries(${UT_EXE_NAME} ${LIB_IOC} GTest::gtest GTest::gtest_main)

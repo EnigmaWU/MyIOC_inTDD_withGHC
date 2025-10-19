@@ -36,6 +36,13 @@ void _IOC_updateConlesEventSubState(IOC_LinkID_T linkID, IOC_LinkSubState_T subS
 // Computes complementary link role: Client=Executor → Service=Initiator on that link
 IOC_LinkUsage_T _IOC_negotiateLinkRole(IOC_LinkUsage_T ServiceCapabilities, IOC_LinkUsage_T ClientRequestedUsage);
 
+// 🧪 TEST HOOKS: Fault injection and diagnostics (only available in test builds)
+#ifdef CONFIG_BUILD_WITH_UNIT_TESTING
+void IOC_test_setFailNextAlloc(int count);
+uint16_t IOC_getServiceCount(void);
+uint16_t IOC_getLinkCount(void);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

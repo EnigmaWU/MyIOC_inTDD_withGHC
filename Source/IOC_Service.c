@@ -9,6 +9,48 @@ static pthread_mutex_t _mIOC_SrvObjTblMutex = PTHREAD_MUTEX_INITIALIZER;
 static inline void ___IOC_lockSrvObjTbl(void) { pthread_mutex_lock(&_mIOC_SrvObjTblMutex); }
 static inline void ___IOC_unlockSrvObjTbl(void) { pthread_mutex_unlock(&_mIOC_SrvObjTblMutex); }
 
+// Unit-test helpers: allocation-failure injection and counters
+static pthread_mutex_t _mIOC_TestHooksMutex = PTHREAD_MUTEX_INITIALIZER;
+static int _mIOC_FailNextAllocCount = 0;     // when >0, next allocations will fail (decremented)
+static uint16_t _mIOC_ServiceCount = 0;      // active services
+static uint16_t _mIOC_LinkCount = 0;         // active link objects
+
+void IOC_test_setFailNextAlloc(int count) {
+    pthread_mutex_lock(&_mIOC_TestHooksMutex);
+    _mIOC_FailNextAllocCount = count;
+    pthread_mutex_unlock(&_mIOC_TestHooksMutex);
+}
+
+uint16_t IOC_getServiceCount(void) {
+    uint16_t v;
+    pthread_mutex_lock(&_mIOC_TestHooksMutex);
+    v = _mIOC_ServiceCount;
+    pthread_mutex_unlock(&_mIOC_TestHooksMutex);
+    return v;
+}
+
+uint16_t IOC_getLinkCount(void) {
+    uint16_t v;
+    pthread_mutex_lock(&_mIOC_TestHooksMutex);
+    v = _mIOC_LinkCount;
+    pthread_mutex_unlock(&_mIOC_TestHooksMutex);
+    return v;
+}
+
+// Internal allocation helpers that respect the fail-injection counter
+static void* __IOC_test_calloc(size_t nmemb, size_t size) {
+    void* p = NULL;
+    pthread_mutex_lock(&_mIOC_TestHooksMutex);
+    if (_mIOC_FailNextAllocCount > 0) {
+        _mIOC_FailNextAllocCount--;
+        pthread_mutex_unlock(&_mIOC_TestHooksMutex);
+        return NULL; // Simulate ENOMEM
+    }
+    pthread_mutex_unlock(&_mIOC_TestHooksMutex);
+    p = calloc(nmemb, size);
+    return p;
+}
+
 static inline IOC_BoolResult_T ___IOC_isSrvObjConflicted(IOC_SrvArgs_pT pArgsNew) {
     if (NULL == pArgsNew) {
         return IOC_RESULT_NO;
@@ -67,10 +109,10 @@ static IOC_Result_T __IOC_allocSrvObj(/*ARG_INCONST*/ IOC_SrvArgs_pT pSrvArgs,
 
     for (int i = 0; i < _MAX_IOC_SRV_OBJ_NUM; i++) {
         if (NULL == _mIOC_SrvObjTbl[i]) {
-            pSrvObj = (_IOC_ServiceObject_pT)calloc(1, sizeof(_IOC_ServiceObject_T));
+            pSrvObj = (_IOC_ServiceObject_pT)__IOC_test_calloc(1, sizeof(_IOC_ServiceObject_T));
             if (NULL == pSrvObj) {
                 Result = IOC_RESULT_POSIX_ENOMEM;
-                _IOC_LogNotTested();
+                // NOTE: This path is now tested via IOC_test_setFailNextAlloc() in unit tests
                 goto _RetResult;
             }
 
@@ -78,7 +120,7 @@ static IOC_Result_T __IOC_allocSrvObj(/*ARG_INCONST*/ IOC_SrvArgs_pT pSrvArgs,
             if (pthread_mutex_init(&pSrvObj->ManualAccept.Mutex, NULL) != 0) {
                 free(pSrvObj);
                 Result = IOC_RESULT_POSIX_ENOMEM;
-                _IOC_LogNotTested();
+                // NOTE: Mutex init failure is rare but handled defensively
                 goto _RetResult;
             }
 
@@ -115,6 +157,10 @@ static IOC_Result_T __IOC_allocSrvObj(/*ARG_INCONST*/ IOC_SrvArgs_pT pSrvArgs,
             pSrvObj->Args.pSrvPriv = pSrvArgs->pSrvPriv;
 
             _mIOC_SrvObjTbl[i] = pSrvObj;
+            // update test counter
+            pthread_mutex_lock(&_mIOC_TestHooksMutex);
+            _mIOC_ServiceCount++;
+            pthread_mutex_unlock(&_mIOC_TestHooksMutex);
             *ppSrvObj = pSrvObj;
             Result = IOC_RESULT_SUCCESS;
             //_IOC_LogNotTested();
@@ -145,6 +191,9 @@ static void __IOC_freeSrvObj(_IOC_ServiceObject_pT pSrvObj) {
     free((char *)pSrvObj->Args.SrvURI.pHost);
     free((char *)pSrvObj->Args.SrvURI.pPath);
     free(pSrvObj);
+    pthread_mutex_lock(&_mIOC_TestHooksMutex);
+    if (_mIOC_ServiceCount > 0) _mIOC_ServiceCount--;
+    pthread_mutex_unlock(&_mIOC_TestHooksMutex);
 
     //_IOC_LogNotTested();
 }
@@ -184,7 +233,7 @@ _IOC_LinkObject_pT __IOC_allocLinkObj(void) {
     ___IOC_lockLinkObjTbl();
     for (int i = 0; i < _MAX_IOC_LINK_OBJ_NUM; i++) {
         if (NULL == _mIOC_LinkObjTbl[i]) {
-            pLinkObj = (_IOC_LinkObject_pT)calloc(1, sizeof(_IOC_LinkObject_T));
+            pLinkObj = (_IOC_LinkObject_pT)__IOC_test_calloc(1, sizeof(_IOC_LinkObject_T));
             if (NULL == pLinkObj) {
                 _IOC_LogError("Failed to alloc a link object");
                 _IOC_LogNotTested();
@@ -218,6 +267,9 @@ _IOC_LinkObject_pT __IOC_allocLinkObj(void) {
             pLinkObj->CmdState.LastOperationTime = time(NULL);
 
             _mIOC_LinkObjTbl[i] = pLinkObj;
+            pthread_mutex_lock(&_mIOC_TestHooksMutex);
+            _mIOC_LinkCount++;
+            pthread_mutex_unlock(&_mIOC_TestHooksMutex);
             break;
         }
     }
@@ -240,6 +292,9 @@ void __IOC_freeLinkObj(_IOC_LinkObject_pT pLinkObj) {
     pthread_mutex_destroy(&pLinkObj->DatState.SubStateMutex);
 
     free(pLinkObj);
+    pthread_mutex_lock(&_mIOC_TestHooksMutex);
+    if (_mIOC_LinkCount > 0) _mIOC_LinkCount--;
+    pthread_mutex_unlock(&_mIOC_TestHooksMutex);
     //_IOC_LogNotTested();
 }
 

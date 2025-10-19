@@ -95,7 +95,7 @@
  *   🟢 TC: verifyConnectService_afterOffline_expectNotExistService
  *
  *  [@US-3/AC-1]
- *   ⚪ TC: DISABLED_verifyOnlineService_byFailedAlloc_expectNoLeakIndicators
+ *   🟢 TC: verifyOnlineService_byFailedAlloc_expectNoLeakIndicators
  *
  *  [@US-3/AC-2]
  *   ⚪ TC: DISABLED_verifyAcceptClient_onEmptyQueue_expectNoDanglingLink
@@ -114,6 +114,8 @@
 #include "_UT_IOC_Common.h"
 
 // Notes:
+// - Test hooks (IOC_test_setFailNextAlloc, IOC_getServiceCount, IOC_getLinkCount) are
+//   declared in _IOC.h (internal header) and only available in CONFIG_BUILD_WITH_UNIT_TESTING builds
 // - Enable each test once supporting hooks (fault injection or leak inspection) are prepared.
 // - Keep assertions focused (≤3) to spotlight key misuse signals.
 
@@ -277,21 +279,95 @@ TEST(UT_ServiceMisuse, verifyConnectService_afterOffline_expectNotExistService) 
 //=== US-3/AC-1 ===
 /**
  * @[Name]: verifyOnlineService_byFailedAlloc_expectNoLeakIndicators
- * @[Purpose]: Future fault-injection hook to ensure allocator rollbacks leave no residue.
- * @[Status]: ⚪ Planned
+ * @[Purpose]: Ensure resource cleanup when service creation fails due to allocation errors.
+ * @[Brief]: Simulate allocation failure during service online, verify no resource leaks occur.
+ * @[Steps]:
+ *   1) 🔧 Get baseline service count before test.
+ *   2) 🎯 Inject failure for the next allocation attempt.
+ *   3) 🔧 Attempt to online service (should fail due to allocation error).
+ *   4) ✅ Verify IOC_onlineService returns appropriate error (IOC_RESULT_POSIX_ENOMEM).
+ *   5) 🔍 Check service count unchanged (no partial allocations).
+ *   6) 🧹 Disable fault injection and verify normal operations still work.
+ * @[Expect]: Failed allocation properly rolls back without leaking memory or list entries.
+ * @[Status]: GREEN 🟢
  */
-TEST(UT_ServiceMisuse, DISABLED_verifyOnlineService_byFailedAlloc_expectNoLeakIndicators) {
-    GTEST_SKIP() << "TODO: Inject allocation failure, confirm diagnostics and no leak.";
+TEST(UT_ServiceMisuse, verifyOnlineService_byFailedAlloc_expectNoLeakIndicators) {
+    // GIVEN: baseline service count before test
+    uint16_t BaselineServiceCount = IOC_getServiceCount();
+
+    // WHEN: inject allocation failure for the next calloc attempt
+    IOC_test_setFailNextAlloc(1);  // fail the very next allocation
+
+    // AND: attempt to online service (should fail at calloc)
+    IOC_SrvArgs_T args{};
+    args.SrvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "misuse-failed-alloc"
+    };
+    args.UsageCapabilites = IOC_LinkUsageEvtProducer;
+    args.Flags = IOC_SRVFLAG_NONE;
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    IOC_Result_T result = IOC_onlineService(&srvID, &args);
+
+    // THEN: online should fail with memory error
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_POSIX_ENOMEM, result,
+                       "KP1: allocation failure returns POSIX_ENOMEM");
+    EXPECT_EQ(IOC_ID_INVALID, srvID) << "No service ID should be assigned on failure";
+
+    // AND: service count should remain unchanged (no leaked entries)
+    uint16_t AfterFailServiceCount = IOC_getServiceCount();
+    VERIFY_KEYPOINT_EQ(BaselineServiceCount, AfterFailServiceCount,
+                       "KP2: service count unchanged after allocation failure");
+
+    // AND: normal operations should still work (injection disabled after 1 call)
+    IOC_SrvID_T normalSrvID = IOC_ID_INVALID;
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&normalSrvID, &args));
+    ASSERT_NE(IOC_ID_INVALID, normalSrvID);
+
+    // CLEANUP
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_offlineService(normalSrvID));
+
+    // Verify final service count returns to baseline
+    uint16_t FinalServiceCount = IOC_getServiceCount();
+    EXPECT_EQ(BaselineServiceCount, FinalServiceCount) 
+        << "Service count should return to baseline after cleanup";
 }
 
 //=== US-3/AC-2 ===
 /**
  * @[Name]: verifyAcceptClient_onEmptyQueue_expectNoDanglingLink
- * @[Purpose]: Ensure repeated accepts on empty queue don't leak handles.
- * @[Status]: ⚪ Planned
+ * @[Purpose]: Verify no dangling links or file descriptors when accept times out on empty queue.
+ * @[Brief]: Repeatedly call acceptClient with timeout when no clients connect, check for leaks.
+ * @[Steps]:
+ *   1) 🔧 Online service without AUTO_ACCEPT (manual accept mode).
+ *   2) 🎯 Call IOC_acceptClient with short timeout (e.g., 100ms) when no client is connecting.
+ *   3) ✅ Verify returns IOC_RESULT_TIMEOUT (not success with invalid link).
+ *   4) 🔁 Repeat accept attempts multiple times (e.g., 100 iterations).
+ *   5) 🔍 Check file descriptor count hasn't increased (lsof, /proc/self/fd).
+ *   6) 🔍 Check internal link list size remains zero.
+ *   7) 🧹 Offline service and verify clean teardown.
+ * @[Expect]: Timeout on empty queue doesn't leak file descriptors or create phantom links.
+ * @[Status]: ⚪ DISABLED - Requires resource monitoring utilities
+ * @[TODO]:
+ *   - Add IOC_getLinkCount() or similar internal diagnostic API
+ *   - Implement file descriptor counting helper (parse /proc/self/fd on Linux)
+ *   - Consider stress testing with many iterations (1000+)
+ *   - Test with ASAN/LeakSanitizer to catch subtle leaks
+ *   - Verify behavior under race conditions (concurrent accept attempts)
  */
 TEST(UT_ServiceMisuse, DISABLED_verifyAcceptClient_onEmptyQueue_expectNoDanglingLink) {
-    GTEST_SKIP() << "TODO: Repeated accept with empty queue, ensure no phantom links remain.";
+    GTEST_SKIP() << "FUTURE ENHANCEMENT: Requires resource leak detection utilities.\n"
+                 << "  Implementation approach:\n"
+                 << "    1. Online service in manual-accept mode (no AUTO_ACCEPT flag)\n"
+                 << "    2. Set AcceptOpt with short timeout (e.g., timeout_ms = 100)\n"
+                 << "    3. Loop: IOC_acceptClient 100+ times with no connecting clients\n"
+                 << "    4. Verify each call returns IOC_RESULT_TIMEOUT\n"
+                 << "    5. Check file descriptor count (before/after): parse /proc/self/fd\n"
+                 << "    6. Add diagnostic API like IOC_getLinkCount() to verify count=0\n"
+                 << "    7. Run with ASAN/LeakSanitizer to detect subtle leaks\n"
+                 << "  Expected: FD count stable, no phantom links, clean ASAN report";
 }
 
 //=== US-4/AC-1 ===
