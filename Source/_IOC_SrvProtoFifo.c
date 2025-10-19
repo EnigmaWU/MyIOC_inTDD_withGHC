@@ -53,8 +53,8 @@ typedef struct {
     IOC_LinkID_T linkID;
 } _IOC_TimeoutContext_T;
 
-static void *__IOC_timeoutCallbackWrapper(void *arg) {
-    _IOC_TimeoutContext_T *ctx = (_IOC_TimeoutContext_T *)arg;
+static void* __IOC_timeoutCallbackWrapper(void* arg) {
+    _IOC_TimeoutContext_T* ctx = (_IOC_TimeoutContext_T*)arg;
     printf("[DEBUG CALLBACK THREAD] Starting callback execution\n");
 
     // Execute the actual callback
@@ -72,7 +72,7 @@ static void *__IOC_timeoutCallbackWrapper(void *arg) {
 }
 
 typedef struct _IOC_ProtoFifoLinkObjectStru _IOC_ProtoFifoLinkObject_T;
-typedef _IOC_ProtoFifoLinkObject_T *_IOC_ProtoFifoLinkObject_pT;
+typedef _IOC_ProtoFifoLinkObject_T* _IOC_ProtoFifoLinkObject_pT;
 
 /**
  * @brief ProtoFIFO's 【Link Object】(a.k.a FifoLinkObj), used to transmit MSG<EVT/CMD/DATA> in FIFO order.
@@ -111,7 +111,7 @@ struct _IOC_ProtoFifoLinkObjectStru {
     // callback registration and data transmission are atomic operations.
     struct {
         IOC_CbRecvDat_F CbRecvDat_F;  // Callback for receiving data
-        void *pCbPrivData;            // Private data for callback
+        void* pCbPrivData;            // Private data for callback
         bool IsReceiverRegistered;    // Whether this link has a receiver callback
         bool IsProcessingCallback;    // Whether callback is currently being processed (for batching support)
         int PendingDataCount;         // Count of pending data chunks (for non-blocking queue simulation)
@@ -119,7 +119,7 @@ struct _IOC_ProtoFifoLinkObjectStru {
         // 🚀 MICRO-BATCHING SUPPORT: Accumulate rapid sends for batched delivery
         // Time-window-based batching for accumulating sends after slow callbacks
         struct {
-            char *pBatchBuffer;          // Buffer for accumulating data
+            char* pBatchBuffer;          // Buffer for accumulating data
             size_t BatchBufferSize;      // Total batch buffer size
             size_t AccumulatedDataSize;  // Currently accumulated data size
             bool IsInCallback;           // Flag to track if we're currently in a callback
@@ -146,7 +146,7 @@ struct _IOC_ProtoFifoLinkObjectStru {
         // 📦 POLLING MODE SUPPORT: Buffer for storing data when no callback is registered
         // This enables hybrid mode - data can be delivered via callback OR stored for polling
         struct {
-            char *pDataBuffer;                 // Circular buffer for received data
+            char* pDataBuffer;                 // Circular buffer for received data
             size_t BufferSize;                 // Total buffer size (allocated)
             size_t DataStart;                  // Start position of valid data (read pointer)
             size_t DataEnd;                    // End position of valid data (write pointer)
@@ -217,22 +217,22 @@ static pthread_mutex_t _mIOC_OnlinedSrvProtoFifoObjsMutex = PTHREAD_MUTEX_INITIA
 static IOC_Result_T __IOC_setupDatReceiver_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, _IOC_ServiceObject_pT pSrvObj);
 static IOC_Result_T __IOC_initPollingBuffer_ofProtoFifo(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj);
 static void __IOC_cleanupPollingBuffer_ofProtoFifo(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj);
-static IOC_Result_T __IOC_storeDataInPollingBuffer(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj, const void *pData,
+static IOC_Result_T __IOC_storeDataInPollingBuffer(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj, const void* pData,
                                                    size_t DataSize);
-static IOC_Result_T __IOC_readDataFromPollingBuffer(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj, void *pBuffer,
-                                                    size_t BufferSize, size_t *pBytesRead, bool IsBlocking);
-static IOC_Result_T __IOC_readDataFromPollingBufferWithTimeout(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj, void *pBuffer,
-                                                               size_t BufferSize, size_t *pBytesRead,
+static IOC_Result_T __IOC_readDataFromPollingBuffer(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj, void* pBuffer,
+                                                    size_t BufferSize, size_t* pBytesRead, bool IsBlocking);
+static IOC_Result_T __IOC_readDataFromPollingBufferWithTimeout(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj, void* pBuffer,
+                                                               size_t BufferSize, size_t* pBytesRead,
                                                                long long TimeoutUS);
 
 // Forward declarations for send queue/batching functions
 static IOC_Result_T __IOC_initCallbackBatch_ofProtoFifo(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj);
 static void __IOC_cleanupCallbackBatch_ofProtoFifo(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj);
-static IOC_Result_T __IOC_addDataToBatch(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj, const void *pData, size_t DataSize);
+static IOC_Result_T __IOC_addDataToBatch(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj, const void* pData, size_t DataSize);
 static IOC_Result_T __IOC_flushCallbackBatch(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj);
 
 // Time-window batching helper functions
-static long __IOC_getElapsedTimeMs(const struct timespec *start, const struct timespec *end);
+static long __IOC_getElapsedTimeMs(const struct timespec* start, const struct timespec* end);
 static bool __IOC_isBatchWindowExpired(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj);
 static void __IOC_closeBatchWindow(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj);
 static bool __IOC_shouldOpenBatchWindow(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj, long callbackDurationMs);
@@ -562,8 +562,15 @@ static IOC_Result_T __IOC_acceptClient_ofProtoFifo(_IOC_ServiceObject_pT pSrvObj
                 // Override the server link's Usage with negotiated role (NOT full service capabilities!)
                 pLinkObj->Args.Usage = ServiceLinkRole;
 
-                printf("🎯 [ROLE NEGOTIATION] ServiceCap=0x%02X, ClientUsage=0x%02X → ServiceLinkRole=0x%02X\n",
-                       ServiceCapabilities, ClientRequestedUsage, ServiceLinkRole);
+                // Human-readable names for better diagnostics
+                char svcMask[96];
+                const char* svcNames = IOC_formatLinkUsageMask(ServiceCapabilities, svcMask, sizeof(svcMask));
+                const char* cliName = IOC_getLinkUsageName(ClientRequestedUsage);
+                const char* srvName = IOC_getLinkUsageName(ServiceLinkRole);
+                printf(
+                    "🎯 [ROLE NEGOTIATION] ServiceCap=0x%02X(%s), ClientUsage=0x%02X(%s) → "
+                    "ServiceLinkRole=0x%02X(%s)\n",
+                    ServiceCapabilities, svcNames, ClientRequestedUsage, cliName, ServiceLinkRole, srvName);
             }
 
             // 🔧 TDD FIX: Setup DAT receiver for both server and client scenarios
@@ -677,7 +684,7 @@ static IOC_Result_T __IOC_subEvt_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, const 
 
     memcpy(&pLinkFifoObj->SubEvtArgs, pSubEvtArgs, sizeof(IOC_SubEvtArgs_T));
 
-    pLinkFifoObj->SubEvtArgs.pEvtIDs = (IOC_EvtID_T *)malloc(pSubEvtArgs->EvtNum * sizeof(IOC_EvtID_T));
+    pLinkFifoObj->SubEvtArgs.pEvtIDs = (IOC_EvtID_T*)malloc(pSubEvtArgs->EvtNum * sizeof(IOC_EvtID_T));
     memcpy(pLinkFifoObj->SubEvtArgs.pEvtIDs, pSubEvtArgs->pEvtIDs, pSubEvtArgs->EvtNum * sizeof(IOC_EvtID_T));
 
     //_IOC_LogNotTested();
@@ -917,7 +924,7 @@ static IOC_Result_T __IOC_sendData_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, cons
     pthread_mutex_lock(&pPeerFifoLinkObj->Mutex);
 
     IOC_CbRecvDat_F CbRecvDat_F = pPeerFifoLinkObj->DatReceiver.CbRecvDat_F;
-    void *pCbPrivData = pPeerFifoLinkObj->DatReceiver.pCbPrivData;
+    void* pCbPrivData = pPeerFifoLinkObj->DatReceiver.pCbPrivData;
     bool IsReceiverRegistered = pPeerFifoLinkObj->DatReceiver.IsReceiverRegistered;
     bool IsCallbackBusy = pPeerFifoLinkObj->DatReceiver.IsProcessingCallback;
     pthread_mutex_unlock(&pPeerFifoLinkObj->Mutex);
@@ -1449,14 +1456,14 @@ static void __IOC_cleanupPollingBuffer_ofProtoFifo(_IOC_ProtoFifoLinkObject_pT p
  * @param DataSize Size of data to store
  * @return IOC_RESULT_SUCCESS on success, IOC_RESULT_BUFFER_FULL if buffer is full
  */
-static IOC_Result_T __IOC_storeDataInPollingBuffer(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj, const void *pData,
+static IOC_Result_T __IOC_storeDataInPollingBuffer(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj, const void* pData,
                                                    size_t DataSize) {
     if (!pFifoLinkObj || !pData || DataSize == 0) {
         return IOC_RESULT_INVALID_PARAM;
     }
 
     // Get direct reference to the polling buffer
-    char *pDataBuffer = pFifoLinkObj->DatReceiver.PollingBuffer.pDataBuffer;
+    char* pDataBuffer = pFifoLinkObj->DatReceiver.PollingBuffer.pDataBuffer;
     size_t BufferSize = pFifoLinkObj->DatReceiver.PollingBuffer.BufferSize;
     size_t DataEnd = pFifoLinkObj->DatReceiver.PollingBuffer.DataEnd;
     size_t AvailableData = pFifoLinkObj->DatReceiver.PollingBuffer.AvailableData;
@@ -1468,7 +1475,7 @@ static IOC_Result_T __IOC_storeDataInPollingBuffer(_IOC_ProtoFifoLinkObject_pT p
     }
 
     // Store data in circular buffer
-    const char *pSrcData = (const char *)pData;
+    const char* pSrcData = (const char*)pData;
     size_t BytesToEnd = BufferSize - DataEnd;
 
     if (DataSize <= BytesToEnd) {
@@ -1499,8 +1506,8 @@ static IOC_Result_T __IOC_storeDataInPollingBuffer(_IOC_ProtoFifoLinkObject_pT p
  * @param IsBlocking Whether to block when no data is available
  * @return IOC_RESULT_SUCCESS on success, IOC_RESULT_NO_DATA if no data available in non-blocking mode
  */
-static IOC_Result_T __IOC_readDataFromPollingBuffer(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj, void *pBuffer,
-                                                    size_t BufferSize, size_t *pBytesRead, bool IsBlocking) {
+static IOC_Result_T __IOC_readDataFromPollingBuffer(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj, void* pBuffer,
+                                                    size_t BufferSize, size_t* pBytesRead, bool IsBlocking) {
     if (!pFifoLinkObj || !pBuffer || !pBytesRead || BufferSize == 0) {
         return IOC_RESULT_INVALID_PARAM;
     }
@@ -1520,11 +1527,11 @@ static IOC_Result_T __IOC_readDataFromPollingBuffer(_IOC_ProtoFifoLinkObject_pT 
     size_t AvailableData = pFifoLinkObj->DatReceiver.PollingBuffer.AvailableData;
     size_t DataToRead = (BufferSize < AvailableData) ? BufferSize : AvailableData;
 
-    char *pSrcBuffer = pFifoLinkObj->DatReceiver.PollingBuffer.pDataBuffer;
+    char* pSrcBuffer = pFifoLinkObj->DatReceiver.PollingBuffer.pDataBuffer;
     size_t DataStart = pFifoLinkObj->DatReceiver.PollingBuffer.DataStart;
     size_t TotalBufferSize = pFifoLinkObj->DatReceiver.PollingBuffer.BufferSize;
 
-    char *pDestBuffer = (char *)pBuffer;
+    char* pDestBuffer = (char*)pBuffer;
     size_t BytesToEnd = TotalBufferSize - DataStart;
 
     if (DataToRead <= BytesToEnd) {
@@ -1553,8 +1560,8 @@ static IOC_Result_T __IOC_readDataFromPollingBuffer(_IOC_ProtoFifoLinkObject_pT 
  * @param TimeoutUS Timeout in microseconds (-1 for infinite, 0 for immediate)
  * @return IOC_RESULT_SUCCESS on success, IOC_RESULT_TIMEOUT on timeout, IOC_RESULT_NO_DATA if no data available
  */
-static IOC_Result_T __IOC_readDataFromPollingBufferWithTimeout(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj, void *pBuffer,
-                                                               size_t BufferSize, size_t *pBytesRead,
+static IOC_Result_T __IOC_readDataFromPollingBufferWithTimeout(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj, void* pBuffer,
+                                                               size_t BufferSize, size_t* pBytesRead,
                                                                long long TimeoutUS) {
     if (!pFifoLinkObj || !pBuffer || !pBytesRead || BufferSize == 0) {
         return IOC_RESULT_INVALID_PARAM;
@@ -1610,11 +1617,11 @@ static IOC_Result_T __IOC_readDataFromPollingBufferWithTimeout(_IOC_ProtoFifoLin
     size_t AvailableData = pFifoLinkObj->DatReceiver.PollingBuffer.AvailableData;
     size_t DataToRead = (BufferSize < AvailableData) ? BufferSize : AvailableData;
 
-    char *pSrcBuffer = pFifoLinkObj->DatReceiver.PollingBuffer.pDataBuffer;
+    char* pSrcBuffer = pFifoLinkObj->DatReceiver.PollingBuffer.pDataBuffer;
     size_t DataStart = pFifoLinkObj->DatReceiver.PollingBuffer.DataStart;
     size_t TotalBufferSize = pFifoLinkObj->DatReceiver.PollingBuffer.BufferSize;
 
-    char *pDestBuffer = (char *)pBuffer;
+    char* pDestBuffer = (char*)pBuffer;
     size_t BytesToEnd = TotalBufferSize - DataStart;
 
     if (DataToRead <= BytesToEnd) {
@@ -1691,7 +1698,7 @@ static void __IOC_cleanupCallbackBatch_ofProtoFifo(_IOC_ProtoFifoLinkObject_pT p
  * @param DataSize Size of data to add
  * @return IOC_RESULT_SUCCESS on success, IOC_RESULT_BUFFER_FULL if batch is full
  */
-static IOC_Result_T __IOC_addDataToBatch(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj, const void *pData, size_t DataSize) {
+static IOC_Result_T __IOC_addDataToBatch(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj, const void* pData, size_t DataSize) {
     if (!pFifoLinkObj || !pData || DataSize == 0) {
         return IOC_RESULT_INVALID_PARAM;
     }
@@ -1709,7 +1716,7 @@ static IOC_Result_T __IOC_addDataToBatch(_IOC_ProtoFifoLinkObject_pT pFifoLinkOb
 
     if (DataSize <= AvailableSpace) {
         // Add data to batch
-        char *pBatchPos = pFifoLinkObj->DatReceiver.CallbackBatch.pBatchBuffer +
+        char* pBatchPos = pFifoLinkObj->DatReceiver.CallbackBatch.pBatchBuffer +
                           pFifoLinkObj->DatReceiver.CallbackBatch.AccumulatedDataSize;
         memcpy(pBatchPos, pData, DataSize);
         pFifoLinkObj->DatReceiver.CallbackBatch.AccumulatedDataSize += DataSize;
@@ -1744,8 +1751,8 @@ static IOC_Result_T __IOC_flushCallbackBatch(_IOC_ProtoFifoLinkObject_pT pFifoLi
 
     // Extract callback info and batch data under protection
     IOC_CbRecvDat_F CbRecvDat_F = pFifoLinkObj->DatReceiver.CbRecvDat_F;
-    void *pCbPrivData = pFifoLinkObj->DatReceiver.pCbPrivData;
-    char *pBatchData = pFifoLinkObj->DatReceiver.CallbackBatch.pBatchBuffer;
+    void* pCbPrivData = pFifoLinkObj->DatReceiver.pCbPrivData;
+    char* pBatchData = pFifoLinkObj->DatReceiver.CallbackBatch.pBatchBuffer;
     size_t BatchSize = pFifoLinkObj->DatReceiver.CallbackBatch.AccumulatedDataSize;
 
     // Reset batch state before callback to allow new batching during callback
@@ -1779,7 +1786,7 @@ static IOC_Result_T __IOC_flushCallbackBatch(_IOC_ProtoFifoLinkObject_pT pFifoLi
  * @param end End time
  * @return Elapsed time in milliseconds
  */
-static long __IOC_getElapsedTimeMs(const struct timespec *start, const struct timespec *end) {
+static long __IOC_getElapsedTimeMs(const struct timespec* start, const struct timespec* end) {
     long seconds = end->tv_sec - start->tv_sec;
     long nanoseconds = end->tv_nsec - start->tv_nsec;
     return seconds * 1000 + nanoseconds / 1000000;
