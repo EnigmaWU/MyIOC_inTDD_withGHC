@@ -70,6 +70,7 @@ typedef enum {
     IOC_RESULT_ZERO_DATA = -516,  // Alias for when both PtrDataSize and EmdDataSize are zero
     IOC_RESULT_NOT_EXIST_STREAM = -517,
     IOC_RESULT_ACK_CMD_FAILED = -518,
+    IOC_RESULT_INCOMPATIBLE_USAGE = -519,  // 🐛 TDD FIX: Added for UT_ServiceMisuse US-5/AC-1
 
     IOC_RESULT_EVTDESC_QUEUE_EMPTY = -520,
     IOC_RESULT_TOO_LONG_EMPTYING_EVTDESC_QUEUE = -521,

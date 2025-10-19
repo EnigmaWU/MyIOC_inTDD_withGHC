@@ -447,6 +447,23 @@ static IOC_Result_T __IOC_connectService_ofProtoFifo(_IOC_LinkObject_pT pLinkObj
     pthread_cond_wait(&pFifoSrvObj->WaitAccptedCond,
                       &pFifoSrvObj->WaitAccptedMutex);  // wait for the acceptClient to complete
 
+    // 🐛 TDD FIX: Check if connection was rejected (e.g., incompatible usage)
+    // If pConnLinkObj was cleared but pPeer is NULL, server rejected the connection
+    if (pFifoSrvObj->pConnLinkObj == NULL && pFifoLinkObj->pPeer == NULL) {
+        pthread_mutex_unlock(&pFifoSrvObj->WaitAccptedMutex);
+        pthread_mutex_unlock(&pFifoSrvObj->ConnMutex);
+        
+        // Clean up the rejected link object
+        __IOC_cleanupPollingBuffer_ofProtoFifo(pFifoLinkObj);
+        __IOC_cleanupCallbackBatch_ofProtoFifo(pFifoLinkObj);
+        pthread_mutex_destroy(&pFifoLinkObj->Mutex);
+        free(pFifoLinkObj);
+        pLinkObj->pProtoPriv = NULL;
+        
+        _IOC_LogWarn("Connection rejected by service (likely incompatible usage)");
+        return IOC_RESULT_INCOMPATIBLE_USAGE;
+    }
+
     // MAKE SURE the connection is accepted by the acceptClient
     _IOC_LogAssert(NULL != pFifoLinkObj->pPeer);
 
@@ -538,40 +555,50 @@ static IOC_Result_T __IOC_acceptClient_ofProtoFifo(_IOC_ServiceObject_pT pSrvObj
             _IOC_ProtoFifoLinkObject_pT pConnFifoLinkObj =
                 (_IOC_ProtoFifoLinkObject_pT)pFifoSrvObj->pConnLinkObj->pProtoPriv;
 
-            pAceptedFifoLinkObj->pPeer = pConnFifoLinkObj;
-            pConnFifoLinkObj->pPeer = pAceptedFifoLinkObj;
-
             // TDD FIX: Save client link reference before clearing it
             _IOC_LinkObject_pT pClientLinkObj = pFifoSrvObj->pConnLinkObj;
-            pFifoSrvObj->pConnLinkObj = NULL;  // clear the connection link object
 
-            // 🎯 TDD GREEN FIX for US-3: Negotiate actual link role based on client's requested usage
-            // Multi-role services must act as COMPLEMENTARY role to client on each specific link:
-            //  • If Client=CmdExecutor → Service=CmdInitiator on that link
-            //  • If Client=CmdInitiator → Service=CmdExecutor on that link
-            //
-            // BEFORE: pLinkObj->Args.Usage = pSrvObj->Args.UsageCapabilites (WRONG - assigns full 0x0C to all links)
-            // AFTER: Negotiate per-link role using shared helper function (eliminates code duplication)
-            if (pClientLinkObj && pSrvObj) {
-                IOC_LinkUsage_T ClientRequestedUsage = pClientLinkObj->Args.Usage;
-                IOC_LinkUsage_T ServiceCapabilities = pSrvObj->Args.UsageCapabilites;
+            // 🐛 TDD FIX: Check usage compatibility BEFORE establishing peer relationship
+            // Negotiate actual link role based on client's requested usage
+            IOC_LinkUsage_T ClientRequestedUsage = pClientLinkObj->Args.Usage;
+            IOC_LinkUsage_T ServiceCapabilities = pSrvObj->Args.UsageCapabilites;
+            IOC_LinkUsage_T ServiceLinkRole = _IOC_negotiateLinkRole(ServiceCapabilities, ClientRequestedUsage);
 
-                // Use shared role negotiation logic from IOC_Service.c
-                IOC_LinkUsage_T ServiceLinkRole = _IOC_negotiateLinkRole(ServiceCapabilities, ClientRequestedUsage);
-
-                // Override the server link's Usage with negotiated role (NOT full service capabilities!)
-                pLinkObj->Args.Usage = ServiceLinkRole;
-
-                // Human-readable names for better diagnostics
+            // If role negotiation fails (e.g., EvtProducer→EvtProducer), reject the connection
+            if (ServiceLinkRole == IOC_LinkUsageUndefined) {
                 char svcMask[96];
                 const char* svcNames = IOC_formatLinkUsageMask(ServiceCapabilities, svcMask, sizeof(svcMask));
                 const char* cliName = IOC_getLinkUsageName(ClientRequestedUsage);
-                const char* srvName = IOC_getLinkUsageName(ServiceLinkRole);
-                printf(
-                    "🎯 [ROLE NEGOTIATION] ServiceCap=0x%02X(%s), ClientUsage=0x%02X(%s) → "
-                    "ServiceLinkRole=0x%02X(%s)\n",
-                    ServiceCapabilities, svcNames, ClientRequestedUsage, cliName, ServiceLinkRole, srvName);
+                _IOC_LogError(
+                    "INCOMPATIBLE USAGE: ServiceCap=0x%02X(%s), ClientUsage=0x%02X(%s) have no complementary roles",
+                    ServiceCapabilities, svcNames, ClientRequestedUsage, cliName);
+                
+                // Signal client that connection is rejected (pConnLinkObj stays NULL)
+                pFifoSrvObj->pConnLinkObj = NULL;  // Clear to signal rejection
+                pthread_cond_signal(&pFifoSrvObj->WaitAccptedCond);
+                pthread_mutex_unlock(&pFifoSrvObj->WaitAccptedMutex);
+                
+                // Continue waiting for next connection (don't break the loop)
+                continue;  // Go to next iteration
             }
+
+            // Connection accepted - establish peer relationship
+            pAceptedFifoLinkObj->pPeer = pConnFifoLinkObj;
+            pConnFifoLinkObj->pPeer = pAceptedFifoLinkObj;
+            pFifoSrvObj->pConnLinkObj = NULL;  // clear the connection link object
+
+            // Override the server link's Usage with negotiated role (NOT full service capabilities!)
+            pLinkObj->Args.Usage = ServiceLinkRole;
+
+            // Human-readable names for better diagnostics
+            char svcMask[96];
+            const char* svcNames = IOC_formatLinkUsageMask(ServiceCapabilities, svcMask, sizeof(svcMask));
+            const char* cliName = IOC_getLinkUsageName(ClientRequestedUsage);
+            const char* srvName = IOC_getLinkUsageName(ServiceLinkRole);
+            printf(
+                "🎯 [ROLE NEGOTIATION] ServiceCap=0x%02X(%s), ClientUsage=0x%02X(%s) → "
+                "ServiceLinkRole=0x%02X(%s)\n",
+                ServiceCapabilities, svcNames, ClientRequestedUsage, cliName, ServiceLinkRole, srvName);
 
             // 🔧 TDD FIX: Setup DAT receiver for both server and client scenarios
             // In US-1: Server is DatReceiver, setup server-side callbacks from service args
