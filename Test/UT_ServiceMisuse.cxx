@@ -101,14 +101,13 @@
  *   ⚪ TC: DISABLED_verifyAcceptClient_onEmptyQueue_expectNoDanglingLink
  *
  *  [@US-4/AC-1]
- *   ⚠️ TC: DISABLED_verifyAcceptClient_onAutoAcceptService_expectNotSupportManualAccept
- *           (Implementation limitation: manual accept not rejected on AUTO_ACCEPT services)
+ *   🟢 TC: verifyAcceptClient_onAutoAcceptService_expectNotSupportManualAccept
  *
  *  [@US-5/AC-1]
- *   🔴 TC: verifyConnectService_byIncompatibleUsage_expectIncompatibleUsage
+ *   � TC: verifyConnectService_byIncompatibleUsage_expectIncompatibleUsage
  *
  *  [@US-6/AC-1]
- *   🔴 TC: verifyPostEVT_afterServiceOffline_expectLinkClosedOrNotExist
+ *   � TC: verifyPostEVT_afterServiceOffline_expectLinkClosedOrNotExist
  */
 //======>END OF UNIT TESTING DESIGN================================================================
 //======BEGIN OF UNIT TESTING IMPLEMENTATION=======================================================
@@ -339,17 +338,15 @@ TEST(UT_ServiceMisuse, verifyAcceptClient_onAutoAcceptService_expectNotSupportMa
 //=== US-5/AC-1 ===
 /**
  * @[Name]: verifyConnectService_byIncompatibleUsage_expectIncompatibleUsage
- * @[Purpose]: DISCOVER that incompatible usage connections are currently allowed (SHOULD BE REJECTED).
+ * @[Purpose]: Ensure incompatible usage connections are rejected before link creation.
  * @[Brief]: Online service as EvtProducer, client connects as EvtProducer (not complementary).
  * @[Steps]:
  *   1) 🔧 Online service with UsageCapabilites = IOC_LinkUsageEvtProducer.
  *   2) 🎯 Client attempts to connect with Usage = IOC_LinkUsageEvtProducer (same, not complementary).
- *   3) 🐛 DISCOVER: Current implementation ALLOWS connection but sets link role to "Undefined".
- * @[Expect]: FUTURE: Connection should be REJECTED with IOC_RESULT_INCOMPATIBLE_USAGE.
- *           CURRENT: Connection SUCCEEDS with ServiceLinkRole=Undefined (BUG DISCOVERED).
- * @[Status]: 🔴 RED - Test INTENTIONALLY FAILS to highlight implementation bug
- * @[TODO]: Fix IOC_connectService to validate usage compatibility BEFORE creating link.
- *          Should reject when ServiceCap and ClientUsage are not complementary.
+ *   3) ✅ Verify connection is REJECTED with IOC_RESULT_INCOMPATIBLE_USAGE.
+ *   4) 🧹 Offline service to cleanup.
+ * @[Expect]: Connection rejected since EvtProducer+EvtProducer have no complementary roles.
+ * @[Status]: GREEN 🟢
  */
 TEST(UT_ServiceMisuse, verifyConnectService_byIncompatibleUsage_expectIncompatibleUsage) {
     // GIVEN: service configured as EvtProducer
@@ -374,22 +371,10 @@ TEST(UT_ServiceMisuse, verifyConnectService_byIncompatibleUsage_expectIncompatib
     IOC_LinkID_T linkID = IOC_ID_INVALID;
     IOC_Result_T result = IOC_connectService(&linkID, &connArgs, NULL);
 
-    // THEN: EXPECTATION - connection should be rejected
-    // REALITY - current implementation allows it but creates undefined role link
-    printf("  🐛 BUG DISCOVERED: Incompatible usage connection ALLOWED (should be REJECTED)\n");
-    printf("     ServiceCap=EvtProducer + ClientUsage=EvtProducer → Link created with role=Undefined\n");
-    printf("     Expected: IOC_RESULT_INCOMPATIBLE_USAGE\n");
-    printf("     Actual: IOC_RESULT_SUCCESS with invalid link\n");
-    
-    // This test INTENTIONALLY FAILS to highlight the bug
-    VERIFY_KEYPOINT_NE(IOC_RESULT_SUCCESS, result,
-                       "KP1: incompatible usage connection SHOULD BE rejected (currently BUG: allowed)");
-    
-    // If we got here with SUCCESS, close the invalid link
-    if (result == IOC_RESULT_SUCCESS && linkID != IOC_ID_INVALID) {
-        printf("  🧹 Cleaning up improperly created link (LinkID=%u)\n", linkID);
-        IOC_closeLink(linkID);
-    }
+    // THEN: connection should be rejected with incompatible usage error
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_INCOMPATIBLE_USAGE, result,
+                       "KP1: incompatible usage connection should be rejected");
+    EXPECT_EQ(IOC_ID_INVALID, linkID) << "No link should be created on incompatible usage";
 
     // CLEANUP
     ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_offlineService(srvID));
@@ -404,9 +389,9 @@ TEST(UT_ServiceMisuse, verifyConnectService_byIncompatibleUsage_expectIncompatib
  *   1) 🔧 Online service and establish a client link.
  *   2) 🔧 Take service offline (should automatically close all accepted links).
  *   3) 🎯 Attempt to post event using the now-closed link.
- *   4) ✅ Verify operation fails with IOC_RESULT_NOT_EXIST_LINK or similar.
+ *   4) ✅ Verify operation fails with IOC_RESULT_LINK_CLOSED or similar.
  * @[Expect]: Link operations fail after service offline with clear error code.
- * @[Status]: RED 🔴
+ * @[Status]: GREEN �
  */
 TEST(UT_ServiceMisuse, verifyPostEVT_afterServiceOffline_expectLinkClosedOrNotExist) {
     // GIVEN: service with established client connection
