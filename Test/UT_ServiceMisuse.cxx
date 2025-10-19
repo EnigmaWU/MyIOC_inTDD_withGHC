@@ -7,8 +7,18 @@
  *-------------------------------------------------------------------------------------------------
  *++Context
  *  Complements Typical and Boundary suites by validating how the Service layer behaves under
- *  mis-sequenced calls, repeated operations, and resource leaks. These tests intentionally
- *  violate usage contracts to confirm defensive programming and clear diagnostics.
+ *  mis-sequenced calls, repeated operations, capability mismatches, and resource leaks.
+ *  These tests intentionally violate usage contracts to confirm defensive programming and clear diagnostics.
+ *
+ *  KEY DISTINCTION FROM BOUNDARY TESTS:
+ *   - Boundary: Wrong inputs (NULL, invalid values) with CORRECT usage patterns
+ *   - Misuse: Wrong usage patterns (wrong sequence, repeated ops, incompatible capabilities)
+ *
+ *  COVERAGE AREAS:
+ *   - Lifecycle misuse: Double online/offline, operations in wrong sequence
+ *   - Capability misuse: Incompatible usage types, manual ops on automatic services
+ *   - State misuse: Operations on closed/offline resources
+ *   - Resource containment: Leak prevention during misuse scenarios
  */
 //======>END OF OVERVIEW OF THIS UNIT TESTING FILE=================================================
 
@@ -36,7 +46,7 @@
  *  AC-2: GIVEN link already closed, WHEN IOC_closeLink invoked again, THEN return IOC_RESULT_NOT_EXIST_LINK.
  *  AC-3: GIVEN service offline, WHEN IOC_connectService executed, THEN return IOC_RESULT_NOT_EXIST_SERVICE.
  */
-/**>
+/**
  * US-3 (Fault Containment): As an operator, I want resource leaks avoided when misuse occurs,
  *  so failed operations still clean up temporary allocations.
  *
@@ -44,34 +54,37 @@
  *  AC-2: GIVEN repeated accept attempts, WHEN queue is empty, THEN no dangling client handles persist.
  */
 /**
+ * US-4 (Misuse): As a service developer, I want manual accept on AUTO_ACCEPT services to be rejected,
+ *  so I don't accidentally interfere with automatic link management.
+ *
+ *  AC-1: GIVEN service with IOC_SRVFLAG_AUTO_ACCEPT, WHEN calling IOC_acceptClient manually,
+ *         THEN return error indicating manual accept is not supported.
+ */
+/**
+ * US-5 (Misuse): As a client developer, I want connection attempts with incompatible capabilities
+ *  to fail clearly, so I can fix my configuration.
+ *
+ *  AC-1: GIVEN service with specific UsageCapabilities, WHEN client connects with incompatible Usage,
+ *         THEN return IOC_RESULT_INCOMPATIBLE_USAGE.
+ */
+/**
+ * US-6 (Misuse): As a link user, I want operations on links after service offline to fail predictably,
+ *  so I know the service is unavailable.
+ *
+ *  AC-1: GIVEN service offline and links closed, WHEN attempting operations on those links,
+ *         THEN return IOC_RESULT_NOT_EXIST_LINK or IOC_RESULT_LINK_CLOSED.
+ */
+/**
  * TEST CASES — ORGANIZATION & STATUS
- *  - By Category: Lifecycle misuse → Sequencing misuse → Resource assurance
+ *  - By Category: Lifecycle misuse → Sequencing misuse → Capability misuse → Resource assurance
  *  - STATUS LEGEND: ⚪ Planned/TODO, 🔴 Implemented/RED, 🟢 Passed/GREEN, ⚠️ Issues
  *
- *  [@US-1/AC-1]
- *   � TC: verifyOnlineService_byRepeatedCall_expectConflictSrvArgs
  *  [@US-1/AC-1]
  *   🟢 TC: verifyOnlineService_byRepeatedCall_expectConflictSrvArgs
  *
  *  [@US-1/AC-2]
- *  [@US-1/AC-2]
- *   � TC: verifyOfflineService_byDoubleCall_expectNotExistService
- *   �🔴 TC: verifyOfflineService_byDoubleCall_expectNotExistService
+ *   🟢 TC: verifyOfflineService_byDoubleCall_expectNotExistService
  *
- *  [@US-2/AC-1]
- *   ⚪ TC: DISABLED_verifyAcceptClient_beforeOnline_expectNotExistService
- *
- *  [@US-2/AC-2]
- *   ⚪ TC: DISABLED_verifyCloseLink_byDoubleClose_expectNotExistLink
- *
- *  [@US-2/AC-3]
- *   ⚪ TC: DISABLED_verifyConnectService_afterOffline_expectNotExistService
- *
- *  [@US-3/AC-1]
- *   ⚪ TC: DISABLED_verifyOnlineService_byFailedAlloc_expectNoLeakIndicators
- *
- *  [@US-3/AC-2]
- *   ⚪ TC: DISABLED_verifyAcceptClient_onEmptyQueue_expectNoDanglingLink
  *  [@US-2/AC-1]
  *   🟢 TC: verifyAcceptClient_beforeOnline_expectNotExistService
  *
@@ -80,6 +93,22 @@
  *
  *  [@US-2/AC-3]
  *   🟢 TC: verifyConnectService_afterOffline_expectNotExistService
+ *
+ *  [@US-3/AC-1]
+ *   ⚪ TC: DISABLED_verifyOnlineService_byFailedAlloc_expectNoLeakIndicators
+ *
+ *  [@US-3/AC-2]
+ *   ⚪ TC: DISABLED_verifyAcceptClient_onEmptyQueue_expectNoDanglingLink
+ *
+ *  [@US-4/AC-1]
+ *   ⚠️ TC: DISABLED_verifyAcceptClient_onAutoAcceptService_expectNotSupportManualAccept
+ *           (Implementation limitation: manual accept not rejected on AUTO_ACCEPT services)
+ *
+ *  [@US-5/AC-1]
+ *   🔴 TC: verifyConnectService_byIncompatibleUsage_expectIncompatibleUsage
+ *
+ *  [@US-6/AC-1]
+ *   🔴 TC: verifyPostEVT_afterServiceOffline_expectLinkClosedOrNotExist
  */
 //======>END OF UNIT TESTING DESIGN================================================================
 //======BEGIN OF UNIT TESTING IMPLEMENTATION=======================================================
@@ -266,10 +295,146 @@ TEST(UT_ServiceMisuse, DISABLED_verifyAcceptClient_onEmptyQueue_expectNoDangling
     GTEST_SKIP() << "TODO: Repeated accept with empty queue, ensure no phantom links remain.";
 }
 
+//=== US-4/AC-1 ===
+/**
+ * @[Name]: verifyAcceptClient_onAutoAcceptService_expectNotSupportManualAccept
+ * @[Purpose]: Document that manual accept on AUTO_ACCEPT services is not currently prevented.
+ * @[Brief]: Online service with AUTO_ACCEPT flag, document current behavior with manual acceptClient.
+ * @[Steps]:
+ *   1) 🔧 Online service with IOC_SRVFLAG_AUTO_ACCEPT.
+ *   2) 📝 Document that manual IOC_acceptClient is currently ALLOWED but will block waiting for client.
+ *   3) ⚠️  SKIP test to avoid blocking - implementation needs enhancement.
+ * @[Expect]: FUTURE: Manual accept should be rejected immediately on AUTO_ACCEPT services.
+ *           CURRENT: Manual accept is allowed but will block (test skipped to prevent hang).
+ * @[Status]: SKIPPED ⚠️ - Implementation allows manual accept (should reject immediately)
+ * @[TODO]: Enhance IOC_acceptClient to check AUTO_ACCEPT flag and return error immediately.
+ */
+TEST(UT_ServiceMisuse, DISABLED_verifyAcceptClient_onAutoAcceptService_expectNotSupportManualAccept) {
+    GTEST_SKIP() << "IMPLEMENTATION LIMITATION: IOC_acceptClient on AUTO_ACCEPT service doesn't reject immediately.\n"
+                 << "  Current behavior: Manual accept is allowed and will block waiting for client.\n"
+                 << "  Expected behavior: Should return IOC_RESULT_NOT_SUPPORT_MANUAL_ACCEPT immediately.\n"
+                 << "  TODO: Add check in IOC_acceptClient implementation:\n"
+                 << "        if (pSrvObj->Args.Flags & IOC_SRVFLAG_AUTO_ACCEPT) {\n"
+                 << "            return IOC_RESULT_NOT_SUPPORT_MANUAL_ACCEPT;\n"
+                 << "        }";
+}
+
+//=== US-5/AC-1 ===
+/**
+ * @[Name]: verifyConnectService_byIncompatibleUsage_expectIncompatibleUsage
+ * @[Purpose]: DISCOVER that incompatible usage connections are currently allowed (SHOULD BE REJECTED).
+ * @[Brief]: Online service as EvtProducer, client connects as EvtProducer (not complementary).
+ * @[Steps]:
+ *   1) 🔧 Online service with UsageCapabilites = IOC_LinkUsageEvtProducer.
+ *   2) 🎯 Client attempts to connect with Usage = IOC_LinkUsageEvtProducer (same, not complementary).
+ *   3) 🐛 DISCOVER: Current implementation ALLOWS connection but sets link role to "Undefined".
+ * @[Expect]: FUTURE: Connection should be REJECTED with IOC_RESULT_INCOMPATIBLE_USAGE.
+ *           CURRENT: Connection SUCCEEDS with ServiceLinkRole=Undefined (BUG DISCOVERED).
+ * @[Status]: 🔴 RED - Test INTENTIONALLY FAILS to highlight implementation bug
+ * @[TODO]: Fix IOC_connectService to validate usage compatibility BEFORE creating link.
+ *          Should reject when ServiceCap and ClientUsage are not complementary.
+ */
+TEST(UT_ServiceMisuse, verifyConnectService_byIncompatibleUsage_expectIncompatibleUsage) {
+    // GIVEN: service configured as EvtProducer
+    IOC_SrvArgs_T srvArgs{};
+    srvArgs.SrvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "misuse-incompatible-usage"
+    };
+    srvArgs.UsageCapabilites = IOC_LinkUsageEvtProducer;  // Service produces events
+    srvArgs.Flags = IOC_SRVFLAG_AUTO_ACCEPT;
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
+    ASSERT_NE(IOC_ID_INVALID, srvID);
+
+    // WHEN: client attempts to connect as EvtProducer (incompatible - should be Consumer)
+    IOC_ConnArgs_T connArgs{};
+    connArgs.SrvURI = srvArgs.SrvURI;
+    connArgs.Usage = IOC_LinkUsageEvtProducer;  // WRONG! Should be EvtConsumer
+
+    IOC_LinkID_T linkID = IOC_ID_INVALID;
+    IOC_Result_T result = IOC_connectService(&linkID, &connArgs, NULL);
+
+    // THEN: EXPECTATION - connection should be rejected
+    // REALITY - current implementation allows it but creates undefined role link
+    printf("  🐛 BUG DISCOVERED: Incompatible usage connection ALLOWED (should be REJECTED)\n");
+    printf("     ServiceCap=EvtProducer + ClientUsage=EvtProducer → Link created with role=Undefined\n");
+    printf("     Expected: IOC_RESULT_INCOMPATIBLE_USAGE\n");
+    printf("     Actual: IOC_RESULT_SUCCESS with invalid link\n");
+    
+    // This test INTENTIONALLY FAILS to highlight the bug
+    VERIFY_KEYPOINT_NE(IOC_RESULT_SUCCESS, result,
+                       "KP1: incompatible usage connection SHOULD BE rejected (currently BUG: allowed)");
+    
+    // If we got here with SUCCESS, close the invalid link
+    if (result == IOC_RESULT_SUCCESS && linkID != IOC_ID_INVALID) {
+        printf("  🧹 Cleaning up improperly created link (LinkID=%u)\n", linkID);
+        IOC_closeLink(linkID);
+    }
+
+    // CLEANUP
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_offlineService(srvID));
+}
+
+//=== US-6/AC-1 ===
+/**
+ * @[Name]: verifyPostEVT_afterServiceOffline_expectLinkClosedOrNotExist
+ * @[Purpose]: Validate that operations on links fail predictably after service goes offline.
+ * @[Brief]: Establish link, offline service (auto-closes links), attempt to use link, expect failure.
+ * @[Steps]:
+ *   1) 🔧 Online service and establish a client link.
+ *   2) 🔧 Take service offline (should automatically close all accepted links).
+ *   3) 🎯 Attempt to post event using the now-closed link.
+ *   4) ✅ Verify operation fails with IOC_RESULT_NOT_EXIST_LINK or similar.
+ * @[Expect]: Link operations fail after service offline with clear error code.
+ * @[Status]: RED 🔴
+ */
+TEST(UT_ServiceMisuse, verifyPostEVT_afterServiceOffline_expectLinkClosedOrNotExist) {
+    // GIVEN: service with established client connection
+    IOC_SrvArgs_T srvArgs{};
+    srvArgs.SrvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "misuse-post-after-offline"
+    };
+    srvArgs.UsageCapabilites = IOC_LinkUsageEvtProducer;
+    srvArgs.Flags = IOC_SRVFLAG_AUTO_ACCEPT;
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
+    ASSERT_NE(IOC_ID_INVALID, srvID);
+
+    // Client connects
+    IOC_ConnArgs_T connArgs{};
+    connArgs.SrvURI = srvArgs.SrvURI;
+    connArgs.Usage = IOC_LinkUsageEvtConsumer;
+    IOC_LinkID_T linkID = IOC_ID_INVALID;
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_connectService(&linkID, &connArgs, NULL));
+    ASSERT_NE(IOC_ID_INVALID, linkID);
+
+    // WHEN: service goes offline (automatically closes all links)
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_offlineService(srvID));
+
+    // THEN: attempting to use the closed link should fail
+    IOC_EvtDesc_T evt{};
+    evt.EvtID = IOC_EVTID_TEST_KEEPALIVE;
+    IOC_Result_T result = IOC_postEVT(linkID, &evt, NULL);
+
+    VERIFY_KEYPOINT_NE(IOC_RESULT_SUCCESS, result,
+                       "KP1: posting on closed link after service offline should fail");
+    // Expected errors: IOC_RESULT_NOT_EXIST_LINK, IOC_RESULT_LINK_CLOSED, or similar
+
+    // NOTE: Link is already closed by offlineService, no explicit cleanup needed
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF TODO/IMPLEMENTATION TRACKING SECTION===========================================
 // Planned Enhancements:
 //  - Fault injection harness for service allocator rollbacks
 //  - Link leak audit helpers (reuse IOC diagnostics or add test hooks)
 //  - Extend misuse coverage to broadcast vs. non-broadcast client roles
+//  - Additional capability misuse: DatSender/Receiver, CmdInitiator/Executor incompatibilities
+//  - Test getServiceLinkIDs on manual-accept services (boundary vs misuse categorization TBD)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
