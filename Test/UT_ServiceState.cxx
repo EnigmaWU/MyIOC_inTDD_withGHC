@@ -3,7 +3,7 @@
 /**
  * @brief ValidFunc-State Tests: Service lifecycle state transitions work correctly.
  *
- * @status 🔄 IMPLEMENTATION IN PROGRESS - 1/21 tests passing (5% coverage)
+ * @status 🔄 IMPLEMENTATION IN PROGRESS - 6/21 tests passing (29% coverage)
  *
  *-------------------------------------------------------------------------------------------------
  * @category ValidFunc-State (Service Lifecycle - APIs WORK across states)
@@ -66,9 +66,9 @@
  *   - Stability: Service state remains consistent during link operations
  *
  *  TEST RESULTS (as of last run):
- *   🟢 1 test PASSING
- *   ⚪ 20 tests PLANNED
- *   📊 Coverage: 7 User Stories defined, 21 Acceptance Criteria planned (5% complete)
+ *   🟢 6 tests PASSING
+ *   ⚪ 15 tests PLANNED
+ *   📊 Coverage: 7 User Stories defined, 21 Acceptance Criteria planned (29% complete)
  */
 //======>END OF OVERVIEW OF THIS UNIT TESTING FILE=================================================
 
@@ -196,10 +196,10 @@
  *   🟢 TC: verifyServiceOnline_fromNotExist_expectOnlineState
  *
  *  [@US-1/AC-2] Service lifecycle: ONLINE → OFFLINE
- *   ⚪ TC: verifyServiceOffline_fromOnline_expectOfflineState
+ *   🟢 TC: verifyServiceOffline_fromOnline_expectOfflineState
  *
  *  [@US-1/AC-3] Service lifecycle: Operations on OFFLINE service
- *   ⚪ TC: verifyOperationsOnOfflineService_expectNotExistService
+ *   🟢 TC: verifyOperationsOnOfflineService_expectNotExistService
  *
  *  [@US-2/AC-1] AUTO_ACCEPT daemon: Starts on online
  *   ⚪ TC: verifyAutoAcceptDaemon_onServiceOnline_expectDaemonActive
@@ -211,13 +211,13 @@
  *   ⚪ TC: verifyAutoAcceptCleanup_onServiceOffline_expectAllLinksClosed
  *
  *  [@US-3/AC-1] Link tracking: Zero links
- *   ⚪ TC: verifyServiceLinkCount_withNoConnections_expectZeroLinks
+ *   🟢 TC: verifyServiceLinkCount_withNoConnections_expectZeroLinks
  *
  *  [@US-3/AC-2] Link tracking: N links
- *   ⚪ TC: verifyServiceLinkCount_withNConnections_expectNLinks
+ *   🟢 TC: verifyServiceLinkCount_withNConnections_expectNLinks
  *
  *  [@US-3/AC-3] Link tracking: Get LinkIDs
- *   ⚪ TC: verifyGetServiceLinkIDs_withLinks_expectAllLinkIDs
+ *   🟢 TC: verifyGetServiceLinkIDs_withLinks_expectAllLinkIDs
  *
  *  [@US-4/AC-1] Manual accept: Blocking accept state
  *   ⚪ TC: verifyManualAcceptBlocking_onEmptyQueue_expectAcceptingState
@@ -298,15 +298,235 @@ TEST(UT_ServiceState, verifyServiceOnline_fromNotExist_expectOnlineState) {
     ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_offlineService(srvID));
 }
 
+/**
+ * [@US-1/AC-2] Verify service enters OFFLINE state after IOC_offlineService
+ * @[Purpose]: Validate ONLINE → OFFLINE state transition
+ * @[Brief]: Online a service, then offline it, verify SrvID becomes invalid
+ * @[Status]: IMPLEMENTED 🟢 - ONLINE → OFFLINE transition verified
+ */
+TEST(UT_ServiceState, verifyServiceOffline_fromOnline_expectOfflineState) {
+    // GIVEN: service is ONLINE
+    IOC_SrvURI_T srvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "state-offline-test",
+    };
+
+    IOC_SrvArgs_T srvArgs = {};
+    IOC_Helper_initSrvArgs(&srvArgs);
+    srvArgs.SrvURI = srvURI;
+    srvArgs.UsageCapabilites = IOC_LinkUsageEvtProducer;
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
+    ASSERT_NE(IOC_ID_INVALID, srvID);
+
+    // WHEN: IOC_offlineService called
+    IOC_Result_T result = IOC_offlineService(srvID);
+
+    // THEN: Service enters OFFLINE state
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_SUCCESS, result, "KP1: offlineService should succeed");
+
+    // AND: Service is no longer accessible (proves OFFLINE state)
+    uint16_t connectedLinks = 999;
+    result = IOC_getServiceState(srvID, NULL, &connectedLinks);
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_NOT_EXIST_SERVICE, result, "KP2: getServiceState on OFFLINE service should fail");
+}
+
+/**
+ * [@US-1/AC-3] Verify operations on OFFLINE service fail predictably
+ * @[Purpose]: Validate state prevents operations after service shutdown
+ * @[Brief]: Offline a service, attempt operations, verify NOT_EXIST_SERVICE returned
+ * @[Status]: IMPLEMENTED 🟢 - OFFLINE state blocks operations correctly
+ */
+TEST(UT_ServiceState, verifyOperationsOnOfflineService_expectNotExistService) {
+    // GIVEN: service was ONLINE but is now OFFLINE
+    IOC_SrvURI_T srvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "state-operations-offline-test",
+    };
+
+    IOC_SrvArgs_T srvArgs = {};
+    IOC_Helper_initSrvArgs(&srvArgs);
+    srvArgs.SrvURI = srvURI;
+    srvArgs.UsageCapabilites = IOC_LinkUsageEvtProducer;
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_offlineService(srvID));
+
+    // WHEN: Attempting various operations on OFFLINE service
+    // THEN: All operations should fail with NOT_EXIST_SERVICE
+
+    // Operation 1: Query service state
+    uint16_t connectedLinks = 999;
+    IOC_Result_T result = IOC_getServiceState(srvID, NULL, &connectedLinks);
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_NOT_EXIST_SERVICE, result, "KP1: getServiceState should fail on OFFLINE service");
+
+    // Operation 2: Try to accept client (manual accept)
+    IOC_LinkID_T linkID = IOC_ID_INVALID;
+    IOC_Option_defineTimeout(options, 100000);  // 100ms timeout
+    result = IOC_acceptClient(srvID, &linkID, &options);
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_NOT_EXIST_SERVICE, result, "KP2: acceptClient should fail on OFFLINE service");
+
+    // Operation 3: Try to offline again (double offline - already tested in Misuse, but validates state)
+    result = IOC_offlineService(srvID);
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_NOT_EXIST_SERVICE, result, "KP3: double offline should fail with NOT_EXIST_SERVICE");
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF US-3: SERVICE LINK TRACKING STATE================================================
+/**
+ * [@US-3/AC-1] Verify service reports zero links when no connections
+ * @[Purpose]: Validate link count tracking for empty service
+ * @[Brief]: Online service, query state immediately, verify 0 connections
+ * @[Status]: IMPLEMENTED 🟢 - Empty service link count verified
+ */
+TEST(UT_ServiceState, verifyServiceLinkCount_withNoConnections_expectZeroLinks) {
+    // GIVEN: service is ONLINE with no connections
+    IOC_SrvURI_T srvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "state-linkcount-zero",
+    };
+
+    IOC_SrvArgs_T srvArgs = {};
+    IOC_Helper_initSrvArgs(&srvArgs);
+    srvArgs.SrvURI = srvURI;
+    srvArgs.UsageCapabilites = IOC_LinkUsageEvtProducer;
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
+
+    // WHEN: Query service state with no connections
+    uint16_t connectedLinks = 999;
+    IOC_Result_T result = IOC_getServiceState(srvID, NULL, &connectedLinks);
+
+    // THEN: Service reports zero links
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_SUCCESS, result, "KP1: getServiceState should succeed");
+    VERIFY_KEYPOINT_EQ(0, connectedLinks, "KP2: Service with no connections should report 0 links");
+
+    // Cleanup
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_offlineService(srvID));
+}
+
+/**
+ * [@US-3/AC-2] Verify service reports correct count with N connections
+ * @[Purpose]: Validate link count tracking with multiple connections
+ * @[Brief]: Online service, connect N clients, verify service reports N links
+ * @[Status]: IMPLEMENTED 🟢 - Multi-link count tracking verified
+ */
+TEST(UT_ServiceState, verifyServiceLinkCount_withNConnections_expectNLinks) {
+    // GIVEN: service is ONLINE with AUTO_ACCEPT
+    IOC_SrvURI_T srvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "state-linkcount-n",
+    };
+
+    IOC_SrvArgs_T srvArgs = {};
+    IOC_Helper_initSrvArgs(&srvArgs);
+    srvArgs.SrvURI = srvURI;
+    srvArgs.UsageCapabilites = IOC_LinkUsageEvtProducer;
+    srvArgs.Flags = IOC_SRVFLAG_AUTO_ACCEPT;  // Auto-accept for easy connection
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
+
+    // WHEN: Connect N clients (let's test with 3)
+    const int N = 3;
+    IOC_LinkID_T clientLinks[N];
+    IOC_ConnArgs_T connArgs = {};
+    connArgs.SrvURI = srvURI;
+    connArgs.Usage = IOC_LinkUsageEvtConsumer;
+
+    for (int i = 0; i < N; i++) {
+        IOC_Result_T result = IOC_connectService(&clientLinks[i], &connArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Connection " << i << " failed";
+    }
+
+    // Small delay for auto-accept daemon to process
+    usleep(10000);  // 10ms
+
+    // THEN: Service reports N links
+    uint16_t connectedLinks = 999;
+    IOC_Result_T result = IOC_getServiceState(srvID, NULL, &connectedLinks);
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_SUCCESS, result, "KP1: getServiceState should succeed");
+    VERIFY_KEYPOINT_EQ(N, connectedLinks, "KP2: Service should report correct number of connections");
+
+    // Cleanup: Close all client links first, then offline service
+    for (int i = 0; i < N; i++) {
+        IOC_closeLink(clientLinks[i]);
+    }
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_offlineService(srvID));
+}
+
+/**
+ * [@US-3/AC-3] Verify getServiceLinkIDs returns all connected LinkIDs
+ * @[Purpose]: Validate link ID enumeration functionality
+ * @[Brief]: Connect multiple clients, query LinkIDs, verify all returned
+ * @[Status]: IMPLEMENTED 🟢 - LinkID enumeration verified
+ */
+TEST(UT_ServiceState, verifyGetServiceLinkIDs_withLinks_expectAllLinkIDs) {
+    // GIVEN: service is ONLINE with AUTO_ACCEPT and has connections
+    IOC_SrvURI_T srvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "state-get-linkids",
+    };
+
+    IOC_SrvArgs_T srvArgs = {};
+    IOC_Helper_initSrvArgs(&srvArgs);
+    srvArgs.SrvURI = srvURI;
+    srvArgs.UsageCapabilites = IOC_LinkUsageEvtProducer;
+    srvArgs.Flags = IOC_SRVFLAG_AUTO_ACCEPT;
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
+
+    // Create 2 connections
+    const int N = 2;
+    IOC_LinkID_T clientLinks[N];
+    IOC_ConnArgs_T connArgs = {};
+    connArgs.SrvURI = srvURI;
+    connArgs.Usage = IOC_LinkUsageEvtConsumer;
+
+    for (int i = 0; i < N; i++) {
+        ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_connectService(&clientLinks[i], &connArgs, NULL));
+    }
+    usleep(10000);  // Wait for auto-accept
+
+    // WHEN: Query service LinkIDs
+    IOC_LinkID_T serverLinkIDs[10];  // Buffer larger than needed
+    uint16_t actualCount = 0;
+    IOC_Result_T result = IOC_getServiceLinkIDs(srvID, serverLinkIDs, 10, &actualCount);
+
+    // THEN: All LinkIDs returned
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_SUCCESS, result, "KP1: getServiceLinkIDs should succeed");
+    VERIFY_KEYPOINT_EQ(N, actualCount, "KP2: Should return correct count of LinkIDs");
+
+    // Verify all returned LinkIDs are valid (not IOC_ID_INVALID)
+    for (uint16_t i = 0; i < actualCount; i++) {
+        EXPECT_NE(IOC_ID_INVALID, serverLinkIDs[i]) << "LinkID at index " << i << " should be valid";
+    }
+
+    // Cleanup
+    for (int i = 0; i < N; i++) {
+        IOC_closeLink(clientLinks[i]);
+    }
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_offlineService(srvID));
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF TODO/IMPLEMENTATION TRACKING SECTION===========================================
 /**
- * 🎯 CORE COVERAGE STATUS: 🔄 IN PROGRESS (1/21 tests passing - 5%)
+ * 🎯 CORE COVERAGE STATUS: 🔄 IN PROGRESS (6/21 tests passing - 29%)
  *
  * User Stories Implementation Progress:
- *  🔄 US-1: Service lifecycle transitions - 1/3 AC passing (33%)
+ *  ✅ US-1: Service lifecycle transitions - 3/3 AC passing (100%) 🎉
  *  ⚪ US-2: AUTO_ACCEPT daemon lifecycle - 0/3 AC (0%)
- *  ⚪ US-3: Service link tracking state - 0/3 AC (0%)
+ *  ✅ US-3: Service link tracking state - 3/3 AC passing (100%) 🎉
  *  ⚪ US-4: Manual accept state management - 0/3 AC (0%)
  *  ⚪ US-5: Service stability during operations - 0/3 AC (0%)
  *  ⚪ US-6: Service state queries - 0/3 AC (0%)
@@ -317,6 +537,16 @@ TEST(UT_ServiceState, verifyServiceOnline_fromNotExist_expectOnlineState) {
  *     - Status: IMPLEMENTED & PASSING ✅
  *     - Verified: NOT_EXIST → ONLINE transition works
  *     - Validated: SrvID valid, IOC_getServiceState succeeds, link count = 0
+ *
+ *  ✅ US-1/AC-2 (verifyServiceOffline_fromOnline_expectOfflineState):
+ *     - Status: IMPLEMENTED & PASSING ✅
+ *     - Verified: ONLINE → OFFLINE transition works
+ *     - Validated: SrvID becomes invalid, getServiceState fails with NOT_EXIST_SERVICE
+ *
+ *  ✅ US-1/AC-3 (verifyOperationsOnOfflineService_expectNotExistService):
+ *     - Status: IMPLEMENTED & PASSING ✅
+ *     - Verified: Operations on OFFLINE service fail predictably
+ *     - Validated: getServiceState, acceptClient, double offline all return NOT_EXIST_SERVICE
  *
  * ─────────────────────────────────────────────────────────────────────────────────────────────
  *
