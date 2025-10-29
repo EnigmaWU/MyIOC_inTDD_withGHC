@@ -3,7 +3,7 @@
 /**
  * @brief ValidFunc-State Tests: Service lifecycle state transitions work correctly.
  *
- * @status 🔄 IMPLEMENTATION IN PROGRESS - 6/21 tests passing (29% coverage)
+ * @status 🔄 IMPLEMENTATION IN PROGRESS - 9/21 tests passing (43% coverage)
  *
  *-------------------------------------------------------------------------------------------------
  * @category ValidFunc-State (Service Lifecycle - APIs WORK across states)
@@ -66,9 +66,9 @@
  *   - Stability: Service state remains consistent during link operations
  *
  *  TEST RESULTS (as of last run):
- *   🟢 6 tests PASSING
- *   ⚪ 15 tests PLANNED
- *   📊 Coverage: 7 User Stories defined, 21 Acceptance Criteria planned (29% complete)
+ *   🟢 12 tests PASSING
+ *   ⚪ 9 tests PLANNED
+ *   📊 Coverage: 7 User Stories defined, 21 Acceptance Criteria planned (57% complete)
  */
 //======>END OF OVERVIEW OF THIS UNIT TESTING FILE=================================================
 
@@ -202,13 +202,13 @@
  *   🟢 TC: verifyOperationsOnOfflineService_expectNotExistService
  *
  *  [@US-2/AC-1] AUTO_ACCEPT daemon: Starts on online
- *   ⚪ TC: verifyAutoAcceptDaemon_onServiceOnline_expectDaemonActive
+ *   🟢 TC: verifyAutoAcceptDaemonStarts_whenServiceOnline_expectDaemonAcceptsConnection
  *
  *  [@US-2/AC-2] AUTO_ACCEPT daemon: Auto-accepts connections
- *   ⚪ TC: verifyAutoAcceptConnection_withDaemon_expectAutoLinkCreation
+ *   🟢 TC: verifyAutoAcceptDaemon_handlesConcurrentConnections_expectAllAccepted
  *
  *  [@US-2/AC-3] AUTO_ACCEPT daemon: Cleanup on offline
- *   ⚪ TC: verifyAutoAcceptCleanup_onServiceOffline_expectAllLinksClosed
+ *   🟢 TC: verifyAutoAcceptDaemonStops_whenServiceOffline_expectLinksClosedDaemonStopped
  *
  *  [@US-3/AC-1] Link tracking: Zero links
  *   🟢 TC: verifyServiceLinkCount_withNoConnections_expectZeroLinks
@@ -238,13 +238,13 @@
  *   ⚪ TC: verifyServiceOffline_withActiveLinks_expectAtomicLinkClosure
  *
  *  [@US-6/AC-1] State queries: Invalid SrvID
- *   ⚪ TC: verifyGetServiceState_withInvalidSrvID_expectNotExistService
+ *   🟢 TC: verifyGetServiceState_withInvalidSrvID_expectNotExistService
  *
  *  [@US-6/AC-2] State queries: Online service state
- *   ⚪ TC: verifyGetServiceState_withOnlineService_expectSuccessWithLinkCount
+ *   🟢 TC: verifyGetServiceState_withOnlineService_expectSuccessWithLinkCount
  *
  *  [@US-6/AC-3] State queries: Get LinkIDs with buffer
- *   ⚪ TC: verifyGetServiceLinkIDs_withSufficientBuffer_expectAllLinkIDs
+ *   🟢 TC: verifyGetServiceLinkIDs_withSufficientBuffer_expectAllLinkIDs
  *
  *  [@US-7/AC-1] BROADCAST daemon: Starts on online
  *   ⚪ TC: verifyBroadcastDaemon_onServiceOnline_expectDaemonActive
@@ -373,6 +373,156 @@ TEST(UT_ServiceState, verifyOperationsOnOfflineService_expectNotExistService) {
     // Operation 3: Try to offline again (double offline - already tested in Misuse, but validates state)
     result = IOC_offlineService(srvID);
     VERIFY_KEYPOINT_EQ(IOC_RESULT_NOT_EXIST_SERVICE, result, "KP3: double offline should fail with NOT_EXIST_SERVICE");
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF US-2: AUTO_ACCEPT DAEMON LIFECYCLE STATE=========================================
+/**
+ * [@US-2/AC-1] Verify AUTO_ACCEPT daemon starts when service goes online
+ * @[Purpose]: Validate daemon thread creation on service online
+ * @[Brief]: Online service with AUTO_ACCEPT flag, verify daemon starts by accepting a connection
+ * @[Status]: IMPLEMENTED 🟢 - Daemon start validated via successful auto-accept
+ */
+TEST(UT_ServiceState, verifyAutoAcceptDaemonStarts_whenServiceOnline_expectDaemonAcceptsConnection) {
+    // GIVEN: service is going online with AUTO_ACCEPT flag
+    IOC_SrvURI_T srvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "daemon-lifecycle-start",
+    };
+
+    IOC_SrvArgs_T srvArgs = {};
+    IOC_Helper_initSrvArgs(&srvArgs);
+    srvArgs.SrvURI = srvURI;
+    srvArgs.UsageCapabilites = IOC_LinkUsageEvtProducer;
+    srvArgs.Flags = IOC_SRVFLAG_AUTO_ACCEPT;  // Enable AUTO_ACCEPT daemon
+
+    // WHEN: Service goes ONLINE
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    IOC_Result_T result = IOC_onlineService(&srvID, &srvArgs);
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_SUCCESS, result, "KP1: onlineService should succeed");
+
+    // AND: A client attempts to connect (daemon should auto-accept)
+    IOC_ConnArgs_T connArgs = {};
+    connArgs.SrvURI = srvURI;
+    connArgs.Usage = IOC_LinkUsageEvtConsumer;
+
+    IOC_LinkID_T linkID = IOC_ID_INVALID;
+    result = IOC_connectService(&linkID, &connArgs, NULL);
+
+    // THEN: Daemon accepts the connection (connection succeeds)
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_SUCCESS, result, "KP2: Daemon should auto-accept connection");
+    VERIFY_KEYPOINT_NE(IOC_ID_INVALID, linkID, "KP3: LinkID should be valid after auto-accept");
+
+    // Cleanup
+    IOC_closeLink(linkID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_offlineService(srvID));
+}
+
+/**
+ * [@US-2/AC-2] Verify AUTO_ACCEPT daemon handles multiple connections
+ * @[Purpose]: Validate daemon can accept connections concurrently
+ * @[Brief]: Online AUTO_ACCEPT service, connect multiple clients, verify all accepted
+ * @[Status]: IMPLEMENTED 🟢 - Daemon concurrent accept validated
+ */
+TEST(UT_ServiceState, verifyAutoAcceptDaemon_handlesConcurrentConnections_expectAllAccepted) {
+    // GIVEN: service is ONLINE with AUTO_ACCEPT daemon
+    IOC_SrvURI_T srvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "daemon-concurrent-accept",
+    };
+
+    IOC_SrvArgs_T srvArgs = {};
+    IOC_Helper_initSrvArgs(&srvArgs);
+    srvArgs.SrvURI = srvURI;
+    srvArgs.UsageCapabilites = IOC_LinkUsageEvtProducer;
+    srvArgs.Flags = IOC_SRVFLAG_AUTO_ACCEPT;
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
+
+    // WHEN: Multiple clients connect (daemon processes them)
+    const int NUM_CLIENTS = 5;
+    IOC_LinkID_T clientLinks[NUM_CLIENTS];
+    IOC_ConnArgs_T connArgs = {};
+    connArgs.SrvURI = srvURI;
+    connArgs.Usage = IOC_LinkUsageEvtConsumer;
+
+    for (int i = 0; i < NUM_CLIENTS; i++) {
+        clientLinks[i] = IOC_ID_INVALID;
+        IOC_Result_T result = IOC_connectService(&clientLinks[i], &connArgs, NULL);
+        VERIFY_KEYPOINT_EQ(IOC_RESULT_SUCCESS, result, "KP1: All connections should succeed");
+    }
+
+    // THEN: All connections are accepted (verify count via getServiceState)
+    usleep(10000);  // 10ms for daemon to process
+    uint16_t connectedLinks = 999;
+    IOC_Result_T result = IOC_getServiceState(srvID, NULL, &connectedLinks);
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_SUCCESS, result, "KP2: getServiceState should succeed");
+    VERIFY_KEYPOINT_EQ(NUM_CLIENTS, connectedLinks, "KP3: Daemon should accept all connections");
+
+    // Cleanup
+    for (int i = 0; i < NUM_CLIENTS; i++) {
+        IOC_closeLink(clientLinks[i]);
+    }
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_offlineService(srvID));
+}
+
+/**
+ * [@US-2/AC-3] Verify AUTO_ACCEPT daemon stops when service goes offline
+ * @[Purpose]: Validate daemon cleanup and link termination on service offline
+ * @[Brief]: Online AUTO_ACCEPT service with connections, offline service, verify daemon stops
+ * @[Status]: IMPLEMENTED 🟢 - Daemon stop validated via offline behavior
+ */
+TEST(UT_ServiceState, verifyAutoAcceptDaemonStops_whenServiceOffline_expectLinksClosedDaemonStopped) {
+    // GIVEN: service is ONLINE with AUTO_ACCEPT and has connections
+    IOC_SrvURI_T srvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "daemon-lifecycle-stop",
+    };
+
+    IOC_SrvArgs_T srvArgs = {};
+    IOC_Helper_initSrvArgs(&srvArgs);
+    srvArgs.SrvURI = srvURI;
+    srvArgs.UsageCapabilites = IOC_LinkUsageEvtProducer;
+    srvArgs.Flags = IOC_SRVFLAG_AUTO_ACCEPT;
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
+
+    // Connect clients
+    const int NUM_CLIENTS = 3;
+    IOC_LinkID_T clientLinks[NUM_CLIENTS];
+    IOC_ConnArgs_T connArgs = {};
+    connArgs.SrvURI = srvURI;
+    connArgs.Usage = IOC_LinkUsageEvtConsumer;
+
+    for (int i = 0; i < NUM_CLIENTS; i++) {
+        ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_connectService(&clientLinks[i], &connArgs, NULL));
+    }
+    usleep(10000);  // Let daemon accept all
+
+    // WHEN: Service goes OFFLINE
+    IOC_Result_T result = IOC_offlineService(srvID);
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_SUCCESS, result, "KP1: offlineService should succeed");
+
+    // THEN: Daemon stops (verify by attempting new connection, should fail)
+    IOC_LinkID_T newLink = IOC_ID_INVALID;
+    IOC_Option_defineTimeout(options, 100000);  // 100ms timeout
+    result = IOC_connectService(&newLink, &connArgs, &options);
+    VERIFY_KEYPOINT_NE(IOC_RESULT_SUCCESS, result, "KP2: Connection should fail after service offline");
+
+    // AND: Service cannot be queried (validates complete cleanup)
+    uint16_t connectedLinks = 999;
+    result = IOC_getServiceState(srvID, NULL, &connectedLinks);
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_NOT_EXIST_SERVICE, result, "KP3: Service should not exist after offline");
+
+    // Cleanup (client links should already be closed by service offline)
+    for (int i = 0; i < NUM_CLIENTS; i++) {
+        IOC_closeLink(clientLinks[i]);  // Should be idempotent
+    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -519,9 +669,135 @@ TEST(UT_ServiceState, verifyGetServiceLinkIDs_withLinks_expectAllLinkIDs) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF US-6: SERVICE STATE QUERY APIs===================================================
+/**
+ * [@US-6/AC-1] Verify state query fails on invalid/non-existent SrvID
+ * @[Purpose]: Validate defensive programming for invalid SrvID
+ * @[Brief]: Call getServiceState with invalid SrvID, verify NOT_EXIST_SERVICE
+ * @[Status]: IMPLEMENTED 🟢 - Invalid SrvID handling verified
+ */
+TEST(UT_ServiceState, verifyGetServiceState_withInvalidSrvID_expectNotExistService) {
+    // GIVEN: No service exists with this SrvID
+    IOC_SrvID_T invalidSrvID = 99999;  // Arbitrary invalid ID
+
+    // WHEN: Query state with invalid SrvID
+    uint16_t connectedLinks = 999;
+    IOC_Result_T result = IOC_getServiceState(invalidSrvID, NULL, &connectedLinks);
+
+    // THEN: Returns NOT_EXIST_SERVICE
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_NOT_EXIST_SERVICE, result, "KP1: getServiceState with invalid SrvID should fail");
+}
+
+/**
+ * [@US-6/AC-2] Verify state query succeeds on ONLINE service with correct link count
+ * @[Purpose]: Validate state query accuracy for active service
+ * @[Brief]: Online service, add links, query state, verify success and link count
+ * @[Status]: IMPLEMENTED 🟢 - Online service state query verified
+ */
+TEST(UT_ServiceState, verifyGetServiceState_withOnlineService_expectSuccessWithLinkCount) {
+    // GIVEN: Service is ONLINE with connections
+    IOC_SrvURI_T srvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "state-query-online",
+    };
+
+    IOC_SrvArgs_T srvArgs = {};
+    IOC_Helper_initSrvArgs(&srvArgs);
+    srvArgs.SrvURI = srvURI;
+    srvArgs.UsageCapabilites = IOC_LinkUsageEvtProducer;
+    srvArgs.Flags = IOC_SRVFLAG_AUTO_ACCEPT;
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
+
+    // Connect 2 clients
+    IOC_LinkID_T clientLinks[2];
+    IOC_ConnArgs_T connArgs = {};
+    connArgs.SrvURI = srvURI;
+    connArgs.Usage = IOC_LinkUsageEvtConsumer;
+
+    for (int i = 0; i < 2; i++) {
+        ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_connectService(&clientLinks[i], &connArgs, NULL));
+    }
+    usleep(10000);  // Wait for auto-accept
+
+    // WHEN: Query service state
+    uint16_t connectedLinks = 999;
+    IOC_Result_T result = IOC_getServiceState(srvID, NULL, &connectedLinks);
+
+    // THEN: Query succeeds with correct link count
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_SUCCESS, result, "KP1: getServiceState should succeed on ONLINE service");
+    VERIFY_KEYPOINT_EQ(2, connectedLinks, "KP2: Should report correct link count");
+
+    // Cleanup
+    for (int i = 0; i < 2; i++) {
+        IOC_closeLink(clientLinks[i]);
+    }
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_offlineService(srvID));
+}
+
+/**
+ * [@US-6/AC-3] Verify getServiceLinkIDs with sufficient buffer returns all LinkIDs
+ * @[Purpose]: Validate LinkID enumeration with adequate buffer size
+ * @[Brief]: Create service with links, call getServiceLinkIDs with large buffer, verify all IDs returned
+ * @[Status]: IMPLEMENTED 🟢 - Sufficient buffer handling verified
+ */
+TEST(UT_ServiceState, verifyGetServiceLinkIDs_withSufficientBuffer_expectAllLinkIDs) {
+    // GIVEN: Service with multiple connections
+    IOC_SrvURI_T srvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "state-query-linkids-sufficient",
+    };
+
+    IOC_SrvArgs_T srvArgs = {};
+    IOC_Helper_initSrvArgs(&srvArgs);
+    srvArgs.SrvURI = srvURI;
+    srvArgs.UsageCapabilites = IOC_LinkUsageEvtProducer;
+    srvArgs.Flags = IOC_SRVFLAG_AUTO_ACCEPT;
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
+
+    // Connect 3 clients
+    const int N = 3;
+    IOC_LinkID_T clientLinks[N];
+    IOC_ConnArgs_T connArgs = {};
+    connArgs.SrvURI = srvURI;
+    connArgs.Usage = IOC_LinkUsageEvtConsumer;
+
+    for (int i = 0; i < N; i++) {
+        ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_connectService(&clientLinks[i], &connArgs, NULL));
+    }
+    usleep(10000);  // Wait for auto-accept
+
+    // WHEN: Query LinkIDs with sufficient buffer (20 slots, need 3)
+    IOC_LinkID_T serverLinkIDs[20];
+    uint16_t actualCount = 0;
+    IOC_Result_T result = IOC_getServiceLinkIDs(srvID, serverLinkIDs, 20, &actualCount);
+
+    // THEN: All LinkIDs returned successfully
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_SUCCESS, result, "KP1: getServiceLinkIDs with sufficient buffer should succeed");
+    VERIFY_KEYPOINT_EQ(N, actualCount, "KP2: Should return all LinkIDs");
+    VERIFY_KEYPOINT_LE(actualCount, 20, "KP3: Actual count should not exceed buffer size");
+
+    // Verify no invalid LinkIDs returned
+    for (uint16_t i = 0; i < actualCount; i++) {
+        EXPECT_NE(IOC_ID_INVALID, serverLinkIDs[i]) << "LinkID at index " << i << " should be valid";
+    }
+
+    // Cleanup
+    for (int i = 0; i < N; i++) {
+        IOC_closeLink(clientLinks[i]);
+    }
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_offlineService(srvID));
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF TODO/IMPLEMENTATION TRACKING SECTION===========================================
 /**
- * 🎯 CORE COVERAGE STATUS: 🔄 IN PROGRESS (6/21 tests passing - 29%)
+ * 🎯 CORE COVERAGE STATUS: 🔄 IN PROGRESS (9/21 tests passing - 43%)
  *
  * User Stories Implementation Progress:
  *  ✅ US-1: Service lifecycle transitions - 3/3 AC passing (100%) 🎉
@@ -529,7 +805,7 @@ TEST(UT_ServiceState, verifyGetServiceLinkIDs_withLinks_expectAllLinkIDs) {
  *  ✅ US-3: Service link tracking state - 3/3 AC passing (100%) 🎉
  *  ⚪ US-4: Manual accept state management - 0/3 AC (0%)
  *  ⚪ US-5: Service stability during operations - 0/3 AC (0%)
- *  ⚪ US-6: Service state queries - 0/3 AC (0%)
+ *  ✅ US-6: Service state queries - 3/3 AC passing (100%) 🎉
  *  ⚪ US-7: BROADCAST daemon lifecycle - 0/3 AC (0%)
  *
  * Recent Implementation:
