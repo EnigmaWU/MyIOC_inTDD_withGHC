@@ -54,6 +54,34 @@
  *  Principle: Improve Value • Avoid Lost • Balance Skill vs Cost
  */
 /**
+ * 📖 INVALIDFUNC CATEGORIZATION GUIDE
+ *
+ * What makes a test InValidFunc-Misuse?
+ *  ✓ Wrong usage PATTERN (not just wrong input)
+ *  ✓ Violates API contract/sequence even with valid inputs
+ *  ✓ Tests defensive programming and state integrity
+ *  ✓ Misuse should fail predictably with clear error codes
+ *
+ * Comparison with ValidFunc:
+ * ┌──────────────────────────┬─────────────────────────────┬─────────────────────────────┐
+ * │ Aspect                   │ ValidFunc-Boundary          │ InValidFunc-Misuse          │
+ * ├──────────────────────────┼─────────────────────────────┼─────────────────────────────┤
+ * │ Input                    │ Edge values (NULL, invalid) │ May be valid inputs         │
+ * │ Usage Pattern            │ CORRECT sequence/logic      │ WRONG sequence/logic        │
+ * │ Example                  │ online(NULL) → INVALID_PARAM│ online() twice → CONFLICT   │
+ * │ API Behavior             │ Works correctly at boundary │ Rejects misuse pattern      │
+ * │ Call Count               │ Single operation            │ Repeated/wrong order        │
+ * │ Focus                    │ Parameter validation        │ State machine integrity     │
+ * └──────────────────────────┴─────────────────────────────┴─────────────────────────────┘
+ *
+ * InValidFunc Misuse Categories in this file:
+ *  1. Lifecycle Misuse: Double online/offline → state corruption prevention
+ *  2. Sequence Misuse: Operations in wrong order (accept before online, close twice)
+ *  3. Capability Misuse: Manual ops on auto services, incompatible usage types
+ *  4. State Misuse: Operations on closed/offline resources
+ *  5. Fault Containment: Leak prevention when allocations fail during operations
+ */
+/**
  * US-1 (InValidFunc-Misuse): As a service maintainer, I want repeated lifecycle calls (double online/offline)
  *  to return explicit errors so accidental retries do not corrupt state (usage pattern FAILS by design).
  *
@@ -66,18 +94,21 @@
  * US-2 (InValidFunc-Misuse): As a service maintainer, I need invalid sequencing to be rejected,
  *  so that wrong operation order (accept before online, close twice, connect after offline) fails predictably.
  *
- *  AC-1: GIVEN service never onlined, WHEN IOC_acceptClient called, THEN return IOC_RESULT_NOT_EXIST_SERVICE (sequence
- * violation). AC-2: GIVEN link already closed, WHEN IOC_closeLink invoked again, THEN return IOC_RESULT_NOT_EXIST_LINK
- * (sequence violation). AC-3: GIVEN service offline, WHEN IOC_connectService executed, THEN return
- * IOC_RESULT_NOT_EXIST_SERVICE (sequence violation).
+ *  AC-1: GIVEN service never onlined, WHEN IOC_acceptClient called,
+ *         THEN return IOC_RESULT_NOT_EXIST_SERVICE (sequence violation).
+ *  AC-2: GIVEN link already closed, WHEN IOC_closeLink invoked again,
+ *         THEN return IOC_RESULT_NOT_EXIST_LINK (sequence violation).
+ *  AC-3: GIVEN service offline, WHEN IOC_connectService executed,
+ *         THEN return IOC_RESULT_NOT_EXIST_SERVICE (sequence violation).
  */
 /**
  * US-3 (InValidFunc-FaultContainment): As an operator, I want resource leaks avoided when faults occur during
  * operations, so failed operations (due to allocation failures) still clean up and system remains stable.
  *
- *  AC-1: GIVEN allocation failure during online, WHEN partial service object allocated, THEN internal list remains
- * balanced (no leaks). AC-2: GIVEN repeated accept attempts with timeout, WHEN queue is empty, THEN no dangling client
- * handles persist (no leaks).
+ *  AC-1: GIVEN allocation failure during online, WHEN partial service object allocated,
+ *         THEN internal list remains balanced (no leaks).
+ *  AC-2: GIVEN repeated accept attempts with timeout, WHEN queue is empty,
+ *         THEN no dangling client handles persist (no leaks).
  *
  *  Note: Uses fault injection (malloc failure) to test misuse/failure scenarios don't corrupt resources.
  */
@@ -150,15 +181,17 @@
 //=== US-1/AC-1 ===
 /**
  * @[Name]: verifyOnlineService_byRepeatedCall_expectConflictSrvArgs
+ * @[Category]: InValidFunc-Misuse (Lifecycle Misuse)
+ * @[MisusePattern]: REPEATED OPERATION - Calling online() twice on same service
  * @[Purpose]: Guard against duplicate online attempts reusing the same service arguments.
  * @[Brief]: Online once, retry with identical URI/capabilities, expect IOC_RESULT_CONFLICT_SRVARGS.
  * @[Steps]:
  *   1) 🔧 Build minimal FIFO service args and online the service.
- *   2) 🎯 Call IOC_onlineService again with identical args.
+ *   2) 🎯 Call IOC_onlineService again with identical args (MISUSE).
  *   3) ✅ Verify duplicate attempt returns IOC_RESULT_CONFLICT_SRVARGS.
  *   4) 🧹 Offline original service (and any accidental duplicate) to reset state.
  * @[Expect]: Retry call is rejected with conflict while original service remains intact.
- * @[Status]: GREEN �
+ * @[Status]: GREEN 🟢
  */
 TEST(UT_ServiceMisuse, verifyOnlineService_byRepeatedCall_expectConflictSrvArgs) {
     // GIVEN: a service already onlined with specific arguments
@@ -188,15 +221,17 @@ TEST(UT_ServiceMisuse, verifyOnlineService_byRepeatedCall_expectConflictSrvArgs)
 //=== US-1/AC-2 ===
 /**
  * @[Name]: verifyOfflineService_byDoubleCall_expectNotExistService
+ * @[Category]: InValidFunc-Misuse (Lifecycle Misuse)
+ * @[MisusePattern]: REPEATED OPERATION - Calling offline() twice on same service
  * @[Purpose]: Ensure repeated offline calls surface NOT_EXIST_SERVICE instead of silently succeeding.
  * @[Brief]: Online/offline once successfully, call offline again to confirm NOT_EXIST_SERVICE is returned.
  * @[Steps]:
  *   1) 🔧 Online a minimal FIFO service.
  *   2) 🔧 Offline the service successfully.
- *   3) 🎯 Call IOC_offlineService again on the same SrvID.
+ *   3) 🎯 Call IOC_offlineService again on the same SrvID (MISUSE).
  *   4) ✅ Verify the second call yields IOC_RESULT_NOT_EXIST_SERVICE.
  * @[Expect]: Second offline attempt reports NOT_EXIST_SERVICE without side effects.
- * @[Status]: GREEN �
+ * @[Status]: GREEN 🟢
  */
 TEST(UT_ServiceMisuse, verifyOfflineService_byDoubleCall_expectNotExistService) {
     IOC_SrvArgs_T args{};
@@ -218,6 +253,8 @@ TEST(UT_ServiceMisuse, verifyOfflineService_byDoubleCall_expectNotExistService) 
 //=== US-2/AC-1 ===
 /**
  * @[Name]: verifyAcceptClient_beforeOnline_expectNotExistService
+ * @[Category]: InValidFunc-Misuse (Sequence Misuse)
+ * @[MisusePattern]: WRONG SEQUENCE - Calling accept() before online()
  * @[Purpose]: Ensure accept before online hints caller about missing service.
  * @[Status]: 🟢 GREEN
  */
@@ -235,6 +272,8 @@ TEST(UT_ServiceMisuse, verifyAcceptClient_beforeOnline_expectNotExistService) {
 //=== US-2/AC-2 ===
 /**
  * @[Name]: verifyCloseLink_byDoubleClose_expectNotExistLink
+ * @[Category]: InValidFunc-Misuse (Sequence Misuse)
+ * @[MisusePattern]: REPEATED OPERATION - Calling close() twice on same link
  * @[Purpose]: Detect repeated close operations on the same link.
  * @[Status]: 🟢 GREEN
  */
@@ -272,6 +311,8 @@ TEST(UT_ServiceMisuse, verifyCloseLink_byDoubleClose_expectNotExistLink) {
 //=== US-2/AC-3 ===
 /**
  * @[Name]: verifyConnectService_afterOffline_expectNotExistService
+ * @[Category]: InValidFunc-Misuse (Sequence Misuse)
+ * @[MisusePattern]: WRONG SEQUENCE - Calling connect() after offline()
  * @[Purpose]: Validate connect attempts after explicit offline receive NOT_EXIST_SERVICE.
  * @[Status]: 🟢 GREEN
  */
@@ -302,11 +343,13 @@ TEST(UT_ServiceMisuse, verifyConnectService_afterOffline_expectNotExistService) 
 //=== US-3/AC-1 ===
 /**
  * @[Name]: verifyOnlineService_byFailedAlloc_expectNoLeakIndicators
+ * @[Category]: InValidFunc-FaultContainment (Fault Injection with Leak Detection)
+ * @[MisusePattern]: FAULT INJECTION - Allocation failure during operation
  * @[Purpose]: Ensure resource cleanup when service creation fails due to allocation errors.
  * @[Brief]: Simulate allocation failure during service online, verify no resource leaks occur.
  * @[Steps]:
  *   1) 🔧 Get baseline service count before test.
- *   2) 🎯 Inject failure for the next allocation attempt.
+ *   2) 🎯 Inject failure for the next allocation attempt (FAULT INJECTION).
  *   3) 🔧 Attempt to online service (should fail due to allocation error).
  *   4) ✅ Verify IOC_onlineService returns appropriate error (IOC_RESULT_POSIX_ENOMEM).
  *   5) 🔍 Check service count unchanged (no partial allocations).
@@ -356,11 +399,13 @@ TEST(UT_ServiceMisuse, verifyOnlineService_byFailedAlloc_expectNoLeakIndicators)
 //=== US-3/AC-2 ===
 /**
  * @[Name]: verifyAcceptClient_onEmptyQueue_expectNoDanglingLink
+ * @[Category]: InValidFunc-FaultContainment (Timeout + Leak Detection)
+ * @[MisusePattern]: REPEATED TIMEOUT - Calling accept() repeatedly when no clients connect
  * @[Purpose]: Verify no dangling links or file descriptors when accept times out on empty queue.
  * @[Brief]: Repeatedly call acceptClient with timeout when no clients connect, check for leaks.
  * @[Steps]:
  *   1) 🔧 Online service without AUTO_ACCEPT (manual accept mode).
- *   2) 🎯 Call IOC_acceptClient with short timeout (e.g., 100ms) when no client is connecting.
+ *   2) 🎯 Call IOC_acceptClient with short timeout (e.g., 100ms) when no client is connecting (MISUSE).
  *   3) ✅ Verify returns IOC_RESULT_TIMEOUT (not success with invalid link).
  *   4) 🔁 Repeat accept attempts multiple times (e.g., 100 iterations).
  *   5) 🔍 Check file descriptor count hasn't increased (lsof, /proc/self/fd).
@@ -396,11 +441,13 @@ TEST(UT_ServiceMisuse, DISABLED_verifyAcceptClient_onEmptyQueue_expectNoDangling
 //=== US-4/AC-1 ===
 /**
  * @[Name]: verifyAcceptClient_onAutoAcceptService_expectNotSupportManualAccept
+ * @[Category]: InValidFunc-Misuse (Capability Misuse)
+ * @[MisusePattern]: CAPABILITY VIOLATION - Manual accept on AUTO_ACCEPT service
  * @[Purpose]: Prevent manual accept on AUTO_ACCEPT services to avoid interfering with automatic link management.
  * @[Brief]: Online service with AUTO_ACCEPT flag, attempt manual acceptClient, expect rejection.
  * @[Steps]:
  *   1) 🔧 Online service with IOC_SRVFLAG_AUTO_ACCEPT.
- *   2) 🎯 Call IOC_acceptClient manually on the AUTO_ACCEPT service.
+ *   2) 🎯 Call IOC_acceptClient manually on the AUTO_ACCEPT service (MISUSE).
  *   3) ✅ Verify the call returns IOC_RESULT_NOT_SUPPORT_MANUAL_ACCEPT immediately.
  *   4) 🧹 Offline service to cleanup.
  * @[Expect]: Manual accept attempt is rejected immediately since AUTO_ACCEPT manages links automatically.
@@ -434,11 +481,13 @@ TEST(UT_ServiceMisuse, verifyAcceptClient_onAutoAcceptService_expectNotSupportMa
 //=== US-5/AC-1 ===
 /**
  * @[Name]: verifyConnectService_byIncompatibleUsage_expectIncompatibleUsage
+ * @[Category]: InValidFunc-Misuse (Capability Misuse)
+ * @[MisusePattern]: CAPABILITY MISMATCH - Incompatible usage types (Producer+Producer)
  * @[Purpose]: Ensure incompatible usage connections are rejected before link creation.
  * @[Brief]: Online service as EvtProducer, client connects as EvtProducer (not complementary).
  * @[Steps]:
  *   1) 🔧 Online service with UsageCapabilites = IOC_LinkUsageEvtProducer.
- *   2) 🎯 Client attempts to connect with Usage = IOC_LinkUsageEvtProducer (same, not complementary).
+ *   2) 🎯 Client attempts to connect with Usage = IOC_LinkUsageEvtProducer (MISUSE - not complementary).
  *   3) ✅ Verify connection is REJECTED with IOC_RESULT_INCOMPATIBLE_USAGE.
  *   4) 🧹 Offline service to cleanup.
  * @[Expect]: Connection rejected since EvtProducer+EvtProducer have no complementary roles.
@@ -475,15 +524,17 @@ TEST(UT_ServiceMisuse, verifyConnectService_byIncompatibleUsage_expectIncompatib
 //=== US-6/AC-1 ===
 /**
  * @[Name]: verifyPostEVT_afterServiceOffline_expectLinkClosedOrNotExist
+ * @[Category]: InValidFunc-Misuse (State Misuse)
+ * @[MisusePattern]: STATE VIOLATION - Operating on closed link after service offline
  * @[Purpose]: Validate that operations on links fail predictably after service goes offline.
  * @[Brief]: Establish link, offline service (auto-closes links), attempt to use link, expect failure.
  * @[Steps]:
  *   1) 🔧 Online service and establish a client link.
  *   2) 🔧 Take service offline (should automatically close all accepted links).
- *   3) 🎯 Attempt to post event using the now-closed link.
+ *   3) 🎯 Attempt to post event using the now-closed link (MISUSE).
  *   4) ✅ Verify operation fails with IOC_RESULT_LINK_CLOSED or similar.
  * @[Expect]: Link operations fail after service offline with clear error code.
- * @[Status]: GREEN �
+ * @[Status]: GREEN 🟢
  */
 TEST(UT_ServiceMisuse, verifyPostEVT_afterServiceOffline_expectLinkClosedOrNotExist) {
     // GIVEN: service with established client connection
@@ -521,10 +572,38 @@ TEST(UT_ServiceMisuse, verifyPostEVT_afterServiceOffline_expectLinkClosedOrNotEx
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF TODO/IMPLEMENTATION TRACKING SECTION===========================================
-// Planned Enhancements:
-//  - Fault injection harness for service allocator rollbacks
-//  - Link leak audit helpers (reuse IOC diagnostics or add test hooks)
-//  - Extend misuse coverage to broadcast vs. non-broadcast client roles
-//  - Additional capability misuse: DatSender/Receiver, CmdInitiator/Executor incompatibilities
-//  - Test getServiceLinkIDs on manual-accept services (boundary vs misuse categorization TBD)
+/**
+ * 📋 Planned Enhancements (InValidFunc-Misuse Coverage)
+ *
+ * Lifecycle Misuse:
+ *  - [ ] Triple online/offline attempts (stress test state machine)
+ *  - [x] Double online/offline (US-1 DONE)
+ *
+ * Sequence Misuse:
+ *  - [x] Accept before online, close twice, connect after offline (US-2 DONE)
+ *  - [ ] Post event before subscribe (NO_EVENT_CONSUMER - or is this Boundary?)
+ *  - [ ] Operations during service transition states (online→offline race)
+ *
+ * Capability Misuse:
+ *  - [x] Manual accept on AUTO_ACCEPT (US-4 DONE)
+ *  - [x] Incompatible usage types (Producer+Producer) (US-5 DONE)
+ *  - [ ] Cmd/Dat mismatches (CmdInitiator+DatSender, etc.)
+ *  - [ ] Broadcast on non-broadcast service (or is this Boundary?)
+ *
+ * State Misuse:
+ *  - [x] Operations on closed links (US-6 DONE)
+ *  - [ ] Concurrent online/offline from multiple threads (race conditions)
+ *
+ * Fault Containment:
+ *  - [x] Allocation failure leak detection (US-3/AC-1 DONE)
+ *  - [ ] Timeout leak detection (US-3/AC-2 DISABLED - protocol limitation)
+ *  - [ ] Multiple consecutive allocation failures
+ *  - [ ] Partial cleanup on nested allocation failures
+ *
+ * Infrastructure Improvements:
+ *  - [ ] Fault injection harness for service allocator rollbacks
+ *  - [ ] Link leak audit helpers (reuse IOC diagnostics or add test hooks)
+ *  - [ ] File descriptor tracking for leak detection
+ *  - [ ] Test helper for getServiceLinkIDs validation
+ */
 ///////////////////////////////////////////////////////////////////////////////////////////////////
