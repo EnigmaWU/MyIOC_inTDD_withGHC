@@ -1,24 +1,48 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF OVERVIEW OF THIS UNIT TESTING FILE===============================================
 /**
- * @brief
- *  Exercise misuse and fault scenarios around IOC Service APIs to ensure robust error handling.
+ * @brief InValidFunc-Misuse Tests: Exercise wrong usage patterns that FAIL by design.
+ *
+ *-------------------------------------------------------------------------------------------------
+ * @category InValidFunc-Misuse (Wrong Usage That Fails - Intentional Contract Violations)
+ *
+ * Part of Test Design Formula:
+ *   Service's Functional Test = ValidFunc(Typical + Boundary) + InValidFunc(Misuse)
+ *                                                                ^^^^^^^^^^
+ *                                                            (Wrong usage FAILS!)
+ *
+ * InValidFunc = API usage FAILS from caller's viewpoint (misuse leads to errors)
+ *  - Wrong sequence, repeated operations, state violations
+ *  - Intentional contract violations to test defensive programming
+ *
+ * This file covers: Wrong usage patterns that should fail with clear diagnostics
+ *  - Lifecycle misuse: Double online/offline, accept before online, connect after offline
+ *  - Capability misuse: Manual accept on AUTO_ACCEPT services, incompatible usage types
+ *  - State misuse: Double close link, operations on closed/offline resources
+ *  - Resource containment: Leak prevention during allocation failures
+ *  - Fault injection: System resilience under resource exhaustion
+ *
+ * Test Philosophy - KEY DISTINCTION:
+ *  - ValidFunc (Typical + Boundary): API WORKS correctly (proper usage, edge inputs OK)
+ *  - InValidFunc (Misuse): API usage FAILS by design (wrong patterns trigger errors)
+ *  - Focus: Verify robust error handling, state integrity, resource leak prevention
+ *  - Tests intentionally violate usage contracts to confirm defensive programming
+ *
+ * Related Test Files:
+ *  - UT_ServiceTypical.cxx: ValidFunc-Typical (common scenarios that work)
+ *  - UT_ServiceBoundary.cxx: ValidFunc-Boundary (edge cases that still work)
+ *  - See: Test/UT_ServiceTestDesign.md for complete test taxonomy
  *
  *-------------------------------------------------------------------------------------------------
  *++Context
- *  Complements Typical and Boundary suites by validating how the Service layer behaves under
- *  mis-sequenced calls, repeated operations, capability mismatches, and resource leaks.
- *  These tests intentionally violate usage contracts to confirm defensive programming and clear diagnostics.
- *
- *  KEY DISTINCTION FROM BOUNDARY TESTS:
- *   - Boundary: Wrong inputs (NULL, invalid values) with CORRECT usage patterns
- *   - Misuse: Wrong usage patterns (wrong sequence, repeated ops, incompatible capabilities)
+ *  Complements Typical and Boundary suites by validating defensive behaviors under misuse.
+ *  All failures should be predictable, well-documented, and leave system in consistent state.
  *
  *  COVERAGE AREAS:
- *   - Lifecycle misuse: Double online/offline, operations in wrong sequence
- *   - Capability misuse: Incompatible usage types, manual ops on automatic services
- *   - State misuse: Operations on closed/offline resources
- *   - Resource containment: Leak prevention during misuse scenarios
+ *   - Lifecycle misuse: Double online/offline, accept before online, connect after offline
+ *   - Capability misuse: Manual accept on AUTO_ACCEPT services, incompatible usage types
+ *   - State misuse: Double close link, operations on offline services
+ *   - Resource containment: Allocation failure handling, leak detection
  */
 //======>END OF OVERVIEW OF THIS UNIT TESTING FILE=================================================
 
@@ -173,10 +197,7 @@ TEST(UT_ServiceMisuse, verifyOnlineService_byRepeatedCall_expectConflictSrvArgs)
 TEST(UT_ServiceMisuse, verifyOfflineService_byDoubleCall_expectNotExistService) {
     IOC_SrvArgs_T args{};
     args.SrvURI = {
-        .pProtocol = IOC_SRV_PROTO_FIFO,
-        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = "misuse-double-offline"
-    };
+        .pProtocol = IOC_SRV_PROTO_FIFO, .pHost = IOC_SRV_HOST_LOCAL_PROCESS, .pPath = "misuse-double-offline"};
     args.UsageCapabilites = IOC_LinkUsageEvtProducer;
     args.Flags = IOC_SRVFLAG_NONE;
 
@@ -187,8 +208,7 @@ TEST(UT_ServiceMisuse, verifyOfflineService_byDoubleCall_expectNotExistService) 
     ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_offlineService(srvID));
 
     IOC_Result_T secondResult = IOC_offlineService(srvID);
-    VERIFY_KEYPOINT_EQ(IOC_RESULT_NOT_EXIST_SERVICE, secondResult,
-        "KP1: double offline returns NOT_EXIST_SERVICE");
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_NOT_EXIST_SERVICE, secondResult, "KP1: double offline returns NOT_EXIST_SERVICE");
 }
 
 //=== US-2/AC-1 ===
@@ -205,8 +225,7 @@ TEST(UT_ServiceMisuse, verifyAcceptClient_beforeOnline_expectNotExistService) {
     IOC_Result_T result = IOC_acceptClient(IOC_ID_INVALID, &linkID, NULL);
 
     // THEN: expect NOT_EXIST_SERVICE
-    VERIFY_KEYPOINT_EQ(IOC_RESULT_NOT_EXIST_SERVICE, result,
-                       "KP1: accept before online returns NOT_EXIST_SERVICE");
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_NOT_EXIST_SERVICE, result, "KP1: accept before online returns NOT_EXIST_SERVICE");
 }
 
 //=== US-2/AC-2 ===
@@ -218,7 +237,8 @@ TEST(UT_ServiceMisuse, verifyAcceptClient_beforeOnline_expectNotExistService) {
 TEST(UT_ServiceMisuse, verifyCloseLink_byDoubleClose_expectNotExistLink) {
     // GIVEN: a simple service with AUTO_ACCEPT to establish a connection easily
     IOC_SrvArgs_T srvArgs{};
-    srvArgs.SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO, .pHost = IOC_SRV_HOST_LOCAL_PROCESS, .pPath = "misuse-double-close"};
+    srvArgs.SrvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO, .pHost = IOC_SRV_HOST_LOCAL_PROCESS, .pPath = "misuse-double-close"};
     srvArgs.UsageCapabilites = IOC_LinkUsageEvtProducer;
     srvArgs.Flags = (IOC_SrvFlags_T)(IOC_SRVFLAG_AUTO_ACCEPT);
 
@@ -239,8 +259,7 @@ TEST(UT_ServiceMisuse, verifyCloseLink_byDoubleClose_expectNotExistLink) {
     IOC_Result_T secondClose = IOC_closeLink(cliLinkID);
 
     // THEN: the second close should report NOT_EXIST_LINK
-    VERIFY_KEYPOINT_EQ(IOC_RESULT_NOT_EXIST_LINK, secondClose,
-                       "KP1: double close returns NOT_EXIST_LINK");
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_NOT_EXIST_LINK, secondClose, "KP1: double close returns NOT_EXIST_LINK");
 
     // CLEANUP
     ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_offlineService(srvID));
@@ -255,7 +274,8 @@ TEST(UT_ServiceMisuse, verifyCloseLink_byDoubleClose_expectNotExistLink) {
 TEST(UT_ServiceMisuse, verifyConnectService_afterOffline_expectNotExistService) {
     // GIVEN: a service that was online and then taken offline
     IOC_SrvArgs_T srvArgs{};
-    srvArgs.SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO, .pHost = IOC_SRV_HOST_LOCAL_PROCESS, .pPath = "misuse-connect-after-offline"};
+    srvArgs.SrvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO, .pHost = IOC_SRV_HOST_LOCAL_PROCESS, .pPath = "misuse-connect-after-offline"};
     srvArgs.UsageCapabilites = IOC_LinkUsageEvtProducer;
     srvArgs.Flags = IOC_SRVFLAG_NONE;
 
@@ -272,8 +292,7 @@ TEST(UT_ServiceMisuse, verifyConnectService_afterOffline_expectNotExistService) 
     IOC_Result_T result = IOC_connectService(&linkID, &connArgs, NULL);
 
     // THEN: expect NOT_EXIST_SERVICE
-    VERIFY_KEYPOINT_EQ(IOC_RESULT_NOT_EXIST_SERVICE, result,
-                       "KP1: connect after offline returns NOT_EXIST_SERVICE");
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_NOT_EXIST_SERVICE, result, "KP1: connect after offline returns NOT_EXIST_SERVICE");
 }
 
 //=== US-3/AC-1 ===
@@ -301,10 +320,7 @@ TEST(UT_ServiceMisuse, verifyOnlineService_byFailedAlloc_expectNoLeakIndicators)
     // AND: attempt to online service (should fail at calloc)
     IOC_SrvArgs_T args{};
     args.SrvURI = {
-        .pProtocol = IOC_SRV_PROTO_FIFO,
-        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = "misuse-failed-alloc"
-    };
+        .pProtocol = IOC_SRV_PROTO_FIFO, .pHost = IOC_SRV_HOST_LOCAL_PROCESS, .pPath = "misuse-failed-alloc"};
     args.UsageCapabilites = IOC_LinkUsageEvtProducer;
     args.Flags = IOC_SRVFLAG_NONE;
 
@@ -312,8 +328,7 @@ TEST(UT_ServiceMisuse, verifyOnlineService_byFailedAlloc_expectNoLeakIndicators)
     IOC_Result_T result = IOC_onlineService(&srvID, &args);
 
     // THEN: online should fail with memory error
-    VERIFY_KEYPOINT_EQ(IOC_RESULT_POSIX_ENOMEM, result,
-                       "KP1: allocation failure returns POSIX_ENOMEM");
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_POSIX_ENOMEM, result, "KP1: allocation failure returns POSIX_ENOMEM");
     EXPECT_EQ(IOC_ID_INVALID, srvID) << "No service ID should be assigned on failure";
 
     // AND: service count should remain unchanged (no leaked entries)
@@ -331,8 +346,7 @@ TEST(UT_ServiceMisuse, verifyOnlineService_byFailedAlloc_expectNoLeakIndicators)
 
     // Verify final service count returns to baseline
     uint16_t FinalServiceCount = IOC_getServiceCount();
-    EXPECT_EQ(BaselineServiceCount, FinalServiceCount) 
-        << "Service count should return to baseline after cleanup";
+    EXPECT_EQ(BaselineServiceCount, FinalServiceCount) << "Service count should return to baseline after cleanup";
 }
 
 //=== US-3/AC-2 ===
@@ -392,10 +406,7 @@ TEST(UT_ServiceMisuse, verifyAcceptClient_onAutoAcceptService_expectNotSupportMa
     // GIVEN: a service with AUTO_ACCEPT flag enabled
     IOC_SrvArgs_T args{};
     args.SrvURI = {
-        .pProtocol = IOC_SRV_PROTO_FIFO,
-        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = "misuse-manual-accept-on-auto"
-    };
+        .pProtocol = IOC_SRV_PROTO_FIFO, .pHost = IOC_SRV_HOST_LOCAL_PROCESS, .pPath = "misuse-manual-accept-on-auto"};
     args.UsageCapabilites = IOC_LinkUsageEvtProducer;
     args.Flags = IOC_SRVFLAG_AUTO_ACCEPT;
 
@@ -433,10 +444,7 @@ TEST(UT_ServiceMisuse, verifyConnectService_byIncompatibleUsage_expectIncompatib
     // GIVEN: service configured as EvtProducer
     IOC_SrvArgs_T srvArgs{};
     srvArgs.SrvURI = {
-        .pProtocol = IOC_SRV_PROTO_FIFO,
-        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = "misuse-incompatible-usage"
-    };
+        .pProtocol = IOC_SRV_PROTO_FIFO, .pHost = IOC_SRV_HOST_LOCAL_PROCESS, .pPath = "misuse-incompatible-usage"};
     srvArgs.UsageCapabilites = IOC_LinkUsageEvtProducer;  // Service produces events
     srvArgs.Flags = IOC_SRVFLAG_AUTO_ACCEPT;
 
@@ -453,8 +461,7 @@ TEST(UT_ServiceMisuse, verifyConnectService_byIncompatibleUsage_expectIncompatib
     IOC_Result_T result = IOC_connectService(&linkID, &connArgs, NULL);
 
     // THEN: connection should be rejected with incompatible usage error
-    VERIFY_KEYPOINT_EQ(IOC_RESULT_INCOMPATIBLE_USAGE, result,
-                       "KP1: incompatible usage connection should be rejected");
+    VERIFY_KEYPOINT_EQ(IOC_RESULT_INCOMPATIBLE_USAGE, result, "KP1: incompatible usage connection should be rejected");
     EXPECT_EQ(IOC_ID_INVALID, linkID) << "No link should be created on incompatible usage";
 
     // CLEANUP
@@ -478,10 +485,7 @@ TEST(UT_ServiceMisuse, verifyPostEVT_afterServiceOffline_expectLinkClosedOrNotEx
     // GIVEN: service with established client connection
     IOC_SrvArgs_T srvArgs{};
     srvArgs.SrvURI = {
-        .pProtocol = IOC_SRV_PROTO_FIFO,
-        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = "misuse-post-after-offline"
-    };
+        .pProtocol = IOC_SRV_PROTO_FIFO, .pHost = IOC_SRV_HOST_LOCAL_PROCESS, .pPath = "misuse-post-after-offline"};
     srvArgs.UsageCapabilites = IOC_LinkUsageEvtProducer;
     srvArgs.Flags = IOC_SRVFLAG_AUTO_ACCEPT;
 
@@ -505,8 +509,7 @@ TEST(UT_ServiceMisuse, verifyPostEVT_afterServiceOffline_expectLinkClosedOrNotEx
     evt.EvtID = IOC_EVTID_TEST_KEEPALIVE;
     IOC_Result_T result = IOC_postEVT(linkID, &evt, NULL);
 
-    VERIFY_KEYPOINT_NE(IOC_RESULT_SUCCESS, result,
-                       "KP1: posting on closed link after service offline should fail");
+    VERIFY_KEYPOINT_NE(IOC_RESULT_SUCCESS, result, "KP1: posting on closed link after service offline should fail");
     // Expected errors: IOC_RESULT_NOT_EXIST_LINK, IOC_RESULT_LINK_CLOSED, or similar
 
     // NOTE: Link is already closed by offlineService, no explicit cleanup needed

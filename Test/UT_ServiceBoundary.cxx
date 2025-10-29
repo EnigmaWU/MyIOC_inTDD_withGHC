@@ -1,17 +1,43 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF OVERVIEW OF THIS UNIT TESTING FILE===============================================
 /**
- * @brief
- *  Verify boundary/edge conditions of IOC Service APIs (online/offline, accept/connect, inspect, broadcast).
+ * @brief ValidFunc-Boundary Tests: Verify boundary/edge conditions that still WORK correctly.
+ *
+ *-------------------------------------------------------------------------------------------------
+ * @category ValidFunc-Boundary (Edge Cases That Still Work - APIs Function Correctly)
+ *
+ * Part of Test Design Formula:
+ *   Service's Functional Test = ValidFunc(Typical + Boundary) + InValidFunc(Misuse)
+ *                                                  ^^^^^^^^
+ *                                          (Edges but WORKS!)
+ *
+ * ValidFunc = API WORKS from caller's viewpoint (successful operation or graceful rejection)
+ *  - Typical: Common scenarios in normal range
+ *  - Boundary: Edge cases (min/max args, limits, empty buffers) but API still behaves correctly
+ *
+ * This file covers: Edge/boundary conditions where APIs function as designed
+ *  - Min/max parameter values (NULL pointers, zero buffers, invalid IDs)
+ *  - Resource boundary conditions (non-existent services/links, empty queues)
+ *  - Capability limits (unsupported operations, buffer too small)
+ *  - Timeout edge semantics (zero vs non-blocking vs immediate)
+ *  - APIs return appropriate error codes and maintain system integrity
+ *
+ * Test Philosophy - KEY DISTINCTION:
+ *  - ValidFunc (Typical + Boundary): API WORKS correctly (returns expected result/error)
+ *  - InValidFunc (Misuse): API usage FAILS (wrong sequence, double calls, state violations)
+ *  - Focus: Verify APIs handle edge inputs gracefully and return correct diagnostic codes
+ *  - All tests here: Single operations, correct sequence, proper usage - just edge inputs
+ *
+ * Related Test Files:
+ *  - UT_ServiceTypical.cxx: ValidFunc-Typical (common scenarios that work)
+ *  - UT_ServiceMisuse.cxx: InValidFunc-Misuse (wrong usage that fails)
+ *  - See: Test/UT_ServiceTestDesign.md for complete test taxonomy
  *
  *-------------------------------------------------------------------------------------------------
  *++Context
- *  This file complements Typical tests with Boundary coverage per CaTDD:
- *   - Invalid/null parameters, non-existing resources
- *   - Unsupported operations by flag/capability
- *   - Buffer/timeout semantics (non-block vs immediate)
- *  Scope focuses on Service Layer APIs around: IOC_onlineService, IOC_offlineService,
- *  IOC_connectService, IOC_acceptClient, IOC_closeLink, IOC_broadcastEVT, IOC_getServiceLinkIDs.
+ *  Complements Typical tests by testing parameter boundaries and limits per CaTDD principles.
+ *  Scope: IOC_onlineService, IOC_offlineService, IOC_connectService, IOC_acceptClient,
+ *         IOC_closeLink, IOC_broadcastEVT, IOC_getServiceLinkIDs.
  */
 //======>END OF OVERVIEW OF THIS UNIT TESTING FILE=================================================
 

@@ -1,14 +1,43 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======BEGIN OF OVERVIEW OF THIS UNIT TESTING FILE================================================
 /**
- * @brief
- *  Verify typical/classic usage/example of IOC's Service APIs.
+ * @brief ValidFunc-Typical Tests: Verify typical/classic scenarios where APIs WORK correctly.
  *
  *-------------------------------------------------------------------------------------------------
- * @note
- *     Service is identify by 'SrvURI' defined in IOC_SrvTypes.h,
+ * @category ValidFunc-Typical (Common Scenarios That Work - APIs Function Correctly)
+ *
+ * Part of Test Design Formula:
+ *   Service's Functional Test = ValidFunc(Typical + Boundary) + InValidFunc(Misuse)
+ *                                         ^^^^^^^^
+ *                                    (Normal cases WORK!)
+ *
+ * ValidFunc = API WORKS from caller's viewpoint (successful operation)
+ *  - Typical: Common scenarios in normal range - happy path success flows
+ *  - Boundary: Edge cases (min/max, limits) but still work correctly
+ *
+ * This file covers: Typical/classic usage scenarios with expected success
+ *  - Single and multiple services with single/multiple clients
+ *  - Event posting, subscribing, and unsubscribing workflows
+ *  - Service producer/consumer role variations
+ *  - Dynamic resubscription patterns
+ *  - All operations complete successfully as designed
+ *
+ * Test Philosophy - KEY DISTINCTION:
+ *  - ValidFunc (Typical + Boundary): API WORKS correctly (success or graceful error)
+ *  - InValidFunc (Misuse): API usage FAILS (wrong sequence, double calls, violations)
+ *  - Focus: Verify common real-world scenarios execute successfully
+ *  - All inputs are valid, all sequences are correct, all operations succeed
+ *
+ * Related Test Files:
+ *  - UT_ServiceBoundary.cxx: ValidFunc-Boundary (edge cases that still work)
+ *  - UT_ServiceMisuse.cxx: InValidFunc-Misuse (wrong usage that fails)
+ *  - See: Test/UT_ServiceTestDesign.md for complete test taxonomy
+ *
+ *-------------------------------------------------------------------------------------------------
+ * @note API Overview
+ *     Service is identified by 'SrvURI' defined in IOC_SrvTypes.h,
  *         which is a combination of 'Protocol+Host+Port+Path' with some customized meaning.
- *     Service APIs are defined in IOC_SrvAPI.h, and it types are defined in IOC_SrvTypes.h.
+ *     Service APIs are defined in IOC_SrvAPI.h, and types are defined in IOC_SrvTypes.h.
  *     On the server side, we call:
  *         IOC_onlineService() to online a service, IOC_offlineService() to offline a service,
  *         IOC_acceptLink() to accept a link from client,
