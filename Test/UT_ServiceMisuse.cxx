@@ -54,49 +54,53 @@
  *  Principle: Improve Value • Avoid Lost • Balance Skill vs Cost
  */
 /**
- * US-1 (Misuse): As a service maintainer, I want repeated lifecycle calls (double online/offline)
- *  to return explicit errors so accidental retries do not corrupt state.
+ * US-1 (InValidFunc-Misuse): As a service maintainer, I want repeated lifecycle calls (double online/offline)
+ *  to return explicit errors so accidental retries do not corrupt state (usage pattern FAILS by design).
  *
  *  AC-1: GIVEN service already onlined, WHEN IOC_onlineService called again with same args,
- *         THEN return IOC_RESULT_ALREADY_EXIST_SERVICE (or equivalent).
+ *         THEN return IOC_RESULT_CONFLICT_SRVARGS (misuse detected).
  *  AC-2: GIVEN service already offline, WHEN IOC_offlineService invoked twice,
- *         THEN return IOC_RESULT_NOT_EXIST_SERVICE.
+ *         THEN return IOC_RESULT_NOT_EXIST_SERVICE (misuse detected).
  */
 /**
- * US-2 (Misuse): As a service maintainer, I need invalid sequencing (accept before online,
- *  close link twice, connect after offline) to surface predictable codes.
+ * US-2 (InValidFunc-Misuse): As a service maintainer, I need invalid sequencing to be rejected,
+ *  so that wrong operation order (accept before online, close twice, connect after offline) fails predictably.
  *
- *  AC-1: GIVEN service never onlined, WHEN IOC_acceptClient called, THEN return IOC_RESULT_NOT_EXIST_SERVICE.
- *  AC-2: GIVEN link already closed, WHEN IOC_closeLink invoked again, THEN return IOC_RESULT_NOT_EXIST_LINK.
- *  AC-3: GIVEN service offline, WHEN IOC_connectService executed, THEN return IOC_RESULT_NOT_EXIST_SERVICE.
+ *  AC-1: GIVEN service never onlined, WHEN IOC_acceptClient called, THEN return IOC_RESULT_NOT_EXIST_SERVICE (sequence
+ * violation). AC-2: GIVEN link already closed, WHEN IOC_closeLink invoked again, THEN return IOC_RESULT_NOT_EXIST_LINK
+ * (sequence violation). AC-3: GIVEN service offline, WHEN IOC_connectService executed, THEN return
+ * IOC_RESULT_NOT_EXIST_SERVICE (sequence violation).
  */
 /**
- * US-3 (Fault Containment): As an operator, I want resource leaks avoided when misuse occurs,
- *  so failed operations still clean up temporary allocations.
+ * US-3 (InValidFunc-FaultContainment): As an operator, I want resource leaks avoided when faults occur during
+ * operations, so failed operations (due to allocation failures) still clean up and system remains stable.
  *
- *  AC-1: GIVEN online failure, WHEN partial service object allocated, THEN internal list remains balanced.
- *  AC-2: GIVEN repeated accept attempts, WHEN queue is empty, THEN no dangling client handles persist.
+ *  AC-1: GIVEN allocation failure during online, WHEN partial service object allocated, THEN internal list remains
+ * balanced (no leaks). AC-2: GIVEN repeated accept attempts with timeout, WHEN queue is empty, THEN no dangling client
+ * handles persist (no leaks).
+ *
+ *  Note: Uses fault injection (malloc failure) to test misuse/failure scenarios don't corrupt resources.
  */
 /**
- * US-4 (Misuse): As a service developer, I want manual accept on AUTO_ACCEPT services to be rejected,
- *  so I don't accidentally interfere with automatic link management.
+ * US-4 (InValidFunc-Misuse): As a service developer, I want manual accept on AUTO_ACCEPT services to be rejected,
+ *  so I don't accidentally interfere with automatic link management (capability misuse FAILS by design).
  *
  *  AC-1: GIVEN service with IOC_SRVFLAG_AUTO_ACCEPT, WHEN calling IOC_acceptClient manually,
- *         THEN return error indicating manual accept is not supported.
+ *         THEN return error indicating manual accept is not supported (capability violation).
  */
 /**
- * US-5 (Misuse): As a client developer, I want connection attempts with incompatible capabilities
- *  to fail clearly, so I can fix my configuration.
+ * US-5 (InValidFunc-Misuse): As a client developer, I want connection attempts with incompatible capabilities to fail
+ * clearly, so I can fix my configuration (capability misuse FAILS by design).
  *
  *  AC-1: GIVEN service with specific UsageCapabilities, WHEN client connects with incompatible Usage,
- *         THEN return IOC_RESULT_INCOMPATIBLE_USAGE.
+ *         THEN return IOC_RESULT_INCOMPATIBLE_USAGE (capability mismatch).
  */
 /**
- * US-6 (Misuse): As a link user, I want operations on links after service offline to fail predictably,
- *  so I know the service is unavailable.
+ * US-6 (InValidFunc-Misuse): As a link user, I want operations on links after service offline to fail predictably,
+ *  so I know the service is unavailable (state violation FAILS by design).
  *
  *  AC-1: GIVEN service offline and links closed, WHEN attempting operations on those links,
- *         THEN return IOC_RESULT_NOT_EXIST_LINK or IOC_RESULT_LINK_CLOSED.
+ *         THEN return IOC_RESULT_NOT_EXIST_LINK or IOC_RESULT_LINK_CLOSED (state violation).
  */
 /**
  * TEST CASES — ORGANIZATION & STATUS

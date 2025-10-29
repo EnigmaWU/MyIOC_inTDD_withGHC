@@ -54,23 +54,24 @@
  *   - Note: Start with Typical → Boundary, then grow coverage deliberately.
  */
 /**
- * US-1 (Boundary): As a service developer, I want invalid inputs to be rejected clearly,
- *  so that misuse is caught early and does not corrupt internal state.
+ * US-1 (ValidFunc-Boundary): As a service developer, I want APIs to handle edge inputs gracefully,
+ *  so that boundary conditions are caught early with clear diagnostic codes (APIs still WORK correctly).
  *
- *  AC-1: GIVEN null/invalid params, WHEN calling Service APIs, THEN return INVALID_PARAM.
- *  AC-2: GIVEN not-exist resource (service/link), WHEN operating on it, THEN return NOT_EXIST_*.
+ *  AC-1: GIVEN null/invalid params, WHEN calling Service APIs, THEN return INVALID_PARAM (API works, rejects
+ * gracefully). AC-2: GIVEN not-exist resource (service/link), WHEN operating on it, THEN return NOT_EXIST_* (API works,
+ * proper diagnostic).
  *
- * US-2 (Boundary): As a service developer, I want unsupported operations to return explicit codes,
- *  so users understand missing flags/capabilities.
+ * US-2 (ValidFunc-Boundary): As a service developer, I want APIs to return explicit codes for capability limits,
+ *  so users understand edge cases like missing flags or buffer constraints (APIs still WORK correctly).
  *
- *  AC-1: GIVEN service without BROADCAST flag, WHEN calling broadcastEVT, THEN return NOT_SUPPORT_BROADCAST_EVENT.
- *  AC-2: GIVEN small buffer for service link inspection, WHEN links exceed capacity,
- *         THEN return BUFFER_TOO_SMALL (if applicable) with partial results.
+ *  AC-1: GIVEN service without BROADCAST flag, WHEN calling broadcastEVT, THEN return NOT_SUPPORT_BROADCAST_EVENT (API
+ * works). AC-2: GIVEN small buffer for service link inspection, WHEN links exceed capacity, THEN return
+ * BUFFER_TOO_SMALL with partial results (API works, graceful degradation).
  *
- * US-3 (Boundary): As a service developer, I want to be notified when an event has no consumers,
- *  so that I can handle cases where no one is listening.
+ * US-3 (ValidFunc-Boundary): As a service developer, I want to be notified when edge conditions occur,
+ *  so I can handle cases like no event consumers (APIs still WORK correctly with proper notifications).
  *
- *  AC-1: GIVEN a link with no event subscriptions, WHEN posting an event, THEN return NO_EVENT_CONSUMER.
+ *  AC-1: GIVEN a link with no event subscriptions, WHEN posting an event, THEN return NO_EVENT_CONSUMER (API works).
  */
 /**
  * US/AC/TC Contract
