@@ -452,14 +452,14 @@ static IOC_Result_T __IOC_connectService_ofProtoFifo(_IOC_LinkObject_pT pLinkObj
     if (pFifoSrvObj->pConnLinkObj == NULL && pFifoLinkObj->pPeer == NULL) {
         pthread_mutex_unlock(&pFifoSrvObj->WaitAccptedMutex);
         pthread_mutex_unlock(&pFifoSrvObj->ConnMutex);
-        
+
         // Clean up the rejected link object
         __IOC_cleanupPollingBuffer_ofProtoFifo(pFifoLinkObj);
         __IOC_cleanupCallbackBatch_ofProtoFifo(pFifoLinkObj);
         pthread_mutex_destroy(&pFifoLinkObj->Mutex);
         free(pFifoLinkObj);
         pLinkObj->pProtoPriv = NULL;
-        
+
         _IOC_LogWarn("Connection rejected by service (likely incompatible usage)");
         return IOC_RESULT_INCOMPATIBLE_USAGE;
     }
@@ -549,6 +549,14 @@ static IOC_Result_T __IOC_acceptClient_ofProtoFifo(_IOC_ServiceObject_pT pSrvObj
     // Step-3: IF new incoming connection is waiting, then accept it immediately, ELSE wait for it.
     _IOC_ProtoFifoServiceObject_pT pFifoSrvObj = (_IOC_ProtoFifoServiceObject_pT)pSrvObj->pProtoPriv;
 
+    // TDD FIX: Respect timeout from pOption
+    struct timespec StartTime, CurrentTime;
+    clock_gettime(CLOCK_REALTIME, &StartTime);
+    ULONG_T TimeoutUS = (pOption && pOption->Payload.TimeoutUS != IOC_TIMEOUT_INFINITE)
+                            ? pOption->Payload.TimeoutUS
+                            : ULONG_MAX;  // If no timeout specified, use very large value
+    bool HasTimeout = (pOption && pOption->Payload.TimeoutUS != IOC_TIMEOUT_INFINITE);
+
     do {
         pthread_mutex_lock(&pFifoSrvObj->WaitAccptedMutex);
         if (NULL != pFifoSrvObj->pConnLinkObj) {
@@ -572,12 +580,12 @@ static IOC_Result_T __IOC_acceptClient_ofProtoFifo(_IOC_ServiceObject_pT pSrvObj
                 _IOC_LogError(
                     "INCOMPATIBLE USAGE: ServiceCap=0x%02X(%s), ClientUsage=0x%02X(%s) have no complementary roles",
                     ServiceCapabilities, svcNames, ClientRequestedUsage, cliName);
-                
+
                 // Signal client that connection is rejected (pConnLinkObj stays NULL)
                 pFifoSrvObj->pConnLinkObj = NULL;  // Clear to signal rejection
                 pthread_cond_signal(&pFifoSrvObj->WaitAccptedCond);
                 pthread_mutex_unlock(&pFifoSrvObj->WaitAccptedMutex);
-                
+
                 // Continue waiting for next connection (don't break the loop)
                 continue;  // Go to next iteration
             }
@@ -638,7 +646,23 @@ static IOC_Result_T __IOC_acceptClient_ofProtoFifo(_IOC_ServiceObject_pT pSrvObj
         pthread_cond_timedwait(&pFifoSrvObj->WaitNewConnCond, &pFifoSrvObj->WaitNewConnMutex, &TimeOut);
         pthread_mutex_unlock(&pFifoSrvObj->WaitNewConnMutex);
 
-    } while (0x20241124);
+        // TDD FIX: Check if timeout expired
+        if (HasTimeout) {
+            clock_gettime(CLOCK_REALTIME, &CurrentTime);
+            ULONG_T ElapsedUS = (CurrentTime.tv_sec - StartTime.tv_sec) * 1000000UL +
+                                (CurrentTime.tv_nsec - StartTime.tv_nsec) / 1000UL;
+            if (ElapsedUS >= TimeoutUS) {
+                // Timeout expired, cleanup and return timeout error
+                __IOC_cleanupPollingBuffer_ofProtoFifo(pAceptedFifoLinkObj);
+                __IOC_cleanupCallbackBatch_ofProtoFifo(pAceptedFifoLinkObj);
+                free(pAceptedFifoLinkObj);
+                pLinkObj->pProtoPriv = NULL;
+                _IOC_LogWarn("IOC_acceptClient timed out after %lu us", ElapsedUS);
+                return IOC_RESULT_TIMEOUT;
+            }
+        }
+
+    } while (1);  // TDD FIX: Changed from 0x20241124 to proper loop with timeout check
 
     //_IOC_LogNotTested();
     return IOC_RESULT_SUCCESS;  // NOTHING DONE, JUST RETURN SUCCESS

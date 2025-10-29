@@ -11,9 +11,9 @@ static inline void ___IOC_unlockSrvObjTbl(void) { pthread_mutex_unlock(&_mIOC_Sr
 
 // Unit-test helpers: allocation-failure injection and counters
 static pthread_mutex_t _mIOC_TestHooksMutex = PTHREAD_MUTEX_INITIALIZER;
-static int _mIOC_FailNextAllocCount = 0;     // when >0, next allocations will fail (decremented)
-static uint16_t _mIOC_ServiceCount = 0;      // active services
-static uint16_t _mIOC_LinkCount = 0;         // active link objects
+static int _mIOC_FailNextAllocCount = 0;  // when >0, next allocations will fail (decremented)
+static uint16_t _mIOC_ServiceCount = 0;   // active services
+static uint16_t _mIOC_LinkCount = 0;      // active link objects
 
 void IOC_test_setFailNextAlloc(int count) {
     pthread_mutex_lock(&_mIOC_TestHooksMutex);
@@ -44,7 +44,7 @@ static void* __IOC_test_calloc(size_t nmemb, size_t size) {
     if (_mIOC_FailNextAllocCount > 0) {
         _mIOC_FailNextAllocCount--;
         pthread_mutex_unlock(&_mIOC_TestHooksMutex);
-        return NULL; // Simulate ENOMEM
+        return NULL;  // Simulate ENOMEM
     }
     pthread_mutex_unlock(&_mIOC_TestHooksMutex);
     p = calloc(nmemb, size);
@@ -62,8 +62,8 @@ static inline IOC_BoolResult_T ___IOC_isSrvObjConflicted(IOC_SrvArgs_pT pArgsNew
             continue;
         }
 
-        const IOC_SrvURI_T *pExistingURI = &pExisting->Args.SrvURI;
-        const IOC_SrvURI_T *pNewURI = &pArgsNew->SrvURI;
+        const IOC_SrvURI_T* pExistingURI = &pExisting->Args.SrvURI;
+        const IOC_SrvURI_T* pNewURI = &pArgsNew->SrvURI;
 
         bool protoEqual = (pExistingURI->pProtocol && pNewURI->pProtocol)
                               ? (strcmp(pExistingURI->pProtocol, pNewURI->pProtocol) == 0)
@@ -95,7 +95,7 @@ static inline IOC_BoolResult_T ___IOC_isSrvObjConflicted(IOC_SrvArgs_pT pArgsNew
  *    IOC_RESULT_CONFLICT_SRVARGS
  */
 static IOC_Result_T __IOC_allocSrvObj(/*ARG_INCONST*/ IOC_SrvArgs_pT pSrvArgs,
-                                      /*ARG_OUT*/ _IOC_ServiceObject_pT *ppSrvObj) {
+                                      /*ARG_OUT*/ _IOC_ServiceObject_pT* ppSrvObj) {
     IOC_Result_T Result = IOC_RESULT_BUG;
     _IOC_ServiceObject_pT pSrvObj = NULL;
 
@@ -187,9 +187,9 @@ static void __IOC_freeSrvObj(_IOC_ServiceObject_pT pSrvObj) {
     // Clean up manual accept tracking mutex
     pthread_mutex_destroy(&pSrvObj->ManualAccept.Mutex);
 
-    free((char *)pSrvObj->Args.SrvURI.pProtocol);
-    free((char *)pSrvObj->Args.SrvURI.pHost);
-    free((char *)pSrvObj->Args.SrvURI.pPath);
+    free((char*)pSrvObj->Args.SrvURI.pProtocol);
+    free((char*)pSrvObj->Args.SrvURI.pHost);
+    free((char*)pSrvObj->Args.SrvURI.pPath);
     free(pSrvObj);
     pthread_mutex_lock(&_mIOC_TestHooksMutex);
     if (_mIOC_ServiceCount > 0) _mIOC_ServiceCount--;
@@ -399,7 +399,7 @@ IOC_Result_T __IOC_onlineServiceByProto(_IOC_ServiceObject_pT pSrvObj) {
  *    1) auto accept incoming client connections.
  *    2) auto close the link when the client closed by peer.
  */
-static void *__IOC_ServiceBroadcastDaemonThread(void *pArg) {
+static void* __IOC_ServiceBroadcastDaemonThread(void* pArg) {
     _IOC_ServiceObject_pT pSrvObj = (_IOC_ServiceObject_pT)pArg;
     _IOC_LogAssert(NULL != pSrvObj);
 
@@ -438,7 +438,7 @@ static void *__IOC_ServiceBroadcastDaemonThread(void *pArg) {
  *    2) automatically handle connection acceptance without manual IOC_acceptClient() calls
  *    3) works with P2P communication pattern (not broadcast)
  */
-static void *__IOC_ServiceAutoAcceptDaemonThread(void *pArg) {
+static void* __IOC_ServiceAutoAcceptDaemonThread(void* pArg) {
     _IOC_ServiceObject_pT pSrvObj = (_IOC_ServiceObject_pT)pArg;
     _IOC_LogAssert(NULL != pSrvObj);
 
@@ -784,9 +784,9 @@ IOC_Result_T IOC_acceptClient(
 
     Result = pSrvObj->pMethods->OpAcceptClient_F(pSrvObj, pLinkObj, pOption);
     if (IOC_RESULT_SUCCESS != Result) {
-        free(pLinkObj);
+        __IOC_freeLinkObj(pLinkObj);  // Proper cleanup: removes from table and decrements counter
         _IOC_LogWarn("Failed to accept client by protocol, Resuld=%d", Result);
-        _IOC_LogNotTested();
+        // Error path now tested by UT_ServiceMisuse/US-3/AC-2 (timeout scenario)
         return Result;
     } else {
         *pLinkID = pLinkObj->ID;
@@ -1021,8 +1021,8 @@ IOC_Result_T IOC_broadcastEVT(
  * @brief Get service-side LinkIDs for state inspection and management.
  *      This enables querying receiver-side states and comprehensive service monitoring.
  */
-IOC_Result_T IOC_getServiceLinkIDs(IOC_SrvID_T SrvID, IOC_LinkID_T *pLinkIDs, uint16_t MaxLinks,
-                                   uint16_t *pActualCount) {
+IOC_Result_T IOC_getServiceLinkIDs(IOC_SrvID_T SrvID, IOC_LinkID_T* pLinkIDs, uint16_t MaxLinks,
+                                   uint16_t* pActualCount) {
     if (!pLinkIDs || !pActualCount) {
         return IOC_RESULT_INVALID_PARAM;
     }
@@ -1085,7 +1085,7 @@ IOC_Result_T IOC_getServiceLinkIDs(IOC_SrvID_T SrvID, IOC_LinkID_T *pLinkIDs, ui
  * @brief Get comprehensive service state including all connected links.
  *      This provides complete service monitoring capability.
  */
-IOC_Result_T IOC_getServiceState(IOC_SrvID_T SrvID, void *pServiceState, uint16_t *pConnectedLinks) {
+IOC_Result_T IOC_getServiceState(IOC_SrvID_T SrvID, void* pServiceState, uint16_t* pConnectedLinks) {
     _IOC_ServiceObject_pT pSrvObj = __IOC_getSrvObjBySrvID(SrvID);
     if (!pSrvObj) {
         return IOC_RESULT_NOT_EXIST_SERVICE;
@@ -1110,7 +1110,7 @@ IOC_Result_T IOC_getServiceState(IOC_SrvID_T SrvID, void *pServiceState, uint16_
     // For now, we just ensure it's not used incorrectly
     if (pServiceState) {
         // Future: populate service state information
-        memset(pServiceState, 0, sizeof(void *));  // Safe null operation
+        memset(pServiceState, 0, sizeof(void*));  // Safe null operation
     }
 
     return IOC_RESULT_SUCCESS;
