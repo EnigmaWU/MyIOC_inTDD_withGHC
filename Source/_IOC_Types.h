@@ -30,6 +30,7 @@ typedef struct {
 
 #define _MAX_BROADCAST_EVENT_ACCEPTED_LINK_NUM 3
         _IOC_LinkObject_pT pAcceptedLinks[_MAX_BROADCAST_EVENT_ACCEPTED_LINK_NUM];
+        uint16_t AcceptedLinkCount;
     } BroadcastEvent;
 
     // WHEN Flags has IOC_SRVFLAG_AUTO_ACCEPT

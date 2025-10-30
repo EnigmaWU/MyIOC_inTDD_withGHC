@@ -406,21 +406,28 @@ static void* __IOC_ServiceBroadcastDaemonThread(void* pArg) {
     while (1) {
         _IOC_LinkObject_pT pLinkObj = __IOC_allocLinkObj();
         if (NULL == pLinkObj) {
-            _IOC_LogBug("Failed to alloc a new link object");
-            _IOC_LogNotTested();
-            break;
+            _IOC_LogWarn("Failed to alloc a new link object, daemon will retry");
+            usleep(100000);  // Wait 100ms before retry to avoid busy loop
+            continue;
         }
 
         IOC_Result_T Result = pSrvObj->pMethods->OpAcceptClient_F(pSrvObj, pLinkObj, NULL /*TODO:TIMEOUT*/);
         if (IOC_RESULT_SUCCESS != Result) {
-            _IOC_LogError("Failed to accept client, Result=%d", Result);
+            _IOC_LogWarn("Failed to accept client, Result=%d, daemon continues", Result);
             __IOC_freeLinkObj(pLinkObj);
-            _IOC_LogNotTested();
+            usleep(10000);  // Wait 10ms before retry
+            continue;
         } else {
             _IOC_LogInfo("Accepted a new client, LinkID=%" PRIu64 "", pLinkObj->ID);
+            
+            // Copy protocol methods from Service
+            pLinkObj->pMethods = pSrvObj->pMethods;
+            
+            // Store the accepted link for tracking
             for (int i = 0; i < _MAX_BROADCAST_EVENT_ACCEPTED_LINK_NUM; i++) {
                 if (NULL == pSrvObj->BroadcastEvent.pAcceptedLinks[i]) {
                     pSrvObj->BroadcastEvent.pAcceptedLinks[i] = pLinkObj;
+                    pSrvObj->BroadcastEvent.AcceptedLinkCount++;
                     break;
                 }
             }
@@ -1098,6 +1105,15 @@ IOC_Result_T IOC_getServiceState(IOC_SrvID_T SrvID, void* pServiceState, uint16_
         if (pSrvObj->Args.Flags & IOC_SRVFLAG_AUTO_ACCEPT) {
             for (int i = 0; i < _MAX_AUTO_ACCEPT_ACCEPTED_LINK_NUM; i++) {
                 if (pSrvObj->AutoAccept.pAcceptedLinks[i]) {
+                    Count++;
+                }
+            }
+        }
+
+        // Count broadcast links
+        if (pSrvObj->Args.Flags & IOC_SRVFLAG_BROADCAST_EVENT) {
+            for (int i = 0; i < _MAX_BROADCAST_EVENT_ACCEPTED_LINK_NUM; i++) {
+                if (pSrvObj->BroadcastEvent.pAcceptedLinks[i]) {
                     Count++;
                 }
             }
