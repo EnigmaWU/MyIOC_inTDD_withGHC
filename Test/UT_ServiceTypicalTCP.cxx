@@ -679,14 +679,190 @@ TEST(UT_ServiceTypicalTCP, verifySingleTCPServiceSingleClient_byPostEvtAtSrvSide
  * @[Status]: ⚠️ SKIP - TCP protocol not yet implemented
  */
 TEST(UT_ServiceTypicalTCP, verifySingleTCPServiceMultiClients_byPostEvtAtSrvSide_bySubDiffEvtAtCliSide) {
-    GTEST_SKIP() << "⚠️ TCP Protocol not yet implemented - requires Source/_IOC_SrvProtoTCP.c";
+    // 🔴 RED: Enable TC-2 - Single TCP service with multiple clients subscribing to different events
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_SrvID_T SrvID_Producer = IOC_ID_INVALID;
 
-    // TODO: Implement test body similar to FIFO version but with TCP URIs (port 8081)
-    // Key differences:
-    // - Use tcp://localhost:8081/MultiClients URI
-    // - Accept multiple TCP socket connections
-    // - Verify concurrent TCP clients work independently
-    // - Test network event delivery to multiple clients
+    IOC_LinkID_T CliLinkID_ConsumerA2Producer = IOC_ID_INVALID;
+    IOC_LinkID_T SrvLinkID_Producer2ConsumerA = IOC_ID_INVALID;
+
+    IOC_LinkID_T CliLinkID_ConsumerB2Producer = IOC_ID_INVALID;
+    IOC_LinkID_T SrvLinkID_Producer2ConsumerB = IOC_ID_INVALID;
+
+    // Stack-allocated arrays for event IDs
+    IOC_EvtID_T EvtIDs4ConsumerA[] = {IOC_EVTID_TEST_MOVE_STARTED, IOC_EVTID_TEST_MOVE_KEEPING,
+                                      IOC_EVTID_TEST_MOVE_STOPPED};
+    IOC_EvtID_T EvtIDs4ConsumerB[] = {IOC_EVTID_TEST_PULL_STARTED, IOC_EVTID_TEST_PULL_KEEPING,
+                                      IOC_EVTID_TEST_PULL_STOPPED};
+
+    IOC_SrvURI_T CSURI = {
+        .pProtocol = "tcp",
+        .pHost = "localhost",
+        .pPath = "MultiClients",
+        .Port = 8081,
+    };
+
+    // Step-1: Online TCP service
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = CSURI,
+        .UsageCapabilites = IOC_LinkUsageEvtProducer,
+    };
+
+    Result = IOC_onlineService(&SrvID_Producer, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    // Step-2: Consumer A connects and subscribes to MOVE events
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = CSURI,
+        .Usage = IOC_LinkUsageEvtConsumer,
+    };
+
+    __EvtConsumerPrivData_T ConsumerAPrivData = {0};
+
+    std::thread EvtConsumerAThread([&] {
+        IOC_SubEvtArgs_T SubEvtArgs4ConsumerA = {
+            .CbProcEvt_F = __CbProcEvt_F,
+            .pCbPrivData = &ConsumerAPrivData,
+            .EvtNum = IOC_calcArrayElmtCnt(EvtIDs4ConsumerA),
+            .pEvtIDs = EvtIDs4ConsumerA,
+        };
+
+        IOC_Result_T Result = IOC_connectService(&CliLinkID_ConsumerA2Producer, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+        Result = IOC_subEVT(CliLinkID_ConsumerA2Producer, &SubEvtArgs4ConsumerA);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    });
+
+    // Step-3: Server accepts consumer A
+    Result = IOC_acceptClient(SrvID_Producer, &SrvLinkID_Producer2ConsumerA, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    EvtConsumerAThread.join();
+
+    // Allow time for subscribe message to be processed
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    // Step-4: Consumer B connects and subscribes to PULL events
+    __EvtConsumerPrivData_T ConsumerBPrivData = {0};
+
+    std::thread EvtConsumerBThread([&] {
+        IOC_SubEvtArgs_T SubEvtArgs4ConsumerB = {
+            .CbProcEvt_F = __CbProcEvt_F,
+            .pCbPrivData = &ConsumerBPrivData,
+            .EvtNum = IOC_calcArrayElmtCnt(EvtIDs4ConsumerB),
+            .pEvtIDs = EvtIDs4ConsumerB,
+        };
+
+        IOC_Result_T Result = IOC_connectService(&CliLinkID_ConsumerB2Producer, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+        Result = IOC_subEVT(CliLinkID_ConsumerB2Producer, &SubEvtArgs4ConsumerB);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    });
+
+    Result = IOC_acceptClient(SrvID_Producer, &SrvLinkID_Producer2ConsumerB, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    EvtConsumerBThread.join();
+
+    // Allow time for subscribe message to be processed
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    // Step-5: Post MOVE events to Consumer A
+    IOC_EvtDesc_T EvtDesc = {
+        .EvtID = IOC_EVTID_TEST_MOVE_STARTED,
+    };
+    Result = IOC_postEVT(SrvLinkID_Producer2ConsumerA, &EvtDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+#define _N_MOVE_KEEPING 3
+    EvtDesc.EvtID = IOC_EVTID_TEST_MOVE_KEEPING;
+    for (int i = 0; i < _N_MOVE_KEEPING; i++) {
+        Result = IOC_postEVT(SrvLinkID_Producer2ConsumerA, &EvtDesc, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    }
+
+    EvtDesc.EvtID = IOC_EVTID_TEST_MOVE_STOPPED;
+    Result = IOC_postEVT(SrvLinkID_Producer2ConsumerA, &EvtDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    // Allow time for events to be received and processed
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Verify Consumer A received MOVE events, Consumer B received nothing
+    ASSERT_EQ(1, ConsumerAPrivData.MoveStartedEvtCnt);
+    ASSERT_EQ(_N_MOVE_KEEPING, ConsumerAPrivData.MoveKeepingEvtCnt);
+    ASSERT_EQ(1, ConsumerAPrivData.MoveStoppedEvtCnt);
+    ASSERT_EQ(0, ConsumerBPrivData.PullStartedEvtCnt);
+    ASSERT_EQ(0, ConsumerBPrivData.PullKeepingEvtCnt);
+    ASSERT_EQ(0, ConsumerBPrivData.PullStoppedEvtCnt);
+
+    // Step-6: Post PULL events to Consumer B
+    EvtDesc.EvtID = IOC_EVTID_TEST_PULL_STARTED;
+    Result = IOC_postEVT(SrvLinkID_Producer2ConsumerB, &EvtDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+#define _M_PULL_KEEPING 5
+    EvtDesc.EvtID = IOC_EVTID_TEST_PULL_KEEPING;
+    for (int i = 0; i < _M_PULL_KEEPING; i++) {
+        Result = IOC_postEVT(SrvLinkID_Producer2ConsumerB, &EvtDesc, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    }
+
+    EvtDesc.EvtID = IOC_EVTID_TEST_PULL_STOPPED;
+    Result = IOC_postEVT(SrvLinkID_Producer2ConsumerB, &EvtDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    // Allow time for events to be received and processed
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Verify both consumers received their respective events
+    ASSERT_EQ(1, ConsumerAPrivData.MoveStartedEvtCnt);
+    ASSERT_EQ(_N_MOVE_KEEPING, ConsumerAPrivData.MoveKeepingEvtCnt);
+    ASSERT_EQ(1, ConsumerAPrivData.MoveStoppedEvtCnt);
+    ASSERT_EQ(1, ConsumerBPrivData.PullStartedEvtCnt);
+    ASSERT_EQ(_M_PULL_KEEPING, ConsumerBPrivData.PullKeepingEvtCnt);
+    ASSERT_EQ(1, ConsumerBPrivData.PullStoppedEvtCnt);
+
+    // Step-7: Unsubscribe both consumers
+    IOC_UnsubEvtArgs_T UnsubEvtArgs = {
+        .CbProcEvt_F = __CbProcEvt_F,
+        .pCbPrivData = &ConsumerAPrivData,
+    };
+    Result = IOC_unsubEVT(CliLinkID_ConsumerA2Producer, &UnsubEvtArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    UnsubEvtArgs.pCbPrivData = &ConsumerBPrivData;
+    Result = IOC_unsubEVT(CliLinkID_ConsumerB2Producer, &UnsubEvtArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    // Allow time for unsubscribe messages to be processed
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Step-8: Post after unsubscribe should fail
+    EvtDesc.EvtID = IOC_EVTID_TEST_KEEPALIVE;
+    Result = IOC_postEVT(SrvLinkID_Producer2ConsumerA, &EvtDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_NO_EVENT_CONSUMER, Result);
+
+    Result = IOC_postEVT(SrvLinkID_Producer2ConsumerB, &EvtDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_NO_EVENT_CONSUMER, Result);
+
+    // Step-9: Cleanup
+    Result = IOC_closeLink(CliLinkID_ConsumerA2Producer);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    Result = IOC_closeLink(SrvLinkID_Producer2ConsumerA);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    Result = IOC_closeLink(CliLinkID_ConsumerB2Producer);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    Result = IOC_closeLink(SrvLinkID_Producer2ConsumerB);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    Result = IOC_offlineService(SrvID_Producer);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
 }
 
 /**

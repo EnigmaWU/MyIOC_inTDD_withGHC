@@ -1,6 +1,9 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // 🔴 RED-GREEN-REFACTOR: TCP Protocol Implementation (Minimal for TC-1)
 // This file implements TCP socket-based service protocol for IOC framework
+//
+// TODO: Consider creating UT_ServiceTypicalTCP-diffProcess.cxx for real cross-process testing
+//       (separate server/client executables) as integration/system test, not unit test.
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <arpa/inet.h>
