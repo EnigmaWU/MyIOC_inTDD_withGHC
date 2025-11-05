@@ -1211,7 +1211,7 @@ TEST(UT_ServiceTypicalTCP, verifyMultiTCPServiceMultiClient_byPostEvtAtCliSide_b
     IOC_LinkID_T SrvLinkID_ConsumerB_fromProducer2 = IOC_ID_INVALID;
 
     IOC_LinkID_T CliLinkID_Producer3_toConsumerA = IOC_ID_INVALID;
-    PeerHasSubscription IOC_LinkID_T SrvLinkID_ConsumerA_fromProducer3 = IOC_ID_INVALID;
+    IOC_LinkID_T SrvLinkID_ConsumerA_fromProducer3 = IOC_ID_INVALID;
     IOC_LinkID_T CliLinkID_Producer3_toConsumerB = IOC_ID_INVALID;
     IOC_LinkID_T SrvLinkID_ConsumerB_fromProducer3 = IOC_ID_INVALID;
 
@@ -1515,14 +1515,121 @@ TEST(UT_ServiceTypicalTCP, verifyMultiTCPServiceMultiClient_byPostEvtAtCliSide_b
  * @[Status]: ⚠️ SKIP - TCP protocol not yet implemented
  */
 TEST(UT_ServiceTypicalTCP, verifyConsumerResubscribeEvent_overTCP) {
-    GTEST_SKIP() << "⚠️ TCP Protocol not yet implemented - requires Source/_IOC_SrvProtoTCP.c";
+    // 🔴 RED: Enable TC-5 - Dynamic resubscription over persistent TCP connection
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_SrvID_T EvtProducerSrvID = IOC_ID_INVALID;
+    IOC_LinkID_T EvtProducerLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T EvtConsumerLinkID = IOC_ID_INVALID;
 
-    // TODO: Implement resubscription test over TCP
-    // Key aspects:
-    // - Use tcp://localhost:8087/Resubscribe URI
-    // - Test subscription state changes over TCP link
-    // - Verify TCP connection persists across resubscribe
-    // - Test event routing changes dynamically
+    // Stack-allocated array for event IDs
+    IOC_EvtID_T EvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
+
+    IOC_SrvURI_T CSURI = {
+        .pProtocol = "tcp",
+        .pHost = "localhost",
+        .pPath = "Resubscribe",
+        .Port = 8086,
+    };
+
+    // Step-1: Online TCP service
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = CSURI,
+        .UsageCapabilites = IOC_LinkUsageEvtProducer,
+    };
+
+    Result = IOC_onlineService(&EvtProducerSrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    // Step-2: Consumer connects and subscribes to KEEPALIVE
+    __EvtConsumerPrivData_T EvtConsumerPrivData = {0};
+
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = CSURI,
+        .Usage = IOC_LinkUsageEvtConsumer,
+    };
+
+    std::thread EvtConsumerThread([&] {
+        IOC_SubEvtArgs_T SubEvtArgs = {
+            .CbProcEvt_F = __CbProcEvt_F,
+            .pCbPrivData = &EvtConsumerPrivData,
+            .EvtNum = IOC_calcArrayElmtCnt(EvtIDs),
+            .pEvtIDs = EvtIDs,
+        };
+
+        IOC_Result_T Result = IOC_connectService(&EvtConsumerLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+        Result = IOC_subEVT(EvtConsumerLinkID, &SubEvtArgs);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    });
+
+    // Step-3: Server accepts connection
+    Result = IOC_acceptClient(EvtProducerSrvID, &EvtProducerLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    EvtConsumerThread.join();
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    // Step-4: Post KEEPALIVE event - should be received
+    IOC_EvtDesc_T EvtDesc = {
+        .EvtID = IOC_EVTID_TEST_KEEPALIVE,
+    };
+    Result = IOC_postEVT(EvtProducerLinkID, &EvtDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    ASSERT_EQ(1, EvtConsumerPrivData.KeepAliveEvtCnt);
+
+    // Step-5: Unsubscribe
+    IOC_UnsubEvtArgs_T UnsubEvtArgs = {
+        .CbProcEvt_F = __CbProcEvt_F,
+        .pCbPrivData = &EvtConsumerPrivData,
+    };
+    Result = IOC_unsubEVT(EvtConsumerLinkID, &UnsubEvtArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Step-6: Post after unsubscribe - should fail
+    Result = IOC_postEVT(EvtProducerLinkID, &EvtDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_NO_EVENT_CONSUMER, Result);
+
+    // Step-7: Resubscribe to KEEPALIVE (same event)
+    IOC_SubEvtArgs_T SubEvtArgs = {
+        .CbProcEvt_F = __CbProcEvt_F,
+        .pCbPrivData = &EvtConsumerPrivData,
+        .EvtNum = IOC_calcArrayElmtCnt(EvtIDs),
+        .pEvtIDs = EvtIDs,
+    };
+
+    Result = IOC_subEVT(EvtConsumerLinkID, &SubEvtArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    // Step-8: Post after resubscribe - should succeed
+    Result = IOC_postEVT(EvtProducerLinkID, &EvtDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    ASSERT_EQ(2, EvtConsumerPrivData.KeepAliveEvtCnt);
+
+    // Step-9: Cleanup
+    Result = IOC_closeLink(EvtProducerLinkID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    Result = IOC_unsubEVT(EvtConsumerLinkID, &UnsubEvtArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    Result = IOC_closeLink(EvtConsumerLinkID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    // Step-10: Offline service
+    Result = IOC_offlineService(EvtProducerSrvID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
