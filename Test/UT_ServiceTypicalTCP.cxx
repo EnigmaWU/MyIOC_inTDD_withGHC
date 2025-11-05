@@ -1649,7 +1649,7 @@ TEST(UT_ServiceTypicalTCP, verifyConsumerResubscribeEvent_overTCP) {
  * @[Status]: ⚠️ SKIP - TCP protocol not yet implemented
  */
 TEST(UT_ServiceTypicalTCP, verifyCmdInitiatorExecutor_overTCP_withTimeout) {
-    // 🔴 RED PHASE: Enable TC-6 - Command execution over TCP
+    // � GREEN PHASE: Full Command execution over TCP
     IOC_Result_T Result = IOC_RESULT_BUG;
     IOC_SrvID_T CmdExecutorSrvID = IOC_ID_INVALID;
     IOC_LinkID_T SrvLinkID = IOC_ID_INVALID;
@@ -1663,11 +1663,14 @@ TEST(UT_ServiceTypicalTCP, verifyCmdInitiatorExecutor_overTCP_withTimeout) {
         .Port = 9080,
     };
 
-    // Setup CmdExecutor with supported commands
+    // Setup command executor callback data
+    __CmdExecutorPrivData_T ExecPrivData = {0};
+
+    // Setup CmdExecutor with supported commands and callback
     IOC_CmdID_T SupportedCmdIDs[] = {IOC_CMDID_TEST_PING};
     IOC_CmdUsageArgs_T CmdUsageArgs = {
-        .CbExecCmd_F = NULL,  // TODO: Need to implement callback
-        .pCbPrivData = NULL,
+        .CbExecCmd_F = __CbExecCmd_F,
+        .pCbPrivData = &ExecPrivData,
         .CmdNum = sizeof(SupportedCmdIDs) / sizeof(SupportedCmdIDs[0]),
         .pCmdIDs = SupportedCmdIDs,
     };
@@ -1699,17 +1702,27 @@ TEST(UT_ServiceTypicalTCP, verifyCmdInitiatorExecutor_overTCP_withTimeout) {
 
     ClientThread.join();
 
+    // Allow time for connection to stabilize
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
     // Step-4: Client executes PING command over TCP
     IOC_CmdDesc_T CmdDesc = {};
     CmdDesc.CmdID = IOC_CMDID_TEST_PING;
     CmdDesc.TimeoutMs = 5000;
     CmdDesc.Status = IOC_CMD_STATUS_PENDING;
 
-    // 🟢 GREEN PHASE: Expect NOT_IMPLEMENTED (minimal stub)
+    // Execute command - should succeed with full implementation
     Result = IOC_execCMD(CliLinkID, &CmdDesc, NULL);
-    ASSERT_EQ(IOC_RESULT_NOT_IMPLEMENTED, Result);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
 
-    // Step-5: Cleanup
+    // Step-5: Verify command was executed on server side
+    ASSERT_EQ(1, ExecPrivData.ExecutedCmdCnt);
+    ASSERT_EQ(IOC_CMDID_TEST_PING, ExecPrivData.LastCmdID);
+
+    // Step-6: Verify response received on client side
+    ASSERT_EQ(IOC_CMD_STATUS_SUCCESS, CmdDesc.Status);
+
+    // Step-7: Cleanup
     Result = IOC_closeLink(CliLinkID);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
 

@@ -63,6 +63,14 @@ typedef struct {
     // Event subscription storage
     IOC_SubEvtArgs_T SubEvtArgs;
 
+    // Command usage storage (for executor side)
+    IOC_CmdUsageArgs_T CmdUsageArgs;
+
+    // Command response waiting (for initiator side)
+    pthread_cond_t CmdResponseCond;
+    int CmdResponseReady;
+    IOC_CmdDesc_T CmdResponse;
+
     // Background receiver thread
     pthread_t RecvThread;
     int RecvThreadRunning;
@@ -168,6 +176,45 @@ static void* __TCP_recvThread(void* pArg) {
             pthread_mutex_lock(&pTCPLinkObj->Mutex);
             pTCPLinkObj->PeerHasSubscription = 0;
             pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+        } else if (MsgType == TCP_MSG_COMMAND && DataSize == sizeof(IOC_CmdDesc_T)) {
+            // Receive command descriptor
+            IOC_CmdDesc_T CmdDesc;
+            Result = __TCP_recvAll(pTCPLinkObj->SocketFd, &CmdDesc, sizeof(CmdDesc));
+            if (Result != IOC_RESULT_SUCCESS) {
+                break;
+            }
+
+            // Check if this is a command request or response
+            pthread_mutex_lock(&pTCPLinkObj->Mutex);
+            IOC_CbExecCmd_F CbExecCmd_F = pTCPLinkObj->CmdUsageArgs.CbExecCmd_F;
+            pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+
+            if (CbExecCmd_F) {
+                // This is a command REQUEST - we are the executor
+                // Execute command through callback
+                pthread_mutex_lock(&pTCPLinkObj->Mutex);
+                void* pCbPrivData = pTCPLinkObj->CmdUsageArgs.pCbPrivData;
+                pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+
+                IOC_LinkID_T LinkID = pTCPLinkObj->pOwnerLinkObj->ID;
+                CbExecCmd_F(LinkID, &CmdDesc, pCbPrivData);
+
+                // Send response back
+                TCPMessageHeader_T RespHeader;
+                RespHeader.MsgType = htonl(TCP_MSG_COMMAND);
+                RespHeader.DataSize = htonl(sizeof(IOC_CmdDesc_T));
+
+                __TCP_sendAll(pTCPLinkObj->SocketFd, &RespHeader, sizeof(RespHeader));
+                __TCP_sendAll(pTCPLinkObj->SocketFd, &CmdDesc, sizeof(CmdDesc));
+            } else {
+                // This is a command RESPONSE - we are the initiator
+                // Signal the waiting command execution
+                pthread_mutex_lock(&pTCPLinkObj->Mutex);
+                pTCPLinkObj->CmdResponse = CmdDesc;
+                pTCPLinkObj->CmdResponseReady = 1;
+                pthread_cond_signal(&pTCPLinkObj->CmdResponseCond);
+                pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+            }
         }
     }
 
@@ -259,6 +306,8 @@ static IOC_Result_T __IOC_connectService_ofProtoTCP(_IOC_LinkObject_pT pLinkObj,
 
     pTCPLinkObj->pOwnerLinkObj = pLinkObj;
     pthread_mutex_init(&pTCPLinkObj->Mutex, NULL);
+    pthread_cond_init(&pTCPLinkObj->CmdResponseCond, NULL);
+    pTCPLinkObj->CmdResponseReady = 0;
 
     // Create socket
     int SocketFd = socket(AF_INET, SOCK_STREAM, 0);
@@ -283,6 +332,11 @@ static IOC_Result_T __IOC_connectService_ofProtoTCP(_IOC_LinkObject_pT pLinkObj,
 
     pTCPLinkObj->SocketFd = SocketFd;
     pLinkObj->pProtoPriv = pTCPLinkObj;
+
+    // Copy CmdUsageArgs from connection args if client is CmdExecutor
+    if ((pLinkObj->Args.Usage & IOC_LinkUsageCmdExecutor) && pConnArgs->UsageArgs.pCmd) {
+        memcpy(&pTCPLinkObj->CmdUsageArgs, pConnArgs->UsageArgs.pCmd, sizeof(IOC_CmdUsageArgs_T));
+    }
 
     // Start background receiver thread
     pTCPLinkObj->RecvThreadRunning = 1;
@@ -312,6 +366,8 @@ static IOC_Result_T __IOC_acceptClient_ofProtoTCP(_IOC_ServiceObject_pT pSrvObj,
 
     pTCPLinkObj->pOwnerLinkObj = pLinkObj;
     pthread_mutex_init(&pTCPLinkObj->Mutex, NULL);
+    pthread_cond_init(&pTCPLinkObj->CmdResponseCond, NULL);
+    pTCPLinkObj->CmdResponseReady = 0;
 
     // Accept incoming connection
     struct sockaddr_in CliAddr = {0};
@@ -326,6 +382,11 @@ static IOC_Result_T __IOC_acceptClient_ofProtoTCP(_IOC_ServiceObject_pT pSrvObj,
 
     pTCPLinkObj->SocketFd = ClientFd;
     pLinkObj->pProtoPriv = pTCPLinkObj;
+
+    // Copy CmdUsageArgs from service to link (for command executor functionality)
+    if (pSrvObj->Args.UsageArgs.pCmd) {
+        memcpy(&pTCPLinkObj->CmdUsageArgs, pSrvObj->Args.UsageArgs.pCmd, sizeof(IOC_CmdUsageArgs_T));
+    }
 
     // Start background receiver thread (optional for server side, but useful for bidirectional)
     pTCPLinkObj->RecvThreadRunning = 1;
@@ -368,6 +429,7 @@ static IOC_Result_T __IOC_closeLink_ofProtoTCP(_IOC_LinkObject_pT pLinkObj) {
         }
 
         pthread_mutex_destroy(&pTCPLinkObj->Mutex);
+        pthread_cond_destroy(&pTCPLinkObj->CmdResponseCond);
         free(pTCPLinkObj);
         pLinkObj->pProtoPriv = NULL;
     }
@@ -469,9 +531,54 @@ static IOC_Result_T __IOC_postEvt_ofProtoTCP(_IOC_LinkObject_pT pLinkObj, const 
  */
 static IOC_Result_T __IOC_execCmd_ofProtoTCP(_IOC_LinkObject_pT pLinkObj, IOC_CmdDesc_pT pCmdDesc,
                                              const IOC_Options_pT pOption) {
-    // 🟢 GREEN: Minimal implementation - return NOT_IMPLEMENTED for now
-    _IOC_LogError("TCP Command protocol not yet implemented");
-    return IOC_RESULT_NOT_IMPLEMENTED;
+    _IOC_ProtoTCPLinkObject_T* pTCPLinkObj = (_IOC_ProtoTCPLinkObject_T*)pLinkObj->pProtoPriv;
+    IOC_Result_T Result = IOC_RESULT_BUG;
+
+    if (!pCmdDesc) {
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
+    pthread_mutex_lock(&pTCPLinkObj->Mutex);
+    int SocketFd = pTCPLinkObj->SocketFd;
+    
+    if (SocketFd < 0) {
+        pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+        return IOC_RESULT_NOT_EXIST_LINK;
+    }
+
+    // Clear previous response
+    pTCPLinkObj->CmdResponseReady = 0;
+
+    // Send command request
+    TCPMessageHeader_T Header;
+    Header.MsgType = htonl(TCP_MSG_COMMAND);
+    Header.DataSize = htonl(sizeof(IOC_CmdDesc_T));
+
+    pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+    
+    Result = __TCP_sendAll(SocketFd, &Header, sizeof(Header));
+    if (Result != IOC_RESULT_SUCCESS) {
+        return Result;
+    }
+
+    Result = __TCP_sendAll(SocketFd, pCmdDesc, sizeof(IOC_CmdDesc_T));
+    if (Result != IOC_RESULT_SUCCESS) {
+        return Result;
+    }
+
+    // Wait for response from receiver thread
+    pthread_mutex_lock(&pTCPLinkObj->Mutex);
+    while (!pTCPLinkObj->CmdResponseReady) {
+        pthread_cond_wait(&pTCPLinkObj->CmdResponseCond, &pTCPLinkObj->Mutex);
+    }
+
+    // Copy response back
+    pCmdDesc->Status = pTCPLinkObj->CmdResponse.Status;
+    pCmdDesc->Result = pTCPLinkObj->CmdResponse.Result;
+    
+    pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+
+    return IOC_RESULT_SUCCESS;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
