@@ -566,9 +566,8 @@ static IOC_Result_T __CbRecvDat_F(IOC_LinkID_T LinkID, const IOC_DatDesc_pT pDat
  * @[Status]: ⚠️ SKIP - TCP protocol not yet implemented
  */
 TEST(UT_ServiceTypicalTCP, verifySingleTCPServiceSingleClient_byPostEvtAtSrvSide) {
-    // ⚠️ TCP Protocol Check: Skip test if TCP protocol not implemented
-    // TODO: Remove this check once _IOC_SrvProtoTCP.c is implemented
-    GTEST_SKIP() << "⚠️ TCP Protocol not yet implemented - requires Source/_IOC_SrvProtoTCP.c";
+    // 🔴 RED PHASE: Test enabled - expecting FAIL (TCP not implemented)
+    // Will proceed to GREEN once _IOC_SrvProtoTCP.c provides basic implementation
 
     IOC_Result_T Result = IOC_RESULT_BUG;
     IOC_SrvID_T EvtProducerSrvID = IOC_ID_INVALID;
@@ -626,6 +625,9 @@ TEST(UT_ServiceTypicalTCP, verifySingleTCPServiceSingleClient_byPostEvtAtSrvSide
 
     EvtConsumerThread.join();
 
+    // ⏱️ TIMING: Allow subscribe message to be received and processed by server
+    usleep(200000);  // 200ms to ensure SUBSCRIBE message is processed by receiver thread
+
     // 🎯 BEHAVIOR: Post KEEPALIVE event over TCP link
     IOC_EvtDesc_T EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
     Result = IOC_postEVT(EvtProducerLinkID, &EvtDesc, NULL);
@@ -643,6 +645,9 @@ TEST(UT_ServiceTypicalTCP, verifySingleTCPServiceSingleClient_byPostEvtAtSrvSide
     };
     Result = IOC_unsubEVT(EvtConsumerLinkID, &UnsubEvtArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "❌ Failed to unsubscribe event";
+
+    // ⏱️ TIMING: Allow unsubscribe message to be received and processed
+    usleep(100000);  // 100ms to ensure message is processed by receiver thread
 
     // 🎯 BEHAVIOR: Post event again after unsubscribe
     Result = IOC_postEVT(EvtProducerLinkID, &EvtDesc, NULL);

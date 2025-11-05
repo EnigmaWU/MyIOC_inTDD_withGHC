@@ -343,8 +343,10 @@ static IOC_BoolResult_T __IOC_isValidSrvArgs(const IOC_SrvArgs_pT pSrvArgs) {
 }
 
 //_mIOC_XYZ is the global variable used intra-CURRENT_FILE submodule.
+extern _IOC_SrvProtoMethods_T _gIOC_SrvProtoTCPMethods;
 static _IOC_SrvProtoMethods_pT _mIOC_SrvProtoMethods[] = {
     &_gIOC_SrvProtoFifoMethods,
+    &_gIOC_SrvProtoTCPMethods,
 };
 
 IOC_Result_T __IOC_onlineServiceByProto(_IOC_ServiceObject_pT pSrvObj) {
