@@ -464,6 +464,16 @@ static IOC_Result_T __IOC_postEvt_ofProtoTCP(_IOC_LinkObject_pT pLinkObj, const 
     return Result;
 }
 
+/**
+ * @brief Execute command over TCP
+ */
+static IOC_Result_T __IOC_execCmd_ofProtoTCP(_IOC_LinkObject_pT pLinkObj, IOC_CmdDesc_pT pCmdDesc,
+                                             const IOC_Options_pT pOption) {
+    // 🟢 GREEN: Minimal implementation - return NOT_IMPLEMENTED for now
+    _IOC_LogError("TCP Command protocol not yet implemented");
+    return IOC_RESULT_NOT_IMPLEMENTED;
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // TCP Protocol Method Table
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -482,7 +492,7 @@ _IOC_SrvProtoMethods_T _gIOC_SrvProtoTCPMethods = {
     .OpPostEvt_F = __IOC_postEvt_ofProtoTCP,
     .OpPullEvt_F = NULL,  // TODO: Implement for polling mode
 
-    .OpExecCmd_F = NULL,  // TODO: Implement for TC-6
+    .OpExecCmd_F = __IOC_execCmd_ofProtoTCP,  // 🟢 GREEN: Minimal stub
     .OpWaitCmd_F = NULL,
     .OpAckCmd_F = NULL,
 

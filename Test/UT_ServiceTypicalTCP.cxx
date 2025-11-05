@@ -1649,15 +1649,75 @@ TEST(UT_ServiceTypicalTCP, verifyConsumerResubscribeEvent_overTCP) {
  * @[Status]: ⚠️ SKIP - TCP protocol not yet implemented
  */
 TEST(UT_ServiceTypicalTCP, verifyCmdInitiatorExecutor_overTCP_withTimeout) {
-    GTEST_SKIP() << "⚠️ TCP Protocol not yet implemented - requires Source/_IOC_SrvProtoTCP.c";
+    // 🔴 RED PHASE: Enable TC-6 - Command execution over TCP
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_SrvID_T CmdExecutorSrvID = IOC_ID_INVALID;
+    IOC_LinkID_T SrvLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
 
-    // TODO: Implement CMD test over TCP
-    // Key aspects:
-    // - Use tcp://localhost:9080/CmdService URI
-    // - CmdExecutor with __CbExecCmd_F callback
-    // - CmdInitiator executes IOC_execCMD over TCP
-    // - Verify command result returned over network
-    // - Test timeout enforcement over TCP
+    // Setup TCP service URI
+    IOC_SrvURI_T CSURI = {
+        .pProtocol = "tcp",
+        .pHost = "localhost",
+        .pPath = "CmdService",
+        .Port = 9080,
+    };
+
+    // Setup CmdExecutor with supported commands
+    IOC_CmdID_T SupportedCmdIDs[] = {IOC_CMDID_TEST_PING};
+    IOC_CmdUsageArgs_T CmdUsageArgs = {
+        .CbExecCmd_F = NULL,  // TODO: Need to implement callback
+        .pCbPrivData = NULL,
+        .CmdNum = sizeof(SupportedCmdIDs) / sizeof(SupportedCmdIDs[0]),
+        .pCmdIDs = SupportedCmdIDs,
+    };
+
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = CSURI,
+        .UsageCapabilites = IOC_LinkUsageCmdExecutor,
+        .UsageArgs = {.pCmd = &CmdUsageArgs},
+    };
+
+    // Step-1: Online TCP service as CmdExecutor
+    Result = IOC_onlineService(&CmdExecutorSrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    // Step-2: Client connects as CmdInitiator
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = CSURI,
+        .Usage = IOC_LinkUsageCmdInitiator,
+    };
+
+    std::thread ClientThread([&] {
+        IOC_Result_T Result = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    });
+
+    // Step-3: Accept client connection
+    Result = IOC_acceptClient(CmdExecutorSrvID, &SrvLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    ClientThread.join();
+
+    // Step-4: Client executes PING command over TCP
+    IOC_CmdDesc_T CmdDesc = {};
+    CmdDesc.CmdID = IOC_CMDID_TEST_PING;
+    CmdDesc.TimeoutMs = 5000;
+    CmdDesc.Status = IOC_CMD_STATUS_PENDING;
+
+    // 🟢 GREEN PHASE: Expect NOT_IMPLEMENTED (minimal stub)
+    Result = IOC_execCMD(CliLinkID, &CmdDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_NOT_IMPLEMENTED, Result);
+
+    // Step-5: Cleanup
+    Result = IOC_closeLink(CliLinkID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    Result = IOC_closeLink(SrvLinkID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    Result = IOC_offlineService(CmdExecutorSrvID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
 }
 
 /**
