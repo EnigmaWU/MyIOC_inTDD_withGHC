@@ -1747,14 +1747,73 @@ TEST(UT_ServiceTypicalTCP, verifyCmdInitiatorExecutor_overTCP_withTimeout) {
  * @[Status]: ⚠️ SKIP - TCP protocol not yet implemented
  */
 TEST(UT_ServiceTypicalTCP, verifyCmdTimeout_overTCP_withSlowExecutor) {
-    GTEST_SKIP() << "⚠️ TCP Protocol not yet implemented - requires Source/_IOC_SrvProtoTCP.c";
+    IOC_Result_T Result = IOC_RESULT_BUG;
 
-    // TODO: Implement CMD timeout test over TCP
-    // Key aspects:
-    // - CmdExecutor with SimulateSlowExecution = true
-    // - SlowExecutionDelayMs > timeout (e.g., 2000ms delay, 500ms timeout)
-    // - Verify IOC_RESULT_TIMEOUT returned
-    // - Ensure timeout works despite network round-trip time
+    // 🔧 SETUP: TCP service on port 9080 as CmdExecutor with slow handler
+    __CmdExecutorPrivData_T ExecutorPrivData = {
+        .ExecutedCmdCnt = 0,
+        .LastCmdID = 0,
+        .LastCmdResult = IOC_RESULT_BUG,
+        .SimulateSlowExecution = true,
+        .SlowExecutionDelayMs = 2000  // 2 seconds delay
+    };
+
+    static IOC_CmdID_T SupportedCmdIDs[] = {IOC_CMDID_TEST_PING};
+    IOC_CmdUsageArgs_T CmdUsageArgs = {
+        .CbExecCmd_F = __CbExecCmd_F,
+        .pCbPrivData = &ExecutorPrivData,
+        .CmdNum = 1,
+        .pCmdIDs = SupportedCmdIDs
+    };
+
+    IOC_SrvURI_T SrvURI = {
+        .pProtocol = "tcp",
+        .pHost = "localhost",
+        .pPath = "CmdTimeoutService",
+        .Port = 9080
+    };
+
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = SrvURI,
+        .Flags = IOC_SRVFLAG_AUTO_ACCEPT,
+        .UsageCapabilites = IOC_LinkUsageCmdExecutor,
+        .UsageArgs = {.pCmd = &CmdUsageArgs}
+    };
+
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    Result = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    // Client connects as CmdInitiator
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = SrvURI,
+        .Usage = IOC_LinkUsageCmdInitiator
+    };
+
+    IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
+    Result = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    usleep(100000);  // 100ms delay for connection establishment
+
+    // 🎯 BEHAVIOR: Execute command with short timeout (500ms), executor will take 2000ms
+    IOC_CmdDesc_T CmdDesc;
+    IOC_CmdDesc_initVar(&CmdDesc);
+    CmdDesc.CmdID = IOC_CMDID_TEST_PING;
+    CmdDesc.TimeoutMs = 500;  // 500ms timeout
+
+    Result = IOC_execCMD(CliLinkID, &CmdDesc, NULL);
+
+    // ✅ VERIFY: Timeout should be enforced
+    EXPECT_EQ(IOC_RESULT_TIMEOUT, Result) << "Command should timeout when executor is too slow";
+    
+    // Command might not have been executed yet if timeout happened first
+    // But if it started executing, the count might be 1
+    // We mainly care that timeout was returned
+
+    // 🧹 CLEANUP
+    IOC_closeLink(CliLinkID);
+    IOC_offlineService(SrvID);
 }
 
 /**

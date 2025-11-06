@@ -7,12 +7,14 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <arpa/inet.h>
+#include <errno.h>
 #include <netinet/in.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "IOC/IOC.h"
@@ -568,8 +570,44 @@ static IOC_Result_T __IOC_execCmd_ofProtoTCP(_IOC_LinkObject_pT pLinkObj, IOC_Cm
 
     // Wait for response from receiver thread
     pthread_mutex_lock(&pTCPLinkObj->Mutex);
-    while (!pTCPLinkObj->CmdResponseReady) {
-        pthread_cond_wait(&pTCPLinkObj->CmdResponseCond, &pTCPLinkObj->Mutex);
+    
+    int WaitResult = 0;
+    if (pCmdDesc->TimeoutMs > 0) {
+        // Calculate absolute timeout time
+        struct timespec AbsTimeout;
+        clock_gettime(CLOCK_REALTIME, &AbsTimeout);
+        
+        // Convert TimeoutMs to seconds and nanoseconds
+        long TimeoutSec = pCmdDesc->TimeoutMs / 1000;
+        long TimeoutNsec = (pCmdDesc->TimeoutMs % 1000) * 1000000;
+        
+        // Add timeout to current time
+        AbsTimeout.tv_sec += TimeoutSec;
+        AbsTimeout.tv_nsec += TimeoutNsec;
+        
+        // Handle nanosecond overflow
+        if (AbsTimeout.tv_nsec >= 1000000000) {
+            AbsTimeout.tv_sec += 1;
+            AbsTimeout.tv_nsec -= 1000000000;
+        }
+        
+        // Wait with timeout
+        while (!pTCPLinkObj->CmdResponseReady && WaitResult == 0) {
+            WaitResult = pthread_cond_timedwait(&pTCPLinkObj->CmdResponseCond, 
+                                                &pTCPLinkObj->Mutex, 
+                                                &AbsTimeout);
+        }
+    } else {
+        // No timeout specified, wait indefinitely
+        while (!pTCPLinkObj->CmdResponseReady) {
+            pthread_cond_wait(&pTCPLinkObj->CmdResponseCond, &pTCPLinkObj->Mutex);
+        }
+    }
+
+    // Check if timeout occurred
+    if (WaitResult == ETIMEDOUT) {
+        pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+        return IOC_RESULT_TIMEOUT;
     }
 
     // Copy response back
