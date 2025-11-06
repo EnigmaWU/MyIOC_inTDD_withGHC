@@ -30,6 +30,7 @@
  * @brief TCP Message Types (simple protocol)
  */
 typedef enum {
+    TCP_MSG_USAGE_NEGOTIATION = 0,  // Client sends usage, server responds with negotiated usage
     TCP_MSG_EVENT = 1,
     TCP_MSG_COMMAND = 2,
     TCP_MSG_DATA = 3,
@@ -335,6 +336,44 @@ static IOC_Result_T __IOC_connectService_ofProtoTCP(_IOC_LinkObject_pT pLinkObj,
     pTCPLinkObj->SocketFd = SocketFd;
     pLinkObj->pProtoPriv = pTCPLinkObj;
 
+    // Send usage negotiation message to server
+    TCPMessageHeader_T NegotiationHeader = {
+        .MsgType = htonl(TCP_MSG_USAGE_NEGOTIATION),
+        .DataSize = htonl(sizeof(IOC_LinkUsage_T))
+    };
+    
+    if (__TCP_sendAll(SocketFd, &NegotiationHeader, sizeof(NegotiationHeader)) != IOC_RESULT_SUCCESS) {
+        close(SocketFd);
+        free(pTCPLinkObj);
+        _IOC_LogError("Failed to send usage negotiation header");
+        return IOC_RESULT_BUG;
+    }
+
+    IOC_LinkUsage_T ClientUsage = pLinkObj->Args.Usage;
+    if (__TCP_sendAll(SocketFd, &ClientUsage, sizeof(ClientUsage)) != IOC_RESULT_SUCCESS) {
+        close(SocketFd);
+        free(pTCPLinkObj);
+        _IOC_LogError("Failed to send client usage");
+        return IOC_RESULT_BUG;
+    }
+
+    // Receive negotiated usage from server
+    IOC_LinkUsage_T NegotiatedUsage = IOC_LinkUsageUndefined;
+    if (__TCP_recvAll(SocketFd, &NegotiatedUsage, sizeof(NegotiatedUsage)) != IOC_RESULT_SUCCESS) {
+        close(SocketFd);
+        free(pTCPLinkObj);
+        _IOC_LogError("Failed to receive negotiated usage from server");
+        return IOC_RESULT_BUG;
+    }
+
+    // Verify negotiation succeeded
+    if (NegotiatedUsage == IOC_LinkUsageUndefined) {
+        close(SocketFd);
+        free(pTCPLinkObj);
+        _IOC_LogError("Usage negotiation failed - incompatible roles");
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
     // Copy CmdUsageArgs from connection args if client is CmdExecutor
     if ((pLinkObj->Args.Usage & IOC_LinkUsageCmdExecutor) && pConnArgs->UsageArgs.pCmd) {
         memcpy(&pTCPLinkObj->CmdUsageArgs, pConnArgs->UsageArgs.pCmd, sizeof(IOC_CmdUsageArgs_T));
@@ -384,6 +423,57 @@ static IOC_Result_T __IOC_acceptClient_ofProtoTCP(_IOC_ServiceObject_pT pSrvObj,
 
     pTCPLinkObj->SocketFd = ClientFd;
     pLinkObj->pProtoPriv = pTCPLinkObj;
+
+    // Receive usage negotiation from client
+    TCPMessageHeader_T NegotiationHeader = {0};
+    if (__TCP_recvAll(ClientFd, &NegotiationHeader, sizeof(NegotiationHeader)) != IOC_RESULT_SUCCESS) {
+        close(ClientFd);
+        free(pTCPLinkObj);
+        _IOC_LogError("Failed to receive usage negotiation header from client");
+        return IOC_RESULT_BUG;
+    }
+
+    if (ntohl(NegotiationHeader.MsgType) != TCP_MSG_USAGE_NEGOTIATION) {
+        close(ClientFd);
+        free(pTCPLinkObj);
+        _IOC_LogError("Expected usage negotiation message, got type %u", ntohl(NegotiationHeader.MsgType));
+        return IOC_RESULT_BUG;
+    }
+
+    IOC_LinkUsage_T ClientUsage = IOC_LinkUsageUndefined;
+    if (__TCP_recvAll(ClientFd, &ClientUsage, sizeof(ClientUsage)) != IOC_RESULT_SUCCESS) {
+        close(ClientFd);
+        free(pTCPLinkObj);
+        _IOC_LogError("Failed to receive client usage");
+        return IOC_RESULT_BUG;
+    }
+
+    // Negotiate server's link role based on client's usage
+    IOC_LinkUsage_T ServiceCapabilities = pSrvObj->Args.UsageCapabilites;
+    IOC_LinkUsage_T ServiceLinkRole = _IOC_negotiateLinkRole(ServiceCapabilities, ClientUsage);
+
+    if (ServiceLinkRole == IOC_LinkUsageUndefined) {
+        // Send failure response to client
+        IOC_LinkUsage_T FailureResponse = IOC_LinkUsageUndefined;
+        __TCP_sendAll(ClientFd, &FailureResponse, sizeof(FailureResponse));
+        
+        close(ClientFd);
+        free(pTCPLinkObj);
+        _IOC_LogError("Usage negotiation failed: ServiceCap=0x%X, ClientUsage=0x%X incompatible",
+                     ServiceCapabilities, ClientUsage);
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
+    // Send negotiated server usage back to client
+    if (__TCP_sendAll(ClientFd, &ServiceLinkRole, sizeof(ServiceLinkRole)) != IOC_RESULT_SUCCESS) {
+        close(ClientFd);
+        free(pTCPLinkObj);
+        _IOC_LogError("Failed to send negotiated usage to client");
+        return IOC_RESULT_BUG;
+    }
+
+    // Set server link's usage to negotiated role
+    pLinkObj->Args.Usage = ServiceLinkRole;
 
     // Copy CmdUsageArgs from service to link (for command executor functionality)
     if (pSrvObj->Args.UsageArgs.pCmd) {

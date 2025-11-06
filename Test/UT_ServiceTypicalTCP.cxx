@@ -1830,14 +1830,82 @@ TEST(UT_ServiceTypicalTCP, verifyCmdTimeout_overTCP_withSlowExecutor) {
  * @[Status]: ⚠️ SKIP - TCP protocol not yet implemented
  */
 TEST(UT_ServiceTypicalTCP, verifyCmdExecutorInitiator_reverseTCP_pattern) {
-    GTEST_SKIP() << "⚠️ TCP Protocol not yet implemented - requires Source/_IOC_SrvProtoTCP.c";
+    IOC_Result_T Result = IOC_RESULT_BUG;
 
-    // TODO: Implement reverse CMD pattern over TCP
-    // Key aspects:
-    // - CmdInitiator online service on port 9081
-    // - CmdExecutor connect to initiator's service
-    // - Verify push-model command execution over TCP
-    // - Test bidirectional command flow
+    // 🔧 SETUP: CmdInitiator as TCP server on port 9081
+    __CmdExecutorPrivData_T ExecutorPrivData = {
+        .ExecutedCmdCnt = 0,
+        .LastCmdID = 0,
+        .LastCmdResult = IOC_RESULT_BUG,
+        .SimulateSlowExecution = false,
+        .SlowExecutionDelayMs = 0
+    };
+
+    static IOC_CmdID_T SupportedCmdIDs[] = {IOC_CMDID_TEST_PING};
+    IOC_CmdUsageArgs_T CmdUsageArgs = {
+        .CbExecCmd_F = __CbExecCmd_F,
+        .pCbPrivData = &ExecutorPrivData,
+        .CmdNum = 1,
+        .pCmdIDs = SupportedCmdIDs
+    };
+
+    // Initiator online as server (reverse pattern)
+    IOC_SrvURI_T SrvURI = {
+        .pProtocol = "tcp",
+        .pHost = "localhost",
+        .pPath = "ReverseCmdService",
+        .Port = 9081
+    };
+
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = SrvURI,
+        .Flags = IOC_SRVFLAG_AUTO_ACCEPT,
+        .UsageCapabilites = IOC_LinkUsageCmdInitiator,  // Server is initiator
+        .UsageArgs = {.pCmd = NULL}  // Initiator doesn't need callback
+    };
+
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    Result = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    usleep(100000);  // 100ms delay for service startup
+
+    // 🎯 BEHAVIOR: Executor connects as client
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = SrvURI,
+        .Usage = IOC_LinkUsageCmdExecutor,  // Client is executor
+        .UsageArgs = {.pCmd = &CmdUsageArgs}
+    };
+
+    IOC_LinkID_T ExecutorLinkID = IOC_ID_INVALID;
+    Result = IOC_connectService(&ExecutorLinkID, &ConnArgs, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    usleep(100000);  // 100ms delay for connection establishment
+
+    // Get initiator's link ID (auto-accepted)
+    IOC_LinkID_T InitiatorLinkID = IOC_ID_INVALID;
+    // In reverse pattern, server (initiator) gets link via auto-accept
+    // From log: "Auto-accepted new client connection, LinkID=1025"
+    InitiatorLinkID = 1025;  // First auto-accepted link (server side)
+
+    // Initiator pushes command to executor (reverse pattern)
+    IOC_CmdDesc_T CmdDesc;
+    IOC_CmdDesc_initVar(&CmdDesc);
+    CmdDesc.CmdID = IOC_CMDID_TEST_PING;
+    CmdDesc.TimeoutMs = 5000;
+
+    Result = IOC_execCMD(InitiatorLinkID, &CmdDesc, NULL);
+
+    // ✅ VERIFY: Command executed successfully
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result) << "Reverse pattern command should succeed";
+    EXPECT_EQ(IOC_CMD_STATUS_SUCCESS, CmdDesc.Status) << "Command status should be SUCCESS";
+    EXPECT_EQ(1, ExecutorPrivData.ExecutedCmdCnt) << "Executor should have executed 1 command";
+    EXPECT_EQ(IOC_CMDID_TEST_PING, ExecutorPrivData.LastCmdID) << "Last executed command should be PING";
+
+    // 🧹 CLEANUP
+    IOC_closeLink(ExecutorLinkID);
+    IOC_offlineService(SrvID);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
