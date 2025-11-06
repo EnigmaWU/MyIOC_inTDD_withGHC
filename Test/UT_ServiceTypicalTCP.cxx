@@ -625,13 +625,16 @@ TEST(UT_ServiceTypicalTCP, verifySingleTCPServiceSingleClient_byPostEvtAtSrvSide
 
     EvtConsumerThread.join();
 
-    // ⏱️ TIMING: Allow subscribe message to be received and processed by server
-    usleep(200000);  // 200ms to ensure SUBSCRIBE message is processed by receiver thread
+    // ⏱️ TIMING: Allow subscribe message AND usage negotiation to be received and processed
+    usleep(500000);  // 500ms to ensure SUBSCRIBE + usage negotiation is processed
 
     // 🎯 BEHAVIOR: Post KEEPALIVE event over TCP link
     IOC_EvtDesc_T EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
     Result = IOC_postEVT(EvtProducerLinkID, &EvtDesc, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "❌ Failed to post event over TCP";
+
+    // ⏱️ TIMING: Allow async TCP event delivery and callback processing
+    usleep(200000);  // 200ms for TCP transmission and callback execution
 
     IOC_forceProcEVT();
 
