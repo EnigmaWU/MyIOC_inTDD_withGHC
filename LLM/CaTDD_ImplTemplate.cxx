@@ -500,6 +500,6 @@ TEST_F(UT_NameofCategoryFixture, verifyBehaviorX_byDoA_expectSomething) {
 //        Notes: Basic initialization test, all passing
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>END OF TODO/IMPLEMENTATION TRACKING SECTION==============================================
+//======>END OF TODO/IMPLEMENTATION TRACKING SECTION===============================================
 
 // END OF TEMPLATE
