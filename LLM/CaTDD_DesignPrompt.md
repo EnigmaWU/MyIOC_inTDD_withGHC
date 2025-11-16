@@ -2,6 +2,11 @@
 
 **Short name**: CaTDD (Comment‑alive Test‑Driven Development)
 
+- `CaTDD` is a LLM friendly TDD.
+  - `Comment-alive` means detail design in comments, coexist with test code and production code.
+  - `TDD` is same meaning as triditional TDD.
+  - `EnigmaWU` named this method and practicing from 2023.10.
+
 ## Purpose
 Turn design intent into executable tests by writing rich, structured comments first, then evolving them into unit tests and code. The test file serves as a living design document for humans and LLMs.
 
