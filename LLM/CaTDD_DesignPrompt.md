@@ -730,7 +730,8 @@ Copy this block into your test files to track progress:
 - Use TEST suites to organize by category
 - Good for components with <50 tests
 
-**Multi-File Strategy** (larger projects)
+**Multi-File Strategy** (larger projects - used in IOC project)
+- All test files in `Test/` directory
 - Start with `UT_ComponentFreelyDrafts.cxx` for exploration
 - Move to category-specific files as tests mature:
   - `UT_ComponentTypical.cxx` - Core workflows
@@ -738,6 +739,8 @@ Copy this block into your test files to track progress:
   - `UT_ComponentState.cxx` - State transitions
   - `UT_ComponentConcurrency.cxx` - Thread safety
   - etc.
+- Common utilities in `Test/_UT_IOC_Common.h`
+- Data fixtures can use dedicated files (e.g., `Test/DataTypicalAutoAccept.h`)
 
 ### For LLM/AI Assistance
 
@@ -773,18 +776,20 @@ When asked to implement tests for a component, follow this structured workflow. 
 **Objective**: Gather sufficient context to design appropriate tests
 
 - ☐ **Read component interface files**
-  - Locate and read header files (.h) for the component
+  - Locate and read header files in `Include/IOC/` directory
   - Identify public APIs, data structures, and constants
   - Note function signatures, parameters, and return types
 
 - ☐ **Study existing related tests**
-  - Search for existing UT_*.cxx files in Test/ directory
+  - Search for existing `UT_*.cxx` files in `Test/` directory
   - Review similar test patterns and naming conventions
-  - Identify reusable test fixtures or helper functions
+  - Identify reusable test fixtures or helper functions (check `Test/_UT_IOC_Common.h`)
 
 - ☐ **Identify dependencies and constraints**
-  - Check CMakeLists.txt for dependencies
-  - Review README_*.md files for design documentation
+  - Check `CMakeLists.txt` for dependencies
+  - Review `README_*.md` files in root directory for design documentation
+  - Check `Doc/` directory for detailed design documents
+  - Review source implementation in `Source/` directory if needed
   - Note any special build requirements or configurations
 
 - ☐ **Clarify ambiguities with human**
@@ -796,9 +801,17 @@ When asked to implement tests for a component, follow this structured workflow. 
 
 ```text
 "I've analyzed [component]. It provides [key capabilities].
+
+Files reviewed:
+- Interface: Include/IOC/[HeaderFile.h]
+- Implementation: Source/[SourceFile.c]
+- Existing tests: Test/UT_[Related].cxx
+- Documentation: README_[Topic].md, Doc/[DesignDoc].md
+
 Key APIs: [list 3-5 main functions]
 Dependencies: [list main dependencies]
 Unclear aspects: [list questions if any]
+
 Ready to proceed with test design?"
 ```
 
@@ -1040,11 +1053,13 @@ When you encounter problems during test implementation, follow these systematic 
    // ❌ WRONG: Guessing header paths
    #include "IOC_Service.h"
    
-   // ✅ CORRECT: Verify actual file structure
-   #include "IOC/IOC_Service.h"  // Check workspace structure
+   // ✅ CORRECT: Use IOC project's single header
+   #include <IOC/IOC.h>          // All IOC public interfaces
+   #include "_UT_IOC_Common.h"   // Test utilities from Test/
    ```
-   - Use `file_search` to locate actual header files
-   - Check existing test files for correct include patterns
+   - Use `#include <IOC/IOC.h>` for all IOC public APIs
+   - Check existing test files in `Test/` for correct include patterns
+   - Review `Test/_UT_IOC_Common.h` for available test utilities
 
 2. **Verify function signatures**
    ```cpp
@@ -1159,15 +1174,18 @@ When you encounter problems during test implementation, follow these systematic 
 
 2. **Read component documentation**
    ```
-   Check files:
-   - README_Specification.md (API contracts)
-   - README_ArchDesign.md (design intent)
-   - Source/[Component].md (implementation notes)
-   - Doc/*.md (design documents)
+   Check files in order:
+   - README_Specification.md (API contracts and requirements)
+   - README_ArchDesign.md (architecture and design intent)
+   - README_Glossary.md (terminology and concepts)
+   - Doc/*.md (detailed design documents)
+   - Source/[Component].md (implementation notes for specific modules)
+   - LLM/CaTDD_DesignPrompt.md (this testing methodology)
    ```
    - Look for explicit behavior specifications
    - Note design principles and constraints
    - Identify documented edge cases
+   - Check for related User Stories in existing test files
 
 3. **Examine existing tests**
    ```
