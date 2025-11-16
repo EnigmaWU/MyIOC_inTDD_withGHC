@@ -154,9 +154,16 @@ Status indicators
 
 ### Priority-Based Framework
 
-**Priority-1: Functional Testing** (ValidFunc + InvalidFunc)
-- ValidFunc: Typical → Boundary
-- InvalidFunc: Misuse → Fault
+**Priority-1: Functional Testing**
+```
+P1-Functional = ValidFunc(Typical + Boundary) + InvalidFunc(Misuse + Fault)
+```
+- **ValidFunc**: Tests with valid inputs/states - verify correct behavior
+  - Typical: Happy paths and core workflows
+  - Boundary: Edge cases and parameter limits
+- **InvalidFunc**: Tests with invalid inputs/states - verify error handling
+  - Misuse: Incorrect API usage patterns
+  - Fault: External failures and recovery
 
 **Priority-2: Design-Oriented Testing**
 - State → Capability → Concurrency
@@ -168,18 +175,31 @@ Status indicators
 - Demo/Example
 
 ### Default Test Order
-P1: Typical → Boundary → Misuse → Fault
-P2: State → Capability → Concurrency
-P3: Performance → Robust → Compatibility → Configuration
-P4: Demo/Example
+
+**P1-Functional**: ValidFunc + InvalidFunc
+- ValidFunc: Typical → Boundary (prove it works right)
+- InvalidFunc: Misuse → Fault (prove it fails right)
+
+**P2-Design**: State → Capability → Concurrency
+
+**P3-Quality**: Performance → Robust → Compatibility → Configuration
+
+**P4-Addons**: Demo/Example
 
 ### Category Definitions
 
 ## Priority-1: Functional Testing
 
-Functional testing ensures the component behaves correctly for both valid and invalid inputs, covering the core contract between the API and its users.
+**Formula**: `P1 = ValidFunc(Typical + Boundary) + InvalidFunc(Misuse + Fault)`
 
-### Valid Function Testing (ValidFunc)
+Functional testing ensures the component behaves correctly for both valid and invalid inputs, covering the complete contract between the API and its users.
+
+- **ValidFunc**: Proves the system works correctly when used properly
+- **InvalidFunc**: Proves the system fails gracefully when used improperly or under adverse conditions
+
+### ValidFunc: Valid Function Testing
+
+Tests that verify correct behavior with **valid inputs and states**.
 
 **1. Typical** ⭐ *Core Functionality*
 - **Purpose**: Verify main usage scenarios and happy paths
@@ -199,7 +219,9 @@ Functional testing ensures the component behaves correctly for both valid and in
   - Block/NonBlock/Timeout modes
   - Buffer full/empty conditions
 
-### Invalid Function Testing (InvalidFunc)
+### InvalidFunc: Invalid Function Testing
+
+Tests that verify correct **error handling and recovery** with invalid inputs, wrong states, or adverse conditions.
 
 **3. Misuse** 🚫 *Error Prevention*
 - **Purpose**: Test incorrect usage patterns and API abuse
@@ -218,6 +240,18 @@ Functional testing ensures the component behaves correctly for both valid and in
   - Network failures and timeouts
   - Disk full, memory exhausted
   - External dependency unavailable
+
+### Summary of Priority-1
+
+✅ **Complete P1 Gate Requirements**:
+- All ValidFunc tests GREEN (Typical + Boundary)
+- All InvalidFunc tests GREEN (Misuse + Fault)
+- Fast-Fail Six passing
+- No critical functional bugs
+
+**P1 ensures**: The API contract is fully tested - both success and failure paths.
+
+---
 
 ## Priority-2: Design-Oriented Testing
 
@@ -401,15 +435,20 @@ Performance in batch processor:
 ### Priority-Based Advancement Criteria
 
 **Gate P1: Before Leaving Priority-1 (Functional Testing)**
-- ✅ ValidFunc complete:
+
+Must complete: `ValidFunc(Typical + Boundary) + InvalidFunc(Misuse + Fault)`
+
+- ✅ **ValidFunc complete** (system works correctly):
   - All Typical tests GREEN (80-90% core workflow coverage)
-  - All Boundary tests GREEN (edge cases validated)
-- ✅ InvalidFunc complete:
-  - All Misuse tests GREEN or documented (API abuse prevented)
-  - All Fault tests GREEN or documented (error handling verified)
+  - All Boundary tests GREEN (edge cases and limits validated)
+- ✅ **InvalidFunc complete** (system fails gracefully):
+  - All Misuse tests GREEN or documented (wrong usage handled)
+  - All Fault tests GREEN or documented (error recovery verified)
 - ✅ No critical correctness bugs
 - ✅ Fast-Fail Six tests all passing
 - ✅ Basic memory/resource leak checks clean
+
+**Exit criteria**: Complete API contract tested - both success paths (ValidFunc) and failure paths (InvalidFunc).
 
 **Gate P2: Before Priority-3 (Design-Oriented → Quality-Oriented)**
 - ✅ State tests GREEN (if stateful component)
