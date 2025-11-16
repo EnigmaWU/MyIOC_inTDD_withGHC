@@ -78,7 +78,12 @@ Prioritize test categories by: **Impact × Likelihood × Uncertainty**
 ### Phase 3: Implementation
 
 **Step 7: Prioritize & Track Status**
-- Default order: Typical → Boundary → State → Misuse → Fault → Performance → Concurrency
+- Default order:
+  - P1: Typical → Boundary → Misuse → Fault
+  - P2: State → Capability → Concurrency
+  - P3: Performance → Robust → Compatibility → Configuration
+  - P4: Demo/Example
+- Adjust based on context (see Context-Specific Priority Adjustments)
 - Adjust based on risk scoring (Impact × Likelihood × Uncertainty)
 - Mark each TC with status: ⚪TODO → 🔴RED → 🟢GREEN
 
@@ -147,12 +152,36 @@ Status indicators
 
 ## Test Classification Guide
 
-### Default Priority Order
-Typical → Boundary → Misuse → State → Fault → Performance → Concurrency → Capability → Robust → Demo/Example → Compatibility → Configuration
+### Priority-Based Framework
+
+**Priority-1: Functional Testing** (ValidFunc + InvalidFunc)
+- ValidFunc: Typical → Boundary
+- InvalidFunc: Misuse → Fault
+
+**Priority-2: Design-Oriented Testing**
+- State → Capability → Concurrency
+
+**Priority-3: Quality-Oriented Testing**
+- Performance → Robust → Compatibility → Configuration
+
+**Priority-4: Other-Addons Testing**
+- Demo/Example
+
+### Default Test Order
+P1: Typical → Boundary → Misuse → Fault
+P2: State → Capability → Concurrency
+P3: Performance → Robust → Compatibility → Configuration
+P4: Demo/Example
 
 ### Category Definitions
 
-**1. Typical (Must-Have)** ⭐ *Core Functionality*
+## Priority-1: Functional Testing
+
+Functional testing ensures the component behaves correctly for both valid and invalid inputs, covering the core contract between the API and its users.
+
+### Valid Function Testing (ValidFunc)
+
+**1. Typical** ⭐ *Core Functionality*
 - **Purpose**: Verify main usage scenarios and happy paths
 - **When**: First priority, fundamental behavior verification
 - **Examples**:
@@ -161,7 +190,7 @@ Typical → Boundary → Misuse → State → Fault → Performance → Concurre
   - Command execution with expected response
   - Normal data flow through system
 
-**2. Boundary (Important)** 🔲 *Edge Cases*
+**2. Boundary** 🔲 *Edge Cases & Limits*
 - **Purpose**: Test edge cases, parameter limits, and mode variations
 - **When**: High priority, right after typical cases
 - **Examples**:
@@ -170,7 +199,9 @@ Typical → Boundary → Misuse → State → Fault → Performance → Concurre
   - Block/NonBlock/Timeout modes
   - Buffer full/empty conditions
 
-**3. Misuse (Hardening)** 🚫 *Error Prevention*
+### Invalid Function Testing (InvalidFunc)
+
+**3. Misuse** 🚫 *Error Prevention*
 - **Purpose**: Test incorrect usage patterns and API abuse
 - **When**: After core functionality, before advanced features
 - **Examples**:
@@ -179,15 +210,7 @@ Typical → Boundary → Misuse → State → Fault → Performance → Concurre
   - Double-close, double-init scenarios
   - Operations on invalid handles
 
-**4. State (Key)** 🔄 *Lifecycle Management*
-- **Purpose**: Verify state machine transitions and object lifecycle
-- **When**: Essential for stateful components, FSM verification
-- **Examples**:
-  - Service states: Init→Ready→Running→Stopped
-  - Event lifecycle: Created→Queued→Processing→Completed
-  - Connection states: Disconnected→Connecting→Connected→Closing
-
-**5. Fault (Reliability)** ⚠️ *Error Handling*
+**4. Fault** ⚠️ *Error Handling & Recovery*
 - **Purpose**: Test error handling, failures, and recovery
 - **When**: Critical for reliability requirements
 - **Examples**:
@@ -196,25 +219,19 @@ Typical → Boundary → Misuse → State → Fault → Performance → Concurre
   - Disk full, memory exhausted
   - External dependency unavailable
 
-**6. Performance (As Needed)** ⚡ *Speed & Efficiency*
-- **Purpose**: Measure execution time, throughput, and resource usage
-- **When**: After functional tests, when SLOs exist
-- **Examples**:
-  - API call latency under load
-  - Memory leak detection
-  - CPU usage monitoring
-  - Throughput benchmarks
+## Priority-2: Design-Oriented Testing
 
-**7. Concurrency (Complex)** 🚀 *Thread Safety*
-- **Purpose**: Test multi-threading, synchronization, and race conditions
-- **When**: For concurrent components, high complexity
-- **Examples**:
-  - Parallel API calls from multiple threads
-  - Shared resource access patterns
-  - Race conditions and deadlock scenarios
-  - Lock-free data structure validation
+Design-oriented testing validates architectural decisions, including state management, capacity planning, and concurrency models.
 
-**8. Capability (Limits)** 🏆 *Capacity Testing*
+**5. State** 🔄 *Lifecycle & FSM*
+- **Purpose**: Verify state machine transitions and object lifecycle
+- **When**: Essential for stateful components, FSM verification
+- **Examples**:
+  - Service states: Init→Ready→Running→Stopped
+  - Event lifecycle: Created→Queued→Processing→Completed
+  - Connection states: Disconnected→Connecting→Connected→Closing
+
+**6. Capability** 🏆 *Capacity & Limits*
 - **Purpose**: Test maximum capacity and system limits
 - **When**: After basic functionality, for capacity planning
 - **Examples**:
@@ -223,7 +240,29 @@ Typical → Boundary → Misuse → State → Fault → Performance → Concurre
   - Maximum message size
   - Resource pool exhaustion
 
-**9. Robust (Stability)** 🛡️ *Long-Term Reliability*
+**7. Concurrency** 🚀 *Thread Safety*
+- **Purpose**: Test multi-threading, synchronization, and race conditions
+- **When**: For concurrent components, high complexity
+- **Examples**:
+  - Parallel API calls from multiple threads
+  - Shared resource access patterns
+  - Race conditions and deadlock scenarios
+  - Lock-free data structure validation
+
+## Priority-3: Quality-Oriented Testing
+
+Quality-oriented testing ensures the system meets non-functional requirements for performance, stability, and compatibility.
+
+**8. Performance** ⚡ *Speed & Efficiency*
+- **Purpose**: Measure execution time, throughput, and resource usage
+- **When**: After functional tests, when SLOs exist
+- **Examples**:
+  - API call latency under load
+  - Memory leak detection
+  - CPU usage monitoring
+  - Throughput benchmarks
+
+**9. Robust** 🛡️ *Stability & Reliability*
 - **Purpose**: Stress testing, repetition, and soak testing
 - **When**: For stability verification, production readiness
 - **Examples**:
@@ -232,16 +271,7 @@ Typical → Boundary → Misuse → State → Fault → Performance → Concurre
   - Long-running stress tests (24h+)
   - Resource exhaustion patterns
 
-**10. Demo/Example** 🎨 *Documentation*
-- **Purpose**: End-to-end feature demonstrations
-- **When**: For documentation, tutorials, showcases
-- **Examples**:
-  - Complete workflow demonstrations
-  - Tutorial code examples
-  - Integration scenarios
-  - Best practice illustrations
-
-**11. Compatibility** 🔄 *Cross-Platform*
+**10. Compatibility** 🔄 *Cross-Platform*
 - **Purpose**: Test across different platforms, versions, configurations
 - **When**: Multi-platform products, version upgrades
 - **Examples**:
@@ -250,7 +280,7 @@ Typical → Boundary → Misuse → State → Fault → Performance → Concurre
   - Compiler differences
   - Legacy system integration
 
-**12. Configuration** 🎛️ *Settings Validation*
+**11. Configuration** 🎛️ *Settings Validation*
 - **Purpose**: Test different configuration scenarios
 - **When**: Configurable systems, deployment variations
 - **Examples**:
@@ -259,45 +289,81 @@ Typical → Boundary → Misuse → State → Fault → Performance → Concurre
   - Feature flags on/off
   - Environment variable handling
 
+## Priority-4: Other-Addons Testing
+
+Optional tests that demonstrate features and provide documentation value but are not required for functional correctness.
+
+**12. Demo/Example** 🎨 *Documentation & Tutorials*
+- **Purpose**: End-to-end feature demonstrations
+- **When**: For documentation, tutorials, showcases
+- **Examples**:
+  - Complete workflow demonstrations
+  - Tutorial code examples
+  - Integration scenarios
+  - Best practice illustrations
+
 ## Context-Specific Priority Adjustments
 
 ### Quick Decision Matrix
 
+**Default/Balanced Approach**
+```
+P1: Typical → Boundary → Misuse → Fault
+P2: State → Capability → Concurrency
+P3: Performance → Robust → Compatibility
+```
+*Rationale*: Standard functional-first approach for most components
+
 **New Public API**
 ```
-Typical → Boundary → Misuse → State → Fault → Performance → Concurrency
+P1: Typical → Boundary → Misuse → Fault (complete P1 thoroughly)
+P2: State → Capability → Concurrency
+P3: Performance
 ```
-*Rationale*: Focus on correct usage patterns and preventing API misuse early
+*Rationale*: Ensure API contract correctness before advanced testing
 
 **Stateful/FSM-Heavy Component**
 ```
-Typical → Boundary → State → Misuse → Fault → Concurrency → Performance
+P1: Typical → Boundary (basic functional)
+P2: State (promote to early) → Capability → Concurrency
+P1: Misuse → Fault (complete functional)
+P3: Performance → Robust
 ```
-*Rationale*: State transitions are critical; verify lifecycle thoroughly
+*Rationale*: State transitions are architectural core, test after basic functionality
 
 **Reliability-Critical Service**
 ```
-Typical → Boundary → Fault → State → Misuse → Concurrency → Performance
+P1: Typical → Boundary → Fault (promote) → Misuse
+P2: State → Capability → Concurrency
+P3: Robust (promote) → Performance → Compatibility
 ```
-*Rationale*: Error handling and recovery are paramount for uptime
+*Rationale*: Error handling and stability are paramount
 
-**Throughput/Latency SLO Requirements**
+**High-Performance System (SLOs)**
 ```
-Typical → Boundary → Performance → State → Concurrency → Fault → Capability
+P1: Typical → Boundary → Misuse
+P3: Performance (promote to P2 level) → Robust
+P2: State → Capability → Concurrency
+P1: Fault (complete functional)
 ```
-*Rationale*: Performance characteristics must be validated early
+*Rationale*: Performance characteristics validated early, treat as design constraint
 
 **Highly Concurrent Design**
 ```
-Typical → Boundary → Concurrency → State → Fault → Performance → Capability
+P1: Typical → Boundary → Misuse
+P2: Concurrency (promote to first P2) → State → Capability
+P1: Fault (complete functional)
+P3: Performance → Robust
 ```
-*Rationale*: Thread safety and race conditions are highest risk
+*Rationale*: Thread safety is architectural foundation
 
 **Data Processing Pipeline**
 ```
-Typical → Boundary → Fault → Performance → Robust → State → Concurrency
+P1: Typical → Boundary → Fault → Misuse
+P3: Performance (promote) → Robust (promote)
+P2: State → Capability → Concurrency
 ```
-*Rationale*: Data integrity and throughput are critical
+*Rationale*: Data integrity and throughput are critical quality attributes
 
 ### Risk-Based Priority Adjustment
 
@@ -332,31 +398,38 @@ Performance in batch processor:
 
 ## Quality Gates
 
-### Advancement Criteria
+### Priority-Based Advancement Criteria
 
-**Gate 1: Before Leaving Typical**
-- ✅ Happy-path coverage: 80-90% of core workflows
+**Gate P1: Before Leaving Priority-1 (Functional Testing)**
+- ✅ ValidFunc complete:
+  - All Typical tests GREEN (80-90% core workflow coverage)
+  - All Boundary tests GREEN (edge cases validated)
+- ✅ InvalidFunc complete:
+  - All Misuse tests GREEN or documented (API abuse prevented)
+  - All Fault tests GREEN or documented (error handling verified)
 - ✅ No critical correctness bugs
-- ✅ All typical test cases GREEN
-- ✅ Basic smoke tests passing
+- ✅ Fast-Fail Six tests all passing
+- ✅ Basic memory/resource leak checks clean
 
-**Gate 2: Before Performance Testing**
-- ✅ All Boundary tests GREEN
-- ✅ All Misuse tests GREEN or documented
-- ✅ Basic memory leak checks clean (valgrind/sanitizers)
-- ✅ No known resource leaks in core paths
+**Gate P2: Before Priority-3 (Design-Oriented → Quality-Oriented)**
+- ✅ State tests GREEN (if stateful component)
+- ✅ Capability tests GREEN (limits characterized)
+- ✅ Concurrency tests GREEN (if multi-threaded)
+- ✅ No known deadlock or race conditions
+- ✅ ThreadSanitizer/AddressSanitizer clean
+- ✅ Architecture validated against design requirements
 
-**Gate 3: Before Concurrency Testing**
-- ✅ All State tests GREEN
-- ✅ No known deadlock-prone paths
-- ✅ ThreadSanitizer clean on core operations
-- ✅ Lock ordering documented
+**Gate P3: Before Priority-4 or Release (Quality-Oriented Testing)**
+- ✅ Performance tests GREEN (SLOs met if defined)
+- ✅ Robust tests GREEN (stress/soak tests passing)
+- ✅ Compatibility tests GREEN (if multi-platform)
+- ✅ Configuration tests GREEN (if configurable)
+- ✅ Production readiness criteria met
 
-**Gate 4: Before Robust/Stress Testing**
-- ✅ Capability limits characterized
-- ✅ Key fault handling verified
-- ✅ Resource cleanup verified under errors
-- ✅ Recovery paths tested
+**Optional Gate P4: Documentation Complete**
+- ✅ Demo/Example tests GREEN
+- ✅ Tutorial code validated
+- ✅ Best practices documented
 
 ### Fast-Fail Six
 
