@@ -569,12 +569,12 @@ TEST(UT_ServiceBoundaryTCP, verifyTCPService_byMaxPort65535_expectSuccess) {
     // CLEANUP: Standard cleanup
 }
 
-TEST(UT_ServiceBoundaryTCP, verifyTCPService_byPort0_expectInvalidParam) {
+TEST(UT_ServiceBoundaryTCP, verifyTCPService_byPort0_expectEphemeralPortSuccess) {
     GTEST_SKIP() << "⚠️ TCP protocol not yet implemented - requires _IOC_SrvProtoTCP.c";
     // SETUP: URI with port = 0
     // BEHAVIOR: Call IOC_onlineService
-    // VERIFY: Returns IOC_RESULT_INVALID_PARAM
-    // CLEANUP: None needed
+    // VERIFY: Returns IOC_RESULT_SUCCESS, service is bound to an ephemeral port
+    // CLEANUP: Offline service
 }
 
 TEST(UT_ServiceBoundaryTCP, verifyTCPService_byPort65536_expectInvalidParam) {

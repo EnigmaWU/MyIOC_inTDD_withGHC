@@ -382,7 +382,8 @@
  *      ✅ VERIFY: Returns LINK_BROKEN, no SIGPIPE signal raised, errno=EPIPE
  *      🧹 CLEANUP: Close remaining resources
  *  @[Status]: ⚪ TODO - CRITICAL for TCP, must handle SIGPIPE with MSG_NOSIGNAL or SIG_IGN
- *  @[Notes]: SIGPIPE can crash process if not handled. Use MSG_NOSIGNAL on send().
+ *  @[Notes]: SIGPIPE can crash process if not handled. Use MSG_NOSIGNAL on send(), or set signal(SIGPIPE, SIG_IGN) to
+ * ignore SIGPIPE globally.
  *
  * [@AC-2 of US-2] Network partition (silent failure)
  * TC-5:

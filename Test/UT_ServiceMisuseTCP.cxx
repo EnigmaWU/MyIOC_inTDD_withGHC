@@ -99,21 +99,21 @@
  *  6. TCP Resource Leaks: Socket FD leaks on errors, port not released on offline failure
  *
  * COVERAGE STRATEGY: TCP Misuse Dimensions
- * ┌──────────────────────────┬──────────────────────────┬──────────────────────────┬────────────────────┐
- * │ Misuse Category          │ Operation                │ Violation Type           │ Expected Error     │
- * ├──────────────────────────┼──────────────────────────┼──────────────────────────┼────────────────────┤
- * │ Lifecycle                │ Online twice same port   │ Repeated operation       │ PORT_IN_USE        │
- * │ Lifecycle                │ Offline twice            │ Repeated operation       │ NOT_EXIST_SERVICE  │
- * │ Lifecycle                │ Accept before online     │ Wrong sequence           │ NOT_EXIST_SERVICE  │
- * │ Port Conflicts           │ Two services same port   │ Resource conflict        │ PORT_IN_USE        │
- * │ Connection               │ Connect twice same link  │ Repeated operation       │ ALREADY_CONNECTED  │
- * │ Connection               │ Close link twice         │ Repeated operation       │ NOT_EXIST_LINK     │
- * │ Connection               │ Connect after offline    │ Wrong sequence           │ NOT_EXIST_SERVICE  │
- * │ State                    │ Send on closed socket    │ State violation          │ LINK_CLOSED        │
- * │ State                    │ Recv on broken conn      │ State violation          │ LINK_BROKEN        │
- * │ Capability               │ Manual accept AUTO_ACCEPT│ Capability violation     │ NOT_SUPPORTED      │
- * │ Resource                 │ Online fail cleanup      │ Leak prevention          │ No FD leaks        │
- * └──────────────────────────┴──────────────────────────┴──────────────────────────┴────────────────────┘
+ * +--------------------------+--------------------------+--------------------------+--------------------+
+ * | Misuse Category          | Operation                | Violation Type           | Expected Error     |
+ * +--------------------------+--------------------------+--------------------------+--------------------+
+ * | Lifecycle                | Online twice same port   | Repeated operation       | PORT_IN_USE        |
+ * | Lifecycle                | Offline twice            | Repeated operation       | NOT_EXIST_SERVICE  |
+ * | Lifecycle                | Accept before online     | Wrong sequence           | NOT_EXIST_SERVICE  |
+ * | Port Conflicts           | Two services same port   | Resource conflict        | PORT_IN_USE        |
+ * | Connection               | Connect twice same link  | Repeated operation       | ALREADY_CONNECTED  |
+ * | Connection               | Close link twice         | Repeated operation       | NOT_EXIST_LINK     |
+ * | Connection               | Connect after offline    | Wrong sequence           | NOT_EXIST_SERVICE  |
+ * | State                    | Send on closed socket    | State violation          | LINK_CLOSED        |
+ * | State                    | Recv on broken conn      | State violation          | LINK_BROKEN        |
+ * | Capability               | Manual accept AUTO_ACCEPT| Capability violation     | NOT_SUPPORTED      |
+ * | Resource                 | Online fail cleanup      | Leak prevention          | No FD leaks        |
+ * +--------------------------+--------------------------+--------------------------+--------------------+
  */
 
 //-------------------------------------------------------------------------------------------------
