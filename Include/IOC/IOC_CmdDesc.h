@@ -164,7 +164,8 @@ static inline IOC_Result_T IOC_CmdDesc_setInPayload(IOC_CmdDesc_pT pCmdDesc, voi
         pCmdDesc->InPayload.EmdDataSize = DataSize;
         memcpy(pCmdDesc->InPayload.EmdData, pData, DataSize);
         pCmdDesc->InPayload.pData = NULL;     // Clear pointer data
-        pCmdDesc->InPayload.PtrDataSize = 0;  // No pointer data size
+        pCmdDesc->InPayload.PtrDataSize = 0;  // No pointer data allocated
+        pCmdDesc->InPayload.PtrDataLen = 0;   // No pointer data length
     } else {
         // Use pointer data for larger payloads
         pCmdDesc->InPayload.pData =
@@ -174,9 +175,9 @@ static inline IOC_Result_T IOC_CmdDesc_setInPayload(IOC_CmdDesc_pT pCmdDesc, voi
         }
         memset(pCmdDesc->InPayload.pData, 0, DataSize + 1);  // Clear memory
         memcpy(pCmdDesc->InPayload.pData, pData, DataSize);
-        pCmdDesc->InPayload.EmdDataSize = 0;         // Clear embedded data size
-        pCmdDesc->InPayload.PtrDataSize = DataSize;  // Set actual size for pointer data
-        pCmdDesc->InPayload.EmdDataSize = 0;         // Clear embedded data size
+        pCmdDesc->InPayload.EmdDataSize = 0;             // Clear embedded data size
+        pCmdDesc->InPayload.PtrDataSize = DataSize + 1;  // Allocated buffer size (with null terminator)
+        pCmdDesc->InPayload.PtrDataLen = DataSize;       // Actual data length
     }
     return IOC_RESULT_SUCCESS;
 }
@@ -189,7 +190,8 @@ static inline IOC_Result_T IOC_CmdDesc_setOutPayload(IOC_CmdDesc_pT pCmdDesc, vo
         pCmdDesc->OutPayload.EmdDataSize = DataSize;
         memcpy(pCmdDesc->OutPayload.EmdData, pData, DataSize);
         pCmdDesc->OutPayload.pData = NULL;     // Clear pointer data
-        pCmdDesc->OutPayload.PtrDataSize = 0;  // No pointer data size
+        pCmdDesc->OutPayload.PtrDataSize = 0;  // No pointer data allocated
+        pCmdDesc->OutPayload.PtrDataLen = 0;   // No pointer data length
     } else {
         // Use pointer data for larger payloads
         pCmdDesc->OutPayload.pData =
@@ -199,8 +201,9 @@ static inline IOC_Result_T IOC_CmdDesc_setOutPayload(IOC_CmdDesc_pT pCmdDesc, vo
         }
         memset(pCmdDesc->OutPayload.pData, 0, DataSize + 1);  // Clear memory
         memcpy(pCmdDesc->OutPayload.pData, pData, DataSize);
-        pCmdDesc->OutPayload.EmdDataSize = 0;         // Clear embedded data size
-        pCmdDesc->OutPayload.PtrDataSize = DataSize;  // Set actual size for pointer data
+        pCmdDesc->OutPayload.EmdDataSize = 0;             // Clear embedded data size
+        pCmdDesc->OutPayload.PtrDataSize = DataSize + 1;  // Allocated buffer size (with null terminator)
+        pCmdDesc->OutPayload.PtrDataLen = DataSize;       // Actual data length
     }
 
     return IOC_RESULT_SUCCESS;
@@ -220,7 +223,15 @@ static inline void *IOC_CmdDesc_getInData(IOC_CmdDesc_pT pCmdDesc) {
 static inline ULONG_T IOC_CmdDesc_getInDataSize(IOC_CmdDesc_pT pCmdDesc) {
     if (pCmdDesc) {
         return pCmdDesc->InPayload.PtrDataSize > 0 ? pCmdDesc->InPayload.PtrDataSize
-                                                   : pCmdDesc->InPayload.EmdDataSize;  // Return size of data
+                                                   : 0;  // Return allocated buffer size (capacity)
+    }
+    return 0;  // Return 0 if pCmdDesc is NULL
+}
+
+static inline ULONG_T IOC_CmdDesc_getInDataLen(IOC_CmdDesc_pT pCmdDesc) {
+    if (pCmdDesc) {
+        return pCmdDesc->InPayload.PtrDataLen > 0 ? pCmdDesc->InPayload.PtrDataLen
+                                                  : pCmdDesc->InPayload.EmdDataSize;  // Return actual data length
     }
     return 0;  // Return 0 if pCmdDesc is NULL
 }
@@ -239,7 +250,15 @@ static inline void *IOC_CmdDesc_getOutData(IOC_CmdDesc_pT pCmdDesc) {
 static inline ULONG_T IOC_CmdDesc_getOutDataSize(IOC_CmdDesc_pT pCmdDesc) {
     if (pCmdDesc) {
         return pCmdDesc->OutPayload.PtrDataSize > 0 ? pCmdDesc->OutPayload.PtrDataSize
-                                                    : pCmdDesc->OutPayload.EmdDataSize;  // Return size of data
+                                                    : 0;  // Return allocated buffer size (capacity)
+    }
+    return 0;  // Return 0 if pCmdDesc is NULL
+}
+
+static inline ULONG_T IOC_CmdDesc_getOutDataLen(IOC_CmdDesc_pT pCmdDesc) {
+    if (pCmdDesc) {
+        return pCmdDesc->OutPayload.PtrDataLen > 0 ? pCmdDesc->OutPayload.PtrDataLen
+                                                   : pCmdDesc->OutPayload.EmdDataSize;  // Return actual data length
     }
     return 0;  // Return 0 if pCmdDesc is NULL
 }
