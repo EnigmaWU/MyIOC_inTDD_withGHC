@@ -202,18 +202,59 @@ static void* __TCP_recvThread(void* pArg) {
                 IOC_LinkID_T LinkID = pTCPLinkObj->pOwnerLinkObj->ID;
                 CbExecCmd_F(LinkID, &CmdDesc, pCbPrivData);
 
-                // Send response back
+                // Send response back (CmdDesc + OUT payload data)
                 TCPMessageHeader_T RespHeader;
                 RespHeader.MsgType = htonl(TCP_MSG_COMMAND);
                 RespHeader.DataSize = htonl(sizeof(IOC_CmdDesc_T));
 
                 __TCP_sendAll(pTCPLinkObj->SocketFd, &RespHeader, sizeof(RespHeader));
                 __TCP_sendAll(pTCPLinkObj->SocketFd, &CmdDesc, sizeof(CmdDesc));
+
+                // Send OUT payload data if present (either embedded or pointer-based)
+                void* pOutData = IOC_CmdDesc_getOutData(&CmdDesc);
+                ULONG_T OutDataSize = IOC_CmdDesc_getOutDataSize(&CmdDesc);
+                if (pOutData && OutDataSize > 0) {
+                    TCPMessageHeader_T PayloadHeader;
+                    PayloadHeader.MsgType = htonl(TCP_MSG_DATA);
+                    PayloadHeader.DataSize = htonl(OutDataSize);
+                    __TCP_sendAll(pTCPLinkObj->SocketFd, &PayloadHeader, sizeof(PayloadHeader));
+                    __TCP_sendAll(pTCPLinkObj->SocketFd, pOutData, OutDataSize);
+                }
             } else {
                 // This is a command RESPONSE - we are the initiator
-                // Signal the waiting command execution
+                // Copy response to local storage
                 pthread_mutex_lock(&pTCPLinkObj->Mutex);
                 pTCPLinkObj->CmdResponse = CmdDesc;
+
+                // Check if there's OUT payload data following
+                // Peek at next message header without blocking
+                pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+
+                // Try to receive OUT payload data (if any)
+                TCPMessageHeader_T PayloadHeader;
+                Result = __TCP_recvAll(pTCPLinkObj->SocketFd, &PayloadHeader, sizeof(PayloadHeader));
+                if (Result == IOC_RESULT_SUCCESS) {
+                    uint32_t PayloadMsgType = ntohl(PayloadHeader.MsgType);
+                    uint32_t PayloadDataSize = ntohl(PayloadHeader.DataSize);
+
+                    if (PayloadMsgType == TCP_MSG_DATA && PayloadDataSize > 0) {
+                        // Allocate buffer for OUT payload data
+                        void* pPayloadData = malloc(PayloadDataSize);
+                        if (pPayloadData) {
+                            Result = __TCP_recvAll(pTCPLinkObj->SocketFd, pPayloadData, PayloadDataSize);
+                            if (Result == IOC_RESULT_SUCCESS) {
+                                // Set OUT payload in response
+                                pthread_mutex_lock(&pTCPLinkObj->Mutex);
+                                IOC_CmdDesc_setOutPayload(&pTCPLinkObj->CmdResponse, pPayloadData, PayloadDataSize);
+                                pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+                            }
+                            free(pPayloadData);
+                        }
+                    }
+                }
+
+                // Signal the waiting command execution
+                pthread_mutex_lock(&pTCPLinkObj->Mutex);
                 pTCPLinkObj->CmdResponseReady = 1;
                 pthread_cond_signal(&pTCPLinkObj->CmdResponseCond);
                 pthread_mutex_unlock(&pTCPLinkObj->Mutex);
@@ -337,11 +378,9 @@ static IOC_Result_T __IOC_connectService_ofProtoTCP(_IOC_LinkObject_pT pLinkObj,
     pLinkObj->pProtoPriv = pTCPLinkObj;
 
     // Send usage negotiation message to server
-    TCPMessageHeader_T NegotiationHeader = {
-        .MsgType = htonl(TCP_MSG_USAGE_NEGOTIATION),
-        .DataSize = htonl(sizeof(IOC_LinkUsage_T))
-    };
-    
+    TCPMessageHeader_T NegotiationHeader = {.MsgType = htonl(TCP_MSG_USAGE_NEGOTIATION),
+                                            .DataSize = htonl(sizeof(IOC_LinkUsage_T))};
+
     if (__TCP_sendAll(SocketFd, &NegotiationHeader, sizeof(NegotiationHeader)) != IOC_RESULT_SUCCESS) {
         close(SocketFd);
         free(pTCPLinkObj);
@@ -456,11 +495,11 @@ static IOC_Result_T __IOC_acceptClient_ofProtoTCP(_IOC_ServiceObject_pT pSrvObj,
         // Send failure response to client
         IOC_LinkUsage_T FailureResponse = IOC_LinkUsageUndefined;
         __TCP_sendAll(ClientFd, &FailureResponse, sizeof(FailureResponse));
-        
+
         close(ClientFd);
         free(pTCPLinkObj);
-        _IOC_LogError("Usage negotiation failed: ServiceCap=0x%X, ClientUsage=0x%X incompatible",
-                     ServiceCapabilities, ClientUsage);
+        _IOC_LogError("Usage negotiation failed: ServiceCap=0x%X, ClientUsage=0x%X incompatible", ServiceCapabilities,
+                      ClientUsage);
         return IOC_RESULT_INVALID_PARAM;
     }
 
@@ -632,7 +671,7 @@ static IOC_Result_T __IOC_execCmd_ofProtoTCP(_IOC_LinkObject_pT pLinkObj, IOC_Cm
 
     pthread_mutex_lock(&pTCPLinkObj->Mutex);
     int SocketFd = pTCPLinkObj->SocketFd;
-    
+
     if (SocketFd < 0) {
         pthread_mutex_unlock(&pTCPLinkObj->Mutex);
         return IOC_RESULT_NOT_EXIST_LINK;
@@ -647,7 +686,7 @@ static IOC_Result_T __IOC_execCmd_ofProtoTCP(_IOC_LinkObject_pT pLinkObj, IOC_Cm
     Header.DataSize = htonl(sizeof(IOC_CmdDesc_T));
 
     pthread_mutex_unlock(&pTCPLinkObj->Mutex);
-    
+
     Result = __TCP_sendAll(SocketFd, &Header, sizeof(Header));
     if (Result != IOC_RESULT_SUCCESS) {
         return Result;
@@ -660,32 +699,30 @@ static IOC_Result_T __IOC_execCmd_ofProtoTCP(_IOC_LinkObject_pT pLinkObj, IOC_Cm
 
     // Wait for response from receiver thread
     pthread_mutex_lock(&pTCPLinkObj->Mutex);
-    
+
     int WaitResult = 0;
     if (pCmdDesc->TimeoutMs > 0) {
         // Calculate absolute timeout time
         struct timespec AbsTimeout;
         clock_gettime(CLOCK_REALTIME, &AbsTimeout);
-        
+
         // Convert TimeoutMs to seconds and nanoseconds
         long TimeoutSec = pCmdDesc->TimeoutMs / 1000;
         long TimeoutNsec = (pCmdDesc->TimeoutMs % 1000) * 1000000;
-        
+
         // Add timeout to current time
         AbsTimeout.tv_sec += TimeoutSec;
         AbsTimeout.tv_nsec += TimeoutNsec;
-        
+
         // Handle nanosecond overflow
         if (AbsTimeout.tv_nsec >= 1000000000) {
             AbsTimeout.tv_sec += 1;
             AbsTimeout.tv_nsec -= 1000000000;
         }
-        
+
         // Wait with timeout
         while (!pTCPLinkObj->CmdResponseReady && WaitResult == 0) {
-            WaitResult = pthread_cond_timedwait(&pTCPLinkObj->CmdResponseCond, 
-                                                &pTCPLinkObj->Mutex, 
-                                                &AbsTimeout);
+            WaitResult = pthread_cond_timedwait(&pTCPLinkObj->CmdResponseCond, &pTCPLinkObj->Mutex, &AbsTimeout);
         }
     } else {
         // No timeout specified, wait indefinitely
@@ -700,10 +737,17 @@ static IOC_Result_T __IOC_execCmd_ofProtoTCP(_IOC_LinkObject_pT pLinkObj, IOC_Cm
         return IOC_RESULT_TIMEOUT;
     }
 
-    // Copy response back
+    // Copy response back (including OUT payload)
     pCmdDesc->Status = pTCPLinkObj->CmdResponse.Status;
     pCmdDesc->Result = pTCPLinkObj->CmdResponse.Result;
-    
+
+    // Copy OUT payload data if present
+    void* pOutData = IOC_CmdDesc_getOutData(&pTCPLinkObj->CmdResponse);
+    ULONG_T OutDataSize = IOC_CmdDesc_getOutDataSize(&pTCPLinkObj->CmdResponse);
+    if (pOutData && OutDataSize > 0) {
+        IOC_CmdDesc_setOutPayload(pCmdDesc, pOutData, OutDataSize);
+    }
+
     pthread_mutex_unlock(&pTCPLinkObj->Mutex);
 
     return IOC_RESULT_SUCCESS;

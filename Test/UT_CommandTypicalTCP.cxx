@@ -720,14 +720,14 @@ TEST(UT_TcpCommandTypical, verifyProtocolAbstraction_byTcpVsFifo_expectIdentical
 //
 // [@US-1] TCP Service as CmdExecutor - ValidFunc/Typical
 //
-//   🔴 [@AC-1,US-1] TC-1: verifyTcpServiceAsCmdExecutor_bySingleClient_expectSynchronousResponse
+//   🟢 [@AC-1,US-1] TC-1: verifyTcpServiceAsCmdExecutor_bySingleClient_expectSynchronousResponse
 //        - Description: Basic TCP command execution (PING over socket)
 //        - Category: Typical (ValidFunc)
 //        - Protocol: tcp://localhost:18080/CmdTypicalTCP_SingleClient
-//        - Status: 🔴 RED - Test implemented and failing (response data not returned)
-//        - Estimated effort: 2-3 hours (includes TCP setup debugging)
+//        - Status: 🟢 GREEN - Test passing (TCP protocol layer fixed for command response)
+//        - Actual effort: ~3 hours (TCP setup + OUT payload transmission fix)
 //        - Dependencies: TCP protocol layer working, receiver thread functional
-//        - Notes: TCP connection works, but command response handling needs fix
+//        - Notes: Fixed _IOC_SrvProtoTCP.c to send/receive OUT payload data separately
 //
 //   ⚪ [@AC-2,US-1] TC-1: verifyTcpServiceAsCmdExecutor_byMultipleCommandTypes_expectProperExecution
 //        - Description: Multiple command types over TCP (PING, ECHO, CALC)
