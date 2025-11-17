@@ -41,8 +41,10 @@ typedef enum {
 typedef struct {
     void *pData;          // Pointer to command data
     ULONG_T PtrDataSize;  // Size of command data in bytes
+    ULONG_T PtrDataLen;   // Actual length of the data in bytes
 
-    ULONG_T EmdDataSize;  // Actual size of the data in bytes
+    ULONG_T EmdDataSize;  // TODO: rename to EmbDataLen
+                          // Actual length of the data in bytes
     ULONG_T EmdData[8];
 } IOC_CmdPayload_T, *IOC_CmdPayload_pT;
 
