@@ -1997,6 +1997,7 @@ TEST(UT_ServiceTypicalTCP, verifyDatSenderReceiver_overTCP_withBulkData) {
     IOC_initDatDesc(&DatDesc);
     DatDesc.Payload.pData = BulkData;
     DatDesc.Payload.PtrDataSize = BulkDataSize;
+    DatDesc.Payload.PtrDataLen = BulkDataSize;  // Set the actual data length
 
     // Send bulk data via IOC_sendDAT
     Result = IOC_sendDAT(CliLinkID, &DatDesc, NULL);
@@ -2113,6 +2114,7 @@ TEST(UT_ServiceTypicalTCP, verifyDatFlowControl_overTCP_withSlowReceiver) {
         IOC_initDatDesc(&DatDesc);
         DatDesc.Payload.pData = ChunkData;
         DatDesc.Payload.PtrDataSize = ChunkSize;
+        DatDesc.Payload.PtrDataLen = ChunkSize;  // Set the actual data length
 
         // Send chunk rapidly
         Result = IOC_sendDAT(CliLinkID, &DatDesc, NULL);
@@ -2225,6 +2227,7 @@ TEST(UT_ServiceTypicalTCP, verifyDatReceiverSender_reverseTCP_pattern) {
     IOC_initDatDesc(&DatDesc);
     DatDesc.Payload.pData = TestData;
     DatDesc.Payload.PtrDataSize = DataSize;
+    DatDesc.Payload.PtrDataLen = DataSize;  // Set the actual data length
 
     Result = IOC_sendDAT(SrvLinkID, &DatDesc, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
