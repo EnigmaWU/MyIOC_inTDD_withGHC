@@ -155,7 +155,7 @@ static inline IOC_BoolResult_T IOC_Helper_isEqualSrvURI(const IOC_SrvURI_pT pSrv
 
 #define IOC_SRV_PROTO_AUTO "auto"  // transport protocol is auto selected by IOC
 #define IOC_SRV_PROTO_FIFO "fifo"  // intraprocess/interthread FIFO queue communication protocol
-// TODO: #define IOC_SRV_PROTO_TCP "tcp"
+#define IOC_SRV_PROTO_TCP "tcp"    // TCP socket-based network communication protocol
 // TODO: #define IOC_SRV_PROTO_UDP "udp"
 // TODO: #define IOC_SRV_PROTO_HTTP "http"
 

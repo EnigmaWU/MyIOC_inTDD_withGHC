@@ -465,14 +465,76 @@ static IOC_Result_T __CmdTcpTypical_ExecutorCb(IOC_LinkID_T LinkID, IOC_CmdDesc_
 
 // [@AC-1,US-1] TC-1: verifyTcpServiceAsCmdExecutor_bySingleClient_expectSynchronousResponse
 TEST(UT_TcpCommandTypical, verifyTcpServiceAsCmdExecutor_bySingleClient_expectSynchronousResponse) {
-    // TODO: Implement basic TCP command execution test
+    IOC_Result_T ResultValue = IOC_RESULT_BUG;
+
+    // 🔴 RED: Service setup (TCP CmdExecutor on port 18080)
+    __CmdExecPriv_T SrvExecPriv = {};
+    IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_TCP,
+                           .pHost = "localhost",
+                           .Port = 18080,
+                           .pPath = (const char *)"CmdTypicalTCP_SingleClient"};
+
+    static IOC_CmdID_T SupportedCmdIDs[] = {IOC_CMDID_TEST_PING};
+    IOC_CmdUsageArgs_T CmdUsageArgs = {.CbExecCmd_F = __CmdTcpTypical_ExecutorCb,
+                                       .pCbPrivData = &SrvExecPriv,
+                                       .CmdNum = 1,
+                                       .pCmdIDs = SupportedCmdIDs};
+
+    IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI,
+                             .Flags = IOC_SRVFLAG_NONE,
+                             .UsageCapabilites = IOC_LinkUsageCmdExecutor,
+                             .UsageArgs = {.pCmd = &CmdUsageArgs}};
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+
     // 1. Online TCP service (CmdExecutor) on port 18080
-    // 2. Client connects via TCP
+    ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, SrvID);
+
+    // 2. Client connects via TCP in a separate thread
+    IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageCmdInitiator};
+    IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
+    std::thread CliThread([&] {
+        IOC_Result_T ResultValueInThread = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValueInThread);
+        ASSERT_NE(IOC_ID_INVALID, CliLinkID);
+    });
+
     // 3. Service accepts TCP connection
-    // 4. Client sends PING command
-    // 5. Verify PONG response
-    // 6. Cleanup
-    GTEST_SKIP() << "TCP command execution not yet implemented - skeleton only";
+    IOC_LinkID_T SrvLinkID = IOC_ID_INVALID;
+    ResultValue = IOC_acceptClient(SrvID, &SrvLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, SrvLinkID);
+
+    // Wait for client thread completion
+    if (CliThread.joinable()) CliThread.join();
+
+    // 4. Client sends PING command over TCP socket
+    IOC_CmdDesc_T CmdDesc = {};
+    CmdDesc.CmdID = IOC_CMDID_TEST_PING;
+    CmdDesc.TimeoutMs = 5000;  // 5 second timeout (network transport)
+    CmdDesc.Status = IOC_CMD_STATUS_PENDING;
+
+    ResultValue = IOC_execCMD(CliLinkID, &CmdDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
+    // 5. Verify command execution via callback
+    ASSERT_TRUE(SrvExecPriv.CommandReceived.load());
+    ASSERT_EQ(1, SrvExecPriv.CommandCount.load());
+    ASSERT_EQ(IOC_CMDID_TEST_PING, SrvExecPriv.LastCmdID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, SrvExecPriv.LastResult);
+
+    // 6. Verify PONG response received by client over TCP
+    void *responseData = IOC_CmdDesc_getOutData(&CmdDesc);
+    ULONG_T responseSize = IOC_CmdDesc_getOutDataSize(&CmdDesc);
+    ASSERT_TRUE(responseData != nullptr);
+    ASSERT_EQ(4, responseSize);  // "PONG" length
+    ASSERT_STREQ("PONG", (char *)responseData);
+
+    // 7. Cleanup TCP connections and service
+    if (CliLinkID != IOC_ID_INVALID) IOC_closeLink(CliLinkID);
+    if (SrvLinkID != IOC_ID_INVALID) IOC_closeLink(SrvLinkID);
+    if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
 }
 
 // [@AC-2,US-1] TC-1: verifyTcpServiceAsCmdExecutor_byMultipleCommandTypes_expectProperExecution
@@ -658,12 +720,14 @@ TEST(UT_TcpCommandTypical, verifyProtocolAbstraction_byTcpVsFifo_expectIdentical
 //
 // [@US-1] TCP Service as CmdExecutor - ValidFunc/Typical
 //
-//   ⚪ [@AC-1,US-1] TC-1: verifyTcpServiceAsCmdExecutor_bySingleClient_expectSynchronousResponse
+//   🔴 [@AC-1,US-1] TC-1: verifyTcpServiceAsCmdExecutor_bySingleClient_expectSynchronousResponse
 //        - Description: Basic TCP command execution (PING over socket)
 //        - Category: Typical (ValidFunc)
 //        - Protocol: tcp://localhost:18080/CmdTypicalTCP_SingleClient
+//        - Status: 🔴 RED - Test implemented and failing (response data not returned)
 //        - Estimated effort: 2-3 hours (includes TCP setup debugging)
 //        - Dependencies: TCP protocol layer working, receiver thread functional
+//        - Notes: TCP connection works, but command response handling needs fix
 //
 //   ⚪ [@AC-2,US-1] TC-1: verifyTcpServiceAsCmdExecutor_byMultipleCommandTypes_expectProperExecution
 //        - Description: Multiple command types over TCP (PING, ECHO, CALC)
