@@ -420,14 +420,14 @@ static IOC_Result_T __CmdTcpTypical_ExecutorCb(IOC_LinkID_T LinkID, IOC_CmdDesc_
     } else if (CmdID == IOC_CMDID_TEST_ECHO) {
         // ECHO command: echo back input payload
         void *inputData = IOC_CmdDesc_getInData(pCmdDesc);
-        ULONG_T inputSize = IOC_CmdDesc_getInDataSize(pCmdDesc);
+        ULONG_T inputSize = IOC_CmdDesc_getInDataLen(pCmdDesc);
         ExecResult = IOC_CmdDesc_setOutPayload(pCmdDesc, inputData, inputSize);
         memcpy(pPrivData->LastResponseData, inputData, inputSize);
         pPrivData->LastResponseSize = inputSize;
     } else if (CmdID == IOC_CMDID_TEST_CALC) {
         // CALC command: perform calculation (input + 1)
         void *inputData = IOC_CmdDesc_getInData(pCmdDesc);
-        if (IOC_CmdDesc_getInDataSize(pCmdDesc) == sizeof(int)) {
+        if (IOC_CmdDesc_getInDataLen(pCmdDesc) == sizeof(int)) {
             int inputValue = *(int *)inputData;
             int result = inputValue + 1;
             ExecResult = IOC_CmdDesc_setOutPayload(pCmdDesc, &result, sizeof(result));
@@ -439,7 +439,7 @@ static IOC_Result_T __CmdTcpTypical_ExecutorCb(IOC_LinkID_T LinkID, IOC_CmdDesc_
     } else if (CmdID == IOC_CMDID_TEST_DELAY) {
         // DELAY command: simulate processing delay
         void *inputData = IOC_CmdDesc_getInData(pCmdDesc);
-        if (IOC_CmdDesc_getInDataSize(pCmdDesc) == sizeof(int)) {
+        if (IOC_CmdDesc_getInDataLen(pCmdDesc) == sizeof(int)) {
             int delayMs = *(int *)inputData;
             std::this_thread::sleep_for(std::chrono::milliseconds(delayMs));
             const char *response = "DELAY_COMPLETE";
@@ -550,12 +550,123 @@ TEST(UT_TcpCommandTypical, verifyTcpServiceAsCmdExecutor_bySingleClient_expectSy
 
 // [@AC-2,US-1] TC-1: verifyTcpServiceAsCmdExecutor_byMultipleCommandTypes_expectProperExecution
 TEST(UT_TcpCommandTypical, verifyTcpServiceAsCmdExecutor_byMultipleCommandTypes_expectProperExecution) {
-    // TODO: Implement multiple command types over TCP
-    // 1. Online TCP service on port 18081
-    // 2. Test PING, ECHO, CALC commands sequentially
-    // 3. Verify all command types work correctly over TCP
-    // 4. Cleanup
-    GTEST_SKIP() << "TCP multi-type commands not yet implemented - skeleton only";
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // ARRANGE: Setup TCP service as CmdExecutor supporting multiple command types
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    constexpr uint16_t TEST_PORT = 18081;
+
+    __CmdExecPriv_T srvExecPriv = {};
+
+    IOC_SrvURI_T srvURI = {
+        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdTypicalTCP_MultiTypes"};
+
+    static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_PING, IOC_CMDID_TEST_ECHO, IOC_CMDID_TEST_CALC};
+    IOC_CmdUsageArgs_T cmdUsageArgs = {.CbExecCmd_F = __CmdTcpTypical_ExecutorCb,
+                                       .pCbPrivData = &srvExecPriv,
+                                       .CmdNum = 3,
+                                       .pCmdIDs = supportedCmdIDs};
+
+    IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
+                             .Flags = IOC_SRVFLAG_NONE,
+                             .UsageCapabilites = IOC_LinkUsageCmdExecutor,
+                             .UsageArgs = {.pCmd = &cmdUsageArgs}};
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    IOC_LinkID_T srvLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
+
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // ACT & ASSERT: Establish connection and execute multiple commands
+    // ═══════════════════════════════════════════════════════════════════════════════════
+
+    // Step 1: Online TCP service
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
+    ASSERT_NE(IOC_ID_INVALID, srvID);
+
+    // Step 2: Client connects via TCP
+    IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
+    std::thread cliThread([&] {
+        ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_connectService(&cliLinkID, &connArgs, NULL));
+        ASSERT_NE(IOC_ID_INVALID, cliLinkID);
+    });
+
+    // Step 3: Service accepts TCP connection
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_acceptClient(srvID, &srvLinkID, NULL));
+    ASSERT_NE(IOC_ID_INVALID, srvLinkID);
+
+    cliThread.join();
+
+    // --- Command 1: PING ---
+    {
+        IOC_CmdDesc_T cmdDesc = {};
+        cmdDesc.CmdID = IOC_CMDID_TEST_PING;
+        cmdDesc.Status = IOC_CMD_STATUS_INITIALIZED;
+        cmdDesc.TimeoutMs = 5000;
+
+        ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_execCMD(cliLinkID, &cmdDesc, NULL));
+
+        // Verify PING response
+        void *responseData = IOC_CmdDesc_getOutData(&cmdDesc);
+        ULONG_T responseLen = IOC_CmdDesc_getOutDataLen(&cmdDesc);
+        EXPECT_EQ(responseLen, 4);
+        if (responseData) {
+            EXPECT_STREQ(static_cast<char *>(responseData), "PONG");
+        }
+        IOC_CmdDesc_cleanup(&cmdDesc);
+    }
+
+    // --- Command 2: ECHO ---
+    {
+        const char *echoPayload = "Hello TCP World";
+        IOC_CmdDesc_T cmdDesc = {};
+        cmdDesc.CmdID = IOC_CMDID_TEST_ECHO;
+        cmdDesc.Status = IOC_CMD_STATUS_INITIALIZED;
+        cmdDesc.TimeoutMs = 5000;
+        IOC_CmdDesc_setInPayload(&cmdDesc, (void *)echoPayload, strlen(echoPayload) + 1);  // +1 for null terminator
+
+        ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_execCMD(cliLinkID, &cmdDesc, NULL));
+
+        // Verify ECHO response
+        void *responseData = IOC_CmdDesc_getOutData(&cmdDesc);
+        ULONG_T responseLen = IOC_CmdDesc_getOutDataLen(&cmdDesc);
+        EXPECT_EQ(responseLen, strlen(echoPayload) + 1);
+        if (responseData) {
+            EXPECT_STREQ(static_cast<char *>(responseData), echoPayload);
+        }
+        IOC_CmdDesc_cleanup(&cmdDesc);
+    }
+
+    // --- Command 3: CALC ---
+    {
+        int calcInput = 41;
+        int expectedResult = 42;  // 41 + 1
+        IOC_CmdDesc_T cmdDesc = {};
+        cmdDesc.CmdID = IOC_CMDID_TEST_CALC;
+        cmdDesc.Status = IOC_CMD_STATUS_INITIALIZED;
+        cmdDesc.TimeoutMs = 5000;
+        IOC_CmdDesc_setInPayload(&cmdDesc, &calcInput, sizeof(calcInput));
+
+        ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_execCMD(cliLinkID, &cmdDesc, NULL));
+
+        // Verify CALC response
+        void *responseData = IOC_CmdDesc_getOutData(&cmdDesc);
+        ULONG_T responseLen = IOC_CmdDesc_getOutDataLen(&cmdDesc);
+        EXPECT_EQ(responseLen, sizeof(int));
+        if (responseData) {
+            EXPECT_EQ(*(int *)responseData, expectedResult);
+        }
+        IOC_CmdDesc_cleanup(&cmdDesc);
+    }
+
+    // Verify server stats
+    EXPECT_EQ(srvExecPriv.CommandCount.load(), 3);
+
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // CLEANUP
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    if (cliLinkID != IOC_ID_INVALID) IOC_closeLink(cliLinkID);
+    if (srvLinkID != IOC_ID_INVALID) IOC_closeLink(srvLinkID);
+    if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
 }
 
 // [@AC-3,US-1] TC-1: verifyTcpServiceAsCmdExecutor_byMultipleClients_expectIsolatedExecution
@@ -740,12 +851,15 @@ TEST(UT_TcpCommandTypical, verifyProtocolAbstraction_byTcpVsFifo_expectIdentical
 //        - Dependencies: TCP protocol layer working, receiver thread functional
 //        - Notes: Fixed _IOC_SrvProtoTCP.c to send/receive OUT payload data separately
 //
-//   ⚪ [@AC-2,US-1] TC-1: verifyTcpServiceAsCmdExecutor_byMultipleCommandTypes_expectProperExecution
+//   🟢 [@AC-2,US-1] TC-1: verifyTcpServiceAsCmdExecutor_byMultipleCommandTypes_expectProperExecution
 //        - Description: Multiple command types over TCP (PING, ECHO, CALC)
 //        - Category: Typical (ValidFunc)
 //        - Protocol: tcp://localhost:18081/CmdTypicalTCP_MultiTypes
-//        - Estimated effort: 1 hour
+//        - Status: 🟢 GREEN - Test passing
+//        - Actual effort: 1 hour
 //        - Dependencies: TC-1 passing
+//        - Notes: Fixed _IOC_SrvProtoTCP.c to handle IN payload data (Request) and OUT payload data (Response)
+//        correctly.
 //
 //   ⚪ [@AC-3,US-1] TC-1: verifyTcpServiceAsCmdExecutor_byMultipleClients_expectIsolatedExecution
 //        - Description: Multi-client TCP command isolation

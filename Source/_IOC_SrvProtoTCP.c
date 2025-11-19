@@ -194,6 +194,31 @@ static void* __TCP_recvThread(void* pArg) {
 
             if (CbExecCmd_F) {
                 // This is a command REQUEST - we are the executor
+
+                // Check for IN payload (pointer-based)
+                void* pInData = NULL;
+                if (CmdDesc.InPayload.PtrDataLen > 0) {
+                    TCPMessageHeader_T PayloadHeader;
+                    Result = __TCP_recvAll(pTCPLinkObj->SocketFd, &PayloadHeader, sizeof(PayloadHeader));
+                    if (Result == IOC_RESULT_SUCCESS) {
+                        uint32_t PayloadMsgType = ntohl(PayloadHeader.MsgType);
+                        uint32_t PayloadDataSize = ntohl(PayloadHeader.DataSize);
+
+                        if (PayloadMsgType == TCP_MSG_DATA && PayloadDataSize == CmdDesc.InPayload.PtrDataLen) {
+                            pInData = malloc(PayloadDataSize + 1);
+                            if (pInData) {
+                                Result = __TCP_recvAll(pTCPLinkObj->SocketFd, pInData, PayloadDataSize);
+                                if (Result == IOC_RESULT_SUCCESS) {
+                                    CmdDesc.InPayload.pData = pInData;
+                                } else {
+                                    free(pInData);
+                                    pInData = NULL;
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Execute command through callback
                 pthread_mutex_lock(&pTCPLinkObj->Mutex);
                 void* pCbPrivData = pTCPLinkObj->CmdUsageArgs.pCbPrivData;
@@ -201,6 +226,8 @@ static void* __TCP_recvThread(void* pArg) {
 
                 IOC_LinkID_T LinkID = pTCPLinkObj->pOwnerLinkObj->ID;
                 CbExecCmd_F(LinkID, &CmdDesc, pCbPrivData);
+
+                if (pInData) free(pInData);
 
                 // Send response back (CmdDesc + OUT payload data)
                 TCPMessageHeader_T RespHeader;
@@ -210,10 +237,13 @@ static void* __TCP_recvThread(void* pArg) {
                 __TCP_sendAll(pTCPLinkObj->SocketFd, &RespHeader, sizeof(RespHeader));
                 __TCP_sendAll(pTCPLinkObj->SocketFd, &CmdDesc, sizeof(CmdDesc));
 
-                // Send OUT payload data if present (either embedded or pointer-based)
+                // Send OUT payload data if present (pointer-based only)
+                // Embedded data is already sent within IOC_CmdDesc_T
                 void* pOutData = IOC_CmdDesc_getOutData(&CmdDesc);
                 ULONG_T OutDataLen = IOC_CmdDesc_getOutDataLen(&CmdDesc);
-                if (pOutData && OutDataLen > 0) {
+
+                // Only send separate payload if it's NOT embedded (PtrDataLen > 0)
+                if (pOutData && OutDataLen > 0 && CmdDesc.OutPayload.PtrDataLen > 0) {
                     TCPMessageHeader_T PayloadHeader;
                     PayloadHeader.MsgType = htonl(TCP_MSG_DATA);
                     PayloadHeader.DataSize = htonl(OutDataLen);
@@ -225,30 +255,30 @@ static void* __TCP_recvThread(void* pArg) {
                 // Copy response to local storage
                 pthread_mutex_lock(&pTCPLinkObj->Mutex);
                 pTCPLinkObj->CmdResponse = CmdDesc;
-
-                // Check if there's OUT payload data following
-                // Peek at next message header without blocking
                 pthread_mutex_unlock(&pTCPLinkObj->Mutex);
 
                 // Try to receive OUT payload data (if any)
-                TCPMessageHeader_T PayloadHeader;
-                Result = __TCP_recvAll(pTCPLinkObj->SocketFd, &PayloadHeader, sizeof(PayloadHeader));
-                if (Result == IOC_RESULT_SUCCESS) {
-                    uint32_t PayloadMsgType = ntohl(PayloadHeader.MsgType);
-                    uint32_t PayloadDataSize = ntohl(PayloadHeader.DataSize);
+                // Only if PtrDataLen > 0
+                if (CmdDesc.OutPayload.PtrDataLen > 0) {
+                    TCPMessageHeader_T PayloadHeader;
+                    Result = __TCP_recvAll(pTCPLinkObj->SocketFd, &PayloadHeader, sizeof(PayloadHeader));
+                    if (Result == IOC_RESULT_SUCCESS) {
+                        uint32_t PayloadMsgType = ntohl(PayloadHeader.MsgType);
+                        uint32_t PayloadDataSize = ntohl(PayloadHeader.DataSize);
 
-                    if (PayloadMsgType == TCP_MSG_DATA && PayloadDataSize > 0) {
-                        // Allocate buffer for OUT payload data
-                        void* pPayloadData = malloc(PayloadDataSize);
-                        if (pPayloadData) {
-                            Result = __TCP_recvAll(pTCPLinkObj->SocketFd, pPayloadData, PayloadDataSize);
-                            if (Result == IOC_RESULT_SUCCESS) {
-                                // Set OUT payload in response
-                                pthread_mutex_lock(&pTCPLinkObj->Mutex);
-                                IOC_CmdDesc_setOutPayload(&pTCPLinkObj->CmdResponse, pPayloadData, PayloadDataSize);
-                                pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+                        if (PayloadMsgType == TCP_MSG_DATA && PayloadDataSize > 0) {
+                            // Allocate buffer for OUT payload data
+                            void* pPayloadData = malloc(PayloadDataSize);
+                            if (pPayloadData) {
+                                Result = __TCP_recvAll(pTCPLinkObj->SocketFd, pPayloadData, PayloadDataSize);
+                                if (Result == IOC_RESULT_SUCCESS) {
+                                    // Set OUT payload in response
+                                    pthread_mutex_lock(&pTCPLinkObj->Mutex);
+                                    IOC_CmdDesc_setOutPayload(&pTCPLinkObj->CmdResponse, pPayloadData, PayloadDataSize);
+                                    pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+                                }
+                                free(pPayloadData);
                             }
-                            free(pPayloadData);
                         }
                     }
                 }
@@ -695,6 +725,20 @@ static IOC_Result_T __IOC_execCmd_ofProtoTCP(_IOC_LinkObject_pT pLinkObj, IOC_Cm
     Result = __TCP_sendAll(SocketFd, pCmdDesc, sizeof(IOC_CmdDesc_T));
     if (Result != IOC_RESULT_SUCCESS) {
         return Result;
+    }
+
+    // Send IN payload data if present (pointer-based only)
+    // Embedded data is already sent within IOC_CmdDesc_T
+    if (pCmdDesc->InPayload.PtrDataLen > 0 && pCmdDesc->InPayload.pData) {
+        TCPMessageHeader_T PayloadHeader;
+        PayloadHeader.MsgType = htonl(TCP_MSG_DATA);
+        PayloadHeader.DataSize = htonl(pCmdDesc->InPayload.PtrDataLen);
+
+        Result = __TCP_sendAll(SocketFd, &PayloadHeader, sizeof(PayloadHeader));
+        if (Result != IOC_RESULT_SUCCESS) return Result;
+
+        Result = __TCP_sendAll(SocketFd, pCmdDesc->InPayload.pData, pCmdDesc->InPayload.PtrDataLen);
+        if (Result != IOC_RESULT_SUCCESS) return Result;
     }
 
     // Wait for response from receiver thread
