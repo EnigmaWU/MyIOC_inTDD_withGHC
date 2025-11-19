@@ -524,18 +524,19 @@ TEST(UT_TcpCommandTypical, verifyTcpServiceAsCmdExecutor_bySingleClient_expectSy
     // ═══════════════════════════════════════════════════════════════════════════════════
 
     // Verify server-side command execution
-    ASSERT_TRUE(srvExecPriv.CommandReceived.load()) << "Server should have received command";
-    ASSERT_EQ(1, srvExecPriv.CommandCount.load()) << "Server should have processed 1 command";
-    ASSERT_EQ(IOC_CMDID_TEST_PING, srvExecPriv.LastCmdID);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, srvExecPriv.LastResult);
+    VERIFY_KEYPOINT_TRUE(srvExecPriv.CommandReceived.load(), "Server must receive the command via callback");
+    VERIFY_KEYPOINT_EQ(srvExecPriv.CommandCount.load(), 1, "Server must process exactly one command");
+    VERIFY_KEYPOINT_EQ(srvExecPriv.LastCmdID, IOC_CMDID_TEST_PING, "Server must receive correct Command ID");
+    VERIFY_KEYPOINT_EQ(srvExecPriv.LastResult, IOC_RESULT_SUCCESS, "Server callback must return SUCCESS");
 
     // Verify client-side response data
     void *responseData = IOC_CmdDesc_getOutData(&cmdDesc);
     ULONG_T responseLen = IOC_CmdDesc_getOutDataLen(&cmdDesc);
 
-    ASSERT_NE(nullptr, responseData) << "Response data should not be null";
-    ASSERT_EQ(4, responseLen) << "PONG response should be 4 bytes";
-    ASSERT_STREQ("PONG", static_cast<char *>(responseData));
+    VERIFY_KEYPOINT_NOT_NULL(responseData, "Client must receive response payload data");
+    VERIFY_KEYPOINT_EQ(responseLen, 4, "Client must receive correct response length (PONG=4)");
+    VERIFY_KEYPOINT_STREQ(static_cast<char *>(responseData), "PONG",
+                          "Client must receive correct 'PONG' response string");
 
     // ═══════════════════════════════════════════════════════════════════════════════════
     // CLEANUP: Release resources
