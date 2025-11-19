@@ -608,9 +608,12 @@ TEST(UT_TcpCommandTypical, verifyTcpServiceAsCmdExecutor_byMultipleCommandTypes_
         // Verify PING response
         void *responseData = IOC_CmdDesc_getOutData(&cmdDesc);
         ULONG_T responseLen = IOC_CmdDesc_getOutDataLen(&cmdDesc);
-        EXPECT_EQ(responseLen, 4);
+
+        VERIFY_KEYPOINT_NOT_NULL(responseData, "Client must receive PING response payload");
+        VERIFY_KEYPOINT_EQ(responseLen, 4, "Client must receive correct PING response length (PONG=4)");
         if (responseData) {
-            EXPECT_STREQ(static_cast<char *>(responseData), "PONG");
+            VERIFY_KEYPOINT_STREQ(static_cast<char *>(responseData), "PONG",
+                                  "Client must receive correct 'PONG' response string");
         }
         IOC_CmdDesc_cleanup(&cmdDesc);
     }
@@ -629,9 +632,12 @@ TEST(UT_TcpCommandTypical, verifyTcpServiceAsCmdExecutor_byMultipleCommandTypes_
         // Verify ECHO response
         void *responseData = IOC_CmdDesc_getOutData(&cmdDesc);
         ULONG_T responseLen = IOC_CmdDesc_getOutDataLen(&cmdDesc);
-        EXPECT_EQ(responseLen, strlen(echoPayload) + 1);
+
+        VERIFY_KEYPOINT_NOT_NULL(responseData, "Client must receive ECHO response payload");
+        VERIFY_KEYPOINT_EQ(responseLen, strlen(echoPayload) + 1, "Client must receive correct ECHO response length");
         if (responseData) {
-            EXPECT_STREQ(static_cast<char *>(responseData), echoPayload);
+            VERIFY_KEYPOINT_STREQ(static_cast<char *>(responseData), echoPayload,
+                                  "Client must receive correct ECHO response string");
         }
         IOC_CmdDesc_cleanup(&cmdDesc);
     }
@@ -651,15 +657,17 @@ TEST(UT_TcpCommandTypical, verifyTcpServiceAsCmdExecutor_byMultipleCommandTypes_
         // Verify CALC response
         void *responseData = IOC_CmdDesc_getOutData(&cmdDesc);
         ULONG_T responseLen = IOC_CmdDesc_getOutDataLen(&cmdDesc);
-        EXPECT_EQ(responseLen, sizeof(int));
+
+        VERIFY_KEYPOINT_NOT_NULL(responseData, "Client must receive CALC response payload");
+        VERIFY_KEYPOINT_EQ(responseLen, sizeof(int), "Client must receive correct CALC response length");
         if (responseData) {
-            EXPECT_EQ(*(int *)responseData, expectedResult);
+            VERIFY_KEYPOINT_EQ(*(int *)responseData, expectedResult, "Client must receive correct CALC result");
         }
         IOC_CmdDesc_cleanup(&cmdDesc);
     }
 
     // Verify server stats
-    EXPECT_EQ(srvExecPriv.CommandCount.load(), 3);
+    VERIFY_KEYPOINT_EQ(srvExecPriv.CommandCount.load(), 3, "Server must process exactly 3 commands");
 
     // ═══════════════════════════════════════════════════════════════════════════════════
     // CLEANUP
