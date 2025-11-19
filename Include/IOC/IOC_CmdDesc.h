@@ -263,6 +263,35 @@ static inline ULONG_T IOC_CmdDesc_getOutDataLen(IOC_CmdDesc_pT pCmdDesc) {
     return 0;  // Return 0 if pCmdDesc is NULL
 }
 
+/**
+ * @brief Cleanup dynamically allocated payload memory in command descriptor
+ *        Call this before CmdDesc goes out of scope to prevent memory leaks
+ *
+ * @param pCmdDesc Pointer to command descriptor to cleanup
+ *
+ * @note This function is safe to call multiple times on the same CmdDesc
+ * @note Only frees heap-allocated memory (pData), not embedded data (EmdData)
+ */
+static inline void IOC_CmdDesc_cleanup(IOC_CmdDesc_pT pCmdDesc) {
+    if (!pCmdDesc) return;
+
+    // Free input payload heap memory
+    if (pCmdDesc->InPayload.pData) {
+        free(pCmdDesc->InPayload.pData);
+        pCmdDesc->InPayload.pData = NULL;
+        pCmdDesc->InPayload.PtrDataSize = 0;
+        pCmdDesc->InPayload.PtrDataLen = 0;
+    }
+
+    // Free output payload heap memory
+    if (pCmdDesc->OutPayload.pData) {
+        free(pCmdDesc->OutPayload.pData);
+        pCmdDesc->OutPayload.pData = NULL;
+        pCmdDesc->OutPayload.PtrDataSize = 0;
+        pCmdDesc->OutPayload.PtrDataLen = 0;
+    }
+}
+
 #define IOC_CMDDESC_PRINTABLE_BUF_SIZE 128
 
 // Helper function to create a printable string representation of command description

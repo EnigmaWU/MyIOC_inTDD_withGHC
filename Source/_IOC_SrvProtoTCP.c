@@ -212,13 +212,13 @@ static void* __TCP_recvThread(void* pArg) {
 
                 // Send OUT payload data if present (either embedded or pointer-based)
                 void* pOutData = IOC_CmdDesc_getOutData(&CmdDesc);
-                ULONG_T OutDataSize = IOC_CmdDesc_getOutDataSize(&CmdDesc);
-                if (pOutData && OutDataSize > 0) {
+                ULONG_T OutDataLen = IOC_CmdDesc_getOutDataLen(&CmdDesc);
+                if (pOutData && OutDataLen > 0) {
                     TCPMessageHeader_T PayloadHeader;
                     PayloadHeader.MsgType = htonl(TCP_MSG_DATA);
-                    PayloadHeader.DataSize = htonl(OutDataSize);
+                    PayloadHeader.DataSize = htonl(OutDataLen);
                     __TCP_sendAll(pTCPLinkObj->SocketFd, &PayloadHeader, sizeof(PayloadHeader));
-                    __TCP_sendAll(pTCPLinkObj->SocketFd, pOutData, OutDataSize);
+                    __TCP_sendAll(pTCPLinkObj->SocketFd, pOutData, OutDataLen);
                 }
             } else {
                 // This is a command RESPONSE - we are the initiator
@@ -700,15 +700,28 @@ static IOC_Result_T __IOC_execCmd_ofProtoTCP(_IOC_LinkObject_pT pLinkObj, IOC_Cm
     // Wait for response from receiver thread
     pthread_mutex_lock(&pTCPLinkObj->Mutex);
 
+    // Extract round-trip timeout: Priority order - pOption > default network timeout
+    // Note: pCmdDesc->TimeoutMs is for EXECUTOR execution time, not for round-trip wait
+    ULONG_T roundTripTimeoutMs = 0;
+
+    if (pOption && (pOption->IDs & IOC_OPTID_TIMEOUT)) {
+        // Use API-level timeout (highest priority)
+        roundTripTimeoutMs = pOption->Payload.TimeoutUS / 1000;  // Convert microseconds to milliseconds
+    } else {
+        // Default network round-trip timeout (executor timeout + network overhead)
+        roundTripTimeoutMs = (pCmdDesc->TimeoutMs > 0) ? (pCmdDesc->TimeoutMs + 1000) : 10000;
+        // Add 1s overhead for network, or use 10s default if no executor timeout specified
+    }
+
     int WaitResult = 0;
-    if (pCmdDesc->TimeoutMs > 0) {
+    if (roundTripTimeoutMs > 0) {
         // Calculate absolute timeout time
         struct timespec AbsTimeout;
         clock_gettime(CLOCK_REALTIME, &AbsTimeout);
 
-        // Convert TimeoutMs to seconds and nanoseconds
-        long TimeoutSec = pCmdDesc->TimeoutMs / 1000;
-        long TimeoutNsec = (pCmdDesc->TimeoutMs % 1000) * 1000000;
+        // Convert roundTripTimeoutMs to seconds and nanoseconds
+        long TimeoutSec = roundTripTimeoutMs / 1000;
+        long TimeoutNsec = (roundTripTimeoutMs % 1000) * 1000000;
 
         // Add timeout to current time
         AbsTimeout.tv_sec += TimeoutSec;
@@ -743,9 +756,9 @@ static IOC_Result_T __IOC_execCmd_ofProtoTCP(_IOC_LinkObject_pT pLinkObj, IOC_Cm
 
     // Copy OUT payload data if present
     void* pOutData = IOC_CmdDesc_getOutData(&pTCPLinkObj->CmdResponse);
-    ULONG_T OutDataSize = IOC_CmdDesc_getOutDataSize(&pTCPLinkObj->CmdResponse);
-    if (pOutData && OutDataSize > 0) {
-        IOC_CmdDesc_setOutPayload(pCmdDesc, pOutData, OutDataSize);
+    ULONG_T OutDataLen = IOC_CmdDesc_getOutDataLen(&pTCPLinkObj->CmdResponse);
+    if (pOutData && OutDataLen > 0) {
+        IOC_CmdDesc_setOutPayload(pCmdDesc, pOutData, OutDataLen);
     }
 
     pthread_mutex_unlock(&pTCPLinkObj->Mutex);

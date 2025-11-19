@@ -465,76 +465,86 @@ static IOC_Result_T __CmdTcpTypical_ExecutorCb(IOC_LinkID_T LinkID, IOC_CmdDesc_
 
 // [@AC-1,US-1] TC-1: verifyTcpServiceAsCmdExecutor_bySingleClient_expectSynchronousResponse
 TEST(UT_TcpCommandTypical, verifyTcpServiceAsCmdExecutor_bySingleClient_expectSynchronousResponse) {
-    IOC_Result_T ResultValue = IOC_RESULT_BUG;
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // ARRANGE: Setup TCP service as CmdExecutor
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    constexpr uint16_t TEST_PORT = 18080;
 
-    // 🔴 RED: Service setup (TCP CmdExecutor on port 18080)
-    __CmdExecPriv_T SrvExecPriv = {};
-    IOC_SrvURI_T SrvURI = {.pProtocol = IOC_SRV_PROTO_TCP,
-                           .pHost = "localhost",
-                           .Port = 18080,
-                           .pPath = (const char *)"CmdTypicalTCP_SingleClient"};
+    __CmdExecPriv_T srvExecPriv = {};
 
-    static IOC_CmdID_T SupportedCmdIDs[] = {IOC_CMDID_TEST_PING};
-    IOC_CmdUsageArgs_T CmdUsageArgs = {.CbExecCmd_F = __CmdTcpTypical_ExecutorCb,
-                                       .pCbPrivData = &SrvExecPriv,
+    IOC_SrvURI_T srvURI = {
+        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdTypicalTCP_SingleClient"};
+
+    static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_PING};
+    IOC_CmdUsageArgs_T cmdUsageArgs = {.CbExecCmd_F = __CmdTcpTypical_ExecutorCb,
+                                       .pCbPrivData = &srvExecPriv,
                                        .CmdNum = 1,
-                                       .pCmdIDs = SupportedCmdIDs};
+                                       .pCmdIDs = supportedCmdIDs};
 
-    IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI,
+    IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
                              .Flags = IOC_SRVFLAG_NONE,
                              .UsageCapabilites = IOC_LinkUsageCmdExecutor,
-                             .UsageArgs = {.pCmd = &CmdUsageArgs}};
-    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+                             .UsageArgs = {.pCmd = &cmdUsageArgs}};
 
-    // 1. Online TCP service (CmdExecutor) on port 18080
-    ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
-    ASSERT_NE(IOC_ID_INVALID, SrvID);
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    IOC_LinkID_T srvLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
 
-    // 2. Client connects via TCP in a separate thread
-    IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageCmdInitiator};
-    IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
-    std::thread CliThread([&] {
-        IOC_Result_T ResultValueInThread = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
-        ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValueInThread);
-        ASSERT_NE(IOC_ID_INVALID, CliLinkID);
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // ACT: Establish TCP connection and execute command
+    // ═══════════════════════════════════════════════════════════════════════════════════
+
+    // Step 1: Online TCP service
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
+    ASSERT_NE(IOC_ID_INVALID, srvID);
+
+    // Step 2: Client connects via TCP (in separate thread to avoid blocking)
+    IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
+    std::thread cliThread([&] {
+        ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_connectService(&cliLinkID, &connArgs, NULL));
+        ASSERT_NE(IOC_ID_INVALID, cliLinkID);
     });
 
-    // 3. Service accepts TCP connection
-    IOC_LinkID_T SrvLinkID = IOC_ID_INVALID;
-    ResultValue = IOC_acceptClient(SrvID, &SrvLinkID, NULL);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
-    ASSERT_NE(IOC_ID_INVALID, SrvLinkID);
+    // Step 3: Service accepts TCP connection
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_acceptClient(srvID, &srvLinkID, NULL));
+    ASSERT_NE(IOC_ID_INVALID, srvLinkID);
 
-    // Wait for client thread completion
-    if (CliThread.joinable()) CliThread.join();
+    cliThread.join();  // Wait for client connection to complete
 
-    // 4. Client sends PING command over TCP socket
-    IOC_CmdDesc_T CmdDesc = {};
-    CmdDesc.CmdID = IOC_CMDID_TEST_PING;
-    CmdDesc.TimeoutMs = 5000;  // 5 second timeout (network transport)
-    CmdDesc.Status = IOC_CMD_STATUS_PENDING;
+    // Step 4: Execute PING command over TCP
+    IOC_CmdDesc_T cmdDesc = {};  // Zero-initialize all fields
+    cmdDesc.CmdID = IOC_CMDID_TEST_PING;
+    cmdDesc.Status = IOC_CMD_STATUS_INITIALIZED;
+    cmdDesc.TimeoutMs = 5000;  // 5 second timeout for network transport
 
-    ResultValue = IOC_execCMD(CliLinkID, &CmdDesc, NULL);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_execCMD(cliLinkID, &cmdDesc, NULL));
 
-    // 5. Verify command execution via callback
-    ASSERT_TRUE(SrvExecPriv.CommandReceived.load());
-    ASSERT_EQ(1, SrvExecPriv.CommandCount.load());
-    ASSERT_EQ(IOC_CMDID_TEST_PING, SrvExecPriv.LastCmdID);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, SrvExecPriv.LastResult);
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // ASSERT: Verify command execution and response
+    // ═══════════════════════════════════════════════════════════════════════════════════
 
-    // 6. Verify PONG response received by client over TCP
-    void *responseData = IOC_CmdDesc_getOutData(&CmdDesc);
-    ULONG_T responseSize = IOC_CmdDesc_getOutDataSize(&CmdDesc);
-    ASSERT_TRUE(responseData != nullptr);
-    ASSERT_EQ(4, responseSize);  // "PONG" length
-    ASSERT_STREQ("PONG", (char *)responseData);
+    // Verify server-side command execution
+    ASSERT_TRUE(srvExecPriv.CommandReceived.load()) << "Server should have received command";
+    ASSERT_EQ(1, srvExecPriv.CommandCount.load()) << "Server should have processed 1 command";
+    ASSERT_EQ(IOC_CMDID_TEST_PING, srvExecPriv.LastCmdID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, srvExecPriv.LastResult);
 
-    // 7. Cleanup TCP connections and service
-    if (CliLinkID != IOC_ID_INVALID) IOC_closeLink(CliLinkID);
-    if (SrvLinkID != IOC_ID_INVALID) IOC_closeLink(SrvLinkID);
-    if (SrvID != IOC_ID_INVALID) IOC_offlineService(SrvID);
+    // Verify client-side response data
+    void *responseData = IOC_CmdDesc_getOutData(&cmdDesc);
+    ULONG_T responseLen = IOC_CmdDesc_getOutDataLen(&cmdDesc);
+
+    ASSERT_NE(nullptr, responseData) << "Response data should not be null";
+    ASSERT_EQ(4, responseLen) << "PONG response should be 4 bytes";
+    ASSERT_STREQ("PONG", static_cast<char *>(responseData));
+
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // CLEANUP: Release resources
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    IOC_CmdDesc_cleanup(&cmdDesc);  // Free payload memory before CmdDesc goes out of scope
+
+    if (cliLinkID != IOC_ID_INVALID) IOC_closeLink(cliLinkID);
+    if (srvLinkID != IOC_ID_INVALID) IOC_closeLink(srvLinkID);
+    if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
 }
 
 // [@AC-2,US-1] TC-1: verifyTcpServiceAsCmdExecutor_byMultipleCommandTypes_expectProperExecution
