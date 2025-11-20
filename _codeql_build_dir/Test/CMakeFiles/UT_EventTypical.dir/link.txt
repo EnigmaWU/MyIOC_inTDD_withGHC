@@ -1,1 +1,0 @@
-/home/runner/work/MyIOC_inTDD_withGHC/.codeql-scratch/dbs/cpp/working/autobuild/bin/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/UT_EventTypical.dir/link.d CMakeFiles/UT_EventTypical.dir/UT_EventTypical.cxx.o -o UT_EventTypical  ../libMyIOC.a /usr/lib/x86_64-linux-gnu/libgtest.a /usr/lib/x86_64-linux-gnu/libgtest_main.a /usr/lib/x86_64-linux-gnu/libgtest.a
