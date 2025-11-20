@@ -1925,18 +1925,106 @@ TEST(UT_ServiceTypicalTCP, verifyCmdExecutorInitiator_reverseTCP_pattern) {
  *   ✅ VERIFY: Large data transferred successfully over TCP, no data loss or corruption
  *   🧹 CLEANUP: Close TCP links, offline TCP service
  * @[Expect]: Bulk data transfer works reliably over TCP
- * @[Status]: ⚠️ SKIP - TCP protocol not yet implemented
+ * @[Status]: ✅ GREEN - Implementation complete
  */
 TEST(UT_ServiceTypicalTCP, verifyDatSenderReceiver_overTCP_withBulkData) {
-    GTEST_SKIP() << "⚠️ TCP Protocol not yet implemented - requires Source/_IOC_SrvProtoTCP.c";
+    // 🔴 RED PHASE -> 🟢 GREEN PHASE: DAT bulk transfer over TCP
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_SrvID_T DatReceiverSrvID = IOC_ID_INVALID;
+    IOC_LinkID_T SrvLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
 
-    // TODO: Implement DAT bulk transfer test over TCP
-    // Key aspects:
-    // - Use tcp://localhost:10080/DatService URI
-    // - DatReceiver with __CbRecvDat_F callback
-    // - DatSender sends large data (e.g., 10MB) via IOC_sendDAT
-    // - Verify TotalBytesReceived matches sent bytes
-    // - Test TCP reliability for large transfers
+    // 🔧 SETUP: TCP service URI on port 10080
+    IOC_SrvURI_T CSURI = {
+        .pProtocol = "tcp",
+        .pHost = "localhost",
+        .pPath = "DatService",
+        .Port = 10080,
+    };
+
+    // Setup DatReceiver callback data
+    __DatReceiverPrivData_T RecvPrivData = {0};
+
+    // Setup DatReceiver with supported data reception and callback
+    IOC_DatUsageArgs_T DatUsageArgs = {
+        .CbRecvDat_F = __CbRecvDat_F,
+        .pCbPrivData = &RecvPrivData,
+    };
+
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = CSURI,
+        .UsageCapabilites = IOC_LinkUsageDatReceiver,
+        .UsageArgs = {.pDat = &DatUsageArgs},
+    };
+
+    // Step-1: Online TCP service as DatReceiver
+    Result = IOC_onlineService(&DatReceiverSrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    // Step-2: Client connects as DatSender
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = CSURI,
+        .Usage = IOC_LinkUsageDatSender,
+    };
+
+    std::thread ClientThread([&] {
+        IOC_Result_T Result = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    });
+
+    // Step-3: Accept client connection
+    Result = IOC_acceptClient(DatReceiverSrvID, &SrvLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    ClientThread.join();
+
+    // Allow time for connection to stabilize
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // 🎯 BEHAVIOR: Send bulk data over TCP (1MB test data)
+    const size_t BulkDataSize = 1024 * 1024;  // 1MB
+    char* BulkData = (char*)malloc(BulkDataSize);
+    
+    // Fill with pattern for verification
+    const char* Pattern = "BulkDatTCP_";
+    size_t PatternLen = strlen(Pattern);
+    for (size_t i = 0; i < BulkDataSize; i++) {
+        BulkData[i] = Pattern[i % PatternLen];
+    }
+
+    // Setup DatDesc for transmission
+    IOC_DatDesc_T DatDesc = {0};
+    IOC_initDatDesc(&DatDesc);
+    DatDesc.Payload.pData = BulkData;
+    DatDesc.Payload.PtrDataSize = BulkDataSize;
+    DatDesc.Payload.PtrDataLen = BulkDataSize;  // Set the actual data length
+
+    // Send bulk data via IOC_sendDAT
+    Result = IOC_sendDAT(CliLinkID, &DatDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    // Force flush to ensure data is sent
+    IOC_flushDAT(CliLinkID, NULL);
+
+    // Allow time for data transmission and callback processing
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+    // ✅ VERIFY: Bulk data transferred successfully
+    ASSERT_EQ(1, RecvPrivData.ReceivedDataCnt) << "Should have received 1 bulk data chunk";
+    ASSERT_EQ(BulkDataSize, RecvPrivData.TotalBytesReceived) << "Total received bytes should match sent bytes";
+
+    // Verify data integrity for a sample (first 10KB)
+    size_t SampleSize = 10240;
+    if (RecvPrivData.LastReceivedSize >= SampleSize) {
+        ASSERT_EQ(0, memcmp(BulkData, RecvPrivData.LastReceivedData, SampleSize)) 
+            << "Data integrity check failed for first 10KB";
+    }
+
+    // 🧹 CLEANUP
+    free(BulkData);
+    IOC_closeLink(CliLinkID);
+    IOC_closeLink(SrvLinkID);
+    IOC_offlineService(DatReceiverSrvID);
 }
 
 /**
@@ -1950,18 +2038,110 @@ TEST(UT_ServiceTypicalTCP, verifyDatSenderReceiver_overTCP_withBulkData) {
  *   ✅ VERIFY: No data loss despite speed mismatch, TCP backpressure works correctly
  *   🧹 CLEANUP: Close TCP links, offline TCP service
  * @[Expect]: TCP flow control prevents overflow, data delivered reliably
- * @[Status]: ⚠️ SKIP - TCP protocol not yet implemented
+ * @[Status]: ✅ GREEN - Implementation complete
  */
 TEST(UT_ServiceTypicalTCP, verifyDatFlowControl_overTCP_withSlowReceiver) {
-    GTEST_SKIP() << "⚠️ TCP Protocol not yet implemented - requires Source/_IOC_SrvProtoTCP.c";
+    // 🔴 RED PHASE -> 🟢 GREEN PHASE: DAT flow control test over TCP
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_SrvID_T DatReceiverSrvID = IOC_ID_INVALID;
+    IOC_LinkID_T SrvLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
 
-    // TODO: Implement DAT flow control test over TCP
-    // Key aspects:
-    // - DatReceiver with SimulateSlowProcessing = true
-    // - SlowProcessingDelayMs = 100ms (slow receiver)
-    // - DatSender sends rapidly (many small chunks)
-    // - Verify all data received despite speed mismatch
-    // - Test TCP window management and backpressure
+    // 🔧 SETUP: TCP service with slow receiver simulation
+    IOC_SrvURI_T CSURI = {
+        .pProtocol = "tcp",
+        .pHost = "localhost",
+        .pPath = "DatFlowControl",
+        .Port = 10080,
+    };
+
+    // Setup DatReceiver callback data with slow processing
+    __DatReceiverPrivData_T RecvPrivData = {
+        .ReceivedDataCnt = 0,
+        .TotalBytesReceived = 0,
+        .SimulateSlowProcessing = true,
+        .SlowProcessingDelayMs = 100,  // 100ms delay per chunk
+        .LastReceivedSize = 0,
+    };
+
+    // Setup DatReceiver with callback
+    IOC_DatUsageArgs_T DatUsageArgs = {
+        .CbRecvDat_F = __CbRecvDat_F,
+        .pCbPrivData = &RecvPrivData,
+    };
+
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = CSURI,
+        .UsageCapabilites = IOC_LinkUsageDatReceiver,
+        .UsageArgs = {.pDat = &DatUsageArgs},
+    };
+
+    // Step-1: Online TCP service as slow DatReceiver
+    Result = IOC_onlineService(&DatReceiverSrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    // Step-2: Client connects as DatSender
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = CSURI,
+        .Usage = IOC_LinkUsageDatSender,
+    };
+
+    std::thread ClientThread([&] {
+        IOC_Result_T Result = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    });
+
+    // Step-3: Accept client connection
+    Result = IOC_acceptClient(DatReceiverSrvID, &SrvLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    ClientThread.join();
+
+    // Allow time for connection to stabilize
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // 🎯 BEHAVIOR: Send multiple chunks rapidly (faster than receiver can process)
+    const int NumChunks = 10;
+    const size_t ChunkSize = 10240;  // 10KB per chunk
+    size_t TotalSent = 0;
+
+    char* ChunkData = (char*)malloc(ChunkSize);
+    memset(ChunkData, 'X', ChunkSize);
+
+    for (int i = 0; i < NumChunks; i++) {
+        // Setup DatDesc for each chunk
+        IOC_DatDesc_T DatDesc = {0};
+        IOC_initDatDesc(&DatDesc);
+        DatDesc.Payload.pData = ChunkData;
+        DatDesc.Payload.PtrDataSize = ChunkSize;
+        DatDesc.Payload.PtrDataLen = ChunkSize;  // Set the actual data length
+
+        // Send chunk rapidly
+        Result = IOC_sendDAT(CliLinkID, &DatDesc, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Failed to send chunk " << i;
+        TotalSent += ChunkSize;
+
+        // No delay between sends - send as fast as possible
+    }
+
+    // Force flush all data
+    IOC_flushDAT(CliLinkID, NULL);
+
+    // Allow time for all chunks to be received and processed
+    // With 100ms delay per chunk and 10 chunks, need at least 1 second
+    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+
+    // ✅ VERIFY: All data received despite speed mismatch
+    ASSERT_EQ(NumChunks, RecvPrivData.ReceivedDataCnt) 
+        << "Should have received all " << NumChunks << " chunks";
+    ASSERT_EQ(TotalSent, RecvPrivData.TotalBytesReceived) 
+        << "Total bytes received should match total sent";
+
+    // 🧹 CLEANUP
+    free(ChunkData);
+    IOC_closeLink(CliLinkID);
+    IOC_closeLink(SrvLinkID);
+    IOC_offlineService(DatReceiverSrvID);
 }
 
 /**
@@ -1975,17 +2155,104 @@ TEST(UT_ServiceTypicalTCP, verifyDatFlowControl_overTCP_withSlowReceiver) {
  *   ✅ VERIFY: Reverse TCP pattern works for data transfer, streaming data processed correctly
  *   🧹 CLEANUP: Close TCP links, offline TCP service
  * @[Expect]: Role reversal works for DAT over TCP
- * @[Status]: ⚠️ SKIP - TCP protocol not yet implemented
+ * @[Status]: ✅ GREEN - Implementation complete
  */
 TEST(UT_ServiceTypicalTCP, verifyDatReceiverSender_reverseTCP_pattern) {
-    GTEST_SKIP() << "⚠️ TCP Protocol not yet implemented - requires Source/_IOC_SrvProtoTCP.c";
+    // 🔴 RED PHASE -> 🟢 GREEN PHASE: Reverse DAT pattern over TCP
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_SrvID_T DatSenderSrvID = IOC_ID_INVALID;
+    IOC_LinkID_T SrvLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
 
-    // TODO: Implement reverse DAT pattern over TCP
-    // Key aspects:
-    // - DatSender online service on port 10081
-    // - DatReceiver connect to sender's service
-    // - Verify push-model data streaming over TCP
-    // - Test bidirectional data flow
+    // 🔧 SETUP: DatSender as TCP server (reversed role)
+    IOC_SrvURI_T CSURI = {
+        .pProtocol = "tcp",
+        .pHost = "localhost",
+        .pPath = "ReverseDatService",
+        .Port = 10081,
+    };
+
+    // Setup DatSender online as server (no callback needed for sender)
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = CSURI,
+        .Flags = IOC_SRVFLAG_AUTO_ACCEPT,
+        .UsageCapabilites = IOC_LinkUsageDatSender,  // Server is sender!
+        .UsageArgs = {.pDat = NULL}  // Sender doesn't need callback
+    };
+
+    // Step-1: Online TCP service as DatSender (reversed role)
+    Result = IOC_onlineService(&DatSenderSrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    usleep(100000);  // 100ms delay for service startup
+
+    // Setup DatReceiver callback data
+    __DatReceiverPrivData_T RecvPrivData = {0};
+
+    // Setup DatReceiver connection with callback
+    IOC_DatUsageArgs_T DatUsageArgs = {
+        .CbRecvDat_F = __CbRecvDat_F,
+        .pCbPrivData = &RecvPrivData,
+    };
+
+    // 🎯 BEHAVIOR: Receiver connects as client (reversed role)
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = CSURI,
+        .Usage = IOC_LinkUsageDatReceiver,  // Client is receiver!
+        .UsageArgs = {.pDat = &DatUsageArgs}
+    };
+
+    Result = IOC_connectService(&CliLinkID, &ConnArgs, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    usleep(100000);  // 100ms delay for connection establishment
+
+    // Get sender's link ID (auto-accepted)
+    // In reverse pattern, server (sender) gets link via auto-accept
+    SrvLinkID = 1025;  // First auto-accepted link (server side)
+
+    // Sender pushes data to receiver (reverse pattern)
+    const size_t DataSize = 51200;  // 50KB
+    char* TestData = (char*)malloc(DataSize);
+    
+    // Fill with pattern
+    const char* Pattern = "ReverseDatTCP_";
+    size_t PatternLen = strlen(Pattern);
+    for (size_t i = 0; i < DataSize; i++) {
+        TestData[i] = Pattern[i % PatternLen];
+    }
+
+    // Setup DatDesc and send
+    IOC_DatDesc_T DatDesc = {0};
+    IOC_initDatDesc(&DatDesc);
+    DatDesc.Payload.pData = TestData;
+    DatDesc.Payload.PtrDataSize = DataSize;
+    DatDesc.Payload.PtrDataLen = DataSize;  // Set the actual data length
+
+    Result = IOC_sendDAT(SrvLinkID, &DatDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    // Force flush
+    IOC_flushDAT(SrvLinkID, NULL);
+
+    // Allow time for data transmission
+    usleep(300000);  // 300ms
+
+    // ✅ VERIFY: Reverse pattern data transfer successful
+    EXPECT_EQ(1, RecvPrivData.ReceivedDataCnt) << "Reverse pattern should receive 1 data chunk";
+    EXPECT_EQ(DataSize, RecvPrivData.TotalBytesReceived) << "Should receive all sent bytes";
+
+    // Verify data integrity for a sample
+    size_t SampleSize = 10240;  // 10KB
+    if (RecvPrivData.LastReceivedSize >= SampleSize) {
+        ASSERT_EQ(0, memcmp(TestData, RecvPrivData.LastReceivedData, SampleSize))
+            << "Data integrity check failed";
+    }
+
+    // 🧹 CLEANUP
+    free(TestData);
+    IOC_closeLink(CliLinkID);
+    IOC_offlineService(DatSenderSrvID);
 }
 
 //======END OF TEST CASES==========================================================================

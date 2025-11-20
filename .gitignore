@@ -61,3 +61,4 @@ TMP
 .DS_Store
 build/
 build_test/
+_codeql_build_dir/

@@ -74,6 +74,9 @@ typedef struct {
     int CmdResponseReady;
     IOC_CmdDesc_T CmdResponse;
 
+    // Data usage storage (for receiver side)
+    IOC_DatUsageArgs_T DatUsageArgs;
+
     // Background receiver thread
     pthread_t RecvThread;
     int RecvThreadRunning;
@@ -289,6 +292,41 @@ static void* __TCP_recvThread(void* pArg) {
                 pthread_cond_signal(&pTCPLinkObj->CmdResponseCond);
                 pthread_mutex_unlock(&pTCPLinkObj->Mutex);
             }
+        } else if (MsgType == TCP_MSG_DATA) {
+            // Receive data payload
+            // Allocate buffer for data
+            void* pDataBuffer = malloc(DataSize);
+            if (!pDataBuffer) {
+                _IOC_LogError("Failed to allocate buffer for data reception");
+                break;
+            }
+
+            Result = __TCP_recvAll(pTCPLinkObj->SocketFd, pDataBuffer, DataSize);
+            if (Result != IOC_RESULT_SUCCESS) {
+                free(pDataBuffer);
+                break;
+            }
+
+            // Process data through callback if receiver has one
+            pthread_mutex_lock(&pTCPLinkObj->Mutex);
+            IOC_CbRecvDat_F CbRecvDat_F = pTCPLinkObj->DatUsageArgs.CbRecvDat_F;
+            void* pCbPrivData = pTCPLinkObj->DatUsageArgs.pCbPrivData;
+            pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+
+            if (CbRecvDat_F) {
+                // Create DatDesc for callback
+                IOC_DatDesc_T DatDesc;
+                IOC_initDatDesc(&DatDesc);
+                DatDesc.Payload.pData = pDataBuffer;
+                DatDesc.Payload.PtrDataSize = DataSize;
+                DatDesc.Payload.PtrDataLen = DataSize;  // Set the actual received data length
+
+                IOC_LinkID_T LinkID = pTCPLinkObj->pOwnerLinkObj->ID;
+                CbRecvDat_F(LinkID, &DatDesc, pCbPrivData);
+            }
+
+            // Free the allocated buffer
+            free(pDataBuffer);
         }
     }
 
@@ -448,6 +486,11 @@ static IOC_Result_T __IOC_connectService_ofProtoTCP(_IOC_LinkObject_pT pLinkObj,
         memcpy(&pTCPLinkObj->CmdUsageArgs, pConnArgs->UsageArgs.pCmd, sizeof(IOC_CmdUsageArgs_T));
     }
 
+    // Copy DatUsageArgs from connection args if client is DatReceiver
+    if ((pLinkObj->Args.Usage & IOC_LinkUsageDatReceiver) && pConnArgs->UsageArgs.pDat) {
+        memcpy(&pTCPLinkObj->DatUsageArgs, pConnArgs->UsageArgs.pDat, sizeof(IOC_DatUsageArgs_T));
+    }
+
     // Start background receiver thread
     pTCPLinkObj->RecvThreadRunning = 1;
     if (pthread_create(&pTCPLinkObj->RecvThread, NULL, __TCP_recvThread, pTCPLinkObj) != 0) {
@@ -547,6 +590,11 @@ static IOC_Result_T __IOC_acceptClient_ofProtoTCP(_IOC_ServiceObject_pT pSrvObj,
     // Copy CmdUsageArgs from service to link (for command executor functionality)
     if (pSrvObj->Args.UsageArgs.pCmd) {
         memcpy(&pTCPLinkObj->CmdUsageArgs, pSrvObj->Args.UsageArgs.pCmd, sizeof(IOC_CmdUsageArgs_T));
+    }
+
+    // Copy DatUsageArgs from service to link (for data receiver functionality)
+    if (pSrvObj->Args.UsageArgs.pDat) {
+        memcpy(&pTCPLinkObj->DatUsageArgs, pSrvObj->Args.UsageArgs.pDat, sizeof(IOC_DatUsageArgs_T));
     }
 
     // Start background receiver thread (optional for server side, but useful for bidirectional)
@@ -810,6 +858,60 @@ static IOC_Result_T __IOC_execCmd_ofProtoTCP(_IOC_LinkObject_pT pLinkObj, IOC_Cm
     return IOC_RESULT_SUCCESS;
 }
 
+/**
+ * @brief Send data over TCP
+ * Implementation for TC-9, TC-10, TC-11
+ */
+static IOC_Result_T __IOC_sendData_ofProtoTCP(_IOC_LinkObject_pT pLinkObj, const IOC_DatDesc_pT pDatDesc,
+                                              const IOC_Options_pT pOption) {
+    _IOC_ProtoTCPLinkObject_pT pTCPLinkObj = (_IOC_ProtoTCPLinkObject_pT)pLinkObj->pProtoPriv;
+    
+    if (!pDatDesc) {
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
+    pthread_mutex_lock(&pTCPLinkObj->Mutex);
+    int SocketFd = pTCPLinkObj->SocketFd;
+    pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+
+    if (SocketFd < 0) {
+        return IOC_RESULT_NOT_EXIST_LINK;
+    }
+
+    // Get data payload
+    void* pData;
+    ULONG_T DataSize;
+    IOC_Result_T Result = IOC_getDatPayload(pDatDesc, &pData, &DataSize);
+    if (Result != IOC_RESULT_SUCCESS) {
+        return Result;
+    }
+
+    // Send data message over TCP socket with protocol framing
+    TCPMessageHeader_T Header;
+    Header.MsgType = htonl(TCP_MSG_DATA);
+    Header.DataSize = htonl((uint32_t)DataSize);
+
+    // Send header
+    Result = __TCP_sendAll(SocketFd, &Header, sizeof(Header));
+    if (Result != IOC_RESULT_SUCCESS) {
+        return Result;
+    }
+
+    // Send data payload
+    Result = __TCP_sendAll(SocketFd, pData, DataSize);
+    return Result;
+}
+
+/**
+ * @brief Receive data over TCP (polling mode)
+ * Not implemented yet - receiver uses callback mode via receiver thread
+ */
+static IOC_Result_T __IOC_recvData_ofProtoTCP(_IOC_LinkObject_pT pLinkObj, IOC_DatDesc_pT pDatDesc,
+                                              const IOC_Options_pT pOption) {
+    // TODO: Implement polling mode if needed
+    return IOC_RESULT_NOT_IMPLEMENTED;
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // TCP Protocol Method Table
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -832,6 +934,6 @@ _IOC_SrvProtoMethods_T _gIOC_SrvProtoTCPMethods = {
     .OpWaitCmd_F = NULL,
     .OpAckCmd_F = NULL,
 
-    .OpSendData_F = NULL,  // TODO: Implement for TC-9
-    .OpRecvData_F = NULL,
+    .OpSendData_F = __IOC_sendData_ofProtoTCP,  // 🟢 GREEN: Implemented for TC-9, TC-10, TC-11
+    .OpRecvData_F = __IOC_recvData_ofProtoTCP,  // Not implemented - uses callback mode
 };
