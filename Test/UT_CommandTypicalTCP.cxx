@@ -679,13 +679,101 @@ TEST(UT_TcpCommandTypical, verifyTcpServiceAsCmdExecutor_byMultipleCommandTypes_
 
 // [@AC-3,US-1] TC-1: verifyTcpServiceAsCmdExecutor_byMultipleClients_expectIsolatedExecution
 TEST(UT_TcpCommandTypical, verifyTcpServiceAsCmdExecutor_byMultipleClients_expectIsolatedExecution) {
-    // TODO: Implement multi-client TCP command isolation
-    // 1. Online TCP service on port 18082
-    // 2. 3 clients connect concurrently
-    // 3. Each sends unique ECHO command
-    // 4. Verify response isolation
-    // 5. Cleanup
-    GTEST_SKIP() << "TCP multi-client commands not yet implemented - skeleton only";
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // ARRANGE: Setup TCP service as CmdExecutor
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    constexpr uint16_t TEST_PORT = 18082;
+    constexpr int CLIENT_COUNT = 3;
+
+    __CmdExecPriv_T srvExecPriv = {};
+
+    IOC_SrvURI_T srvURI = {
+        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdTypicalTCP_MultiClient"};
+
+    static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_ECHO};
+    IOC_CmdUsageArgs_T cmdUsageArgs = {.CbExecCmd_F = __CmdTcpTypical_ExecutorCb,
+                                       .pCbPrivData = &srvExecPriv,
+                                       .CmdNum = 1,
+                                       .pCmdIDs = supportedCmdIDs};
+
+    IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
+                             .Flags = IOC_SRVFLAG_NONE,
+                             .UsageCapabilites = IOC_LinkUsageCmdExecutor,
+                             .UsageArgs = {.pCmd = &cmdUsageArgs}};
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    std::vector<IOC_LinkID_T> srvLinkIDs(CLIENT_COUNT, IOC_ID_INVALID);
+
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // ACT: Establish multiple connections and execute commands concurrently
+    // ═══════════════════════════════════════════════════════════════════════════════════
+
+    // Step 1: Online TCP service
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
+    ASSERT_NE(IOC_ID_INVALID, srvID);
+
+    // Step 2: Start multiple clients in separate threads
+    std::vector<std::thread> clientThreads;
+    std::atomic<int> successCount{0};
+
+    for (int i = 0; i < CLIENT_COUNT; ++i) {
+        clientThreads.emplace_back([&, i]() {
+            IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
+            IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
+
+            // Connect
+            if (IOC_connectService(&cliLinkID, &connArgs, NULL) != IOC_RESULT_SUCCESS) return;
+
+            // Prepare unique ECHO payload
+            char echoPayload[64];
+            snprintf(echoPayload, sizeof(echoPayload), "Client-%d-Payload", i);
+
+            IOC_CmdDesc_T cmdDesc = {};
+            cmdDesc.CmdID = IOC_CMDID_TEST_ECHO;
+            cmdDesc.Status = IOC_CMD_STATUS_INITIALIZED;
+            cmdDesc.TimeoutMs = 5000;
+            IOC_CmdDesc_setInPayload(&cmdDesc, (void *)echoPayload, strlen(echoPayload) + 1);
+
+            // Execute
+            if (IOC_execCMD(cliLinkID, &cmdDesc, NULL) == IOC_RESULT_SUCCESS) {
+                // Verify response
+                void *responseData = IOC_CmdDesc_getOutData(&cmdDesc);
+                if (responseData && strcmp(static_cast<char *>(responseData), echoPayload) == 0) {
+                    successCount++;
+                }
+            }
+
+            IOC_CmdDesc_cleanup(&cmdDesc);
+            IOC_closeLink(cliLinkID);
+        });
+    }
+
+    // Step 3: Accept all clients on server side
+    for (int i = 0; i < CLIENT_COUNT; ++i) {
+        ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_acceptClient(srvID, &srvLinkIDs[i], NULL));
+        ASSERT_NE(IOC_ID_INVALID, srvLinkIDs[i]);
+    }
+
+    // Wait for all clients to finish
+    for (auto &t : clientThreads) {
+        if (t.joinable()) t.join();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // ASSERT: Verify isolation and total count
+    // ═══════════════════════════════════════════════════════════════════════════════════
+
+    VERIFY_KEYPOINT_EQ(successCount.load(), CLIENT_COUNT, "All clients must successfully execute ECHO command");
+    VERIFY_KEYPOINT_EQ(srvExecPriv.CommandCount.load(), CLIENT_COUNT,
+                       "Server must process exactly CLIENT_COUNT commands");
+
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // CLEANUP
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    for (auto linkID : srvLinkIDs) {
+        if (linkID != IOC_ID_INVALID) IOC_closeLink(linkID);
+    }
+    if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
 }
 
 // [@AC-4,US-1] TC-1: verifyTcpServiceAsCmdExecutor_byTimeoutConstraints_expectProperTiming
@@ -869,12 +957,14 @@ TEST(UT_TcpCommandTypical, verifyProtocolAbstraction_byTcpVsFifo_expectIdentical
 //        - Notes: Fixed _IOC_SrvProtoTCP.c to handle IN payload data (Request) and OUT payload data (Response)
 //        correctly.
 //
-//   ⚪ [@AC-3,US-1] TC-1: verifyTcpServiceAsCmdExecutor_byMultipleClients_expectIsolatedExecution
+//   🟢 [@AC-3,US-1] TC-1: verifyTcpServiceAsCmdExecutor_byMultipleClients_expectIsolatedExecution
 //        - Description: Multi-client TCP command isolation
 //        - Category: Typical (ValidFunc)
 //        - Protocol: tcp://localhost:18082/CmdTypicalTCP_MultiClient
-//        - Estimated effort: 2 hours
+//        - Status: 🟢 GREEN - Test passing
+//        - Actual effort: 1 hour
 //        - Dependencies: TC-1 passing, concurrent testing setup
+//        - Notes: TCP protocol naturally supports multi-client via thread-per-connection model.
 //
 // [@US-1] TCP Service as CmdExecutor - ValidFunc/Boundary
 //

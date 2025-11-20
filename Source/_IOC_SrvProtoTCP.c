@@ -115,7 +115,7 @@ static IOC_Result_T __TCP_recvAll(int SocketFd, void* pData, size_t Size) {
         ssize_t Recvd = recv(SocketFd, pBuffer + TotalRecv, Size - TotalRecv, 0);
         if (Recvd <= 0) {
             if (Recvd == 0) {
-                _IOC_LogError("TCP connection closed");
+                _IOC_LogInfo("TCP connection closed");
             } else {
                 _IOC_LogError("TCP recv failed");
             }
