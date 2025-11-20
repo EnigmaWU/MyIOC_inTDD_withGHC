@@ -252,7 +252,9 @@ TEST(UT_CommandTypicalWaitAckTCP, verifyTcpServicePolling_bySingleClient_expectW
     connArgs.SrvURI = srvURI;  // Connect to same URI
     connArgs.Usage = IOC_LinkUsageCmdInitiator;
 
-    ASSERT_EQ(IOC_connectService(&cliLinkID, &connArgs, NULL), IOC_RESULT_SUCCESS);
+    // Connect Async (to avoid blocking if connect waits for accept)
+    std::future<IOC_Result_T> connectFuture =
+        std::async(std::launch::async, [&]() { return IOC_connectService(&cliLinkID, &connArgs, NULL); });
 
     // 3. Server Accepts Client (Manual Accept for control)
     IOC_LinkID_T srvLinkID;
@@ -264,6 +266,7 @@ TEST(UT_CommandTypicalWaitAckTCP, verifyTcpServicePolling_bySingleClient_expectW
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
     ASSERT_EQ(acceptRes, IOC_RESULT_SUCCESS);
+    ASSERT_EQ(connectFuture.get(), IOC_RESULT_SUCCESS);
 
     // 4. Client Sends Command (Async Thread to avoid blocking main test)
     std::future<IOC_Result_T> clientFuture = std::async(std::launch::async, [&]() {
@@ -317,7 +320,10 @@ TEST(UT_CommandTypicalWaitAckTCP, verifyTcpServiceAsyncProcessing_byDelayedAck_e
     IOC_ConnArgs_T connArgs = {0};
     connArgs.SrvURI = srvURI;
     connArgs.Usage = IOC_LinkUsageCmdInitiator;
-    ASSERT_EQ(IOC_connectService(&cliLinkID, &connArgs, NULL), IOC_RESULT_SUCCESS);
+
+    // Connect Async
+    std::future<IOC_Result_T> connectFuture =
+        std::async(std::launch::async, [&]() { return IOC_connectService(&cliLinkID, &connArgs, NULL); });
 
     // 3. Server Accepts
     IOC_LinkID_T srvLinkID;
@@ -328,6 +334,7 @@ TEST(UT_CommandTypicalWaitAckTCP, verifyTcpServiceAsyncProcessing_byDelayedAck_e
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
     ASSERT_EQ(acceptRes, IOC_RESULT_SUCCESS);
+    ASSERT_EQ(connectFuture.get(), IOC_RESULT_SUCCESS);
 
     // 4. Client Sends Command
     auto start = std::chrono::steady_clock::now();
@@ -335,13 +342,19 @@ TEST(UT_CommandTypicalWaitAckTCP, verifyTcpServiceAsyncProcessing_byDelayedAck_e
         IOC_CmdDesc_T cmdDesc;
         IOC_CmdDesc_initVar(&cmdDesc);
         cmdDesc.CmdID = TEST_CMDID_DELAY;
-        return IOC_execCMD(cliLinkID, &cmdDesc, NULL);
+
+        IOC_Options_T execOpt = {IOC_OPTID_TIMEOUT};
+        execOpt.Payload.TimeoutUS = 2000000;  // 2 seconds
+        return IOC_execCMD(cliLinkID, &cmdDesc, &execOpt);
     });
 
     // 5. Server Waits
     IOC_CmdDesc_T recvCmd;
     IOC_CmdDesc_initVar(&recvCmd);
-    ASSERT_EQ(IOC_waitCMD(srvLinkID, &recvCmd, NULL), IOC_RESULT_SUCCESS);
+
+    IOC_Options_T waitOpt = {IOC_OPTID_TIMEOUT};
+    waitOpt.Payload.TimeoutUS = 2000000;  // 2 seconds
+    ASSERT_EQ(IOC_waitCMD(srvLinkID, &recvCmd, &waitOpt), IOC_RESULT_SUCCESS);
     ASSERT_EQ(recvCmd.CmdID, TEST_CMDID_DELAY);
 
     // 6. Server Delays (Simulate Async Work)
@@ -380,7 +393,10 @@ TEST(UT_CommandTypicalWaitAckTCP, verifyTcpServicePollingTimeout_byEmptyQueue_ex
     IOC_ConnArgs_T connArgs = {0};
     connArgs.SrvURI = srvURI;
     connArgs.Usage = IOC_LinkUsageCmdInitiator;
-    ASSERT_EQ(IOC_connectService(&cliLinkID, &connArgs, NULL), IOC_RESULT_SUCCESS);
+
+    // Connect Async
+    std::future<IOC_Result_T> connectFuture =
+        std::async(std::launch::async, [&]() { return IOC_connectService(&cliLinkID, &connArgs, NULL); });
 
     // 3. Server Accepts
     IOC_LinkID_T srvLinkID;
@@ -391,6 +407,7 @@ TEST(UT_CommandTypicalWaitAckTCP, verifyTcpServicePollingTimeout_byEmptyQueue_ex
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
     ASSERT_EQ(acceptRes, IOC_RESULT_SUCCESS);
+    ASSERT_EQ(connectFuture.get(), IOC_RESULT_SUCCESS);
 
     // 4. Server Waits with Timeout
     IOC_CmdDesc_T recvCmd;
@@ -425,7 +442,9 @@ TEST(UT_CommandTypicalWaitAckTCP, verifyTcpClientPolling_byServerInitiator_expec
     connArgs.SrvURI = srvURI;
     connArgs.Usage = IOC_LinkUsageCmdExecutor;  // Client executes commands
 
-    ASSERT_EQ(IOC_connectService(&cliLinkID, &connArgs, NULL), IOC_RESULT_SUCCESS);
+    // Connect Async
+    std::future<IOC_Result_T> connectFuture =
+        std::async(std::launch::async, [&]() { return IOC_connectService(&cliLinkID, &connArgs, NULL); });
 
     // 3. Server Accepts
     IOC_LinkID_T srvLinkID;
@@ -436,6 +455,7 @@ TEST(UT_CommandTypicalWaitAckTCP, verifyTcpClientPolling_byServerInitiator_expec
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
     ASSERT_EQ(acceptRes, IOC_RESULT_SUCCESS);
+    ASSERT_EQ(connectFuture.get(), IOC_RESULT_SUCCESS);
 
     // 4. Client Polling Loop (Async)
     std::future<IOC_Result_T> clientFuture = std::async(std::launch::async, [&]() {
@@ -443,7 +463,9 @@ TEST(UT_CommandTypicalWaitAckTCP, verifyTcpClientPolling_byServerInitiator_expec
         IOC_CmdDesc_initVar(&recvCmd);
 
         // Wait for command from Server
-        IOC_Result_T res = IOC_waitCMD(cliLinkID, &recvCmd, NULL);
+        IOC_Options_T waitOpt = {IOC_OPTID_TIMEOUT};
+        waitOpt.Payload.TimeoutUS = 2000000;  // 2 seconds
+        IOC_Result_T res = IOC_waitCMD(cliLinkID, &recvCmd, &waitOpt);
         if (res != IOC_RESULT_SUCCESS) return res;
 
         if (recvCmd.CmdID != TEST_CMDID_PING) return IOC_RESULT_INVALID_PARAM;
@@ -461,7 +483,9 @@ TEST(UT_CommandTypicalWaitAckTCP, verifyTcpClientPolling_byServerInitiator_expec
     IOC_CmdDesc_initVar(&cmdDesc);
     cmdDesc.CmdID = TEST_CMDID_PING;
 
-    IOC_Result_T execRes = IOC_execCMD(srvLinkID, &cmdDesc, NULL);
+    IOC_Options_T execOpt = {IOC_OPTID_TIMEOUT};
+    execOpt.Payload.TimeoutUS = 2000000;  // 2 seconds
+    IOC_Result_T execRes = IOC_execCMD(srvLinkID, &cmdDesc, &execOpt);
     ASSERT_EQ(execRes, IOC_RESULT_SUCCESS);
 
     // 6. Verify Client Success

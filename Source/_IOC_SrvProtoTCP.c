@@ -74,6 +74,13 @@ typedef struct {
     int CmdResponseReady;
     IOC_CmdDesc_T CmdResponse;
 
+    // Command request queue (for executor side polling)
+    IOC_CmdDesc_T IncomingCmdQueue[16];
+    int IncomingCmdHead;
+    int IncomingCmdTail;
+    int IncomingCmdCount;
+    pthread_cond_t IncomingCmdCond;
+
     // Background receiver thread
     pthread_t RecvThread;
     int RecvThreadRunning;
@@ -188,11 +195,11 @@ static void* __TCP_recvThread(void* pArg) {
             }
 
             // Check if this is a command request or response
-            pthread_mutex_lock(&pTCPLinkObj->Mutex);
-            IOC_CbExecCmd_F CbExecCmd_F = pTCPLinkObj->CmdUsageArgs.CbExecCmd_F;
-            pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+            // If Status is INITIALIZED or PENDING, it's a Request.
+            // If Status is SUCCESS, FAILED, TIMEOUT, it's a Response.
+            bool IsRequest = (CmdDesc.Status <= IOC_CMD_STATUS_PROCESSING);
 
-            if (CbExecCmd_F) {
+            if (IsRequest) {
                 // This is a command REQUEST - we are the executor
 
                 // Check for IN payload (pointer-based)
@@ -219,36 +226,53 @@ static void* __TCP_recvThread(void* pArg) {
                     }
                 }
 
-                // Execute command through callback
                 pthread_mutex_lock(&pTCPLinkObj->Mutex);
-                void* pCbPrivData = pTCPLinkObj->CmdUsageArgs.pCbPrivData;
+                IOC_CbExecCmd_F CbExecCmd_F = pTCPLinkObj->CmdUsageArgs.CbExecCmd_F;
                 pthread_mutex_unlock(&pTCPLinkObj->Mutex);
 
-                IOC_LinkID_T LinkID = pTCPLinkObj->pOwnerLinkObj->ID;
-                CbExecCmd_F(LinkID, &CmdDesc, pCbPrivData);
+                if (CbExecCmd_F) {
+                    // Execute command through callback
+                    pthread_mutex_lock(&pTCPLinkObj->Mutex);
+                    void* pCbPrivData = pTCPLinkObj->CmdUsageArgs.pCbPrivData;
+                    pthread_mutex_unlock(&pTCPLinkObj->Mutex);
 
-                if (pInData) free(pInData);
+                    IOC_LinkID_T LinkID = pTCPLinkObj->pOwnerLinkObj->ID;
+                    CbExecCmd_F(LinkID, &CmdDesc, pCbPrivData);
 
-                // Send response back (CmdDesc + OUT payload data)
-                TCPMessageHeader_T RespHeader;
-                RespHeader.MsgType = htonl(TCP_MSG_COMMAND);
-                RespHeader.DataSize = htonl(sizeof(IOC_CmdDesc_T));
+                    if (pInData) free(pInData);
 
-                __TCP_sendAll(pTCPLinkObj->SocketFd, &RespHeader, sizeof(RespHeader));
-                __TCP_sendAll(pTCPLinkObj->SocketFd, &CmdDesc, sizeof(CmdDesc));
+                    // Send response back (CmdDesc + OUT payload data)
+                    TCPMessageHeader_T RespHeader;
+                    RespHeader.MsgType = htonl(TCP_MSG_COMMAND);
+                    RespHeader.DataSize = htonl(sizeof(IOC_CmdDesc_T));
 
-                // Send OUT payload data if present (pointer-based only)
-                // Embedded data is already sent within IOC_CmdDesc_T
-                void* pOutData = IOC_CmdDesc_getOutData(&CmdDesc);
-                ULONG_T OutDataLen = IOC_CmdDesc_getOutDataLen(&CmdDesc);
+                    __TCP_sendAll(pTCPLinkObj->SocketFd, &RespHeader, sizeof(RespHeader));
+                    __TCP_sendAll(pTCPLinkObj->SocketFd, &CmdDesc, sizeof(CmdDesc));
 
-                // Only send separate payload if it's NOT embedded (PtrDataLen > 0)
-                if (pOutData && OutDataLen > 0 && CmdDesc.OutPayload.PtrDataLen > 0) {
-                    TCPMessageHeader_T PayloadHeader;
-                    PayloadHeader.MsgType = htonl(TCP_MSG_DATA);
-                    PayloadHeader.DataSize = htonl(OutDataLen);
-                    __TCP_sendAll(pTCPLinkObj->SocketFd, &PayloadHeader, sizeof(PayloadHeader));
-                    __TCP_sendAll(pTCPLinkObj->SocketFd, pOutData, OutDataLen);
+                    // Send OUT payload data if present (pointer-based only)
+                    void* pOutData = IOC_CmdDesc_getOutData(&CmdDesc);
+                    ULONG_T OutDataLen = IOC_CmdDesc_getOutDataLen(&CmdDesc);
+
+                    if (pOutData && OutDataLen > 0 && CmdDesc.OutPayload.PtrDataLen > 0) {
+                        TCPMessageHeader_T PayloadHeader;
+                        PayloadHeader.MsgType = htonl(TCP_MSG_DATA);
+                        PayloadHeader.DataSize = htonl(OutDataLen);
+                        __TCP_sendAll(pTCPLinkObj->SocketFd, &PayloadHeader, sizeof(PayloadHeader));
+                        __TCP_sendAll(pTCPLinkObj->SocketFd, pOutData, OutDataLen);
+                    }
+                } else {
+                    // Polling Mode: Queue it
+                    pthread_mutex_lock(&pTCPLinkObj->Mutex);
+                    if (pTCPLinkObj->IncomingCmdCount < 16) {
+                        pTCPLinkObj->IncomingCmdQueue[pTCPLinkObj->IncomingCmdTail] = CmdDesc;
+                        pTCPLinkObj->IncomingCmdTail = (pTCPLinkObj->IncomingCmdTail + 1) % 16;
+                        pTCPLinkObj->IncomingCmdCount++;
+                        pthread_cond_signal(&pTCPLinkObj->IncomingCmdCond);
+                    } else {
+                        _IOC_LogError("Incoming command queue full, dropping command");
+                        if (pInData) free(pInData);
+                    }
+                    pthread_mutex_unlock(&pTCPLinkObj->Mutex);
                 }
             } else {
                 // This is a command RESPONSE - we are the initiator
@@ -383,6 +407,11 @@ static IOC_Result_T __IOC_connectService_ofProtoTCP(_IOC_LinkObject_pT pLinkObj,
     pthread_cond_init(&pTCPLinkObj->CmdResponseCond, NULL);
     pTCPLinkObj->CmdResponseReady = 0;
 
+    pthread_cond_init(&pTCPLinkObj->IncomingCmdCond, NULL);
+    pTCPLinkObj->IncomingCmdHead = 0;
+    pTCPLinkObj->IncomingCmdTail = 0;
+    pTCPLinkObj->IncomingCmdCount = 0;
+
     // Create socket
     int SocketFd = socket(AF_INET, SOCK_STREAM, 0);
     if (SocketFd < 0) {
@@ -478,6 +507,11 @@ static IOC_Result_T __IOC_acceptClient_ofProtoTCP(_IOC_ServiceObject_pT pSrvObj,
     pthread_mutex_init(&pTCPLinkObj->Mutex, NULL);
     pthread_cond_init(&pTCPLinkObj->CmdResponseCond, NULL);
     pTCPLinkObj->CmdResponseReady = 0;
+
+    pthread_cond_init(&pTCPLinkObj->IncomingCmdCond, NULL);
+    pTCPLinkObj->IncomingCmdHead = 0;
+    pTCPLinkObj->IncomingCmdTail = 0;
+    pTCPLinkObj->IncomingCmdCount = 0;
 
     // Accept incoming connection
     struct sockaddr_in CliAddr = {0};
@@ -591,6 +625,7 @@ static IOC_Result_T __IOC_closeLink_ofProtoTCP(_IOC_LinkObject_pT pLinkObj) {
 
         pthread_mutex_destroy(&pTCPLinkObj->Mutex);
         pthread_cond_destroy(&pTCPLinkObj->CmdResponseCond);
+        pthread_cond_destroy(&pTCPLinkObj->IncomingCmdCond);
         free(pTCPLinkObj);
         pLinkObj->pProtoPriv = NULL;
     }
@@ -810,6 +845,106 @@ static IOC_Result_T __IOC_execCmd_ofProtoTCP(_IOC_LinkObject_pT pLinkObj, IOC_Cm
     return IOC_RESULT_SUCCESS;
 }
 
+/**
+ * @brief Wait for command over TCP (Polling Mode)
+ */
+static IOC_Result_T __IOC_waitCmd_ofProtoTCP(_IOC_LinkObject_pT pLinkObj, IOC_CmdDesc_pT pCmdDesc,
+                                             const IOC_Options_pT pOption) {
+    _IOC_ProtoTCPLinkObject_pT pTCPLinkObj = (_IOC_ProtoTCPLinkObject_pT)pLinkObj->pProtoPriv;
+
+    if (!pCmdDesc) return IOC_RESULT_INVALID_PARAM;
+
+    pthread_mutex_lock(&pTCPLinkObj->Mutex);
+
+    // Wait for incoming command
+    // Handle timeout
+    ULONG_T timeoutMs = 0;
+    if (pOption && (pOption->IDs & IOC_OPTID_TIMEOUT)) {
+        timeoutMs = pOption->Payload.TimeoutUS / 1000;
+    }
+
+    int WaitResult = 0;
+    if (timeoutMs > 0) {
+        struct timespec AbsTimeout;
+        clock_gettime(CLOCK_REALTIME, &AbsTimeout);
+        long TimeoutSec = timeoutMs / 1000;
+        long TimeoutNsec = (timeoutMs % 1000) * 1000000;
+        AbsTimeout.tv_sec += TimeoutSec;
+        AbsTimeout.tv_nsec += TimeoutNsec;
+        if (AbsTimeout.tv_nsec >= 1000000000) {
+            AbsTimeout.tv_sec += 1;
+            AbsTimeout.tv_nsec -= 1000000000;
+        }
+
+        while (pTCPLinkObj->IncomingCmdCount == 0 && WaitResult == 0) {
+            WaitResult = pthread_cond_timedwait(&pTCPLinkObj->IncomingCmdCond, &pTCPLinkObj->Mutex, &AbsTimeout);
+        }
+    } else {
+        while (pTCPLinkObj->IncomingCmdCount == 0) {
+            pthread_cond_wait(&pTCPLinkObj->IncomingCmdCond, &pTCPLinkObj->Mutex);
+        }
+    }
+
+    if (WaitResult == ETIMEDOUT) {
+        pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+        return IOC_RESULT_TIMEOUT;
+    }
+
+    // Pop command
+    *pCmdDesc = pTCPLinkObj->IncomingCmdQueue[pTCPLinkObj->IncomingCmdHead];
+    pTCPLinkObj->IncomingCmdHead = (pTCPLinkObj->IncomingCmdHead + 1) % 16;
+    pTCPLinkObj->IncomingCmdCount--;
+
+    pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+    return IOC_RESULT_SUCCESS;
+}
+
+/**
+ * @brief Acknowledge command over TCP (Polling Mode)
+ */
+static IOC_Result_T __IOC_ackCmd_ofProtoTCP(_IOC_LinkObject_pT pLinkObj, IOC_CmdDesc_pT pCmdDesc,
+                                            const IOC_Options_pT pOption) {
+    _IOC_ProtoTCPLinkObject_pT pTCPLinkObj = (_IOC_ProtoTCPLinkObject_pT)pLinkObj->pProtoPriv;
+
+    if (!pCmdDesc) return IOC_RESULT_INVALID_PARAM;
+
+    // Ensure status is set to SUCCESS/FAILED to distinguish from Request
+    if (pCmdDesc->Status <= IOC_CMD_STATUS_PROCESSING) {
+        pCmdDesc->Status = (pCmdDesc->Result == IOC_RESULT_SUCCESS) ? IOC_CMD_STATUS_SUCCESS : IOC_CMD_STATUS_FAILED;
+    }
+
+    // Send response back (CmdDesc + OUT payload data)
+    TCPMessageHeader_T RespHeader;
+    RespHeader.MsgType = htonl(TCP_MSG_COMMAND);
+    RespHeader.DataSize = htonl(sizeof(IOC_CmdDesc_T));
+
+    IOC_Result_T Result = __TCP_sendAll(pTCPLinkObj->SocketFd, &RespHeader, sizeof(RespHeader));
+    if (Result != IOC_RESULT_SUCCESS) return Result;
+
+    Result = __TCP_sendAll(pTCPLinkObj->SocketFd, pCmdDesc, sizeof(IOC_CmdDesc_T));
+    if (Result != IOC_RESULT_SUCCESS) return Result;
+
+    // Send OUT payload data if present (pointer-based only)
+    void* pOutData = IOC_CmdDesc_getOutData(pCmdDesc);
+    ULONG_T OutDataLen = IOC_CmdDesc_getOutDataLen(pCmdDesc);
+
+    if (pOutData && OutDataLen > 0 && pCmdDesc->OutPayload.PtrDataLen > 0) {
+        TCPMessageHeader_T PayloadHeader;
+        PayloadHeader.MsgType = htonl(TCP_MSG_DATA);
+        PayloadHeader.DataSize = htonl(OutDataLen);
+        __TCP_sendAll(pTCPLinkObj->SocketFd, &PayloadHeader, sizeof(PayloadHeader));
+        __TCP_sendAll(pTCPLinkObj->SocketFd, pOutData, OutDataLen);
+    }
+
+    // Free IN payload if it was allocated by recvThread and passed to us
+    if (pCmdDesc->InPayload.pData) {
+        free(pCmdDesc->InPayload.pData);
+        pCmdDesc->InPayload.pData = NULL;
+    }
+
+    return IOC_RESULT_SUCCESS;
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // TCP Protocol Method Table
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -829,8 +964,8 @@ _IOC_SrvProtoMethods_T _gIOC_SrvProtoTCPMethods = {
     .OpPullEvt_F = NULL,  // TODO: Implement for polling mode
 
     .OpExecCmd_F = __IOC_execCmd_ofProtoTCP,  // 🟢 GREEN: Minimal stub
-    .OpWaitCmd_F = NULL,
-    .OpAckCmd_F = NULL,
+    .OpWaitCmd_F = __IOC_waitCmd_ofProtoTCP,
+    .OpAckCmd_F = __IOC_ackCmd_ofProtoTCP,
 
     .OpSendData_F = NULL,  // TODO: Implement for TC-9
     .OpRecvData_F = NULL,
