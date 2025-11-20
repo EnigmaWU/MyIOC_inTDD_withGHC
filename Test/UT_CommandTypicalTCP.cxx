@@ -778,12 +778,104 @@ TEST(UT_TcpCommandTypical, verifyTcpServiceAsCmdExecutor_byMultipleClients_expec
 
 // [@AC-4,US-1] TC-1: verifyTcpServiceAsCmdExecutor_byTimeoutConstraints_expectProperTiming
 TEST(UT_TcpCommandTypical, verifyTcpServiceAsCmdExecutor_byTimeoutConstraints_expectProperTiming) {
-    // TODO: Implement TCP command timeout validation
-    // 1. Online TCP service on port 18083
-    // 2. Test DELAY command with various timeouts
-    // 3. Verify timeout behavior over TCP
-    // 4. Cleanup
-    GTEST_SKIP() << "TCP command timeout not yet implemented - skeleton only";
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // ARRANGE: Setup TCP service as CmdExecutor
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    constexpr uint16_t TEST_PORT = 18083;
+
+    __CmdExecPriv_T srvExecPriv = {};
+
+    IOC_SrvURI_T srvURI = {
+        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdTypicalTCP_Timeout"};
+
+    static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_DELAY};
+    IOC_CmdUsageArgs_T cmdUsageArgs = {.CbExecCmd_F = __CmdTcpTypical_ExecutorCb,
+                                       .pCbPrivData = &srvExecPriv,
+                                       .CmdNum = 1,
+                                       .pCmdIDs = supportedCmdIDs};
+
+    IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
+                             .Flags = IOC_SRVFLAG_NONE,
+                             .UsageCapabilites = IOC_LinkUsageCmdExecutor,
+                             .UsageArgs = {.pCmd = &cmdUsageArgs}};
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    IOC_LinkID_T srvLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
+
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // ACT & ASSERT: Establish connection and execute commands with timing constraints
+    // ═══════════════════════════════════════════════════════════════════════════════════
+
+    // Step 1: Online TCP service
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
+    ASSERT_NE(IOC_ID_INVALID, srvID);
+
+    // Step 2: Client connects via TCP
+    IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
+    std::thread cliThread([&] {
+        ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_connectService(&cliLinkID, &connArgs, NULL));
+        ASSERT_NE(IOC_ID_INVALID, cliLinkID);
+    });
+
+    // Step 3: Service accepts TCP connection
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_acceptClient(srvID, &srvLinkID, NULL));
+    ASSERT_NE(IOC_ID_INVALID, srvLinkID);
+
+    cliThread.join();
+
+    // --- Case 1: Command completes within timeout ---
+    {
+        int delayMs = 100;
+        IOC_CmdDesc_T cmdDesc = {};
+        cmdDesc.CmdID = IOC_CMDID_TEST_DELAY;
+        cmdDesc.Status = IOC_CMD_STATUS_INITIALIZED;
+        cmdDesc.TimeoutMs = 2000;  // 2 seconds timeout
+        IOC_CmdDesc_setInPayload(&cmdDesc, &delayMs, sizeof(delayMs));
+
+        auto start = std::chrono::high_resolution_clock::now();
+        IOC_Result_T result = IOC_execCMD(cliLinkID, &cmdDesc, NULL);
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+
+        VERIFY_KEYPOINT_EQ(result, IOC_RESULT_SUCCESS, "Command should succeed within timeout");
+        VERIFY_KEYPOINT_TRUE(duration >= 100, "Execution time should be at least the delay");
+        // Allow some overhead for network and processing
+        VERIFY_KEYPOINT_TRUE(duration < 2000, "Execution time should be less than timeout");
+
+        IOC_CmdDesc_cleanup(&cmdDesc);
+    }
+
+    // --- Case 2: Command times out ---
+    {
+        // Note: TCP protocol layer adds ~1000ms overhead to CmdDesc.TimeoutMs
+        // to account for network latency. We must exceed (TimeoutMs + 1000ms) to trigger timeout.
+        int delayMs = 1500;
+        IOC_CmdDesc_T cmdDesc = {};
+        cmdDesc.CmdID = IOC_CMDID_TEST_DELAY;
+        cmdDesc.Status = IOC_CMD_STATUS_INITIALIZED;
+        cmdDesc.TimeoutMs = 100;  // Client waits ~1100ms total
+        IOC_CmdDesc_setInPayload(&cmdDesc, &delayMs, sizeof(delayMs));
+
+        auto start = std::chrono::high_resolution_clock::now();
+        IOC_Result_T result = IOC_execCMD(cliLinkID, &cmdDesc, NULL);
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+
+        VERIFY_KEYPOINT_EQ(result, IOC_RESULT_TIMEOUT, "Command should timeout");
+        VERIFY_KEYPOINT_TRUE(duration >= 1100, "Execution time should be at least the timeout + overhead");
+        // We expect it to return shortly after timeout
+        VERIFY_KEYPOINT_TRUE(duration < 2000, "Execution time should return before the full delay completes");
+
+        IOC_CmdDesc_cleanup(&cmdDesc);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // CLEANUP
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    if (cliLinkID != IOC_ID_INVALID) IOC_closeLink(cliLinkID);
+    if (srvLinkID != IOC_ID_INVALID) IOC_closeLink(srvLinkID);
+    if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
 }
 
 // [@AC-1,US-2] TC-1: verifyTcpServiceAsCmdInitiator_bySingleClient_expectClientExecution
@@ -968,12 +1060,15 @@ TEST(UT_TcpCommandTypical, verifyProtocolAbstraction_byTcpVsFifo_expectIdentical
 //
 // [@US-1] TCP Service as CmdExecutor - ValidFunc/Boundary
 //
-//   ⚪ [@AC-4,US-1] TC-1: verifyTcpServiceAsCmdExecutor_byTimeoutConstraints_expectProperTiming
+//   🟢 [@AC-4,US-1] TC-1: verifyTcpServiceAsCmdExecutor_byTimeoutConstraints_expectProperTiming
 //        - Description: TCP command timeout validation
 //        - Category: Boundary (ValidFunc)
 //        - Protocol: tcp://localhost:18083/CmdTypicalTCP_Timeout
-//        - Estimated effort: 1.5 hours
+//        - Status: 🟢 GREEN - Test passing
+//        - Actual effort: 1 hour
 //        - Dependencies: DELAY command support
+//        - Notes: Verified client-side timeout works when server delays response beyond (TimeoutMs + Overhead).
+//                 TCP protocol adds ~1000ms overhead to account for network latency.
 //
 // [@US-2] TCP Service as CmdInitiator - ValidFunc/Typical
 //
