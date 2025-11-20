@@ -981,13 +981,153 @@ TEST(UT_TcpCommandTypical, verifyTcpServiceAsCmdInitiator_bySingleClient_expectC
 
 // [@AC-2,US-2] TC-1: verifyTcpServiceAsCmdInitiator_byMultipleClients_expectOrchestration
 TEST(UT_TcpCommandTypical, verifyTcpServiceAsCmdInitiator_byMultipleClients_expectOrchestration) {
-    // TODO: Implement TCP multi-client orchestration
-    // 1. Online TCP service (CmdInitiator) on port 18085
-    // 2. Multiple clients connect
-    // 3. Service sends different commands to different clients
-    // 4. Verify orchestration works correctly
-    // 5. Cleanup
-    GTEST_SKIP() << "TCP multi-client orchestration not yet implemented - skeleton only";
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // ARRANGE: Setup TCP service as CmdInitiator and Multiple Clients as CmdExecutors
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    constexpr uint16_t TEST_PORT = 18085;
+    constexpr int CLIENT_COUNT = 3;
+
+    // Client-side executor private data (one per client)
+    __CmdExecPriv_T cliExecPriv[CLIENT_COUNT] = {};
+    for (int i = 0; i < CLIENT_COUNT; ++i) {
+        cliExecPriv[i].ClientIndex = i;
+    }
+
+    IOC_SrvURI_T srvURI = {
+        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdTypicalTCP_Orchestrate"};
+
+    // Client usage args (Executor) - Shared callback, distinct private data
+    static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_PING, IOC_CMDID_TEST_ECHO, IOC_CMDID_TEST_CALC};
+
+    IOC_CmdUsageArgs_T cliCmdUsageArgs[CLIENT_COUNT];
+    for (int i = 0; i < CLIENT_COUNT; ++i) {
+        cliCmdUsageArgs[i] = {.CbExecCmd_F = __CmdTcpTypical_ExecutorCb,
+                              .pCbPrivData = &cliExecPriv[i],
+                              .CmdNum = 3,
+                              .pCmdIDs = supportedCmdIDs};
+    }
+
+    // Service args (Initiator)
+    IOC_SrvArgs_T srvArgs = {
+        .SrvURI = srvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageCmdInitiator, .UsageArgs = {}};
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    std::vector<IOC_LinkID_T> srvLinkIDs(CLIENT_COUNT, IOC_ID_INVALID);
+
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // ACT: Establish connections and orchestrate commands
+    // ═══════════════════════════════════════════════════════════════════════════════════
+
+    // Step 1: Online TCP service
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
+    ASSERT_NE(IOC_ID_INVALID, srvID);
+
+    // Step 2 & 3: Start clients and accept connections sequentially to ensure deterministic mapping
+    std::vector<std::thread> clientThreads;
+    std::atomic<bool> clientsRunning{true};
+
+    for (int i = 0; i < CLIENT_COUNT; ++i) {
+        // Start client i
+        clientThreads.emplace_back([&, i]() {
+            IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
+            IOC_ConnArgs_T connArgs = {
+                .SrvURI = srvURI, .Usage = IOC_LinkUsageCmdExecutor, .UsageArgs = {.pCmd = &cliCmdUsageArgs[i]}};
+
+            if (IOC_connectService(&cliLinkID, &connArgs, NULL) == IOC_RESULT_SUCCESS) {
+                // Keep client alive
+                while (clientsRunning) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                }
+                IOC_closeLink(cliLinkID);
+            }
+        });
+
+        // Accept client i immediately to pair srvLinkIDs[i] with Client[i]
+        // Note: This relies on the fact that we start clients one by one and wait for accept
+        // before starting the next one.
+        ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_acceptClient(srvID, &srvLinkIDs[i], NULL));
+        ASSERT_NE(IOC_ID_INVALID, srvLinkIDs[i]);
+
+        // Small delay to ensure connection is fully established before next iteration
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+
+    // Allow connections to stabilize
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    // Step 4: Send different commands to different clients
+
+    // Client 0: PING
+    {
+        IOC_CmdDesc_T cmdDesc = {};
+        cmdDesc.CmdID = IOC_CMDID_TEST_PING;
+        cmdDesc.Status = IOC_CMD_STATUS_INITIALIZED;
+        cmdDesc.TimeoutMs = 5000;
+        ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_execCMD(srvLinkIDs[0], &cmdDesc, NULL));
+
+        void *responseData = IOC_CmdDesc_getOutData(&cmdDesc);
+        VERIFY_KEYPOINT_STREQ(static_cast<char *>(responseData), "PONG", "Client 0 should return PONG");
+        IOC_CmdDesc_cleanup(&cmdDesc);
+    }
+
+    // Client 1: ECHO
+    {
+        const char *echoMsg = "OrchestrationTest";
+        IOC_CmdDesc_T cmdDesc = {};
+        cmdDesc.CmdID = IOC_CMDID_TEST_ECHO;
+        cmdDesc.Status = IOC_CMD_STATUS_INITIALIZED;
+        cmdDesc.TimeoutMs = 5000;
+        IOC_CmdDesc_setInPayload(&cmdDesc, (void *)echoMsg, strlen(echoMsg) + 1);
+
+        ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_execCMD(srvLinkIDs[1], &cmdDesc, NULL));
+
+        void *responseData = IOC_CmdDesc_getOutData(&cmdDesc);
+        VERIFY_KEYPOINT_STREQ(static_cast<char *>(responseData), echoMsg, "Client 1 should return ECHO");
+        IOC_CmdDesc_cleanup(&cmdDesc);
+    }
+
+    // Client 2: CALC
+    {
+        int val = 99;
+        int expected = 100;
+        IOC_CmdDesc_T cmdDesc = {};
+        cmdDesc.CmdID = IOC_CMDID_TEST_CALC;
+        cmdDesc.Status = IOC_CMD_STATUS_INITIALIZED;
+        cmdDesc.TimeoutMs = 5000;
+        IOC_CmdDesc_setInPayload(&cmdDesc, &val, sizeof(val));
+
+        ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_execCMD(srvLinkIDs[2], &cmdDesc, NULL));
+
+        void *responseData = IOC_CmdDesc_getOutData(&cmdDesc);
+        if (responseData) {
+            VERIFY_KEYPOINT_EQ(*(int *)responseData, expected, "Client 2 should return CALC result");
+        }
+        IOC_CmdDesc_cleanup(&cmdDesc);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // ASSERT: Verify execution on client side
+    // ═══════════════════════════════════════════════════════════════════════════════════
+
+    VERIFY_KEYPOINT_EQ(cliExecPriv[0].LastCmdID, IOC_CMDID_TEST_PING, "Client 0 processed PING");
+    VERIFY_KEYPOINT_EQ(cliExecPriv[1].LastCmdID, IOC_CMDID_TEST_ECHO, "Client 1 processed ECHO");
+    VERIFY_KEYPOINT_EQ(cliExecPriv[2].LastCmdID, IOC_CMDID_TEST_CALC, "Client 2 processed CALC");
+
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // CLEANUP
+    // ═══════════════════════════════════════════════════════════════════════════════════
+
+    // Signal clients to stop
+    clientsRunning = false;
+
+    for (auto &t : clientThreads) {
+        if (t.joinable()) t.join();
+    }
+
+    for (auto linkID : srvLinkIDs) {
+        if (linkID != IOC_ID_INVALID) IOC_closeLink(linkID);
+    }
+    if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
 }
 
 // [@AC-1,US-3] TC-1: verifyTcpServicePortBinding_byOnlineService_expectSuccessfulBind
@@ -1171,12 +1311,15 @@ TEST(UT_TcpCommandTypical, verifyProtocolAbstraction_byTcpVsFifo_expectIdentical
 //        - Dependencies: P1 ValidFunc/Typical complete for US-1
 //        - Notes: Verified that TCP protocol supports symmetric command execution (Service as Initiator).
 //
-//   ⚪ [@AC-2,US-2] TC-1: verifyTcpServiceAsCmdInitiator_byMultipleClients_expectOrchestration
+//   🟢 [@AC-2,US-2] TC-1: verifyTcpServiceAsCmdInitiator_byMultipleClients_expectOrchestration
 //        - Description: Multi-client TCP orchestration
 //        - Category: Typical (ValidFunc)
 //        - Protocol: tcp://localhost:18085/CmdTypicalTCP_Orchestrate
-//        - Estimated effort: 1.5 hours
+//        - Status: 🟢 GREEN - Test passing
+//        - Actual effort: 1 hour
 //        - Dependencies: Previous US-2 TC passing
+//        - Notes: Verified service can orchestrate different commands to different clients.
+//                 Requires sequential connection setup to ensure deterministic LinkID-Client mapping.
 //
 //===================================================================================================
 // P1 🥇 FUNCTIONAL TESTING – InvalidFunc (Fault)
