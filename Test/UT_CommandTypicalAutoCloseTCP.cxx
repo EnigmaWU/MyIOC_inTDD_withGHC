@@ -52,6 +52,34 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF UNIT TESTING DESIGN==============================================================
 /**
+ * COVERAGE STRATEGY: Trigger × Resource State × Validation Method
+ *
+ * COVERAGE MATRIX (Systematic Test Planning):
+ * ┌──────────────────────┬───────────────────┬─────────────────────┬────────────────────────────┐
+ * │ Trigger              │ Resource State    │ Validation Method   │ Key Scenarios              │
+ * ├──────────────────────┼───────────────────┼─────────────────────┼────────────────────────────┤
+ * │ Service Offline      │ Active Connection │ Client recv()       │ US-1: Service shutdown     │
+ * │ Client Disconnect    │ Established Link  │ LinkID validity     │ US-2: Peer-initiated close │
+ * │ Immediate Restart    │ TIME_WAIT state   │ Bind success        │ US-3: Port reuse           │
+ * └──────────────────────┴───────────────────┴─────────────────────┴────────────────────────────┘
+ *
+ * PRIORITY FRAMEWORK (P1 → P2 → P3):
+ *   P1 🥇 FUNCTIONAL (ValidFunc):
+ *     - Typical: Service offline cleanup (TC-1)
+ *   P1 🥇 FUNCTIONAL (InvalidFunc):
+ *     - Fault: Client disconnect handling (TC-2)
+ *   P3 🥉 QUALITY (Usability):
+ *     - Configuration: Port reuse verification (TC-3)
+ *
+ * CONTEXT-SPECIFIC ADJUSTMENT:
+ *   - Resource Management Focus: Promote Fault (Client Disconnect) to P1 level
+ *   - Rationale: Memory/socket leaks are critical failures in network services
+ *
+ * RISK ASSESSMENT:
+ *   TC-1 (Service Offline): Impact=3, Likelihood=3, Uncertainty=1 → Score=9 (P1 ValidFunc)
+ *   TC-2 (Client Disconnect): Impact=3, Likelihood=2, Uncertainty=2 → Score=12 (Promoted to P1)
+ *   TC-3 (Port Reuse): Impact=2, Likelihood=2, Uncertainty=1 → Score=4 (Keep P3)
+ *
  * Design focus:
  *  - TCP Socket Lifecycle Verification (Open → Connected → Closed)
  *  - Server-side cleanup when Service goes offline
@@ -59,9 +87,15 @@
  *  - Robustness against abrupt disconnections
  *
  * Test progression:
- *  - Service Offline Auto-Close (Basic)
- *  - Client Disconnect Auto-Close (Peer initiated)
- *  - Abrupt Disconnect (RST)
+ *  - Service Offline Auto-Close (Basic - P1 ValidFunc)
+ *  - Client Disconnect Auto-Close (Peer initiated - P1 Fault, promoted)
+ *  - Port Reuse (SO_REUSEADDR - P3 Usability)
+ *
+ * QUALITY GATE P1:
+ *   ✅ TC-1 GREEN (Service offline closes all links)
+ *   ✅ TC-2 GREEN (Client disconnect detected and handled)
+ *   ✅ No socket/thread leaks (verified via system tools or AddressSanitizer)
+ *   ✅ Client-side observability (recv returns 0/error on close)
  */
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
