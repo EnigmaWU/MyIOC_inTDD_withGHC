@@ -421,10 +421,10 @@ static void* __IOC_ServiceBroadcastDaemonThread(void* pArg) {
             continue;
         } else {
             _IOC_LogInfo("Accepted a new client, LinkID=%" PRIu64 "", pLinkObj->ID);
-            
+
             // Copy protocol methods from Service
             pLinkObj->pMethods = pSrvObj->pMethods;
-            
+
             // Store the accepted link for tracking
             for (int i = 0; i < _MAX_BROADCAST_EVENT_ACCEPTED_LINK_NUM; i++) {
                 if (NULL == pSrvObj->BroadcastEvent.pAcceptedLinks[i]) {
@@ -635,8 +635,20 @@ IOC_Result_T IOC_offlineService(
         // Auto-close accepted links unless KEEP_ACCEPTED_LINK flag is set
         if (!(pSrvObj->Args.Flags & IOC_SRVFLAG_KEEP_ACCEPTED_LINK)) {
             for (int i = 0; i < _MAX_AUTO_ACCEPT_ACCEPTED_LINK_NUM; i++) {
-                if (NULL != pSrvObj->AutoAccept.pAcceptedLinks[i]) {
-                    pSrvObj->pMethods->OpCloseLink_F(pSrvObj->AutoAccept.pAcceptedLinks[i]);
+                _IOC_LinkObject_pT pLinkObj = pSrvObj->AutoAccept.pAcceptedLinks[i];
+                if (NULL != pLinkObj) {
+                    // Save LinkID before nulling the pointer
+                    IOC_LinkID_T linkID = pLinkObj->ID;
+
+                    // Null out array entry first to avoid double-access
+                    pSrvObj->AutoAccept.pAcceptedLinks[i] = NULL;
+
+                    // Verify link still exists in global table before closing
+                    // (it may have been closed already by IOC_closeLink)
+                    if (_IOC_getLinkObjByLinkID(linkID) != NULL) {
+                        pSrvObj->pMethods->OpCloseLink_F(pLinkObj);
+                        __IOC_freeLinkObj(pLinkObj);
+                    }
                 }
             }
         }
