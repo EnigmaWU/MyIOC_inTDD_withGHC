@@ -243,11 +243,11 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  *
  * [@AC-1,US-4] Manual Accept Cleanup on Service Offline
- *  ⚪ TC-1: verifyTcpAutoClose_byManualAccept_expectAllLinksClosed
+ *  🟢 TC-1: verifyTcpAutoClose_byManualAccept_expectAllLinksClosed
  *      @[Purpose]: Validate that IOC_offlineService closes manually-accepted links (different code path)
  *      @[Brief]: Service(TCP, NO AUTO_ACCEPT) → Manual IOC_acceptClient → Service Offline → Links close
  *      @[Protocol]: tcp://localhost:18303/AutoCloseTCP_ManualAccept
- *      @[Status]: TODO
+ *      @[Status]: GREEN (passed - 2025-11-23)
  *      @[Steps]:
  *          1. Start TCP service on port 18303 WITHOUT IOC_SRVFLAG_AUTO_ACCEPT
  *          2. Client connects (raw TCP socket)
@@ -278,10 +278,10 @@
 //   ⚠️  [@AC-1,US-2] TC-1: verifyTcpAutoClose_byClientDisconnect_expectLinkInvalidation (BUG FOUND -
 //   heap-use-after-free)
 //   🟢 [@AC-1,US-3] TC-1: verifyTcpPortReuse_byImmediateRestart_expectSuccess (PASSED - 2025-11-23)
-//   ⚪ [@AC-1,US-4] TC-1: verifyTcpAutoClose_byManualAccept_expectAllLinksClosed (TODO)
+//   🟢 [@AC-1,US-4] TC-1: verifyTcpAutoClose_byManualAccept_expectAllLinksClosed (PASSED - 2025-11-23)
 //
-// SUMMARY: 2/4 US GREEN ✅✅, 1/4 US FOUND BUG 🐛, 1/4 US TODO ⚪
-//   (US-1/AC-1/TC-1 and US-3/AC-1/TC-1 pass, US-2/AC-1/TC-1 found bug, US-4/AC-1/TC-1 pending)
+// SUMMARY: 3/4 US GREEN ✅✅✅, 1/4 US BUG 🐛
+//   (US-1/AC-1/TC-1, US-3/AC-1/TC-1, US-4/AC-1/TC-1 pass; US-2/AC-1/TC-1 heap-use-after-free)
 //
 // BUG REPORT (US-2/AC-1/TC-1):
 //   Issue: Heap-use-after-free when client disconnects
@@ -667,28 +667,36 @@ TEST(UT_CommandTypicalAutoCloseTCP, verifyTcpAutoClose_byManualAccept_expectAllL
                              .UsageArgs = {.pCmd = &cmdUsageArgs}};
 
     IOC_Result_T resOnline = IOC_onlineService(&srvID, &srvArgs);
-    ASSERT_EQ(resOnline, IOC_RESULT_SUCCESS) << "Service online must succeed for TC-4 SETUP";
+    ASSERT_EQ(resOnline, IOC_RESULT_SUCCESS) << "Service online must succeed for US-4/AC-1/TC-1 SETUP";
 
-    // Connect raw TCP client (not IOC_connectService - simulates external TCP client)
-    TcpClient rawClient;
-    bool connected = rawClient.connectToServer("127.0.0.1", PORT);
-    ASSERT_TRUE(connected) << "Raw TCP client must connect for TC-4 SETUP";
+    // Client connects using IOC protocol (will queue for manual accept since no AUTO_ACCEPT)
+    // Start connection in background thread to avoid blocking
+    IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
+    IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
 
-    // Small delay to ensure server detects incoming connection
+    std::thread connectThread([&]() {
+        IOC_Result_T res = IOC_connectService(&cliLinkID, &connArgs, nullptr);
+        // Connection will block until server accepts
+    });
+
+    // Small delay to ensure client initiates connection
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     // ────────────────────────────────────────────────────────────────────────────────────────────
     // 🎯 PHASE 2: BEHAVIOR - Manually accept client, verify active, then take service offline
     // ────────────────────────────────────────────────────────────────────────────────────────────
     // Manually accept the client connection (tests ManualAccept.AcceptedLinkIDs array)
-    IOC_LinkID_T linkID;
-    IOC_Result_T resAccept = IOC_acceptClient(srvID, &linkID, nullptr);
+    IOC_LinkID_T srvLinkID;
+    IOC_Result_T resAccept = IOC_acceptClient(srvID, &srvLinkID, nullptr);
+
+    // Wait for client connection to complete
+    connectThread.join();
 
     // Verify link is active before taking service offline (try to send PING command)
     IOC_CmdDesc_T cmdDescBefore;
     IOC_CmdDesc_initVar(&cmdDescBefore);
     cmdDescBefore.CmdID = IOC_CMDID_TEST_PING;
-    IOC_Result_T resCmdBefore = IOC_execCMD(linkID, &cmdDescBefore, nullptr);
+    IOC_Result_T resCmdBefore = IOC_execCMD(cliLinkID, &cmdDescBefore, nullptr);
 
     // Take service offline (should cleanup manually-accepted links via ManualAccept.AcceptedLinkIDs)
     IOC_Result_T resOffline = IOC_offlineService(srvID);
@@ -700,7 +708,7 @@ TEST(UT_CommandTypicalAutoCloseTCP, verifyTcpAutoClose_byManualAccept_expectAllL
     IOC_CmdDesc_T cmdDescAfter;
     IOC_CmdDesc_initVar(&cmdDescAfter);
     cmdDescAfter.CmdID = IOC_CMDID_TEST_PING;
-    IOC_Result_T resCmdAfter = IOC_execCMD(linkID, &cmdDescAfter, nullptr);
+    IOC_Result_T resCmdAfter = IOC_execCMD(cliLinkID, &cmdDescAfter, nullptr);
 
     // ────────────────────────────────────────────────────────────────────────────────────────────
     // ✅ PHASE 3: VERIFY - Assert manual accept cleanup works (≤3 key points)
@@ -718,8 +726,7 @@ TEST(UT_CommandTypicalAutoCloseTCP, verifyTcpAutoClose_byManualAccept_expectAllL
                          "ManualAccept.AcceptedLinkIDs cleanup at IOC_Service.c:646-654)");
 
     // ────────────────────────────────────────────────────────────────────────────────────────────
-    // 🧹 PHASE 4: CLEANUP - Close raw client, service already offline
+    // 🧹 PHASE 4: CLEANUP - Client link closed by server, service already offline
     // ────────────────────────────────────────────────────────────────────────────────────────────
-    rawClient.closeSocket();
-    // Service already offline in BEHAVIOR phase
+    // Service already offline in BEHAVIOR phase, client connection closed by server
 }
