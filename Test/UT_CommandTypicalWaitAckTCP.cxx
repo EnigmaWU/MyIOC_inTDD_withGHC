@@ -286,8 +286,8 @@ TEST(UT_CommandTypicalWaitAckTCP, verifyTcpServicePolling_bySingleClient_expectW
     waitOpt.Payload.TimeoutUS = 1000000;  // 1 second
 
     IOC_Result_T waitRes = IOC_waitCMD(srvLinkID, &recvCmd, &waitOpt);
-    ASSERT_EQ(waitRes, IOC_RESULT_SUCCESS);
-    ASSERT_EQ(recvCmd.CmdID, TEST_CMDID_PING);
+    VERIFY_KEYPOINT_EQ(waitRes, IOC_RESULT_SUCCESS, "KP1: Server polling must receive command via IOC_waitCMD");
+    VERIFY_KEYPOINT_EQ(recvCmd.CmdID, TEST_CMDID_PING, "KP2: Server must receive correct Command ID (PING)");
 
     // 6. Server Acks Command
     recvCmd.Result = IOC_RESULT_SUCCESS;  // Set success result
@@ -295,7 +295,8 @@ TEST(UT_CommandTypicalWaitAckTCP, verifyTcpServicePolling_bySingleClient_expectW
     ASSERT_EQ(ackRes, IOC_RESULT_SUCCESS);
 
     // 7. Verify Client Result
-    ASSERT_EQ(clientFuture.get(), IOC_RESULT_SUCCESS);
+    VERIFY_KEYPOINT_EQ(clientFuture.get(), IOC_RESULT_SUCCESS,
+                       "KP3: Client must receive success response via IOC_ackCMD");
 
     // Cleanup
     IOC_offlineService(srvID);
@@ -354,7 +355,8 @@ TEST(UT_CommandTypicalWaitAckTCP, verifyTcpServiceAsyncProcessing_byDelayedAck_e
 
     IOC_Options_T waitOpt = {IOC_OPTID_TIMEOUT};
     waitOpt.Payload.TimeoutUS = 2000000;  // 2 seconds
-    ASSERT_EQ(IOC_waitCMD(srvLinkID, &recvCmd, &waitOpt), IOC_RESULT_SUCCESS);
+    VERIFY_KEYPOINT_EQ(IOC_waitCMD(srvLinkID, &recvCmd, &waitOpt), IOC_RESULT_SUCCESS,
+                       "KP1: Server must receive command during delayed processing scenario");
     ASSERT_EQ(recvCmd.CmdID, TEST_CMDID_DELAY);
 
     // 6. Server Delays (Simulate Async Work)
@@ -369,8 +371,8 @@ TEST(UT_CommandTypicalWaitAckTCP, verifyTcpServiceAsyncProcessing_byDelayedAck_e
     auto end = std::chrono::steady_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 
-    ASSERT_EQ(cliRes, IOC_RESULT_SUCCESS);
-    EXPECT_GE(duration, 500) << "Client should have waited for at least the delay period";
+    VERIFY_KEYPOINT_EQ(cliRes, IOC_RESULT_SUCCESS, "KP2: Client must receive response after delayed ack");
+    VERIFY_KEYPOINT_TRUE(duration >= 500, "KP3: Client must wait for at least the server processing delay period");
 
     IOC_offlineService(srvID);
 }
@@ -417,7 +419,8 @@ TEST(UT_CommandTypicalWaitAckTCP, verifyTcpServicePollingTimeout_byEmptyQueue_ex
     opt.Payload.TimeoutUS = 100000;  // 100ms
 
     IOC_Result_T waitRes = IOC_waitCMD(srvLinkID, &recvCmd, &opt);
-    ASSERT_EQ(waitRes, IOC_RESULT_TIMEOUT);
+    VERIFY_KEYPOINT_EQ(waitRes, IOC_RESULT_TIMEOUT,
+                       "KP1: Polling must timeout when no command arrives within timeout period");
 
     IOC_offlineService(srvID);
 }
@@ -486,10 +489,12 @@ TEST(UT_CommandTypicalWaitAckTCP, verifyTcpClientPolling_byServerInitiator_expec
     IOC_Options_T execOpt = {IOC_OPTID_TIMEOUT};
     execOpt.Payload.TimeoutUS = 2000000;  // 2 seconds
     IOC_Result_T execRes = IOC_execCMD(srvLinkID, &cmdDesc, &execOpt);
-    ASSERT_EQ(execRes, IOC_RESULT_SUCCESS);
+    VERIFY_KEYPOINT_EQ(execRes, IOC_RESULT_SUCCESS,
+                       "KP1: Server (Initiator) must successfully send command to Client (Executor)");
 
     // 6. Verify Client Success
-    ASSERT_EQ(clientFuture.get(), IOC_RESULT_SUCCESS);
+    VERIFY_KEYPOINT_EQ(clientFuture.get(), IOC_RESULT_SUCCESS,
+                       "KP2: Client (Executor) must successfully wait and ack command via polling");
 
     IOC_offlineService(srvID);
 }
