@@ -237,7 +237,15 @@ static void* __TCP_recvThread(void* pArg) {
                     pthread_mutex_unlock(&pTCPLinkObj->Mutex);
 
                     IOC_LinkID_T LinkID = pTCPLinkObj->pOwnerLinkObj->ID;
-                    CbExecCmd_F(LinkID, &CmdDesc, pCbPrivData);
+                    IOC_Result_T ExecResult = CbExecCmd_F(LinkID, &CmdDesc, pCbPrivData);
+
+                    // Set command status based on execution result
+                    if (ExecResult == IOC_RESULT_SUCCESS) {
+                        CmdDesc.Status = IOC_CMD_STATUS_SUCCESS;
+                    } else {
+                        CmdDesc.Status = IOC_CMD_STATUS_FAILED;
+                    }
+                    CmdDesc.Result = ExecResult;
 
                     if (pInData) free(pInData);
 
