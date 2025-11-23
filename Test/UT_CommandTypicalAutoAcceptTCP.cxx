@@ -276,17 +276,22 @@ static IOC_Result_T __TcpAutoAccept_ExecutorCb(IOC_LinkID_T LinkID, IOC_CmdDesc_
             pPrivData->LastResponseSize = strlen(response);
         }
     } else if (CmdID == IOC_CMDID_TEST_ECHO) {
-        // ECHO command: return input data with "TCP_AUTO_" prefix
+        // ECHO command: return input data as-is
         void *inputData = IOC_CmdDesc_getInData(pCmdDesc);
-        ULONG_T inputSize = IOC_CmdDesc_getInDataSize(pCmdDesc);
+        ULONG_T inputSize = IOC_CmdDesc_getInDataLen(pCmdDesc);
+
         if (inputData && inputSize > 0) {
-            std::string autoResponse = "TCP_AUTO_" + std::string((char *)inputData, inputSize);
-            ExecResult = IOC_CmdDesc_setOutPayload(pCmdDesc, (void *)autoResponse.c_str(), autoResponse.length());
-            if (ExecResult == IOC_RESULT_SUCCESS) {
-                strncpy(pPrivData->LastResponseData, autoResponse.c_str(),
-                        std::min(autoResponse.length(), sizeof(pPrivData->LastResponseData) - 1));
-                pPrivData->LastResponseSize = autoResponse.length();
+            if (inputSize < sizeof(pPrivData->LastResponseData)) {
+                memcpy(pPrivData->LastResponseData, inputData, inputSize);
+                pPrivData->LastResponseData[inputSize] = '\0';
+                pPrivData->LastResponseSize = inputSize;
+
+                ExecResult = IOC_CmdDesc_setOutPayload(pCmdDesc, pPrivData->LastResponseData, inputSize);
+            } else {
+                ExecResult = IOC_RESULT_BUFFER_TOO_SMALL;
             }
+        } else {
+            ExecResult = IOC_RESULT_INVALID_PARAM;
         }
     } else {
         ExecResult = IOC_RESULT_NOT_SUPPORT;
@@ -391,6 +396,139 @@ TEST(UT_CommandTypicalAutoAcceptTCP, verifyTcpAutoAccept_bySingleClient_expectIm
     ULONG_T OutDataLen = IOC_CmdDesc_getOutDataLen(&CmdDesc);
     VERIFY_KEYPOINT_TRUE(pOutData != nullptr && OutDataLen > 0 && strcmp((char *)pOutData, "TCP_AUTO_PONG") == 0,
                          "KP3: Service must respond with correct PONG data via auto-accepted link");
+
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    // 🧹 PHASE 4: CLEANUP - Release resources
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    IOC_offlineService(SrvID);
+}
+
+// [@AC-2,US-1] TC-2: verifyTcpAutoAccept_byMultipleClients_expectIsolatedExecution
+/**
+ * @[Category]: P1-Typical (ValidFunc)
+ * @[Purpose]: Validate multiple TCP clients can auto-connect concurrently
+ * @[Brief]: Service(TCP+AutoAccept) → 3 Clients connect → Execute different CmdIDs → Isolated responses
+ * @[4-Phase Structure]:
+ *   1) 🔧 SETUP: Start TCP service with AUTO_ACCEPT on port 18101
+ *   2) 🎯 BEHAVIOR: 3 clients connect concurrently, each executes different CmdID (PING/ECHO/PING)
+ *   3) ✅ VERIFY: 3 Key Points - All auto-accepted, Commands isolated, Correct responses
+ *   4) 🧹 CLEANUP: Offline service
+ */
+TEST(UT_CommandTypicalAutoAcceptTCP, verifyTcpAutoAccept_byMultipleClients_expectIsolatedExecution) {
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    // 🔧 PHASE 1: SETUP - Create TCP service with auto-accept for multiple clients
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    __TcpAutoAcceptPriv_T AutoAcceptPriv = {};
+    const uint16_t PORT = 18101;
+    IOC_SrvURI_T SrvURI = {
+        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "0.0.0.0", .Port = PORT, .pPath = "AutoAcceptTCP_Multi"};
+
+    static IOC_CmdID_T SupportedCmdIDs[] = {IOC_CMDID_TEST_PING, IOC_CMDID_TEST_ECHO};
+    IOC_CmdUsageArgs_T CmdUsageArgs = {.CbExecCmd_F = __TcpAutoAccept_ExecutorCb,
+                                       .pCbPrivData = &AutoAcceptPriv,
+                                       .CmdNum = sizeof(SupportedCmdIDs) / sizeof(SupportedCmdIDs[0]),
+                                       .pCmdIDs = SupportedCmdIDs};
+
+    IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI,
+                             .Flags = IOC_SRVFLAG_AUTO_ACCEPT,
+                             .UsageCapabilites = IOC_LinkUsageCmdExecutor,
+                             .UsageArgs = {.pCmd = &CmdUsageArgs},
+                             .OnAutoAccepted_F = __TcpAutoAccept_OnAutoAcceptedCb,
+                             .pSrvPriv = &AutoAcceptPriv};
+
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    IOC_Result_T ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, SrvID);
+
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    // 🎯 PHASE 2: BEHAVIOR - Multiple clients connect concurrently and execute different commands
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    const int NUM_CLIENTS = 3;
+    std::vector<IOC_LinkID_T> ClientLinks(NUM_CLIENTS, IOC_ID_INVALID);
+    std::vector<IOC_Result_T> ClientResults(NUM_CLIENTS, IOC_RESULT_BUG);
+
+    // Each client will execute a different command
+    struct ClientCmdInfo {
+        IOC_CmdID_T CmdID;
+        const char *pInData;
+        size_t InDataSize;
+        const char *pExpectedResp;
+    };
+
+    std::vector<ClientCmdInfo> ClientCmds = {
+        {IOC_CMDID_TEST_PING, nullptr, 0, "TCP_AUTO_PONG"},                     // Client 0: PING
+        {IOC_CMDID_TEST_ECHO, "ECHO_FROM_CLIENT_1", 18, "ECHO_FROM_CLIENT_1"},  // Client 1: ECHO
+        {IOC_CMDID_TEST_PING, nullptr, 0, "TCP_AUTO_PONG"},                     // Client 2: PING
+    };
+
+    // Connect all clients concurrently
+    std::vector<std::thread> ConnectThreads;
+    for (int i = 0; i < NUM_CLIENTS; ++i) {
+        ConnectThreads.emplace_back([&, i]() {
+            IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageCmdInitiator};
+            ClientResults[i] = IOC_connectService(&ClientLinks[i], &ConnArgs, nullptr);
+        });
+    }
+
+    for (auto &thread : ConnectThreads) {
+        if (thread.joinable()) thread.join();
+    }
+
+    // Wait for all auto-accepts
+    for (int retry = 0; retry < 100; ++retry) {
+        if (AutoAcceptPriv.AutoAcceptCount.load() >= NUM_CLIENTS) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    // Execute commands sequentially to avoid TCP protocol race conditions
+    std::vector<std::string> ClientResponses(NUM_CLIENTS);
+    for (int i = 0; i < NUM_CLIENTS; ++i) {
+        IOC_CmdDesc_T CmdDesc;
+        IOC_CmdDesc_initVar(&CmdDesc);
+        CmdDesc.CmdID = ClientCmds[i].CmdID;
+
+        if (ClientCmds[i].pInData != nullptr) {
+            IOC_CmdDesc_setInPayload(&CmdDesc, (void *)ClientCmds[i].pInData, ClientCmds[i].InDataSize);
+        }
+
+        IOC_Result_T ExecResult = IOC_execCMD(ClientLinks[i], &CmdDesc, nullptr);
+        if (ExecResult == IOC_RESULT_SUCCESS) {
+            size_t OutDataLen = IOC_CmdDesc_getOutDataLen(&CmdDesc);
+            const void *pOutData = IOC_CmdDesc_getOutData(&CmdDesc);
+            if (pOutData != nullptr && OutDataLen > 0) {
+                ClientResponses[i] = std::string((const char *)pOutData, OutDataLen);
+            }
+        }
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    // ✅ PHASE 3: VERIFY - Assert all clients auto-accepted and commands executed correctly (≤3 key points)
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    VERIFY_KEYPOINT_EQ(AutoAcceptPriv.AutoAcceptCount.load(), NUM_CLIENTS,
+                       "KP1: TCP service must auto-accept all concurrent client connections");
+
+    // Verify all connections succeeded
+    bool AllConnectionsValid = true;
+    for (int i = 0; i < NUM_CLIENTS; ++i) {
+        if (ClientResults[i] != IOC_RESULT_SUCCESS || ClientLinks[i] == IOC_ID_INVALID) {
+            AllConnectionsValid = false;
+            printf("[ERROR] Client %d connection failed: Result=%d, LinkID=%llu\n", i + 1, ClientResults[i],
+                   (unsigned long long)ClientLinks[i]);
+        }
+    }
+    VERIFY_KEYPOINT_TRUE(AllConnectionsValid, "KP2: All clients must successfully connect via auto-accept");
+
+    // Verify each client received the correct response for its command
+    bool AllResponsesCorrect = true;
+    for (int i = 0; i < NUM_CLIENTS; ++i) {
+        if (ClientResponses[i] != ClientCmds[i].pExpectedResp) {
+            AllResponsesCorrect = false;
+            printf("[ERROR] Client %d response mismatch: Expected='%s', Got='%s'\n", i, ClientCmds[i].pExpectedResp,
+                   ClientResponses[i].c_str());
+        }
+    }
+    VERIFY_KEYPOINT_TRUE(AllResponsesCorrect, "KP3: Each client must receive correct response for its CmdID");
 
     // ────────────────────────────────────────────────────────────────────────────────────────────
     // 🧹 PHASE 4: CLEANUP - Release resources
