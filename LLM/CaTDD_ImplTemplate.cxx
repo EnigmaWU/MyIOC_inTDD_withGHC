@@ -409,7 +409,7 @@ TEST(UT_NameOfCategory, verifyBehaviorX_byDoA_expectSomething) {
     printf("🎯 BEHAVIOR: verifyBehaviorX_byDoA_expectSomething\n");
 
     // VERIFY (≤ 3 key assertions)
-    // ASSERT_...;
+    // ASSERT_...; (use VERIFY_KEYPOINT_xyz redefined macros from GTest's ASSERT_xyz)
 
     // CLEANUP
 }
