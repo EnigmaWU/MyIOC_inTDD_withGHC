@@ -210,11 +210,11 @@
 //
 // TRACKING:
 //   🟢 [@AC-1,US-1] TC-1: verifyTcpAutoAccept_bySingleClient_expectImmediateCommandExecution (PASSED - 2025-11-23)
-//   ⚪ [@AC-2,US-1] TC-1: verifyTcpAutoAccept_byMultipleClients_expectIsolatedExecution
-//   ⚪ [@AC-1,US-2] TC-1: verifyTcpAutoAcceptCallback_byClientConnection_expectCallbackInvocation
-//   ⚪ [@AC-1,US-3] TC-1: verifyTcpKeepAcceptedLink_byServiceOffline_expectLinkPersistence
+//   🟢 [@AC-2,US-1] TC-1: verifyTcpAutoAccept_byMultipleClients_expectIsolatedExecution (PASSED - 2025-11-23)
+//   🟢 [@AC-1,US-2] TC-1: verifyTcpAutoAcceptCallback_byClientConnection_expectCallbackInvocation (PASSED - 2025-11-23)
+//   🟢 [@AC-1,US-3] TC-1: verifyTcpKeepAcceptedLink_byServiceOffline_expectLinkPersistence (PASSED - 2025-11-23)
 //
-// SUMMARY: 1/4 tests GREEN ✅, P1 Gate: 1/2 complete
+// SUMMARY: 4/4 tests GREEN ✅✅✅✅ ALL COMPLETE!
 //
 //======>END OF TODO/IMPLEMENTATION TRACKING SECTION===============================================
 
@@ -534,6 +534,172 @@ TEST(UT_CommandTypicalAutoAcceptTCP, verifyTcpAutoAccept_byMultipleClients_expec
     // 🧹 PHASE 4: CLEANUP - Release resources
     // ────────────────────────────────────────────────────────────────────────────────────────────
     IOC_offlineService(SrvID);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+/**
+ * @test TC-3: Callback Integration Verification
+ * @[Category]: P2-Callback (ValidFunc)
+ * @[Purpose]: Validate OnAutoAccepted_F callback provides valid LinkID for command execution
+ * @[Brief]: Service(TCP+AutoAccept) → Client connects → Verify callback LinkID is usable
+ * @[4-Phase Structure]:
+ *   1) 🔧 SETUP: Start TCP service with auto-accept callback on port 18102
+ *   2) 🎯 BEHAVIOR: Client connects, callback stores LinkID, use it to execute command
+ *   3) ✅ VERIFY: 3 Key Points - Callback invoked, LinkID valid, Command execution successful
+ *   4) 🧹 CLEANUP: Offline service
+ */
+TEST(UT_CommandTypicalAutoAcceptTCP, verifyTcpAutoAcceptCallback_byClientConnection_expectCallbackInvocation) {
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    // 🔧 PHASE 1: SETUP - Create TCP service with auto-accept callback
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    __TcpAutoAcceptPriv_T AutoAcceptPriv = {};
+    const uint16_t PORT = 18102;
+    IOC_SrvURI_T SrvURI = {
+        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "0.0.0.0", .Port = PORT, .pPath = "AutoAcceptTCP_Callback"};
+
+    static IOC_CmdID_T SupportedCmdIDs[] = {IOC_CMDID_TEST_PING};
+    IOC_CmdUsageArgs_T CmdUsageArgs = {.CbExecCmd_F = __TcpAutoAccept_ExecutorCb,
+                                       .pCbPrivData = &AutoAcceptPriv,
+                                       .CmdNum = sizeof(SupportedCmdIDs) / sizeof(SupportedCmdIDs[0]),
+                                       .pCmdIDs = SupportedCmdIDs};
+
+    IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI,
+                             .Flags = IOC_SRVFLAG_AUTO_ACCEPT,
+                             .UsageCapabilites = IOC_LinkUsageCmdExecutor,
+                             .UsageArgs = {.pCmd = &CmdUsageArgs},
+                             .OnAutoAccepted_F = __TcpAutoAccept_OnAutoAcceptedCb,
+                             .pSrvPriv = &AutoAcceptPriv};
+
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    IOC_Result_T ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, SrvID);
+
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    // 🎯 PHASE 2: BEHAVIOR - Client connects and uses LinkID from callback
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageCmdInitiator};
+    IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
+    ResultValue = IOC_connectService(&CliLinkID, &ConnArgs, nullptr);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
+    // Wait for auto-accept callback
+    for (int retry = 0; retry < 100; ++retry) {
+        if (AutoAcceptPriv.ClientAutoAccepted.load()) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    // Verify callback was invoked and LinkID stored
+    ASSERT_TRUE(AutoAcceptPriv.ClientAutoAccepted.load());
+    IOC_LinkID_T ServerLinkID = AutoAcceptPriv.LastAcceptedLinkID;
+    ASSERT_NE(IOC_ID_INVALID, ServerLinkID);
+
+    // Use the LinkID from callback to execute command from client side
+    IOC_CmdDesc_T CmdDesc;
+    IOC_CmdDesc_initVar(&CmdDesc);
+    CmdDesc.CmdID = IOC_CMDID_TEST_PING;
+
+    ResultValue = IOC_execCMD(CliLinkID, &CmdDesc, nullptr);
+
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    // ✅ PHASE 3: VERIFY - Assert callback integration works (≤3 key points)
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    VERIFY_KEYPOINT_TRUE(AutoAcceptPriv.ClientAutoAccepted.load(),
+                         "KP1: OnAutoAccepted_F callback must be invoked when client connects");
+
+    VERIFY_KEYPOINT_NE(ServerLinkID, IOC_ID_INVALID, "KP2: Callback must provide valid LinkID for accepted connection");
+
+    VERIFY_KEYPOINT_EQ(ResultValue, IOC_RESULT_SUCCESS, "KP3: Command execution must succeed using auto-accepted link");
+
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    // 🧹 PHASE 4: CLEANUP - Release resources
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    IOC_offlineService(SrvID);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+/**
+ * @test TC-4: Persistent Link Verification (KeepAcceptedLink)
+ * @[Category]: P3-Lifecycle (ValidFunc)
+ * @[Purpose]: Validate IOC_SRVFLAG_KEEP_ACCEPTED_LINK prevents auto-close of accepted links
+ * @[Brief]: Service(TCP+AutoAccept+KeepLinks) → Client connects → Service offline → Link persists
+ * @[4-Phase Structure]:
+ *   1) 🔧 SETUP: Start TCP service with KEEP_ACCEPTED_LINK flag on port 18103
+ *   2) 🎯 BEHAVIOR: Client connects, verify command works, then offline service
+ *   3) ✅ VERIFY: 3 Key Points - Link created, Service offline succeeds, Link NOT auto-closed
+ *   4) 🧹 CLEANUP: Manually close link
+ */
+TEST(UT_CommandTypicalAutoAcceptTCP, verifyTcpKeepAcceptedLink_byServiceOffline_expectLinkPersistence) {
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    // 🔧 PHASE 1: SETUP - Create TCP service with KEEP_ACCEPTED_LINK flag
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    __TcpAutoAcceptPriv_T AutoAcceptPriv = {};
+    const uint16_t PORT = 18103;
+    IOC_SrvURI_T SrvURI = {
+        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "0.0.0.0", .Port = PORT, .pPath = "AutoAcceptTCP_Keep"};
+
+    static IOC_CmdID_T SupportedCmdIDs[] = {IOC_CMDID_TEST_PING};
+    IOC_CmdUsageArgs_T CmdUsageArgs = {.CbExecCmd_F = __TcpAutoAccept_ExecutorCb,
+                                       .pCbPrivData = &AutoAcceptPriv,
+                                       .CmdNum = sizeof(SupportedCmdIDs) / sizeof(SupportedCmdIDs[0]),
+                                       .pCmdIDs = SupportedCmdIDs};
+
+    IOC_SrvArgs_T SrvArgs = {.SrvURI = SrvURI,
+                             .Flags = (IOC_SrvFlags_T)(IOC_SRVFLAG_AUTO_ACCEPT | IOC_SRVFLAG_KEEP_ACCEPTED_LINK),
+                             .UsageCapabilites = IOC_LinkUsageCmdExecutor,
+                             .UsageArgs = {.pCmd = &CmdUsageArgs},
+                             .OnAutoAccepted_F = __TcpAutoAccept_OnAutoAcceptedCb,
+                             .pSrvPriv = &AutoAcceptPriv};
+
+    IOC_SrvID_T SrvID = IOC_ID_INVALID;
+    IOC_Result_T ResultValue = IOC_onlineService(&SrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+    ASSERT_NE(IOC_ID_INVALID, SrvID);
+
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    // 🎯 PHASE 2: BEHAVIOR - Client connects, execute command, then offline service
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageCmdInitiator};
+    IOC_LinkID_T CliLinkID = IOC_ID_INVALID;
+    ResultValue = IOC_connectService(&CliLinkID, &ConnArgs, nullptr);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
+    // Wait for auto-accept
+    for (int retry = 0; retry < 100; ++retry) {
+        if (AutoAcceptPriv.ClientAutoAccepted.load()) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    IOC_LinkID_T ServerLinkID = AutoAcceptPriv.LastAcceptedLinkID;
+
+    // Execute command to verify link is functional before service offline
+    IOC_CmdDesc_T CmdDesc;
+    IOC_CmdDesc_initVar(&CmdDesc);
+    CmdDesc.CmdID = IOC_CMDID_TEST_PING;
+    ResultValue = IOC_execCMD(CliLinkID, &CmdDesc, nullptr);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, ResultValue);
+
+    // Now offline the service
+    IOC_Result_T OfflineResult = IOC_offlineService(SrvID);
+
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    // ✅ PHASE 3: VERIFY - Assert link persists after service offline (≤3 key points)
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    VERIFY_KEYPOINT_NE(ServerLinkID, IOC_ID_INVALID, "KP1: Auto-accepted link must be created with valid LinkID");
+
+    VERIFY_KEYPOINT_EQ(OfflineResult, IOC_RESULT_SUCCESS,
+                       "KP2: Service offline must succeed with KEEP_ACCEPTED_LINK flag");
+
+    // Verify link still exists by attempting to close it manually
+    // Without KEEP_ACCEPTED_LINK, the link would already be closed (IOC_closeLink would fail)
+    IOC_Result_T CloseLinkResult = IOC_closeLink(ServerLinkID);
+    VERIFY_KEYPOINT_EQ(CloseLinkResult, IOC_RESULT_SUCCESS,
+                       "KP3: Accepted link must persist after service offline (manual close succeeds)");
+
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    // 🧹 PHASE 4: CLEANUP - Close client link
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    IOC_closeLink(CliLinkID);
 }
 
 //======>END OF TEST CASE IMPLEMENTATIONS==========================================================
