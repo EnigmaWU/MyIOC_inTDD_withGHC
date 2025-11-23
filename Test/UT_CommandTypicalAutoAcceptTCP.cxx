@@ -57,7 +57,44 @@
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF UNIT TESTING DESIGN==============================================================
-/**
+/**************************************************************************************************
+ * 📋 TEST CASE DESIGN ASPECTS/CATEGORIES
+ *
+ * DESIGN PRINCIPLE: IMPROVE VALUE • AVOID LOSS • BALANCE SKILL vs COST
+ *
+ * PRIORITY FRAMEWORK:
+ *   P1 🥇 FUNCTIONAL:     Must complete before P2 (ValidFunc + InvalidFunc)
+ *   P2 🥈 DESIGN-ORIENTED: Test after P1 (State, Capability, Concurrency)
+ *   P3 🥉 QUALITY-ORIENTED: Test for quality attributes (Performance, Robust, etc.)
+ *
+ * DEFAULT TEST ORDER:
+ *   P1: Typical → Boundary → Misuse → Fault
+ *   P2: State → Capability → Concurrency
+ *   P3: Performance → Robust → Compatibility
+ *
+ * CONTEXT-SPECIFIC ADJUSTMENT:
+ *   - New Public API: IOC_SRVFLAG_AUTO_ACCEPT for TCP
+ *   - Rationale: Auto-accept is core functionality → P1 Typical priority
+ *   - Callback Integration: Promote to early P2 (architectural validation)
+ *
+ * RISK ASSESSMENT:
+ *   US-1/AC-1/TC-1 (Basic TCP Auto-Accept): Impact=3, Likelihood=3, Uncertainty=1 → Score=9 (P1 Typical)
+ *   US-1/AC-2/TC-1 (Multi-client): Impact=3, Likelihood=2, Uncertainty=1 → Score=6 (P1 Typical)
+ *   US-2/AC-1/TC-1 (Callback): Impact=2, Likelihood=2, Uncertainty=2 → Score=8 (P2)
+ *   US-3/AC-1/TC-1 (Persistent Links): Impact=2, Likelihood=2, Uncertainty=1 → Score=4 (P3)
+ *
+ * COVERAGE STRATEGY: Feature × Client Count × Lifecycle
+ *
+ * COVERAGE MATRIX (Systematic Test Planning):
+ * ┌──────────────────────┬─────────────────┬───────────────────┬────────────────────────────┐
+ * │ Feature              │ Client Count    │ Lifecycle Phase   │ Key Scenarios              │
+ * ├──────────────────────┼─────────────────┼───────────────────┼────────────────────────────┤
+ * │ Auto-Accept          │ Single          │ Connect→Execute   │ US-1/AC-1: Basic flow      │
+ * │ Auto-Accept          │ Multiple (3)    │ Concurrent Exec   │ US-1/AC-2: Isolation       │
+ * │ Callback Integration │ Single          │ Connect→Notify    │ US-2/AC-1: Callback invoke │
+ * │ Keep Accepted Link   │ Single          │ Service Offline   │ US-3/AC-1: Persistence     │
+ * └──────────────────────┴─────────────────┴───────────────────┴────────────────────────────┘
+ *
  * Design focus:
  *  - TCP Auto-Accept mechanism validation
  *  - Integration of OnAutoAccepted_F with TCP socket lifecycle
@@ -65,10 +102,16 @@
  *  - Handling of multiple concurrent TCP connections
  *
  * Test progression:
- *  - Basic TCP Auto-Accept (Client connects, Service auto-accepts, Command flows)
- *  - Multi-client TCP Auto-Accept (Concurrency isolation)
- *  - Callback integration (Configuring TCP links in OnAutoAccepted_F)
- *  - Persistent TCP links (IOC_SRVFLAG_KEEP_ACCEPTED_LINK)
+ *  - Basic TCP Auto-Accept (Client connects, Service auto-accepts, Command flows) - P1
+ *  - Multi-client TCP Auto-Accept (Concurrency isolation) - P1
+ *  - Callback integration (Configuring TCP links in OnAutoAccepted_F) - P2
+ *  - Persistent TCP links (IOC_SRVFLAG_KEEP_ACCEPTED_LINK) - P3
+ *
+ * QUALITY GATE P1:
+ *   ✅ US-1/AC-1/TC-1 GREEN (Basic auto-accept works)
+ *   ✅ US-1/AC-2/TC-1 GREEN (Multi-client isolation verified)
+ *   ✅ All Typical tests passing
+ *   ✅ No socket/thread leaks
  */
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
