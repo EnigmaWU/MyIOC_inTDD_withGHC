@@ -31,13 +31,15 @@
  *   [WHY] to ensure reliable P2P command request-response patterns over network sockets.
  *
  * SCOPE:
- *   - [In scope]: TCP protocol command execution, socket lifecycle, network transport validation
- *   - [In scope]: Same command patterns as FIFO but over TCP (IOC_SRV_PROTO_TCP)
- *   - [In scope]: TCP-specific concerns: port binding, connection failures, network timing
- *   - [Out of scope]: Broadcast commands (see UT_ServiceBroadcast.cxx)
- *   - [Out of scope]: FIFO/memory-based transport (see UT_CommandTypical.cxx)
- *   - [Out of scope]: Auto-accept patterns (see UT_CommandTypicalAutoAccept.cxx)
- *   - [Out of scope]: Cross-process/multi-machine testing (integration test scope)
+ *   - [In scope]: TYPICAL TCP command execution patterns (P1 ValidFunc Typical only)
+ *   - [In scope]: Core command patterns: CmdExecutor, CmdInitiator, multi-client
+ *   - [In scope]: Protocol abstraction validation (TCP vs FIFO identical behavior)
+ *   - [Out of scope]: Boundary conditions → see UT_CommandBoundaryTCP.cxx
+ *   - [Out of scope]: API misuse patterns → see UT_CommandMisuseTCP.cxx
+ *   - [Out of scope]: Fault scenarios → see UT_CommandFaultTCP.cxx
+ *   - [Out of scope]: Broadcast commands → see UT_ServiceBroadcast.cxx
+ *   - [Out of scope]: FIFO/memory transport → see UT_CommandTypical.cxx
+ *   - [Out of scope]: Auto-accept patterns → see UT_CommandTypicalAutoAccept.cxx
  *
  * KEY CONCEPTS:
  *   - TCP Protocol Layer: Socket-based transport (bind, listen, accept, connect)
@@ -60,6 +62,9 @@
  *   - Depends on: TCP protocol layer implementation (_IOC_SrvProtoTCP.c)
  *   - Related tests: UT_CommandTypical.cxx (FIFO-based reference patterns)
  *   - Related tests: UT_CommandTypicalAutoAccept.cxx (auto-accept extension patterns)
+ *   - Extended by: UT_CommandBoundaryTCP.cxx (P1 Boundary tests)
+ *   - Extended by: UT_CommandMisuseTCP.cxx (P1 Misuse/InvalidFunc tests)
+ *   - Extended by: UT_CommandFaultTCP.cxx (P1 Fault/InvalidFunc tests)
  *   - Production code: Source/_IOC_SrvProtoTCP.c, Source/IOC_Command.c
  */
 //======>END OF OVERVIEW OF THIS UNIT TESTING FILE=================================================
@@ -119,11 +124,14 @@
  *  - P1 Typical: Basic TCP command execution (CmdExecutor with callback)
  *  - P1 Typical: Multiple command types over TCP (PING, ECHO, CALC)
  *  - P1 Typical: Multi-client TCP connections with command isolation
- *  - P1 Boundary: TCP command timeouts and timing constraints
  *  - P1 Typical: Reversed roles (service as CmdInitiator over TCP)
- *  - P1 Fault: TCP-specific error scenarios (port conflicts, connection failures)
  *  - P2 State: TCP service lifecycle (online/offline, port binding)
  *  - P3 Compatibility: TCP vs FIFO protocol abstraction validation
+ *
+ * ⚠️  REORGANIZED: Non-Typical tests moved to dedicated files per CaTDD priority framework:
+ *  - P1 Boundary tests → UT_CommandBoundaryTCP.cxx (timeout constraints, payload limits)
+ *  - P1 Misuse tests → UT_CommandMisuseTCP.cxx (null pointers, invalid IDs, state violations)
+ *  - P1 Fault tests → UT_CommandFaultTCP.cxx (connection failures, timeouts, resource exhaustion)
  *
  * QUALITY GATE P1:
  *   ✅ US-1/AC-1/TC-1 GREEN (Basic TCP command execution)
@@ -830,107 +838,17 @@ TEST(UT_TcpCommandTypical, verifyTcpServiceAsCmdExecutor_byMultipleClients_expec
     if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
 }
 
+// ===========================================================================================
+// \u26a0\ufe0f  MOVED TO UT_CommandBoundaryTCP.cxx
+// ===========================================================================================
 // [@AC-4,US-1] TC-1: verifyTcpServiceAsCmdExecutor_byTimeoutConstraints_expectProperTiming
-TEST(UT_TcpCommandTypical, verifyTcpServiceAsCmdExecutor_byTimeoutConstraints_expectProperTiming) {
-    // ═══════════════════════════════════════════════════════════════════════════════════
-    // ARRANGE: Setup TCP service as CmdExecutor
-    // ═══════════════════════════════════════════════════════════════════════════════════
-    constexpr uint16_t TEST_PORT = 18083;
-
-    __CmdExecPriv_T srvExecPriv = {};
-
-    IOC_SrvURI_T srvURI = {
-        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdTypicalTCP_Timeout"};
-
-    static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_DELAY};
-    IOC_CmdUsageArgs_T cmdUsageArgs = {.CbExecCmd_F = __CmdTcpTypical_ExecutorCb,
-                                       .pCbPrivData = &srvExecPriv,
-                                       .CmdNum = 1,
-                                       .pCmdIDs = supportedCmdIDs};
-
-    IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
-                             .Flags = IOC_SRVFLAG_NONE,
-                             .UsageCapabilites = IOC_LinkUsageCmdExecutor,
-                             .UsageArgs = {.pCmd = &cmdUsageArgs}};
-
-    IOC_SrvID_T srvID = IOC_ID_INVALID;
-    IOC_LinkID_T srvLinkID = IOC_ID_INVALID;
-    IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
-
-    // ═══════════════════════════════════════════════════════════════════════════════════
-    // ACT & ASSERT: Establish connection and execute commands with timing constraints
-    // ═══════════════════════════════════════════════════════════════════════════════════
-
-    // Step 1: Online TCP service
-    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
-    ASSERT_NE(IOC_ID_INVALID, srvID);
-
-    // Step 2: Client connects via TCP
-    IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
-    std::thread cliThread([&] {
-        ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_connectService(&cliLinkID, &connArgs, NULL));
-        ASSERT_NE(IOC_ID_INVALID, cliLinkID);
-    });
-
-    // Step 3: Service accepts TCP connection
-    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_acceptClient(srvID, &srvLinkID, NULL));
-    ASSERT_NE(IOC_ID_INVALID, srvLinkID);
-
-    cliThread.join();
-
-    // --- Case 1: Command completes within timeout ---
-    {
-        int delayMs = 100;
-        IOC_CmdDesc_T cmdDesc = {};
-        cmdDesc.CmdID = IOC_CMDID_TEST_DELAY;
-        cmdDesc.Status = IOC_CMD_STATUS_INITIALIZED;
-        cmdDesc.TimeoutMs = 2000;  // 2 seconds timeout
-        IOC_CmdDesc_setInPayload(&cmdDesc, &delayMs, sizeof(delayMs));
-
-        auto start = std::chrono::high_resolution_clock::now();
-        IOC_Result_T result = IOC_execCMD(cliLinkID, &cmdDesc, NULL);
-        auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-
-        VERIFY_KEYPOINT_EQ(result, IOC_RESULT_SUCCESS, "Command should succeed within timeout");
-        VERIFY_KEYPOINT_TRUE(duration >= 100, "Execution time should be at least the delay");
-        // Allow some overhead for network and processing
-        VERIFY_KEYPOINT_TRUE(duration < 2000, "Execution time should be less than timeout");
-
-        IOC_CmdDesc_cleanup(&cmdDesc);
-    }
-
-    // --- Case 2: Command times out ---
-    {
-        // Note: TCP protocol layer adds ~1000ms overhead to CmdDesc.TimeoutMs
-        // to account for network latency. We must exceed (TimeoutMs + 1000ms) to trigger timeout.
-        int delayMs = 1500;
-        IOC_CmdDesc_T cmdDesc = {};
-        cmdDesc.CmdID = IOC_CMDID_TEST_DELAY;
-        cmdDesc.Status = IOC_CMD_STATUS_INITIALIZED;
-        cmdDesc.TimeoutMs = 100;  // Client waits ~1100ms total
-        IOC_CmdDesc_setInPayload(&cmdDesc, &delayMs, sizeof(delayMs));
-
-        auto start = std::chrono::high_resolution_clock::now();
-        IOC_Result_T result = IOC_execCMD(cliLinkID, &cmdDesc, NULL);
-        auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-
-        VERIFY_KEYPOINT_EQ(result, IOC_RESULT_TIMEOUT, "Command should timeout");
-        VERIFY_KEYPOINT_TRUE(duration >= 1100, "Execution time should be at least the timeout + overhead");
-        // We expect it to return shortly after timeout
-        VERIFY_KEYPOINT_TRUE(duration < 2000, "Execution time should return before the full delay completes");
-
-        IOC_CmdDesc_cleanup(&cmdDesc);
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════════════
-    // CLEANUP
-    // ═══════════════════════════════════════════════════════════════════════════════════
-    if (cliLinkID != IOC_ID_INVALID) IOC_closeLink(cliLinkID);
-    if (srvLinkID != IOC_ID_INVALID) IOC_closeLink(srvLinkID);
-    if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
-}
+//
+// This test has been MOVED to UT_CommandBoundaryTCP.cxx as it tests P1 Boundary conditions.
+// The test is now named: verifyTcpCommandTimeout_byBoundaryValues_expectCorrectBehavior
+//
+// Rationale: Per CaTDD methodology, boundary tests belong in dedicated boundary test files.
+// See UT_CommandBoundaryTCP.cxx for the complete implementation.
+// ===========================================================================================
 
 // [@AC-1,US-2] TC-1: verifyTcpServiceAsCmdInitiator_bySingleClient_expectClientExecution
 TEST(UT_TcpCommandTypical, verifyTcpServiceAsCmdInitiator_bySingleClient_expectClientExecution) {
@@ -1239,160 +1157,29 @@ TEST(UT_TcpCommandTypical, verifyTcpServicePortBinding_byOnlineService_expectSuc
     VERIFY_KEYPOINT_FALSE(checkPortOpen(TEST_PORT), "Port should be closed after service offline");
 }
 
+// ===========================================================================================
+// ⚠️  MOVED TO UT_CommandFaultTCP.cxx
+// ===========================================================================================
 // [@AC-2,US-3] TC-1: verifyTcpConnectionFailure_byClosedSocket_expectGracefulError
-TEST(UT_TcpCommandTypical, verifyTcpConnectionFailure_byClosedSocket_expectGracefulError) {
-    // ═══════════════════════════════════════════════════════════════════════════════════
-    // ARRANGE: Setup TCP service and client
-    // ═══════════════════════════════════════════════════════════════════════════════════
-    constexpr uint16_t TEST_PORT = 18087;
+//
+// This test has been MOVED to UT_CommandFaultTCP.cxx as it tests P1 Fault conditions.
+// The test is now named: verifyTcpFaultConnection_byClosedSocket_expectGracefulError
+//
+// Rationale: Per CaTDD methodology, fault tests (InvalidFunc) belong in dedicated fault test files.
+// See UT_CommandFaultTCP.cxx for the complete implementation.
+// ===========================================================================================
 
-    __CmdExecPriv_T srvExecPriv = {};
-
-    IOC_SrvURI_T srvURI = {
-        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdTypicalTCP_ConnFail"};
-
-    static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_PING};
-    IOC_CmdUsageArgs_T cmdUsageArgs = {.CbExecCmd_F = __CmdTcpTypical_ExecutorCb,
-                                       .pCbPrivData = &srvExecPriv,
-                                       .CmdNum = 1,
-                                       .pCmdIDs = supportedCmdIDs};
-
-    IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
-                             .Flags = IOC_SRVFLAG_NONE,
-                             .UsageCapabilites = IOC_LinkUsageCmdExecutor,
-                             .UsageArgs = {.pCmd = &cmdUsageArgs}};
-
-    IOC_SrvID_T srvID = IOC_ID_INVALID;
-    IOC_LinkID_T srvLinkID = IOC_ID_INVALID;
-    IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
-
-    // Step 1: Online TCP service
-    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
-    ASSERT_NE(IOC_ID_INVALID, srvID);
-
-    // Step 2: Client connects
-    IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
-    std::thread cliThread([&] {
-        ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_connectService(&cliLinkID, &connArgs, NULL));
-        ASSERT_NE(IOC_ID_INVALID, cliLinkID);
-    });
-
-    // Step 3: Service accepts
-    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_acceptClient(srvID, &srvLinkID, NULL));
-    ASSERT_NE(IOC_ID_INVALID, srvLinkID);
-
-    cliThread.join();
-
-    // ═══════════════════════════════════════════════════════════════════════════════════
-    // ACT: Simulate connection failure and attempt command
-    // ═══════════════════════════════════════════════════════════════════════════════════
-
-    // Step 4: Close TCP socket unexpectedly (Simulate network failure)
-    // We close the SERVER side link, which closes the socket.
-    IOC_closeLink(srvLinkID);
-    srvLinkID = IOC_ID_INVALID;
-
-    // Allow some time for TCP FIN/RST to propagate
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-    // Step 5: Attempt command execution from Client
-    IOC_CmdDesc_T cmdDesc = {};
-    cmdDesc.CmdID = IOC_CMDID_TEST_PING;
-    cmdDesc.Status = IOC_CMD_STATUS_INITIALIZED;
-    cmdDesc.TimeoutMs = 1000;
-
-    IOC_Result_T result = IOC_execCMD(cliLinkID, &cmdDesc, NULL);
-
-    // ═══════════════════════════════════════════════════════════════════════════════════
-    // ASSERT: Verify graceful error handling
-    // ═══════════════════════════════════════════════════════════════════════════════════
-
-    VERIFY_KEYPOINT_NE(result, IOC_RESULT_SUCCESS, "Command execution should fail on closed connection");
-
-    // ═══════════════════════════════════════════════════════════════════════════════════
-    // CLEANUP
-    // ═══════════════════════════════════════════════════════════════════════════════════
-    IOC_CmdDesc_cleanup(&cmdDesc);
-    if (cliLinkID != IOC_ID_INVALID) IOC_closeLink(cliLinkID);
-    if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
-}
-
+// ===========================================================================================
+// ⚠️  MOVED TO UT_CommandFaultTCP.cxx
+// ===========================================================================================
 // [@AC-3,US-3] TC-1: verifyTcpNetworkTimeout_bySlowResponse_expectTimeoutBehavior
-TEST(UT_TcpCommandTypical, verifyTcpNetworkTimeout_bySlowResponse_expectTimeoutBehavior) {
-    // ═══════════════════════════════════════════════════════════════════════════════════
-    // ARRANGE: Setup TCP service
-    // ═══════════════════════════════════════════════════════════════════════════════════
-    constexpr uint16_t TEST_PORT = 18088;
-
-    __CmdExecPriv_T srvExecPriv = {};
-
-    IOC_SrvURI_T srvURI = {
-        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdTypicalTCP_NetTimeout"};
-
-    static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_DELAY};
-    IOC_CmdUsageArgs_T cmdUsageArgs = {.CbExecCmd_F = __CmdTcpTypical_ExecutorCb,
-                                       .pCbPrivData = &srvExecPriv,
-                                       .CmdNum = 1,
-                                       .pCmdIDs = supportedCmdIDs};
-
-    IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
-                             .Flags = IOC_SRVFLAG_NONE,
-                             .UsageCapabilites = IOC_LinkUsageCmdExecutor,
-                             .UsageArgs = {.pCmd = &cmdUsageArgs}};
-
-    IOC_SrvID_T srvID = IOC_ID_INVALID;
-    IOC_LinkID_T srvLinkID = IOC_ID_INVALID;
-    IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
-
-    // Step 1: Online TCP service
-    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
-    ASSERT_NE(IOC_ID_INVALID, srvID);
-
-    // Step 2: Client connects
-    IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
-    std::thread cliThread([&] {
-        ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_connectService(&cliLinkID, &connArgs, NULL));
-        ASSERT_NE(IOC_ID_INVALID, cliLinkID);
-    });
-
-    // Step 3: Service accepts
-    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_acceptClient(srvID, &srvLinkID, NULL));
-    ASSERT_NE(IOC_ID_INVALID, srvLinkID);
-
-    cliThread.join();
-
-    // ═══════════════════════════════════════════════════════════════════════════════════
-    // ACT & ASSERT: Simulate slow response and verify timeout
-    // ═══════════════════════════════════════════════════════════════════════════════════
-
-    // Send DELAY command with delay > timeout
-    // Note: TCP protocol adds ~1000ms overhead to timeout.
-    // We set timeout to 100ms, so effective timeout is ~1100ms.
-    // We set delay to 2000ms to ensure timeout.
-    int delayMs = 2000;
-    IOC_CmdDesc_T cmdDesc = {};
-    cmdDesc.CmdID = IOC_CMDID_TEST_DELAY;
-    cmdDesc.Status = IOC_CMD_STATUS_INITIALIZED;
-    cmdDesc.TimeoutMs = 100;
-    IOC_CmdDesc_setInPayload(&cmdDesc, &delayMs, sizeof(delayMs));
-
-    auto start = std::chrono::high_resolution_clock::now();
-    IOC_Result_T result = IOC_execCMD(cliLinkID, &cmdDesc, NULL);
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-
-    VERIFY_KEYPOINT_EQ(result, IOC_RESULT_TIMEOUT, "Command should timeout due to slow response");
-    VERIFY_KEYPOINT_TRUE(duration >= 1100, "Duration should reflect timeout + overhead");
-    VERIFY_KEYPOINT_TRUE(duration < 2500, "Duration should not exceed delay significantly");
-
-    // ═══════════════════════════════════════════════════════════════════════════════════
-    // CLEANUP
-    // ═══════════════════════════════════════════════════════════════════════════════════
-    IOC_CmdDesc_cleanup(&cmdDesc);
-    if (cliLinkID != IOC_ID_INVALID) IOC_closeLink(cliLinkID);
-    if (srvLinkID != IOC_ID_INVALID) IOC_closeLink(srvLinkID);
-    if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
-}
+//
+// This test has been MOVED to UT_CommandFaultTCP.cxx as it tests P1 Fault conditions.
+// The test is now named: verifyTcpFaultTimeout_bySlowResponse_expectTimeoutBehavior
+//
+// Rationale: Per CaTDD methodology, fault/timeout tests (InvalidFunc) belong in dedicated fault test files.
+// See UT_CommandFaultTCP.cxx for the complete implementation.
+// ===========================================================================================
 
 // [@AC-1,US-4] TC-1: verifyProtocolAbstraction_byTcpVsFifo_expectIdenticalBehavior
 TEST(UT_TcpCommandTypical, verifyProtocolAbstraction_byTcpVsFifo_expectIdenticalBehavior) {
@@ -1790,20 +1577,20 @@ TEST(UT_TcpCommandTypical, verifyProtocolUri_byDifferentProtocols_expectOnlyUriD
 // ✅ COMPLETED TEST SUMMARY
 //===================================================================================================
 //
-//   📊 TOTAL: 11/11 tests implemented and GREEN (100% complete! 🎉)
+//   📊 TOTAL: 8/8 tests implemented and GREEN in THIS file (100% complete! 🎉)
 //
-//   P1 FUNCTIONAL: 7/7 GREEN ✅✅✅✅✅✅✅
-//     - ValidFunc Typical: 5 tests
-//       [@AC-1,US-1] Basic Executor (Single client)
-//       [@AC-2,US-1] Multi-type commands (PING, ECHO, CALC)
-//       [@AC-3,US-1] Multi-client isolation
-//       [@AC-1,US-2] Reversed flow (Service as Initiator)
-//       [@AC-2,US-2] Multi-client orchestration
-//     - ValidFunc Boundary: 1 test
-//       [@AC-4,US-1] Timeout constraints
-//     - InvalidFunc Fault: 2 tests (promoted due to reliability)
-//       [@AC-2,US-3] Connection failure handling
-//       [@AC-3,US-3] Network timeout behavior
+//   ⚠️  REORGANIZED PER CaTDD METHODOLOGY (2025-01-23):
+//   - This file now contains ONLY P1 ValidFunc Typical + P2 State + P3 Compatibility tests
+//   - Boundary tests → UT_CommandBoundaryTCP.cxx (1 test moved + 10 new)
+//   - Misuse tests → UT_CommandMisuseTCP.cxx (0 moved + 18 new designed)
+//   - Fault tests → UT_CommandFaultTCP.cxx (2 tests moved + 7 new designed)
+//
+//   P1 FUNCTIONAL (ValidFunc Typical ONLY): 5/5 GREEN ✅✅✅✅✅
+//     - [@AC-1,US-1] Basic Executor (Single client)
+//     - [@AC-2,US-1] Multi-type commands (PING, ECHO, CALC)
+//     - [@AC-3,US-1] Multi-client isolation
+//     - [@AC-1,US-2] Reversed flow (Service as Initiator)
+//     - [@AC-2,US-2] Multi-client orchestration
 //
 //   P2 DESIGN-ORIENTED: 1/1 GREEN ✅
 //     - State: 1 test
@@ -1814,16 +1601,28 @@ TEST(UT_TcpCommandTypical, verifyProtocolUri_byDifferentProtocols_expectOnlyUriD
 //       [@AC-1,US-4] TCP vs FIFO behavior identity
 //       [@AC-2,US-4] Protocol URI as only difference
 //
+//   MOVED TO OTHER FILES:
+//     ✅ [@AC-4,US-1] Timeout constraints → UT_CommandBoundaryTCP.cxx (P1 Boundary)
+//     ✅ [@AC-2,US-3] Connection failure → UT_CommandFaultTCP.cxx (P1 Fault)
+//     ✅ [@AC-3,US-3] Network timeout → UT_CommandFaultTCP.cxx (P1 Fault)
+//
+//   RELATED TEST FILES (Complete TCP Command Testing Suite):
+//     - UT_CommandTypicalTCP.cxx (THIS FILE): P1 Typical + P2 State + P3 Compatibility (8 tests)
+//     - UT_CommandBoundaryTCP.cxx: P1 Boundary (11 tests designed, 1 implemented)
+//     - UT_CommandMisuseTCP.cxx: P1 Misuse/InvalidFunc (18 tests designed)
+//     - UT_CommandFaultTCP.cxx: P1 Fault/InvalidFunc (9 tests designed, 2 implemented)
+//     TOTAL TCP TEST SUITE: 46 tests designed, 11 currently implemented
+//
 //   DEFERRED TO FUTURE:
 //     - P2 Concurrency: High-load stress testing (100+ concurrent clients)
 //     - P3 Performance: Latency/throughput benchmarking
 //     - P4 Demo/Example: Tutorial documentation
 //
 //   PRODUCTION READINESS: ✅ READY FOR RELEASE
-//     - All critical command patterns validated
+//     - All critical Typical command patterns validated
 //     - TCP protocol layer thoroughly tested
-//     - Error handling verified
-//     - Protocol abstraction validated
+//     - Test suite reorganized per CaTDD priority framework
+//     - Clear separation: Typical vs Boundary vs Misuse vs Fault
 //     - No known blockers
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////
