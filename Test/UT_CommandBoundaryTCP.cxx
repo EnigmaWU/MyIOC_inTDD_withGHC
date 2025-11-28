@@ -119,51 +119,51 @@
 //======>BEGIN OF TEST CASES========================================================================
 /**
  * [@AC-1,US-1] Timeout Boundary Handling
- *  ⚪ TC-1: verifyTcpCommandTimeout_byBoundaryValues_expectCorrectBehavior
+ *  🟢 TC-1: verifyTcpCommandTimeout_byBoundaryValues_expectCorrectBehavior
  *      @[Purpose]: Validate timeout handling at boundary values (0ms, 1ms, max)
  *      @[Protocol]: tcp://localhost:19080/CmdBoundaryTCP_Timeout
- *      @[Status]: ⚪ TODO - Design complete, ready for implementation
+ *      @[Status]: 🟢 DONE - Implemented and verified
  *
  * [@AC-1,US-2] Empty Payload Boundary
- *  ⚪ TC-1: verifyTcpCommandPayload_byEmptyPayload_expectSuccess
+ *  🟢 TC-1: verifyTcpCommandPayload_byEmptyPayload_expectSuccess
  *      @[Purpose]: Validate command execution with zero-length payload
  *      @[Protocol]: tcp://localhost:19081/CmdBoundaryTCP_EmptyPayload
- *      @[Status]: ⚪ TODO - Design complete
+ *      @[Status]: 🟢 DONE - Implemented and verified
  *
  * [@AC-2,US-2] Maximum Payload Boundary
- *  ⚪ TC-1: verifyTcpCommandPayload_byMaxPayload_expectSuccess
+ *  🟢 TC-1: verifyTcpCommandPayload_byMaxPayload_expectSuccess
  *      @[Purpose]: Validate command execution with 64KB payload
  *      @[Protocol]: tcp://localhost:19082/CmdBoundaryTCP_MaxPayload
- *      @[Status]: ⚪ TODO - Design complete
+ *      @[Status]: 🟢 DONE - Implemented and verified
  *
  * [@AC-1,US-3] Rapid Execution Boundary
- *  ⚪ TC-1: verifyTcpCommandRapidExecution_byBackToBackCommands_expectAllComplete
+ *  🟢 TC-1: verifyTcpCommandRapidExecution_byBackToBackCommands_expectAllComplete
  *      @[Purpose]: Validate 100 commands executed back-to-back
  *      @[Protocol]: tcp://localhost:19083/CmdBoundaryTCP_Rapid
- *      @[Status]: ⚪ TODO - Design complete
+ *      @[Status]: 🟢 DONE - Implemented and verified
  *
  * [@AC-2,US-3] Maximum Connections Boundary
- *  ⚪ TC-1: verifyTcpMaxConnections_byLimitedClients_expectAllAccepted
+ *  🟢 TC-1: verifyTcpMaxConnections_byLimitedClients_expectAllAccepted
  *      @[Purpose]: Validate maximum concurrent connection limit
  *      @[Protocol]: tcp://localhost:19084/CmdBoundaryTCP_MaxConn
- *      @[Status]: ⚪ TODO - Design complete
+ *      @[Status]: 🟢 DONE - Implemented and verified
  *
  * [@AC-3,US-3] Port Number Boundaries
- *  ⚪ TC-1: verifyTcpPortBinding_byLowPort_expectSuccess
+ *  🟢 TC-1: verifyTcpPortBinding_byLowPort_expectSuccess
  *      @[Purpose]: Validate binding to port 1024 (lowest non-privileged)
  *      @[Protocol]: tcp://localhost:1024/CmdBoundaryTCP_LowPort
- *      @[Status]: ⚪ TODO - Design complete
+ *      @[Status]: 🟢 DONE - Implemented and verified
  *
- *  ⚪ TC-2: verifyTcpPortBinding_byHighPort_expectSuccess
+ *  🟢 TC-2: verifyTcpPortBinding_byHighPort_expectSuccess
  *      @[Purpose]: Validate binding to port 65535 (highest valid)
  *      @[Protocol]: tcp://localhost:65535/CmdBoundaryTCP_HighPort
- *      @[Status]: ⚪ TODO - Design complete
+ *      @[Status]: 🟢 DONE - Implemented and verified
  *
  * [@AC-3,US-3] Rapid Connection Cycles
- *  ⚪ TC-1: verifyTcpRapidCycles_byConnectDisconnect_expectStability
+ *  🟢 TC-1: verifyTcpRapidCycles_byConnectDisconnect_expectStability
  *      @[Purpose]: Validate 50 rapid connect-disconnect cycles
  *      @[Protocol]: tcp://localhost:19085/CmdBoundaryTCP_RapidCycles
- *      @[Status]: ⚪ TODO - Design complete
+ *      @[Status]: 🟢 DONE - Implemented and verified
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * 📋 REVERSED FLOW VARIANTS (Service→Client command flow)
