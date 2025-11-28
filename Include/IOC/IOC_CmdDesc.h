@@ -158,6 +158,7 @@ static inline void IOC_CmdDesc_setTimeout(IOC_CmdDesc_pT pCmdDesc, ULONG_T Timeo
 // Helper functions for command payload management
 static inline IOC_Result_T IOC_CmdDesc_setInPayload(IOC_CmdDesc_pT pCmdDesc, void *pData, ULONG_T DataSize) {
     if (!pCmdDesc) return IOC_RESULT_INVALID_PARAM;
+    if (!pData && DataSize > 0) return IOC_RESULT_INVALID_PARAM;
 
     if (DataSize <= sizeof(pCmdDesc->InPayload.EmdData)) {
         // Use embedded data if size is small enough
@@ -184,6 +185,7 @@ static inline IOC_Result_T IOC_CmdDesc_setInPayload(IOC_CmdDesc_pT pCmdDesc, voi
 
 static inline IOC_Result_T IOC_CmdDesc_setOutPayload(IOC_CmdDesc_pT pCmdDesc, void *pData, ULONG_T DataSize) {
     if (!pCmdDesc) return IOC_RESULT_INVALID_PARAM;
+    if (!pData && DataSize > 0) return IOC_RESULT_INVALID_PARAM;
 
     if (DataSize <= sizeof(pCmdDesc->OutPayload.EmdData)) {
         // Use embedded data if size is small enough

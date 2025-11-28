@@ -64,9 +64,9 @@
  * PRIORITY: P1 InvalidFunc Misuse (COMPLETE)
  *
  * STATUS:
- *   🟢 20 tests implemented and GREEN
- *   🔴 3 tests in RGR RED phase (exposing implementation bugs for fixing)
+ *   🟢 23 tests implemented and ALL GREEN! ✅✅✅
  *   📋 23 total test scenarios
+ *   🎉 RGR CYCLE COMPLETE: All bugs fixed!
  */
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -131,10 +131,10 @@
  *  🟢 TC-5: verifyTcpMisuse_byNullLinkIDOutput_expectInvalidParam
  *      @[Purpose]: Validate NULL output pointer returns INVALID_PARAM
  *      @[Brief]: Call IOC_connectService with NULL pLinkID pointer
- *  🔴 TC-6: RGR_RED_DISABLED_verifyTcpMisuse_byNullAcceptOutput_expectInvalidParam
+ *  🟢 TC-6: verifyTcpMisuse_byNullAcceptOutput_expectInvalidParam
  *      @[Purpose]: Validate NULL output pointer returns INVALID_PARAM
  *      @[Brief]: Call IOC_acceptClient with NULL pLinkID pointer
- *      @[RGR]: RED - impl missing NULL check, causes crash
+ *      @[RGR]: 🟢 GREEN - Fixed! Added NULL check
  *  🟢 TC-7: verifyTcpMisuse_byNullWaitCmdDesc_expectInvalidParam
  *      @[Purpose]: Validate NULL CmdDesc returns INVALID_PARAM without crashing
  *      @[Brief]: Call IOC_waitCMD with NULL CmdDesc pointer
@@ -162,10 +162,10 @@
  *      @[Brief]: Call IOC_closeLink twice on same LinkID
  *
  * [@AC-1,US-4] Protocol Configuration Errors (4 tests)
- *  🔴 TC-1: RGR_RED_DISABLED_verifyTcpMisuse_byWrongProtocol_expectConfigError
+ *  🟢 TC-1: verifyTcpMisuse_byWrongProtocol_expectConfigError
  *      @[Purpose]: Validate wrong protocol string is rejected
  *      @[Brief]: Call IOC_onlineService with "invalid_proto://"
- *      @[RGR]: RED - impl uses assert() instead of error return
+ *      @[RGR]: 🟢 GREEN - Fixed! Returns NOT_SUPPORT
  *  🟢 TC-2: verifyTcpMisuse_byInvalidPort_expectConfigError
  *      @[Purpose]: Validate port 0 handling (OS-dependent)
  *      @[Brief]: Call IOC_onlineService with Port=0
@@ -188,10 +188,10 @@
  *  🟢 TC-2: verifyTcpMisuse_byWrongCmdStatus_expectError
  *      @[Purpose]: Validate wrong CmdDesc status is handled gracefully
  *      @[Brief]: Call IOC_execCMD with Status=PENDING instead of INITIALIZED
- *  🔴 TC-3: RGR_RED_DISABLED_verifyTcpMisuse_byNullPayloadNonZeroSize_expectError
+ *  🟢 TC-3: verifyTcpMisuse_byNullPayloadNonZeroSize_expectError
  *      @[Purpose]: Validate NULL payload with non-zero size is rejected
  *      @[Brief]: Call IOC_CmdDesc_setInPayload with NULL pointer and size>0
- *      @[RGR]: RED - impl missing NULL check, causes crash
+ *      @[RGR]: 🟢 GREEN - Fixed! Added NULL check
  *
  * Lifecycle Misuse (2 tests)
  *  🟢 TC-1: verifyTcpMisuse_byDoubleOffline_expectError
@@ -575,18 +575,16 @@ TEST(UT_TcpCommandMisuse, verifyTcpMisuse_byDoubleClose_expectError) {
  * @[Category]: P1-Misuse (InvalidFunc)
  * @[Purpose]: Validate wrong protocol string is rejected
  * @[Brief]: Call IOC_onlineService with "invalid_proto://"
- * @[RGR Status]: 🔴 RED - Exposes implementation bug
- * @[Bug]: Implementation uses assert() instead of returning error code
- *         Location: Protocol selection logic (needs graceful error return)
- *         Expected: Return IOC_RESULT_INVALID_PARAM or IOC_RESULT_NOT_SUPPORT
- *         Actual: assert() terminates test process
+ * @[RGR Status]: 🟢 GREEN - Implementation fixed, test now passes
+ * @[Fixed]: Added protocol validation returning IOC_RESULT_NOT_SUPPORT
+ *          Location: Source/IOC_Service.c lines 382-386, 934-938
+ *          Implementation: Check if pMethods is NULL after protocol loop
  * @[4-Phase Structure]:
  *   1) 🔧 SETUP: Setup with invalid protocol string
  *   2) 🎯 BEHAVIOR: Try to online service with wrong protocol
- *   3) ✅ VERIFY: Should fail with error, SrvID remains INVALID
- * @[TODO]: Fix implementation to return error instead of assert, then re-enable test
+ *   3) ✅ VERIFY: Returns error, SrvID remains INVALID
  */
-TEST(UT_TcpCommandMisuse, DISABLED_RGR_RED_verifyTcpMisuse_byWrongProtocol_expectConfigError) {
+TEST(UT_TcpCommandMisuse, verifyTcpMisuse_byWrongProtocol_expectConfigError) {
     // ═══════════════════════════════════════════════════════════════════════════════════
     // 🔧 SETUP: Setup with invalid protocol string
     // ═══════════════════════════════════════════════════════════════════════════════════
@@ -965,19 +963,17 @@ TEST(UT_TcpCommandMisuse, verifyTcpMisuse_byWrongCmdStatus_expectError) {
  * @[Category]: P1-Misuse (InvalidFunc)
  * @[Purpose]: Validate NULL payload with non-zero size is rejected
  * @[Brief]: Call IOC_CmdDesc_setInPayload with NULL pointer and size>0
- * @[RGR Status]: 🔴 RED - Exposes implementation bug
- * @[Bug]: IOC_CmdDesc_setInPayload/setOutPayload missing NULL pointer check
- *         Location: Include/IOC/IOC_CmdDesc.h lines 165, 193 (memcpy from NULL)
- *         Expected: if (!pData && DataSize > 0) return IOC_RESULT_INVALID_PARAM;
- *         Actual: memcpy(dest, NULL, size) causes segmentation fault
+ * @[RGR Status]: 🟢 GREEN - Implementation fixed, test now passes
+ * @[Fixed]: Added NULL pointer check in IOC_CmdDesc_setInPayload/setOutPayload
+ *          Location: Include/IOC/IOC_CmdDesc.h lines 162, 190
+ *          Implementation: if (!pData && DataSize > 0) return IOC_RESULT_INVALID_PARAM;
  * @[4-Phase Structure]:
  *   1) 🔧 SETUP: Create command descriptor
  *   2) 🎯 BEHAVIOR: Call setInPayload with NULL data and size=100
- *   3) ✅ VERIFY: Should return INVALID_PARAM without crash
+ *   3) ✅ VERIFY: Returns INVALID_PARAM without crash
  *   4) 🧹 CLEANUP: Clean up command descriptor
- * @[TODO]: Add NULL check in IOC_CmdDesc.h before memcpy, then re-enable test
  */
-TEST(UT_TcpCommandMisuse, DISABLED_RGR_RED_verifyTcpMisuse_byNullPayloadNonZeroSize_expectError) {
+TEST(UT_TcpCommandMisuse, verifyTcpMisuse_byNullPayloadNonZeroSize_expectError) {
     // ═══════════════════════════════════════════════════════════════════════════════════
     // 🔧 SETUP: Create command descriptor
     // ═══════════════════════════════════════════════════════════════════════════════════
@@ -1074,21 +1070,19 @@ TEST(UT_TcpCommandMisuse, verifyTcpMisuse_byNullLinkIDOutput_expectInvalidParam)
  * @[Category]: P1-Misuse (InvalidFunc)
  * @[Purpose]: Validate NULL output pointer returns INVALID_PARAM
  * @[Brief]: Call IOC_acceptClient with NULL pLinkID pointer
- * @[RGR Status]: 🔴 RED - Exposes implementation bug
- * @[Bug]: IOC_acceptClient missing NULL pointer check for pLinkID parameter
- *         Location: Source/IOC_Service.c line 812
- *         Expected: if (!pLinkID) return IOC_RESULT_INVALID_PARAM; at function start
- *         Actual: *pLinkID = pLinkObj->ID; dereferences NULL causing crash
+ * @[RGR Status]: 🟢 GREEN - Implementation fixed, test now passes
+ * @[Fixed]: Added NULL pointer check for pLinkID in IOC_acceptClient
+ *          Location: Source/IOC_Service.c line 758
+ *          Implementation: if (!pLinkID) return IOC_RESULT_INVALID_PARAM;
  * @[4-Phase Structure]:
- *   1) 🔧 SETUP: Create valid service with client connection ready
+ *   1) 🔧 SETUP: Create valid service (no client connection needed)
  *   2) 🎯 BEHAVIOR: Call IOC_acceptClient with NULL pLinkID
- *   3) ✅ VERIFY: Should return INVALID_PARAM immediately before blocking
- *   4) 🧹 CLEANUP: Close connections and offline service
- * @[TODO]: Add NULL check at start of IOC_acceptClient, then re-enable test
+ *   3) ✅ VERIFY: Returns INVALID_PARAM immediately before any accept logic
+ *   4) 🧹 CLEANUP: Offline service
  */
-TEST(UT_TcpCommandMisuse, DISABLED_RGR_RED_verifyTcpMisuse_byNullAcceptOutput_expectInvalidParam) {
+TEST(UT_TcpCommandMisuse, verifyTcpMisuse_byNullAcceptOutput_expectInvalidParam) {
     // ═══════════════════════════════════════════════════════════════════════════════════
-    // 🔧 SETUP: Create service and establish client connection
+    // 🔧 SETUP: Create service (NULL check happens before accept, so no client needed)
     // ═══════════════════════════════════════════════════════════════════════════════════
     constexpr uint16_t TEST_PORT = 20091;
 
@@ -1099,16 +1093,8 @@ TEST(UT_TcpCommandMisuse, DISABLED_RGR_RED_verifyTcpMisuse_byNullAcceptOutput_ex
         .SrvURI = srvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageCmdExecutor, .UsageArgs = {}};
 
     IOC_SrvID_T srvID = IOC_ID_INVALID;
-    IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
 
     ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
-
-    // Start client connection in background to make acceptClient ready
-    IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
-    std::thread cliThread([&] { IOC_connectService(&cliLinkID, &connArgs, NULL); });
-
-    // Give client time to initiate connection
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
     // ═══════════════════════════════════════════════════════════════════════════════════
     // 🎯 BEHAVIOR: Call IOC_acceptClient with NULL pLinkID output
@@ -1117,15 +1103,16 @@ TEST(UT_TcpCommandMisuse, DISABLED_RGR_RED_verifyTcpMisuse_byNullAcceptOutput_ex
     IOC_Result_T result = IOC_acceptClient(srvID, NULL, NULL);
 
     // ═══════════════════════════════════════════════════════════════════════════════════
-    // ✅ VERIFY: Should return INVALID_PARAM immediately (before blocking on accept)
+    // ✅ VERIFY: Should return INVALID_PARAM immediately (before any accept logic)
     // ═══════════════════════════════════════════════════════════════════════════════════
 
     VERIFY_KEYPOINT_EQ(result, IOC_RESULT_INVALID_PARAM, "Should return INVALID_PARAM for NULL pLinkID");
 
+    // ═══════════════════════════════════════════════════════════════════════════════════
     // 🧹 CLEANUP
-    cliThread.join();
-    if (cliLinkID != IOC_ID_INVALID) IOC_closeLink(cliLinkID);
-    if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
+    // ═══════════════════════════════════════════════════════════════════════════════════
+
+    IOC_offlineService(srvID);
 }
 
 // TC-7: verifyTcpMisuse_byNullWaitCmdDesc_expectInvalidParam
@@ -1264,7 +1251,7 @@ TEST(UT_TcpCommandMisuse, verifyTcpMisuse_byCloseInvalidLink_expectError) {
  *   🟢 TC-3: verifyTcpMisuse_byNullConnArgs_expectInvalidParam
  *   🟢 TC-4: verifyTcpMisuse_byNullSrvIDOutput_expectInvalidParam
  *   🟢 TC-5: verifyTcpMisuse_byNullLinkIDOutput_expectInvalidParam
- *   🔴 TC-6: RGR_RED_DISABLED_verifyTcpMisuse_byNullAcceptOutput_expectInvalidParam
+ *   🟢 TC-6: verifyTcpMisuse_byNullAcceptOutput_expectInvalidParam
  *   🟢 TC-7: verifyTcpMisuse_byNullWaitCmdDesc_expectInvalidParam
  *
  * Invalid ID Handling (3 tests):
@@ -1278,7 +1265,7 @@ TEST(UT_TcpCommandMisuse, verifyTcpMisuse_byCloseInvalidLink_expectError) {
  *   🟢 TC-3: verifyTcpMisuse_byDoubleClose_expectError
  *
  * Protocol Configuration (4 tests):
- *   🔴 TC-1: RGR_RED_DISABLED_verifyTcpMisuse_byWrongProtocol_expectConfigError
+ *   🟢 TC-1: verifyTcpMisuse_byWrongProtocol_expectConfigError
  *   🟢 TC-2: verifyTcpMisuse_byInvalidPort_expectConfigError
  *   🟢 TC-3: verifyTcpMisuse_byNullProtocolString_expectInvalidParam
  *   🟢 TC-4: verifyTcpMisuse_byNullHostString_expectInvalidParam
@@ -1289,27 +1276,27 @@ TEST(UT_TcpCommandMisuse, verifyTcpMisuse_byCloseInvalidLink_expectError) {
  * Command Descriptor Misuse (3 tests):
  *   🟢 TC-1: verifyTcpMisuse_byUnsupportedCmdID_expectError
  *   🟢 TC-2: verifyTcpMisuse_byWrongCmdStatus_expectError
- *   🔴 TC-3: RGR_RED_DISABLED_verifyTcpMisuse_byNullPayloadNonZeroSize_expectError
+ *   🟢 TC-3: verifyTcpMisuse_byNullPayloadNonZeroSize_expectError
  *
  * Lifecycle Misuse (2 tests):
  *   🟢 TC-1: verifyTcpMisuse_byDoubleOffline_expectError
  *   🟢 TC-2: verifyTcpMisuse_byCloseInvalidLink_expectError
  *
- * TOTAL: 20/23 implemented and GREEN ✅ (3 in RGR RED phase)
+ * TOTAL: 23/23 implemented and ALL GREEN! ✅✅✅
  *
- * QUALITY GATE P1 MISUSE: ENHANCED ✅ + RGR RED TESTS
+ * QUALITY GATE P1 MISUSE: ALL TESTS PASS! 🎉
  *   ✅ All critical misuse scenarios covered (23 tests)
- *   ✅ Null pointer handling verified (6/7 GREEN, 1 RGR RED)
+ *   ✅ Null pointer handling verified (7/7 GREEN) - FIXED! ✅
  *   ✅ Invalid ID handling verified (3 tests)
  *   ✅ State violation handling verified (3 tests)
- *   ✅ Protocol configuration errors verified (3/4 GREEN, 1 RGR RED)
+ *   ✅ Protocol configuration errors verified (4/4 GREEN) - FIXED! ✅
  *   ✅ Link usage capability enforcement verified (1 test)
- *   ✅ Command descriptor misuse verified (2/3 GREEN, 1 RGR RED)
+ *   ✅ Command descriptor misuse verified (3/3 GREEN) - FIXED! ✅
  *   ✅ Lifecycle misuse verified (2 tests)
- *   🔴 3 RGR RED tests document implementation bugs requiring fixes:
- *      1. WrongProtocol: assert() instead of error return
- *      2. NullPayload: Missing NULL check in IOC_CmdDesc_setInPayload
- *      3. NullAccept: Missing NULL check in IOC_acceptClient
- *   🐞 BUGS DOCUMENTED: 3 implementation bugs exposed by TDD!
+ *   🎉 RGR COMPLETE: All 3 bugs fixed through TDD!
+ *      1. WrongProtocol: Now returns IOC_RESULT_NOT_SUPPORT ✅
+ *      2. NullPayload: Added NULL check before memcpy ✅
+ *      3. NullAccept: Added NULL check for pLinkID parameter ✅
+ *   🐞 BUGS FIXED: 3/3 (100% completion) ✅✅✅
  */
 //======>END OF TODO TRACKING=======================================================================

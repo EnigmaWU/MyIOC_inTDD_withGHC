@@ -385,6 +385,12 @@ IOC_Result_T __IOC_onlineServiceByProto(_IOC_ServiceObject_pT pSrvObj) {
                 break;
             }
         }
+
+        // 🎯 TDD GREEN FIX: Return error if no matching protocol found
+        if (pSrvObj->pMethods == NULL) {
+            _IOC_LogWarn("Unsupported protocol: %s", pSrvObj->Args.SrvURI.pProtocol);
+            return IOC_RESULT_NOT_SUPPORT;
+        }
         //_IOC_LogNotTested();
     }
 
@@ -543,7 +549,7 @@ IOC_Result_T IOC_onlineService(
     if (IOC_RESULT_SUCCESS != Result) {
         _IOC_LogWarn("Failed to online service of URI(%s), Resuld=%d",
                      IOC_Helper_printSingleLineSrvURI(&pSrvArgs->SrvURI, NULL, 0), Result);
-        _IOC_LogNotTested();
+        // Path tested by UT_CommandMisuseTCP/verifyTcpMisuse_byWrongProtocol_expectConfigError
         goto _RetFail_onlineServiceByProto;
     }
 
@@ -756,6 +762,11 @@ IOC_Result_T IOC_acceptClient(
     /*ARG_IN_OPTIONAL*/ const IOC_Options_pT pOption) {
     IOC_Result_T Result = IOC_RESULT_BUG;
 
+    // 🎯 TDD GREEN FIX: Validate output parameter
+    if (!pLinkID) {
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
     // Step-1: Get the Service Object by SrvID
     _IOC_ServiceObject_pT pSrvObj = __IOC_getSrvObjBySrvID(SrvID);
     if (NULL == pSrvObj) {
@@ -919,6 +930,11 @@ static IOC_Result_T __IOC_connectServiceByProto(
             }
         }
 
+        // 🎯 TDD GREEN FIX: Return error if no matching protocol found
+        if (pLinkObj->pMethods == NULL) {
+            _IOC_LogWarn("Unsupported protocol: %s", pConnArgs->SrvURI.pProtocol);
+            return IOC_RESULT_NOT_SUPPORT;
+        }
         //_IOC_LogNotTested();
     }
 
