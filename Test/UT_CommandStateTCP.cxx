@@ -138,49 +138,55 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * PURPOSE: Verify command state behavior during TCP connection setup phase
  *
+ * [@AC-2,US-1] [@AC-3,US-1] Command state during callback execution and successful completion
  * 🟢 TC-1: verifyCommandState_clientAndServerSide_overTcpConnection
  *      @[Purpose]: Validate command state machine from both client and server perspectives
  *      @[Brief]: Verify client observes PENDING, server observes PROCESSING, both see SUCCESS
  *      @[TCP Focus]: Command state synchronization across TCP client-server boundary
+ *      @[US Mapping]: US-1 AC-2 (PROCESSING during callback), AC-3 (SUCCESS after completion)
+ *      @[Architecture]: Validates INITIALIZED→PENDING→PROCESSING→SUCCESS per README_ArchDesign.md
  *      @[Expected]: Client:PENDING(2) during transmission, Server:PROCESSING(3) in callback, Both:SUCCESS(4)
  *      @[Implementation]: 5ms observation window after PENDING for client-side monitoring
  *      @[Port]: 22080 (base port for state testing)
  *      @[Priority]: HIGH - Client/Server state correlation verification
  *      @[Status]: ✅ GREEN - Both-side state machine verified (Client:PENDING→SUCCESS, Server:PROCESSING→SUCCESS)
- *      @[Port]: 22080 (base port for state testing)
- *      @[Priority]: HIGH - Critical connection phase behavior
- *      @[Status]: ✅ GREEN - Documents actual synchronous execution model behavior
- *      @[Note]: IOC uses synchronous execution: INITIALIZED→(execute)→SUCCESS/FAILED
- *               PENDING/PROCESSING states used in async or polling modes (not this path)
  *
+ * [@AC-2,US-1] Command transitions to PROCESSING during callback execution
  * ⚪ TC-2: verifyCommandState_afterTcpConnectSuccess_expectProcessingTransition
  *      @[Purpose]: Validate command transitions to PROCESSING once TCP connection ready
  *      @[Brief]: Monitor command state transition when TCP moves to ESTABLISHED
  *      @[TCP Focus]: State transition timing aligned with TCP handshake
+ *      @[US Mapping]: US-1 AC-2 (PROCESSING state validation)
  *      @[Expected]: PENDING → PROCESSING transition synchronized with TCP ESTABLISHED
  *      @[Port]: 22081
  *      @[Priority]: HIGH - Critical state transition timing
  *
+ * [@AC-5,US-1] Command execution failure detection and FAILED state
  * ⚪ TC-3: verifyCommandState_whenTcpConnectRefused_expectFailedWithError
  *      @[Purpose]: Validate command immediately transitions to FAILED when connection refused
  *      @[Brief]: Attempt connect to offline server, verify quick FAILED state
  *      @[TCP Focus]: ECONNREFUSED error propagation to command state
+ *      @[US Mapping]: US-1 AC-5 (FAILED state and error result on connection failure)
  *      @[Expected]: Command FAILED with IOC_RESULT_LINK_OFFLINE or similar
  *      @[Port]: 22082 (server deliberately not started)
  *      @[Priority]: HIGH - Connection failure handling
  *
+ * [@AC-6,US-1] [@AC-1,US-4] Command timeout scenario handling
  * ⚪ TC-4: verifyCommandState_whenTcpConnectTimeout_expectTimeoutState
  *      @[Purpose]: Validate command transitions to TIMEOUT when TCP connect times out
  *      @[Brief]: Connect to unresponsive server (firewall/blackhole), verify timeout
  *      @[TCP Focus]: TCP connect timeout (SYN retransmit exhaustion)
+ *      @[US Mapping]: US-1 AC-6 (TIMEOUT state), US-4 AC-1 (timeout exceeds duration)
  *      @[Expected]: Command TIMEOUT after TCP connect timeout expires
  *      @[Port]: 22083 (firewall simulation)
  *      @[Priority]: MEDIUM - Timeout during connection phase
  *
+ * [@AC-1,US-2] [@AC-2,US-2] Link state reflects command activity during connection
  * ⚪ TC-5: verifyLinkState_duringTcpConnectAttempt_expectConnectingSubState
  *      @[Purpose]: Validate link state reflects TCP connection attempt
  *      @[Brief]: Check IOC_getLinkState() during connection establishment
  *      @[TCP Focus]: Link state should show connecting/establishing
+ *      @[US Mapping]: US-2 AC-1/AC-2 (Link state reflects command readiness/activity)
  *      @[Expected]: Link SubState indicates connection in progress
  *      @[Port]: 22084
  *      @[Priority]: MEDIUM - Link state during TCP handshake
@@ -190,27 +196,33 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * PURPOSE: Verify command state when TCP connection fails mid-execution
  *
+ * [@AC-5,US-1] [@AC-3,US-4] Command execution failure with error propagation
  * ⚪ TC-6: verifyCommandState_whenTcpResetDuringExecution_expectFailedTransition
  *      @[Purpose]: Validate command transitions to FAILED when TCP connection reset mid-execution
  *      @[Brief]: Start command execution, force TCP RST, verify state change
  *      @[TCP Focus]: ECONNRESET during active command processing
+ *      @[US Mapping]: US-1 AC-5 (FAILED state on error), US-4 AC-3 (error result propagation)
  *      @[Expected]: PROCESSING → FAILED transition with connection error
  *      @[Port]: 22085
  *      @[Priority]: HIGH - Mid-execution connection loss
  *      @[Relation]: Similar to UT_CommandFaultTCP.cxx TC-3, but focuses on STATE
  *
+ * [@AC-5,US-1] [@AC-3,US-4] Command failure on broken pipe error
  * ⚪ TC-7: verifyCommandState_whenTcpPipeBroken_expectFailedWithPipeError
  *      @[Purpose]: Validate command handles EPIPE (broken pipe) during send
  *      @[Brief]: Send command data after remote close, verify EPIPE detection
  *      @[TCP Focus]: Write to closed socket (EPIPE/SIGPIPE)
+ *      @[US Mapping]: US-1 AC-5 (FAILED state), US-4 AC-3 (error information propagation)
  *      @[Expected]: Command FAILED with pipe/send error
  *      @[Port]: 22086
  *      @[Priority]: HIGH - Send-side connection loss
  *
+ * [@AC-2,US-4] [@AC-7,US-2] Link state reflects timeout/error impact
  * ⚪ TC-8: verifyLinkState_whenTcpConnectionReset_expectDisconnectedState
  *      @[Purpose]: Validate link state reflects TCP connection loss
  *      @[Brief]: Monitor IOC_getLinkState() when connection resets
  *      @[TCP Focus]: Link state synchronized with TCP state (TCP-specific)
+ *      @[US Mapping]: US-4 AC-2 (link state reflects timeout), US-2 AC-7 (return to ready state)
  *      @[Expected]: Link state transitions to OFFLINE/DISCONNECTED
  *      @[Port]: 22087
  *      @[Priority]: HIGH - TCP connection state correlation
@@ -221,27 +233,33 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * PURPOSE: Verify command state under TCP flow control conditions
  *
- * ⚪ TC-11: verifyCommandState_whenTcpSendBufferFull_expectProcessingWithDelay
+ * [@AC-2,US-1] Command remains in PROCESSING state during execution
+ * ⚪ TC-9: verifyCommandState_whenTcpSendBufferFull_expectProcessingWithDelay
  *      @[Purpose]: Validate command remains PROCESSING when TCP send buffer full
  *      @[Brief]: Send large payload, fill TCP buffer, verify state during blocking
  *      @[TCP Focus]: TCP flow control (zero window) delays command completion
+ *      @[US Mapping]: US-1 AC-2 (PROCESSING state maintained during callback/execution)
  *      @[Expected]: Command stays PROCESSING until buffer drains
  *      @[Port]: 22088
  *      @[Priority]: HIGH - TCP flow control impact on state
  *      @[Relation]: UT_CommandFaultTCP TC-11 tests fault, this tests state
  *
+ * [@AC-2,US-1] Command maintains PROCESSING state during execution delays
  * ⚪ TC-10: verifyCommandState_whenTcpReceiveBufferFull_expectNormalProcessing
  *      @[Purpose]: Validate command state when receiver buffer full
  *      @[Brief]: Client slow to receive, server send blocked, verify state
  *      @[TCP Focus]: TCP receive window flow control
+ *      @[US Mapping]: US-1 AC-2 (PROCESSING state during execution)
  *      @[Expected]: Command PROCESSING, waits for receiver to drain buffer
  *      @[Port]: 22089
  *      @[Priority]: LOW - Receiver-side flow control
  *
+ * [@AC-2,US-1] [@AC-3,US-1] Command completes successfully after processing
  * ⚪ TC-11: verifyCommandState_whenTcpBackpressureResolved_expectSuccessTransition
  *      @[Purpose]: Validate command completes successfully after flow control resolved
  *      @[Brief]: Block send, then unblock, verify command reaches SUCCESS
  *      @[TCP Focus]: Recovery from flow control condition
+ *      @[US Mapping]: US-1 AC-2 (PROCESSING state), AC-3 (SUCCESS completion)
  *      @[Expected]: PROCESSING (blocked) → PROCESSING (unblocked) → SUCCESS
  *      @[Port]: 22090
  *      @[Priority]: HIGH - TCP flow control recovery
@@ -251,26 +269,32 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * PURPOSE: Verify command state during TCP connection recovery
  *
+ * [@AC-1,US-1] Command descriptor initialization returns PENDING status
  * ⚪ TC-12: verifyCommandState_duringTcpReconnection_expectNewCommandPending
  *      @[Purpose]: Validate new commands can be created during reconnection
  *      @[Brief]: Drop connection, create new command, attempt reconnect
  *      @[TCP Focus]: Command state during reconnection attempt
+ *      @[US Mapping]: US-1 AC-1 (command initialized as PENDING)
  *      @[Expected]: New command PENDING during reconnection
  *      @[Port]: 22091
  *      @[Priority]: MEDIUM - TCP reconnection behavior
  *
+ * [@AC-2,US-1] [@AC-5,US-4] Command processing resumes after error recovery
  * ⚪ TC-13: verifyCommandState_afterReconnectionSuccess_expectResumedProcessing
  *      @[Purpose]: Validate commands resume after successful reconnection
  *      @[Brief]: Reconnect TCP, verify pending commands can execute
  *      @[TCP Focus]: State recovery after reconnection
+ *      @[US Mapping]: US-1 AC-2 (transition to PROCESSING), US-4 AC-5 (recovery to ready state)
  *      @[Expected]: Queued commands transition to PROCESSING
  *      @[Port]: 22092
  *      @[Priority]: MEDIUM - TCP reconnection state recovery
  *
+ * [@AC-5,US-1] [@AC-3,US-4] Command FAILED state with error propagation
  * ⚪ TC-14: verifyCommandState_afterReconnectionFailure_expectFailedState
  *      @[Purpose]: Validate commands fail if reconnection impossible
  *      @[Brief]: Fail reconnection permanently, verify command cleanup
  *      @[TCP Focus]: Permanent connection loss handling
+ *      @[US Mapping]: US-1 AC-5 (FAILED state on error), US-4 AC-3 (error propagation)
  *      @[Expected]: All queued commands transition to FAILED
  *      @[Port]: 22093
  *      @[Priority]: MEDIUM - TCP reconnection failure handling
@@ -280,34 +304,42 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * PURPOSE: Verify command state during TCP shutdown (FIN vs RST)
  *
+ * [@AC-3,US-1] Command completes successfully before connection close
  * ⚪ TC-15: verifyCommandState_duringGracefulShutdown_expectCompletionBeforeClose
  *      @[Purpose]: Validate in-flight commands complete before graceful close
  *      @[Brief]: Initiate graceful shutdown, verify commands finish first
  *      @[TCP Focus]: FIN handshake after command completion
+ *      @[US Mapping]: US-1 AC-3 (SUCCESS state before shutdown)
  *      @[Expected]: Commands reach SUCCESS/FAILED before connection closes
  *      @[Port]: 22094
  *      @[Priority]: HIGH - TCP graceful shutdown (FIN) behavior
  *
+ * [@AC-5,US-1] [@AC-3,US-4] Command FAILED immediately on abortive close
  * ⚪ TC-16: verifyCommandState_duringUngracefulShutdown_expectImmediateFailed
  *      @[Purpose]: Validate commands fail immediately on ungraceful close
  *      @[Brief]: Force abortive close (RST), verify immediate FAILED state
  *      @[TCP Focus]: RST vs FIN handling in command state
+ *      @[US Mapping]: US-1 AC-5 (FAILED state), US-4 AC-3 (error propagation)
  *      @[Expected]: Commands immediately transition to FAILED
  *      @[Port]: 22095
  *      @[Priority]: HIGH - TCP abortive shutdown (RST) behavior
  *
+ * [@AC-7,US-2] Link state returns to appropriate ready/offline state
  * ⚪ TC-17: verifyLinkState_afterTcpGracefulClose_expectCleanOffline
  *      @[Purpose]: Validate link state after clean TCP close
  *      @[Brief]: Monitor link state during FIN handshake
  *      @[TCP Focus]: Link state reflects graceful termination
+ *      @[US Mapping]: US-2 AC-7 (link returns to ready state after completion)
  *      @[Expected]: Link transitions to OFFLINE cleanly
  *      @[Port]: 22096
  *      @[Priority]: MEDIUM - TCP FIN link state transition
  *
+ * [@AC-2,US-4] Link state reflects timeout/error impact
  * ⚪ TC-18: verifyLinkState_afterTcpAbortiveClose_expectErrorState
  *      @[Purpose]: Validate link state after abortive TCP close
  *      @[Brief]: Monitor link state during RST
  *      @[TCP Focus]: Link state reflects error termination
+ *      @[US Mapping]: US-4 AC-2 (link reflects timeout/error impact)
  *      @[Expected]: Link transitions to ERROR/OFFLINE with error code
  *      @[Port]: 22097
  *      @[Priority]: MEDIUM - TCP RST link state transition
@@ -317,10 +349,12 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * PURPOSE: Verify TCP layer operations don't affect command state incorrectly
  *
+ * [@AC-2,US-1] Command maintains PROCESSING state during TCP internal operations
  * ⚪ TC-19: verifyCommandState_duringTcpRetransmit_expectStableProcessing
  *      @[Purpose]: Validate command state unaffected by TCP retransmissions
  *      @[Brief]: Induce packet loss, verify state during TCP recovery
  *      @[TCP Focus]: TCP retransmit is transparent to command state
+ *      @[US Mapping]: US-1 AC-2 (PROCESSING state stable during execution)
  *      @[Expected]: Command remains PROCESSING during TCP retransmit
  *      @[Port]: 22098
  *      @[Priority]: LOW - TCP layer transparency
@@ -331,10 +365,12 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * PURPOSE: Verify TCP-specific error codes map correctly to command state
  *
+ * [@AC-5,US-1] [@AC-3,US-4] TCP error code to IOC_Result_T mapping accuracy
  * ⚪ TC-20: verifyTcpErrorMapping_fromSocketError_toCommandResult
  *      @[Purpose]: Validate TCP error codes map correctly to IOC_Result_T
  *      @[Brief]: Generate TCP errors (ECONNRESET, EPIPE, ECONNREFUSED), verify mapping
  *      @[TCP Focus]: TCP errno → IOC_Result_T mapping accuracy
+ *      @[US Mapping]: US-1 AC-5 (specific error reflected), US-4 AC-3 (error information propagated)
  *      @[Expected]: ECONNRESET→IOC_RESULT_CONN_RESET, EPIPE→IOC_RESULT_PIPE_ERROR
  *      @[Port]: 22099
  *      @[Priority]: HIGH - TCP error code accuracy
