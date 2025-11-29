@@ -25,18 +25,18 @@
  *    • Progress: Design skeleton created, ready for implementation
  **************************************************************************************************/
 
-#include "_UT_IOC_Common.h"
-#include "IOC/IOC.h"
-#include "IOC/IOC_CmdAPI.h"
-#include "IOC/IOC_CmdDesc.h"
-#include "IOC/IOC_SrvAPI.h"
-#include "IOC/IOC_Types.h"
-
 #include <atomic>
 #include <chrono>
 #include <mutex>
 #include <thread>
 #include <vector>
+
+#include "IOC/IOC.h"
+#include "IOC/IOC_CmdAPI.h"
+#include "IOC/IOC_CmdDesc.h"
+#include "IOC/IOC_SrvAPI.h"
+#include "IOC/IOC_Types.h"
+#include "_UT_IOC_Common.h"
 
 /**************************************************************************************************
  * @brief 【TCP-Specific Link State Test Cases】
@@ -278,7 +278,7 @@ class TcpLinkStateMonitor {
         IOC_getLinkState(m_linkID, &snapshot.mainState, &snapshot.subState);
 
         // TODO: Capture TCP socket state via getsockopt(TCP_INFO)
-        snapshot.tcpSocketState = 0;  // Placeholder
+        snapshot.tcpSocketState = 0;    // Placeholder
         snapshot.tcpConnected = false;  // Placeholder
 
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -290,8 +290,8 @@ class TcpLinkStateMonitor {
         printf("\n📊 Link State History (LinkID: %llu):\n", m_linkID);
         for (size_t i = 0; i < m_history.size(); i++) {
             const auto &snap = m_history[i];
-            printf("  [%zu] MainState=%d, SubState=%d, TcpState=%d, TcpConnected=%d\n",
-                   i, snap.mainState, snap.subState, snap.tcpSocketState, snap.tcpConnected);
+            printf("  [%zu] MainState=%d, SubState=%d, TcpState=%d, TcpConnected=%d\n", i, snap.mainState,
+                   snap.subState, snap.tcpSocketState, snap.tcpConnected);
         }
     }
 
