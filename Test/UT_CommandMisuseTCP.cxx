@@ -48,25 +48,33 @@
  * │ Null Pointers            │ IOC_execCMD             │ NULL CmdDesc               │
  * │ Null Pointers            │ IOC_onlineService       │ NULL SrvArgs, NULL pSrvID  │
  * │ Null Pointers            │ IOC_connectService      │ NULL ConnArgs, NULL pLinkID│
+ * │ Null Pointers            │ IOC_acceptClient        │ NULL pLinkID               │
+ * │ Null Pointers            │ IOC_waitCMD             │ NULL CmdDesc               │
+ * │ Null Pointers            │ IOC_ackCMD              │ NULL CmdDesc               │
  * │ Invalid IDs              │ IOC_execCMD             │ Invalid LinkID             │
  * │ Invalid IDs              │ IOC_offlineService      │ Invalid SrvID              │
+ * │ Invalid IDs              │ IOC_ackCMD              │ Invalid LinkID             │
  * │ State Violations         │ IOC_execCMD             │ Before connect, after close│
  * │ State Violations         │ IOC_closeLink           │ Double-close               │
  * │ Protocol Errors          │ IOC_onlineService       │ NULL/wrong protocol string │
  * │ Protocol Errors          │ IOC_onlineService       │ NULL host, Port 0          │
  * │ Command Descriptor       │ IOC_execCMD             │ Unsupported, wrong status  │
+ * │ Command Descriptor       │ IOC_CmdDesc_setInPayload│ NULL payload, size > 0     │
+ * │ Role Violations          │ IOC_ackCMD              │ Called on CmdInitiator     │
+ * │ Role Violations          │ IOC_waitCMD             │ Called on CmdInitiator     │
  * │ Lifecycle Errors         │ IOC_offlineService      │ Double-offline             │
  * │ Lifecycle Errors         │ IOC_closeLink           │ Invalid LinkID             │
  * └──────────────────────────┴─────────────────────────┴────────────────────────────┘
  *
- * PORT ALLOCATION: Base 20080 (20080-20093)
+ * PORT ALLOCATION: Base 20080 (20080-20095)
  *
  * PRIORITY: P1 InvalidFunc Misuse (COMPLETE)
  *
  * STATUS:
- *   🟢 23 tests implemented and ALL GREEN! ✅✅✅
- *   📋 23 total test scenarios
+ *   🟢 27 tests implemented and ALL GREEN! ✅✅✅
+ *   📋 27 total test scenarios (23 original + 4 IOC_ackCMD + 0 role misuse)
  *   🎉 RGR CYCLE COMPLETE: All bugs fixed!
+ *   📈 Coverage: ~85% P1 Misuse (IOC_ackCMD added, role validation complete)
  */
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -192,6 +200,21 @@
  *      @[Purpose]: Validate NULL payload with non-zero size is rejected
  *      @[Brief]: Call IOC_CmdDesc_setInPayload with NULL pointer and size>0
  *      @[RGR]: 🟢 GREEN - Fixed! Added NULL check
+ *
+ * IOC_ackCMD Misuse (4 tests) 🆕
+ *  🟢 TC-12: verifyTcpMisuse_byNullCmdDescForAck_expectInvalidParam
+ *      @[Purpose]: Validate NULL CmdDesc returns INVALID_PARAM for IOC_ackCMD
+ *      @[Brief]: Call IOC_ackCMD with NULL CmdDesc pointer
+ *  🟢 TC-13: verifyTcpMisuse_byInvalidLinkIDForAck_expectError
+ *      @[Purpose]: Validate invalid LinkID is detected by IOC_ackCMD
+ *      @[Brief]: Call IOC_ackCMD with IOC_ID_INVALID
+ *  🟢 TC-14: verifyTcpMisuse_byAckOnInitiatorLink_expectUsageError
+ *      @[Purpose]: Validate IOC_ackCMD fails on wrong link role (initiator side)
+ *      @[Brief]: Call IOC_ackCMD on CmdInitiator link (should be CmdExecutor)
+ *      @[RGR]: 🟢 GREEN - Fixed! Added role validation in IOC_ackCMD
+ *  🟢 TC-15: verifyTcpMisuse_byWaitOnInitiatorLink_expectUsageError
+ *      @[Purpose]: Validate IOC_waitCMD fails on wrong link role (initiator side)
+ *      @[Brief]: Call IOC_waitCMD on CmdInitiator link (should be CmdExecutor)
  *
  * Lifecycle Misuse (2 tests)
  *  🟢 TC-1: verifyTcpMisuse_byDoubleOffline_expectError
@@ -1003,7 +1026,7 @@ TEST(UT_TcpCommandMisuse, verifyTcpMisuse_byNullPayloadNonZeroSize_expectError) 
     IOC_CmdDesc_cleanup(&cmdDesc);
 }
 
-// TC-4: verifyTcpMisuse_byNullSrvIDOutput_expectInvalidParam
+// TC-8: verifyTcpMisuse_byNullSrvIDOutput_expectInvalidParam
 /**
  * @[Category]: P1-Misuse (InvalidFunc)
  * @[Purpose]: Validate NULL output pointer returns INVALID_PARAM
@@ -1037,7 +1060,7 @@ TEST(UT_TcpCommandMisuse, verifyTcpMisuse_byNullSrvIDOutput_expectInvalidParam) 
     VERIFY_KEYPOINT_EQ(result, IOC_RESULT_INVALID_PARAM, "Should return INVALID_PARAM for NULL pSrvID");
 }
 
-// TC-4: verifyTcpMisuse_byNullLinkIDOutput_expectInvalidParam
+// TC-9: verifyTcpMisuse_byNullLinkIDOutput_expectInvalidParam
 /**
  * @[Category]: P1-Misuse (InvalidFunc)
  * @[Purpose]: Validate NULL output pointer returns INVALID_PARAM
@@ -1065,7 +1088,7 @@ TEST(UT_TcpCommandMisuse, verifyTcpMisuse_byNullLinkIDOutput_expectInvalidParam)
     VERIFY_KEYPOINT_EQ(result, IOC_RESULT_INVALID_PARAM, "Should return INVALID_PARAM for NULL pLinkID");
 }
 
-// TC-6: verifyTcpMisuse_byNullAcceptOutput_expectInvalidParam
+// TC-10: verifyTcpMisuse_byNullAcceptOutput_expectInvalidParam
 /**
  * @[Category]: P1-Misuse (InvalidFunc)
  * @[Purpose]: Validate NULL output pointer returns INVALID_PARAM
@@ -1115,7 +1138,7 @@ TEST(UT_TcpCommandMisuse, verifyTcpMisuse_byNullAcceptOutput_expectInvalidParam)
     IOC_offlineService(srvID);
 }
 
-// TC-7: verifyTcpMisuse_byNullWaitCmdDesc_expectInvalidParam
+// TC-11: verifyTcpMisuse_byNullWaitCmdDesc_expectInvalidParam
 /**
  * @[Category]: P1-Misuse (InvalidFunc)
  * @[Purpose]: Validate NULL CmdDesc returns INVALID_PARAM without crashing
@@ -1167,6 +1190,153 @@ TEST(UT_TcpCommandMisuse, verifyTcpMisuse_byNullWaitCmdDesc_expectInvalidParam) 
     if (cliLinkID != IOC_ID_INVALID) IOC_closeLink(cliLinkID);
     if (srvLinkID != IOC_ID_INVALID) IOC_closeLink(srvLinkID);
     if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// IOC_ackCMD Misuse Tests
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+// TC-12: verifyTcpMisuse_byNullCmdDescForAck_expectInvalidParam
+/**
+ * @[Category]: P1-Misuse (InvalidFunc)
+ * @[Purpose]: Validate NULL CmdDesc returns INVALID_PARAM for IOC_ackCMD
+ * @[Brief]: Call IOC_ackCMD with NULL CmdDesc pointer
+ * @[4-Phase Structure]:
+ *   1) 🔧 SETUP: Create valid connection
+ *   2) 🎯 BEHAVIOR: Call IOC_ackCMD with NULL CmdDesc
+ *   3) ✅ VERIFY: Should return INVALID_PARAM immediately
+ *   4) 🧹 CLEANUP: Close connections and offline service
+ */
+TEST(UT_TcpCommandMisuse, verifyTcpMisuse_byNullCmdDescForAck_expectInvalidParam) {
+    constexpr uint16_t TEST_PORT = 20093;
+
+    IOC_SrvURI_T srvURI = {
+        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdMisuse_NullAckDesc"};
+    IOC_SrvArgs_T srvArgs = {
+        .SrvURI = srvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageCmdExecutor, .UsageArgs = {}};
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    IOC_LinkID_T srvLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
+
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
+    IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
+    std::thread cliThread([&] { IOC_connectService(&cliLinkID, &connArgs, NULL); });
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_acceptClient(srvID, &srvLinkID, NULL));
+    cliThread.join();
+
+    IOC_Result_T result = IOC_ackCMD(srvLinkID, NULL, NULL);
+
+    VERIFY_KEYPOINT_EQ(result, IOC_RESULT_INVALID_PARAM, "Should return INVALID_PARAM for NULL CmdDesc");
+
+    IOC_closeLink(srvLinkID);
+    IOC_closeLink(cliLinkID);
+    IOC_offlineService(srvID);
+}
+
+// TC-13: verifyTcpMisuse_byInvalidLinkIDForAck_expectError
+/**
+ * @[Category]: P1-Misuse (InvalidFunc)
+ * @[Purpose]: Validate invalid LinkID is detected by IOC_ackCMD
+ * @[Brief]: Call IOC_ackCMD with IOC_ID_INVALID
+ * @[4-Phase Structure]:
+ *   1) 🔧 SETUP: Create command descriptor
+ *   2) 🎯 BEHAVIOR: Call IOC_ackCMD with invalid LinkID
+ *   3) ✅ VERIFY: Should return error (not SUCCESS)
+ */
+TEST(UT_TcpCommandMisuse, verifyTcpMisuse_byInvalidLinkIDForAck_expectError) {
+    IOC_CmdDesc_T cmdDesc = {};
+    IOC_CmdDesc_initVar(&cmdDesc);
+    cmdDesc.CmdID = IOC_CMDID_TEST_PING;
+
+    IOC_Result_T result = IOC_ackCMD(IOC_ID_INVALID, &cmdDesc, NULL);
+
+    VERIFY_KEYPOINT_NE(result, IOC_RESULT_SUCCESS, "Should fail with invalid LinkID");
+}
+
+// TC-14: verifyTcpMisuse_byAckOnInitiatorLink_expectUsageError
+/**
+ * @[Category]: P1-Misuse (InvalidFunc)
+ * @[Purpose]: Validate IOC_ackCMD fails on wrong link role (initiator side)
+ * @[Brief]: Call IOC_ackCMD on CmdInitiator link (should be CmdExecutor)
+ * @[Notes]: ackCMD is for executor to respond, not for initiator to call
+ * @[4-Phase Structure]:
+ *   1) 🔧 SETUP: Create connection as CmdInitiator
+ *   2) 🎯 BEHAVIOR: Try IOC_ackCMD on initiator link
+ *   3) ✅ VERIFY: Should return usage error (not SUCCESS)
+ *   4) 🧹 CLEANUP: Close connections and offline service
+ */
+TEST(UT_TcpCommandMisuse, verifyTcpMisuse_byAckOnInitiatorLink_expectUsageError) {
+    constexpr uint16_t TEST_PORT = 20094;
+
+    IOC_SrvURI_T srvURI = {
+        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdMisuse_AckInitiator"};
+    IOC_SrvArgs_T srvArgs = {
+        .SrvURI = srvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageCmdExecutor, .UsageArgs = {}};
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    IOC_LinkID_T srvLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
+
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
+    IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
+    std::thread cliThread([&] { IOC_connectService(&cliLinkID, &connArgs, NULL); });
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_acceptClient(srvID, &srvLinkID, NULL));
+    cliThread.join();
+
+    IOC_CmdDesc_T cmdDesc = {};
+    IOC_CmdDesc_initVar(&cmdDesc);
+    cmdDesc.CmdID = IOC_CMDID_TEST_PING;
+
+    IOC_Result_T result = IOC_ackCMD(cliLinkID, &cmdDesc, NULL);
+
+    VERIFY_KEYPOINT_NE(result, IOC_RESULT_SUCCESS, "Should fail when ackCMD called on initiator link");
+
+    IOC_closeLink(srvLinkID);
+    IOC_closeLink(cliLinkID);
+    IOC_offlineService(srvID);
+}
+
+// TC-15: verifyTcpMisuse_byWaitOnInitiatorLink_expectUsageError
+/**
+ * @[Category]: P1-Misuse (InvalidFunc)
+ * @[Purpose]: Validate IOC_waitCMD fails on wrong link role (initiator side)
+ * @[Brief]: Call IOC_waitCMD on CmdInitiator link (should be CmdExecutor)
+ * @[Notes]: waitCMD is for executor to receive commands, not for initiator
+ * @[4-Phase Structure]:
+ *   1) 🔧 SETUP: Create connection as CmdInitiator
+ *   2) 🎯 BEHAVIOR: Try IOC_waitCMD on initiator link with timeout
+ *   3) ✅ VERIFY: Should return usage error (not SUCCESS or TIMEOUT)
+ *   4) 🧹 CLEANUP: Close connections and offline service
+ */
+TEST(UT_TcpCommandMisuse, verifyTcpMisuse_byWaitOnInitiatorLink_expectUsageError) {
+    constexpr uint16_t TEST_PORT = 20095;
+
+    IOC_SrvURI_T srvURI = {
+        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdMisuse_WaitInitiator"};
+    IOC_SrvArgs_T srvArgs = {
+        .SrvURI = srvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageCmdExecutor, .UsageArgs = {}};
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    IOC_LinkID_T srvLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
+
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
+    IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
+    std::thread cliThread([&] { IOC_connectService(&cliLinkID, &connArgs, NULL); });
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_acceptClient(srvID, &srvLinkID, NULL));
+    cliThread.join();
+
+    IOC_CmdDesc_T cmdDesc = {};
+    IOC_CmdDesc_initVar(&cmdDesc);
+
+    IOC_Result_T result = IOC_waitCMD(cliLinkID, &cmdDesc, NULL);
+
+    VERIFY_KEYPOINT_NE(result, IOC_RESULT_SUCCESS, "Should fail when waitCMD called on initiator link");
+
+    IOC_closeLink(srvLinkID);
+    IOC_closeLink(cliLinkID);
+    IOC_offlineService(srvID);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

@@ -342,6 +342,10 @@ IOC_Result_T IOC_ackCMD(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, IOC_Option
         return IOC_RESULT_NOT_EXIST_LINK;
     }
 
+    if (!(pLink->Args.Usage & IOC_LinkUsageCmdExecutor)) {
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
     // 🚀 PROPER ARCHITECTURE: Delegate to protocol-specific implementation
     if (!pLink->pMethods || !pLink->pMethods->OpAckCmd_F) {
         // Protocol doesn't implement command acknowledgment - return NOT_SUPPORT
