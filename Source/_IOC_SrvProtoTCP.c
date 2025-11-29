@@ -361,9 +361,10 @@ static IOC_Result_T __IOC_onlineService_ofProtoTCP(_IOC_ServiceObject_pT pSrvObj
     SrvAddr.sin_port = htons(pTCPSrvObj->Port);
 
     if (bind(ListenFd, (struct sockaddr*)&SrvAddr, sizeof(SrvAddr)) < 0) {
+        uint16_t Port = pTCPSrvObj->Port;  // Save port before free
         close(ListenFd);
         free(pTCPSrvObj);
-        _IOC_LogError("Failed to bind TCP socket to port %u", pTCPSrvObj->Port);
+        _IOC_LogError("Failed to bind TCP socket to port %u", Port);
         return IOC_RESULT_BUG;
     }
 

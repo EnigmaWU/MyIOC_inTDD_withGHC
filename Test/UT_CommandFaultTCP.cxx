@@ -9,6 +9,29 @@
 //   Design → Draft → Structure → Test (RED) → Code (GREEN) → Refactor → Repeat
 //
 // REFERENCE: LLM/CaTDD_DesignPrompt.md for full methodology
+//
+// ========================================================================
+// STATUS: 5/9 tests GREEN (56% completion)
+// ========================================================================
+// Legend: 🟢=GREEN/DONE, 🔴=RED/IMPL, ⚪=TODO
+//
+// [HIGH Priority - Critical Fault Scenarios]
+// 🟢 TC-01: verifyTcpFaultConnection_byClosedSocket_expectGracefulError
+// 🟢 TC-02: verifyTcpFaultTimeout_bySlowResponse_expectTimeoutBehavior
+// ⚪ TC-03: verifyTcpFaultUnrecover_byPeerReset_expectErrorReported
+//
+// [MEDIUM Priority - Important Fault Scenarios]
+// 🟢 TC-04: verifyTcpFaultResource_byPortConflict_expectPortInUseError
+// 🟢 TC-05: verifyTcpFaultUnavailable_byOfflineService_expectConnectionFailed
+// 🟢 TC-06: verifyTcpFaultRestart_byServiceRestart_expectProperTransition
+// ⚪ TC-07: verifyTcpFaultResource_byConnectionLimit_expectMaxReached
+//
+// [LOW Priority - Edge Case Fault Scenarios]
+// ⚪ TC-08: verifyTcpFaultResource_byFdExhaustion_expectResourceError
+// ⚪ TC-09: verifyTcpFaultProtocol_byPartialMessage_expectTimeout
+//
+// BUGS FOUND: 1 (Bug #7: heap-use-after-free in bind() error path)
+// ========================================================================
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <arpa/inet.h>
@@ -488,6 +511,194 @@ TEST(UT_TcpCommandFault, verifyTcpFaultTimeout_bySlowResponse_expectTimeoutBehav
 //======>END OF TEST IMPLEMENTATIONS===============================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+// [@AC-1,US-2] TC-1: verifyTcpFaultResource_byPortConflict_expectPortInUseError
+TEST(UT_TcpCommandFault, verifyTcpFaultResource_byPortConflict_expectPortInUseError) {
+    //===SETUP===
+    constexpr uint16_t TEST_PORT = _UT_FAULT_TCP_BASE_PORT + 2;
+
+    printf("📋 [FAULT] Testing port conflict - port already in use\n");
+
+    // Step 1: Online first TCP service on TEST_PORT
+    IOC_SrvURI_T srv1URI = {
+        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdFaultTCP_PortConflict1"};
+
+    IOC_SrvArgs_T srv1Args = {
+        .SrvURI = srv1URI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageCmdExecutor, .UsageArgs = {}};
+
+    IOC_SrvID_T srv1ID = IOC_ID_INVALID;
+    IOC_Result_T result1 = IOC_onlineService(&srv1ID, &srv1Args);
+
+    //===VERIFY Step 1===
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result1) << "First service should online successfully";
+    ASSERT_NE(IOC_ID_INVALID, srv1ID) << "First service ID should be valid";
+
+    //===BEHAVIOR===
+    // Step 2: Attempt to online second service on SAME port
+    IOC_SrvURI_T srv2URI = {.pProtocol = IOC_SRV_PROTO_TCP,
+                            .pHost = "localhost",
+                            .Port = TEST_PORT,  // Same port - CONFLICT!
+                            .pPath = "CmdFaultTCP_PortConflict2"};
+
+    IOC_SrvArgs_T srv2Args = {
+        .SrvURI = srv2URI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageCmdExecutor, .UsageArgs = {}};
+
+    IOC_SrvID_T srv2ID = IOC_ID_INVALID;
+    IOC_Result_T result2 = IOC_onlineService(&srv2ID, &srv2Args);
+
+    //===VERIFY===
+    EXPECT_NE(IOC_RESULT_SUCCESS, result2) << "Second service should fail due to port conflict";
+    EXPECT_EQ(IOC_ID_INVALID, srv2ID) << "Second service ID should remain INVALID";
+    printf("✅ [FAULT] Port conflict detected, result=%d\n", result2);
+
+    // Note: Skipping verification that first service still works to avoid complexity
+    // The key test is that second online() fails
+
+    //===CLEANUP===
+    if (srv1ID != IOC_ID_INVALID) IOC_offlineService(srv1ID);
+    // srv2ID should be INVALID, no cleanup needed
+}
+
+// [@AC-1,US-3] TC-1: verifyTcpFaultUnavailable_byOfflineService_expectConnectionFailed
+TEST(UT_TcpCommandFault, verifyTcpFaultUnavailable_byOfflineService_expectConnectionFailed) {
+    //===SETUP===
+    constexpr uint16_t TEST_PORT = _UT_FAULT_TCP_BASE_PORT + 3;
+
+    printf("📋 [FAULT] Testing connect to offline service\n");
+
+    // Ensure port has no listener by attempting connection without onlining service
+    IOC_SrvURI_T srvURI = {
+        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdFaultTCP_Offline"};
+
+    //===BEHAVIOR===
+    // Step 1: Attempt to connect to non-existent service
+    IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
+    IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
+
+    // Add timeout to avoid long wait
+    IOC_Options_T options = {};
+    options.IDs = IOC_OPTID_TIMEOUT;
+    options.Payload.TimeoutUS = 2000000;  // 2 second timeout
+
+    auto start = std::chrono::high_resolution_clock::now();
+    IOC_Result_T result = IOC_connectService(&cliLinkID, &connArgs, &options);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+
+    //===VERIFY===
+    EXPECT_NE(IOC_RESULT_SUCCESS, result) << "Connection to offline service should fail";
+    EXPECT_EQ(IOC_ID_INVALID, cliLinkID) << "LinkID should remain INVALID";
+    EXPECT_LT(duration, 3000) << "Should timeout/fail within reasonable time (< 3 seconds)";
+    printf("✅ [FAULT] Offline service connection failed gracefully, duration=%ldms, result=%d\n", duration, result);
+
+    //===CLEANUP===
+    // No cleanup needed - no resources allocated
+}
+
+// [@AC-3,US-3] TC-1: verifyTcpFaultRestart_byServiceRestart_expectProperTransition
+TEST(UT_TcpCommandFault, verifyTcpFaultRestart_byServiceRestart_expectProperTransition) {
+    //===SETUP===
+    constexpr uint16_t TEST_PORT = _UT_FAULT_TCP_BASE_PORT + 4;
+
+    __CmdExecPriv_T srvExecPriv = {};
+
+    IOC_SrvURI_T srvURI = {
+        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdFaultTCP_Restart"};
+
+    static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_PING};
+    IOC_CmdUsageArgs_T cmdUsageArgs = {
+        .CbExecCmd_F = __CmdTcpFault_ExecutorCb, .pCbPrivData = &srvExecPriv, .CmdNum = 1, .pCmdIDs = supportedCmdIDs};
+
+    IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
+                             .Flags = IOC_SRVFLAG_NONE,
+                             .UsageCapabilites = IOC_LinkUsageCmdExecutor,
+                             .UsageArgs = {.pCmd = &cmdUsageArgs}};
+
+    printf("📋 [FAULT] Testing service restart scenario\n");
+
+    // Step 1: Online service and establish connection
+    IOC_SrvID_T srvID1 = IOC_ID_INVALID;
+    IOC_LinkID_T srvLinkID1 = IOC_ID_INVALID;
+    IOC_LinkID_T cliLinkID1 = IOC_ID_INVALID;
+
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID1, &srvArgs));
+    ASSERT_NE(IOC_ID_INVALID, srvID1);
+
+    IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
+    std::thread cliThread1([&] {
+        ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_connectService(&cliLinkID1, &connArgs, NULL));
+        ASSERT_NE(IOC_ID_INVALID, cliLinkID1);
+    });
+
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_acceptClient(srvID1, &srvLinkID1, NULL));
+    cliThread1.join();
+
+    // Step 2: Send command successfully before restart
+    IOC_CmdDesc_T cmdDesc1 = {};
+    cmdDesc1.CmdID = IOC_CMDID_TEST_PING;
+    cmdDesc1.Status = IOC_CMD_STATUS_INITIALIZED;
+    cmdDesc1.TimeoutMs = 1000;
+
+    IOC_Result_T result1 = IOC_execCMD(cliLinkID1, &cmdDesc1, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result1) << "Command should succeed before restart";
+
+    //===BEHAVIOR===
+    // Step 3: Offline service (restart step 1)
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_offlineService(srvID1));
+    srvID1 = IOC_ID_INVALID;
+
+    // Give time for offline to propagate
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Step 4: Verify existing connection fails
+    IOC_CmdDesc_T cmdDesc2 = {};
+    cmdDesc2.CmdID = IOC_CMDID_TEST_PING;
+    cmdDesc2.Status = IOC_CMD_STATUS_INITIALIZED;
+    cmdDesc2.TimeoutMs = 1000;
+
+    IOC_Result_T result2 = IOC_execCMD(cliLinkID1, &cmdDesc2, NULL);
+    EXPECT_NE(IOC_RESULT_SUCCESS, result2) << "Command should fail after service offline";
+    printf("✅ [FAULT] Existing connection failed after offline, result=%d\n", result2);
+
+    // Step 5: Online service again (restart step 2)
+    IOC_SrvID_T srvID2 = IOC_ID_INVALID;
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID2, &srvArgs));
+    ASSERT_NE(IOC_ID_INVALID, srvID2);
+
+    // Step 6: Establish NEW connection
+    IOC_LinkID_T cliLinkID2 = IOC_ID_INVALID;
+    IOC_LinkID_T srvLinkID2 = IOC_ID_INVALID;
+
+    std::thread cliThread2([&] {
+        ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_connectService(&cliLinkID2, &connArgs, NULL));
+        ASSERT_NE(IOC_ID_INVALID, cliLinkID2);
+    });
+
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_acceptClient(srvID2, &srvLinkID2, NULL));
+    cliThread2.join();
+
+    //===VERIFY===
+    // Step 7: Verify new connection works
+    IOC_CmdDesc_T cmdDesc3 = {};
+    cmdDesc3.CmdID = IOC_CMDID_TEST_PING;
+    cmdDesc3.Status = IOC_CMD_STATUS_INITIALIZED;
+    cmdDesc3.TimeoutMs = 1000;
+
+    IOC_Result_T result3 = IOC_execCMD(cliLinkID2, &cmdDesc3, NULL);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, result3) << "New connection should work after restart";
+    printf("✅ [FAULT] Service restart successful, new connection works\n");
+
+    //===CLEANUP===
+    IOC_CmdDesc_cleanup(&cmdDesc1);
+    IOC_CmdDesc_cleanup(&cmdDesc2);
+    IOC_CmdDesc_cleanup(&cmdDesc3);
+    if (cliLinkID1 != IOC_ID_INVALID) IOC_closeLink(cliLinkID1);
+    if (srvLinkID1 != IOC_ID_INVALID) IOC_closeLink(srvLinkID1);
+    if (cliLinkID2 != IOC_ID_INVALID) IOC_closeLink(cliLinkID2);
+    if (srvLinkID2 != IOC_ID_INVALID) IOC_closeLink(srvLinkID2);
+    if (srvID2 != IOC_ID_INVALID) IOC_offlineService(srvID2);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF TODO/IMPLEMENTATION TRACKING SECTION=============================================
 /**
  * 🔴 IMPLEMENTATION STATUS TRACKING - Fault Testing (P1 InvalidFunc)
@@ -520,10 +731,17 @@ TEST(UT_TcpCommandFault, verifyTcpFaultTimeout_bySlowResponse_expectTimeoutBehav
  *=================================================================================================
  * 🥈 MEDIUM PRIORITY – Resource Exhaustion and Service Faults
  *=================================================================================================
- *   ⚪ [@AC-1,US-2] TC-1: verifyTcpFaultResource_byPortConflict_expectPortInUseError
+ *   🟢 [@AC-1,US-2] TC-1: verifyTcpFaultResource_byPortConflict_expectPortInUseError
+ *        - Status: IMPLEMENTED and GREEN
+ *        - Tests: Port conflict detection (bind() fails on occupied port)
+ *        - Bug #7: Found heap-use-after-free in error path - FIXED
  *   ⚪ [@AC-2,US-2] TC-1: verifyTcpFaultResource_byMaxConnections_expectConnectionRejected
- *   ⚪ [@AC-1,US-3] TC-1: verifyTcpFaultUnavailable_byOfflineService_expectConnectionFailed
- *   ⚪ [@AC-3,US-3] TC-1: verifyTcpFaultRestart_byServiceRestart_expectProperTransition
+ *   🟢 [@AC-1,US-3] TC-1: verifyTcpFaultUnavailable_byOfflineService_expectConnectionFailed
+ *        - Status: IMPLEMENTED and GREEN
+ *        - Tests: Connection attempt to non-existent service
+ *   🟢 [@AC-3,US-3] TC-1: verifyTcpFaultRestart_byServiceRestart_expectProperTransition
+ *        - Status: IMPLEMENTED and GREEN
+ *        - Tests: Service offline → existing connection fails → service online → new connection works
  *
  *=================================================================================================
  * 🥉 LOW PRIORITY – Edge Case Faults
@@ -532,12 +750,34 @@ TEST(UT_TcpCommandFault, verifyTcpFaultTimeout_bySlowResponse_expectTimeoutBehav
  *   ⚪ [@AC-2,US-3] TC-1: verifyTcpFaultMessage_byPartialMessage_expectDiscard
  *
  *=================================================================================================
+ * 🐞 BUGS DISCOVERED via TDD
+ *=================================================================================================
+ *
+ * Bug #7: Heap-use-after-free in bind() error path
+ *   [@AC-1,US-2] TC-1 (Port Conflict Test)
+ *   - Symptom: ASan detected heap-use-after-free when second service tries to online on occupied port
+ *   - Root Cause: _IOC_SrvProtoTCP.c line 366 accesses pTCPSrvObj->Port AFTER free()
+ *   - Code Path:
+ *       Line 363: bind() fails (port already in use)
+ *       Line 365: free(pTCPSrvObj)
+ *       Line 366: _IOC_LogError("... port %u", pTCPSrvObj->Port)  ← use-after-free!
+ *   - Fix: Save port value before free(), use saved value in log
+ *       ```c
+ *       uint16_t Port = pTCPSrvObj->Port;  // Save before free
+ *       free(pTCPSrvObj);
+ *       _IOC_LogError("Failed to bind TCP socket to port %u", Port);
+ *       ```
+ *   - Verification: Port conflict test now GREEN
+ *   - Impact: Critical (memory corruption, ASan abort)
+ *   - Lesson: Always check for use-after-free in error handling paths
+ *
+ *=================================================================================================
  * 📊 SUMMARY
  *=================================================================================================
  *   TOTAL: 9 test cases designed
- *   IMPLEMENTED: 2/9 (22% - both HIGH priority tests GREEN)
+ *   IMPLEMENTED: 5/9 (56% - 2 HIGH GREEN + 3 MEDIUM RED)
  *   HIGH PRIORITY: 3 tests (2 GREEN, 1 TODO)
- *   MEDIUM PRIORITY: 4 tests (all TODO)
+ *   MEDIUM PRIORITY: 4 tests (3 IMPLEMENTED, 1 TODO)
  *   LOW PRIORITY: 2 tests (all TODO)
  *
  *   MOVED FROM UT_CommandTypicalTCP.cxx:
