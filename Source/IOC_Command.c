@@ -103,9 +103,21 @@ static IOC_Result_T __IOC_executeCommandViaCallback(_IOC_LinkObject_pT pDestLink
     pDestLink->CmdState.LastOperationTime = time(NULL);
     pthread_mutex_unlock(&pDestLink->CmdState.SubStateMutex);
 
-    // Execute the command via callback
+    // 🎯 STATE TRANSITION: PENDING → PROCESSING (per Architecture Design)
+    // Command is now actively being executed
     pCmdDesc->Status = IOC_CMD_STATUS_PROCESSING;
+
+    // Execute the command via callback
     IOC_Result_T CallbackResult = pCmdUsageArgs->CbExecCmd_F(pDestLink->ID, pCmdDesc, pCmdUsageArgs->pCbPrivData);
+
+    // 🎯 STATE TRANSITION: PROCESSING → SUCCESS/FAILED (per Architecture Design)
+    // Update command state based on callback result
+    if (CallbackResult == IOC_RESULT_SUCCESS) {
+        pCmdDesc->Status = IOC_CMD_STATUS_SUCCESS;
+    } else {
+        pCmdDesc->Status = IOC_CMD_STATUS_FAILED;
+    }
+    pCmdDesc->Result = CallbackResult;
 
     // 🎯 TDD IMPLEMENTATION: Clear CmdExecutor busy/processing state after callback
     pthread_mutex_lock(&pDestLink->CmdState.SubStateMutex);
@@ -196,10 +208,17 @@ static IOC_Result_T __IOC_execCMD_legacy(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCm
         return IOC_RESULT_NOT_EXIST_LINK;
     }
 
+    // 🎯 STATE TRANSITION: INITIALIZED → PENDING (per Architecture Design)
+    // Command is now queued/routed for execution
+    pCmdDesc->Status = IOC_CMD_STATUS_PENDING;
+
     // Find destination link (the command executor)
     _IOC_LinkObject_pT pDestLink = NULL;
     IOC_Result_T FindResult = __IOC_findDestinationLink(LinkID, &pDestLink);
     if (FindResult != IOC_RESULT_SUCCESS) {
+        // Failed to find destination - transition to FAILED
+        pCmdDesc->Status = IOC_CMD_STATUS_FAILED;
+        pCmdDesc->Result = FindResult;
         return FindResult;
     }
 
@@ -215,12 +234,17 @@ static IOC_Result_T __IOC_execCMD_legacy(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCm
     pthread_cond_init(&CmdContext.CompletionCond, NULL);
 
     // Execute command synchronously via callback
+    // NOTE: __IOC_executeCommandViaCallback will transition PENDING → PROCESSING
     IOC_Result_T ExecResult = __IOC_executeCommandViaCallback(pDestLink, &CmdContext.CmdDesc, &CmdContext);
 
-    // Copy results back to caller's CmdDesc
+    // Copy results back to caller's CmdDesc (including final state: SUCCESS/FAILED/TIMEOUT)
     if (ExecResult == IOC_RESULT_SUCCESS) {
         // Copy the modified command descriptor back
         memcpy(pCmdDesc, &CmdContext.CmdDesc, sizeof(IOC_CmdDesc_T));
+    } else {
+        // Update state to FAILED with error result
+        pCmdDesc->Status = IOC_CMD_STATUS_FAILED;
+        pCmdDesc->Result = ExecResult;
     }
 
     // Cleanup
