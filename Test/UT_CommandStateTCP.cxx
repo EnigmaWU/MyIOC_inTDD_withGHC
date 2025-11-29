@@ -128,15 +128,16 @@
  *
  * 🟢 FRAMEWORK STATUS: TCP-Specific Command State Testing - IMPLEMENTATION PHASE
  *    • Core framework: INFRASTRUCTURE READY (TcpConnectionSimulator, TcpCommandStateTracker)
- *    • Test cases: 4/20 GREEN (20% complete)
- *    • Target: 20 test cases covering TCP-specific state scenarios
- *    • Progress: TC-1, TC-2, TC-3, TC-4 (CAT-1) ✅ GREEN - Connection establishment verified
+ *    • Test cases: 3/19 GREEN (16% complete)
+ *    • Target: 19 test cases covering TCP-specific state scenarios
+ *    • Progress: TC-1, TC-2, TC-3 (CAT-1) ✅ GREEN - Connection establishment verified
  *    • Architecture compliance: INITIALIZED→PENDING→PROCESSING→SUCCESS transitions verified
  *    • **Key Insight**: Client-side cmdDesc remains PENDING while server-side processes (state isolation)
- *    • Test execution: ~240ms total (60ms avg per test) - all tests fast and stable
+ *    • Test execution: ~144ms total (48ms avg per test) - all tests fast and stable
+ *    • **Note**: Connection failure to unreachable endpoints moved to UT_CommandFaultTCP.cxx (TC-5)
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
- * 📋 [CAT-1]: TCP CONNECTION ESTABLISHMENT × COMMAND STATE (4/5 GREEN)
+ * 📋 [CAT-1]: TCP CONNECTION ESTABLISHMENT × COMMAND STATE (3/4 GREEN)
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * PURPOSE: Verify command state behavior during TCP connection setup phase
  *
@@ -175,22 +176,10 @@
  *      @[Port]: 22082 (server deliberately not started)
  *      @[Priority]: HIGH - Connection failure handling
  *      @[Status]: ✅ GREEN - Connection correctly fails, LinkID remains INVALID
- *
- * [@AC-5,US-1] TCP connection failure detection and error handling
- * 🟢 TC-4: verifyCommandState_whenTcpConnectFails_expectConnectionError
- *      @[Purpose]: Validate connection failure when TCP endpoint is unreachable
- *      @[Brief]: Attempt connect to unreachable endpoint (RFC 5737 TEST-NET-1), verify error handling
- *      @[TCP Focus]: Connection attempt to non-routable address - tests TCP layer error detection
- *      @[US Mapping]: US-1 AC-5 (Connection failure → error state with appropriate error code)
- *      @[Expected]: Connection fails quickly with error, LinkID remains INVALID, no command execution
- *      @[Port]: 22083 (unreachable endpoint)
- *      @[Priority]: MEDIUM - Connection failure error path validation
- *      @[Status]: ✅ GREEN - Fast failure verified (~100ms), LinkID correctly INVALID, error code -501
- *      @[Note]: Uses RFC 5737 TEST-NET-1 (non-routable) + 5s test timeout wrapper to avoid OS TCP timeout (75-120s)
- *      @[Scope]: Tests CONNECTION failure, NOT command execution timeout (that's US-4 territory)
+ *      @[Note]: Connection failure to unreachable endpoints covered by UT_CommandFaultTCP.cxx TC-5
  *
  * [@AC-1,US-2] [@AC-2,US-2] Link state reflects command activity during connection
- * ⚪ TC-5: verifyLinkState_duringTcpConnectAttempt_expectConnectingSubState
+ * ⚪ TC-4: verifyLinkState_duringTcpConnectAttempt_expectConnectingSubState
  *      @[Purpose]: Validate link state reflects TCP connection attempt
  *      @[Brief]: Check IOC_getLinkState() during connection establishment
  *      @[TCP Focus]: Link state should show connecting/establishing
@@ -1063,125 +1052,6 @@ TEST(UT_CommandStateTCP, verifyCommandState_afterTcpConnectSuccess_expectProcess
     printf("✅ TC-2 COMPLETE\n\n");
 }
 
-/**
- * TC-4: verifyCommandState_whenTcpConnectFails_expectConnectionError
- * @[Purpose]: Validate connection failure error handling when TCP endpoint unreachable
- * @[Steps]:
- *   1) SETUP: Use unreachable IP address (192.0.2.1 - TEST-NET-1, RFC 5737)
- *   2) BEHAVIOR: Attempt to connect with timeout wrapper (max 5s)
- *   3) VERIFY: Connection fails with error, LinkID remains invalid, no command executed
- *   4) CLEANUP: None needed (no connections established)
- * @[TCP Focus]: TCP connection failure detection - unreachable endpoint error path
- * @[ArchDesign]: README_ArchDesign.md "Link State" - connection errors prevent command execution
- * @[Scope]: Tests CONNECTION failure (TCP layer), NOT command execution timeout (US-4)
- * @[Note]: Uses RFC 5737 TEST-NET-1 address (guaranteed non-routable) with 5s test timeout
- * @[Limitation]: OS-level TCP timeout (75-120s) is too long for unit tests, so we use
- *                a test-level timeout to prevent blocking. This validates the error path
- *                but doesn't test actual TCP SYN timeout behavior (that would be US-4 territory).
- */
-TEST(UT_CommandStateTCP, verifyCommandState_whenTcpConnectFails_expectConnectionError) {
-    printf("🎯 TC-4: verifyCommandState_whenTcpConnectFails_expectConnectionError\n");
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // 🔧 SETUP: Configure connection to unreachable endpoint
-    // ═══════════════════════════════════════════════════════════════════════════
-    constexpr uint16_t TEST_PORT = _UT_STATE_TCP_BASE_PORT + 3;  // 22083
-
-    // Use RFC 5737 TEST-NET-1 address (192.0.2.0/24) - guaranteed non-routable
-    // This will cause connection attempt to timeout/fail without blocking indefinitely
-    IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_TCP,
-                           .pHost = "192.0.2.1",  // TEST-NET-1 (RFC 5737) - non-routable
-                           .Port = TEST_PORT,
-                           .pPath = "CmdStateTCP_Timeout"};
-
-    printf("📋 [SETUP] Targeting unreachable endpoint: %s:%u (RFC 5737 TEST-NET-1)\n", srvURI.pHost, TEST_PORT);
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // 🎯 BEHAVIOR: Attempt TCP connection to unreachable endpoint
-    // ═══════════════════════════════════════════════════════════════════════════
-    printf("📋 [BEHAVIOR] Attempting TCP connection (expect connection failure, NOT command timeout)...\n");
-
-    IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
-    IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
-
-    std::atomic<IOC_Result_T> connResult{IOC_RESULT_BUG};
-    std::atomic<bool> connectDone{false};
-
-    auto startTime = std::chrono::steady_clock::now();
-
-    // Connection thread: Attempt connection (may block for OS-level timeout)
-    std::thread connThread([&] {
-        connResult = IOC_connectService(&cliLinkID, &connArgs, NULL);
-        connectDone = true;
-        printf("📊 [CONN THREAD] Connection attempt completed: result=%d\n", connResult.load());
-    });
-
-    // Wait up to 5 seconds for connection to complete/fail
-    constexpr int MAX_WAIT_MS = 5000;
-    constexpr int POLL_INTERVAL_MS = 100;
-    int waitedMs = 0;
-
-    while (!connectDone.load() && waitedMs < MAX_WAIT_MS) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(POLL_INTERVAL_MS));
-        waitedMs += POLL_INTERVAL_MS;
-        if (waitedMs % 1000 == 0) {
-            printf("⏳ [WAITING] %d/%d ms elapsed...\n", waitedMs, MAX_WAIT_MS);
-        }
-    }
-
-    auto endTime = std::chrono::steady_clock::now();
-    auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // ✅ VERIFY: TCP connection should fail with appropriate error
-    // ═══════════════════════════════════════════════════════════════════════════
-    printf("✅ [VERIFY] Checking TCP connection failure error handling...\n");
-    printf("📊 [TIMING] Elapsed time: %lld ms\n", elapsedMs);
-
-    if (connectDone.load()) {
-        // Connection attempt completed within test timeout
-        printf("✓ [RESULT] Connection failed within test timeout: result=%d\n", connResult.load());
-
-        // Connection MUST fail (unreachable endpoint)
-        VERIFY_KEYPOINT_TRUE(connResult.load() != IOC_RESULT_SUCCESS,
-                             "[CONNECTION] TCP connection must fail when endpoint unreachable");
-
-        // LinkID should remain invalid (no connection established - cannot execute commands)
-        VERIFY_KEYPOINT_EQ(cliLinkID, IOC_ID_INVALID,
-                           "[LINKID] Should remain INVALID when TCP connection fails (prevents command execution)");
-
-        // Verify error code indicates connection failure (not command timeout)
-        printf("📊 [ERROR CODE] TCP connection error: %d\n", connResult.load());
-        printf("    Expected errors: IOC_RESULT_CONN_FAILED, IOC_RESULT_LINK_OFFLINE, or network unreachable\n");
-    } else {
-        // Connection attempt still blocking after test timeout
-        printf("⚠️  [TEST TIMEOUT] TCP connection attempt did not complete within %d ms\n", MAX_WAIT_MS);
-        printf("    This is EXPECTED - OS-level TCP connect timeout (75-120s) exceeds test timeout\n");
-        printf("    Validates that connection remains in progress (not failed prematurely)\n");
-
-        // This is acceptable - we've validated the blocking behavior
-        // The connection thread will eventually complete when OS timeout expires
-        connThread.detach();  // Let it complete in background
-
-        printf("✓ [VERIFICATION] TCP connection properly blocks on unreachable endpoint (as expected)\n");
-        printf("    LinkID: %llu (remains INVALID - no premature state changes)\n", cliLinkID);
-
-        // Verify LinkID remained invalid during the wait period (connection not established)
-        VERIFY_KEYPOINT_EQ(cliLinkID, IOC_ID_INVALID,
-                           "[LINKID] Should remain INVALID while TCP connection attempt in progress");
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // 🧹 CLEANUP
-    // ═══════════════════════════════════════════════════════════════════════════
-    if (connectDone.load()) {
-        connThread.join();
-    }
-    // Note: If thread detached, it will clean up automatically when OS timeout expires
-
-    printf("✅ TC-4 COMPLETE\n\n");
-}
-
 //======>END OF TEST CASE IMPLEMENTATIONS=========================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1212,10 +1082,11 @@ TEST(UT_CommandStateTCP, verifyCommandState_whenTcpConnectFails_expectConnection
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * PHASE 2: HIGH-PRIORITY TEST CASES (Week 2-3) - Priority: HIGH
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
- * ⚪ Task 2.1: Implement CAT-1 (Connection Establishment) - TCs 1-3
+ * ⚪ Task 2.1: Implement CAT-1 (Connection Establishment) - TCs 1-4
  *    - TC-1: Command state during TCP connect (PENDING)
  *    - TC-2: Command state after connect success (PROCESSING)
  *    - TC-3: Command state on connect refused (FAILED)
+ *    - TC-4: Link state during connection attempt
  *
  * ⚪ Task 2.2: Implement CAT-2 (Connection Loss) - TCs 6-8
  *    - TC-6: Connection reset mid-execution (ECONNRESET)
@@ -1234,9 +1105,6 @@ TEST(UT_CommandStateTCP, verifyCommandState_whenTcpConnectFails_expectConnection
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * PHASE 3: MEDIUM-PRIORITY TEST CASES (Week 4) - Priority: MEDIUM
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
- * ⚪ Task 3.1: Implement CAT-1 remaining (TCs 4-5)
- *    - TC-4: Connect timeout
- *    - TC-5: Link state during connection
  *
  * ⚪ Task 3.2: Implement CAT-3 (Flow Control) - TCs 9-11
  *    - TC-9: Send buffer full
@@ -1291,7 +1159,7 @@ TEST(UT_CommandStateTCP, verifyCommandState_whenTcpConnectFails_expectConnection
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * 🎯 SUCCESS CRITERIA:
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
- * ✓ All 18 test cases implemented and GREEN
+ * ✓ All 19 test cases implemented and GREEN
  * ✓ 100% coverage of TCP-specific state integration scenarios
  * ✓ Zero state correlation violations detected
  * ✓ Test execution time < 60 seconds (all tests)
