@@ -428,6 +428,29 @@ static IOC_Result_T __IOC_connectService_ofProtoTCP(_IOC_LinkObject_pT pLinkObj,
         return IOC_RESULT_BUG;
     }
 
+    // 🎯 TDD FIX Bug #5: Apply timeout option to socket for connection and receive operations
+    if (pOption && pOption->IDs == IOC_OPTID_TIMEOUT) {
+        struct timeval tv;
+        tv.tv_sec = pOption->Payload.TimeoutUS / 1000000;
+        tv.tv_usec = pOption->Payload.TimeoutUS % 1000000;
+
+        // Set receive timeout
+        if (setsockopt(SocketFd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+            close(SocketFd);
+            free(pTCPLinkObj);
+            _IOC_LogError("Failed to set socket receive timeout");
+            return IOC_RESULT_BUG;
+        }
+
+        // Set send timeout
+        if (setsockopt(SocketFd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv)) < 0) {
+            close(SocketFd);
+            free(pTCPLinkObj);
+            _IOC_LogError("Failed to set socket send timeout");
+            return IOC_RESULT_BUG;
+        }
+    }
+
     // Connect to server
     struct sockaddr_in SrvAddr = {0};
     SrvAddr.sin_family = AF_INET;
@@ -463,11 +486,17 @@ static IOC_Result_T __IOC_connectService_ofProtoTCP(_IOC_LinkObject_pT pLinkObj,
         return IOC_RESULT_BUG;
     }
 
-    // Receive negotiated usage from server
+    // Receive negotiated usage from server (with timeout if configured)
     IOC_LinkUsage_T NegotiatedUsage = IOC_LinkUsageUndefined;
-    if (__TCP_recvAll(SocketFd, &NegotiatedUsage, sizeof(NegotiatedUsage)) != IOC_RESULT_SUCCESS) {
+    IOC_Result_T RecvResult = __TCP_recvAll(SocketFd, &NegotiatedUsage, sizeof(NegotiatedUsage));
+    if (RecvResult != IOC_RESULT_SUCCESS) {
         close(SocketFd);
         free(pTCPLinkObj);
+        // 🎯 TDD FIX: Check if timeout occurred (errno EAGAIN or EWOULDBLOCK)
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            _IOC_LogError("Timeout waiting for usage negotiation response from server");
+            return IOC_RESULT_TIMEOUT;
+        }
         _IOC_LogError("Failed to receive negotiated usage from server");
         return IOC_RESULT_BUG;
     }
@@ -477,7 +506,8 @@ static IOC_Result_T __IOC_connectService_ofProtoTCP(_IOC_LinkObject_pT pLinkObj,
         close(SocketFd);
         free(pTCPLinkObj);
         _IOC_LogError("Usage negotiation failed - incompatible roles");
-        return IOC_RESULT_INVALID_PARAM;
+        // 🎯 TDD FIX Bug #5: Return INCOMPATIBLE_USAGE instead of INVALID_PARAM
+        return IOC_RESULT_INCOMPATIBLE_USAGE;
     }
 
     // Copy CmdUsageArgs from connection args if client is CmdExecutor
@@ -521,11 +551,40 @@ static IOC_Result_T __IOC_acceptClient_ofProtoTCP(_IOC_ServiceObject_pT pSrvObj,
     pTCPLinkObj->IncomingCmdTail = 0;
     pTCPLinkObj->IncomingCmdCount = 0;
 
+    // 🎯 TDD FIX Bug #6: Apply timeout to accept() using select()
+    int ClientFd = -1;
+
+    if (pOption && pOption->IDs == IOC_OPTID_TIMEOUT) {
+        // Use select() to implement timeout for accept()
+        fd_set ReadFds;
+        struct timeval Timeout;
+
+        FD_ZERO(&ReadFds);
+        FD_SET(pTCPSrvObj->ListenSocketFd, &ReadFds);
+
+        Timeout.tv_sec = pOption->Payload.TimeoutUS / 1000000;
+        Timeout.tv_usec = pOption->Payload.TimeoutUS % 1000000;
+
+        int SelectResult = select(pTCPSrvObj->ListenSocketFd + 1, &ReadFds, NULL, NULL, &Timeout);
+
+        if (SelectResult < 0) {
+            free(pTCPLinkObj);
+            _IOC_LogError("select() failed while waiting for client connection");
+            return IOC_RESULT_BUG;
+        } else if (SelectResult == 0) {
+            // Timeout occurred - no client connected within timeout period
+            free(pTCPLinkObj);
+            _IOC_LogWarn("acceptClient timed out after %lu microseconds", pOption->Payload.TimeoutUS);
+            return IOC_RESULT_TIMEOUT;
+        }
+        // SelectResult > 0: Socket is ready, proceed with accept
+    }
+
     // Accept incoming connection
     struct sockaddr_in CliAddr = {0};
     socklen_t CliLen = sizeof(CliAddr);
 
-    int ClientFd = accept(pTCPSrvObj->ListenSocketFd, (struct sockaddr*)&CliAddr, &CliLen);
+    ClientFd = accept(pTCPSrvObj->ListenSocketFd, (struct sockaddr*)&CliAddr, &CliLen);
     if (ClientFd < 0) {
         free(pTCPLinkObj);
         _IOC_LogError("Failed to accept TCP client connection");
