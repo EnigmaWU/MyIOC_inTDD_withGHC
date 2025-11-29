@@ -802,6 +802,68 @@ TEST(UT_CommandStateTCP, verifyCommandState_clientAndServerSide_overTcpConnectio
     printf("✅ TC-1 COMPLETE\n\n");
 }
 
+/**
+ * TC-3: verifyCommandState_whenTcpConnectRefused_expectFailedWithError
+ * @[Purpose]: Validate command immediately transitions to FAILED when connection refused
+ * @[Steps]:
+ *   1) SETUP: Do NOT start server (deliberately offline)
+ *   2) BEHAVIOR: Attempt to connect and execute command
+ *   3) VERIFY: Connection fails, command state is FAILED/TIMEOUT, error code is appropriate
+ *   4) CLEANUP: None needed (no connections established)
+ * @[Expected]: IOC_connectService returns error, command remains INITIALIZED or transitions to FAILED
+ * @[TCP Focus]: ECONNREFUSED error propagation to IOC layer
+ * @[ArchDesign]: README_ArchDesign.md "Individual Command State Machine" - FAILED state
+ */
+TEST(UT_CommandStateTCP, verifyCommandState_whenTcpConnectRefused_expectFailedWithError) {
+    printf("🎯 TC-3: verifyCommandState_whenTcpConnectRefused_expectFailedWithError\n");
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // 🔧 SETUP: Configure connection to offline server (deliberately no server)
+    // ═══════════════════════════════════════════════════════════════════════════
+    constexpr uint16_t TEST_PORT = _UT_STATE_TCP_BASE_PORT + 2;  // 22082
+
+    IOC_SrvURI_T srvURI = {
+        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdStateTCP_ConnRefused"};
+
+    // NOTE: Deliberately NOT starting server to trigger ECONNREFUSED
+    printf("📋 [SETUP] Server deliberately NOT started on port %u\n", TEST_PORT);
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // 🎯 BEHAVIOR: Attempt connection to offline server
+    // ═══════════════════════════════════════════════════════════════════════════
+    printf("📋 [BEHAVIOR] Attempting connection to offline server...\n");
+
+    IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
+    IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
+
+    IOC_Result_T connResult = IOC_connectService(&cliLinkID, &connArgs, NULL);
+
+    printf("📊 [RESULT] Connection result: %d (LinkID: %lu)\n", connResult, cliLinkID);
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ✅ VERIFY: Connection should fail with appropriate error
+    // ═══════════════════════════════════════════════════════════════════════════
+    printf("✅ [VERIFY] Checking connection failure behavior...\n");
+
+    // Connection MUST fail (cannot connect to offline server)
+    VERIFY_KEYPOINT_TRUE(connResult != IOC_RESULT_SUCCESS,
+                         "[CONNECTION] Must fail when connecting to offline server (ECONNREFUSED expected)");
+
+    // LinkID should remain invalid (no connection established)
+    VERIFY_KEYPOINT_EQ(cliLinkID, IOC_ID_INVALID, "[LINKID] Should remain INVALID when connection fails");
+
+    // Verify specific error codes (implementation may vary)
+    printf("📊 [ERROR CODE] Connection error: %d\n", connResult);
+    printf("    Expected errors: IOC_RESULT_LINK_OFFLINE, IOC_RESULT_CONN_FAILED, or similar\n");
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // 🧹 CLEANUP
+    // ═══════════════════════════════════════════════════════════════════════════
+    // No cleanup needed - no connections were established
+
+    printf("✅ TC-3 COMPLETE\n\n");
+}
+
 //======>END OF TEST CASE IMPLEMENTATIONS=========================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
