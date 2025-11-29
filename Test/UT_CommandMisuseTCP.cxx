@@ -209,12 +209,14 @@
  *      @[Purpose]: Validate invalid LinkID is detected by IOC_ackCMD
  *      @[Brief]: Call IOC_ackCMD with IOC_ID_INVALID
  *  🟢 TC-14: verifyTcpMisuse_byAckOnInitiatorLink_expectUsageError
- *      @[Purpose]: Validate IOC_ackCMD fails on wrong link role (initiator side)
+ *      @[Purpose]: Validate IOC_ackCMD fails on CmdInitiator role
  *      @[Brief]: Call IOC_ackCMD on CmdInitiator link (should be CmdExecutor)
+ *      @[Notes]: Role is independent of client/service side
  *      @[RGR]: 🟢 GREEN - Fixed! Added role validation in IOC_ackCMD
  *  🟢 TC-15: verifyTcpMisuse_byWaitOnInitiatorLink_expectUsageError
- *      @[Purpose]: Validate IOC_waitCMD fails on wrong link role (initiator side)
+ *      @[Purpose]: Validate IOC_waitCMD fails on CmdInitiator role
  *      @[Brief]: Call IOC_waitCMD on CmdInitiator link (should be CmdExecutor)
+ *      @[Notes]: Role is independent of client/service side
  *
  * Lifecycle Misuse (2 tests)
  *  🟢 TC-1: verifyTcpMisuse_byDoubleOffline_expectError
@@ -1257,12 +1259,13 @@ TEST(UT_TcpCommandMisuse, verifyTcpMisuse_byInvalidLinkIDForAck_expectError) {
 // TC-14: verifyTcpMisuse_byAckOnInitiatorLink_expectUsageError
 /**
  * @[Category]: P1-Misuse (InvalidFunc)
- * @[Purpose]: Validate IOC_ackCMD fails on wrong link role (initiator side)
- * @[Brief]: Call IOC_ackCMD on CmdInitiator link (should be CmdExecutor)
- * @[Notes]: ackCMD is for executor to respond, not for initiator to call
+ * @[Purpose]: Validate IOC_ackCMD fails on CmdInitiator role (regardless of client/service side)
+ * @[Brief]: Call IOC_ackCMD on link with CmdInitiator usage (should be CmdExecutor)
+ * @[Notes]: ackCMD is for CmdExecutor to respond, not for CmdInitiator to call.
+ *           Either client or service can be CmdInitiator/CmdExecutor - role is independent of side.
  * @[4-Phase Structure]:
- *   1) 🔧 SETUP: Create connection as CmdInitiator
- *   2) 🎯 BEHAVIOR: Try IOC_ackCMD on initiator link
+ *   1) 🔧 SETUP: Create connection where CLIENT has CmdInitiator role
+ *   2) 🎯 BEHAVIOR: Try IOC_ackCMD on client's CmdInitiator link
  *   3) ✅ VERIFY: Should return usage error (not SUCCESS)
  *   4) 🧹 CLEANUP: Close connections and offline service
  */
@@ -1271,6 +1274,7 @@ TEST(UT_TcpCommandMisuse, verifyTcpMisuse_byAckOnInitiatorLink_expectUsageError)
 
     IOC_SrvURI_T srvURI = {
         .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdMisuse_AckInitiator"};
+    // Service has CmdExecutor capability (will receive commands)
     IOC_SrvArgs_T srvArgs = {
         .SrvURI = srvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageCmdExecutor, .UsageArgs = {}};
 
@@ -1279,6 +1283,7 @@ TEST(UT_TcpCommandMisuse, verifyTcpMisuse_byAckOnInitiatorLink_expectUsageError)
     IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
 
     ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
+    // Client connects as CmdInitiator (will send commands)
     IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
     std::thread cliThread([&] { IOC_connectService(&cliLinkID, &connArgs, NULL); });
     ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_acceptClient(srvID, &srvLinkID, NULL));
@@ -1288,6 +1293,7 @@ TEST(UT_TcpCommandMisuse, verifyTcpMisuse_byAckOnInitiatorLink_expectUsageError)
     IOC_CmdDesc_initVar(&cmdDesc);
     cmdDesc.CmdID = IOC_CMDID_TEST_PING;
 
+    // Try to ackCMD on CmdInitiator link - should fail
     IOC_Result_T result = IOC_ackCMD(cliLinkID, &cmdDesc, NULL);
 
     VERIFY_KEYPOINT_NE(result, IOC_RESULT_SUCCESS, "Should fail when ackCMD called on initiator link");
@@ -1300,12 +1306,13 @@ TEST(UT_TcpCommandMisuse, verifyTcpMisuse_byAckOnInitiatorLink_expectUsageError)
 // TC-15: verifyTcpMisuse_byWaitOnInitiatorLink_expectUsageError
 /**
  * @[Category]: P1-Misuse (InvalidFunc)
- * @[Purpose]: Validate IOC_waitCMD fails on wrong link role (initiator side)
- * @[Brief]: Call IOC_waitCMD on CmdInitiator link (should be CmdExecutor)
- * @[Notes]: waitCMD is for executor to receive commands, not for initiator
+ * @[Purpose]: Validate IOC_waitCMD fails on CmdInitiator role (regardless of client/service side)
+ * @[Brief]: Call IOC_waitCMD on link with CmdInitiator usage (should be CmdExecutor)
+ * @[Notes]: waitCMD is for CmdExecutor to receive commands, not for CmdInitiator.
+ *           Either client or service can be CmdInitiator/CmdExecutor - role is independent of side.
  * @[4-Phase Structure]:
- *   1) 🔧 SETUP: Create connection as CmdInitiator
- *   2) 🎯 BEHAVIOR: Try IOC_waitCMD on initiator link with timeout
+ *   1) 🔧 SETUP: Create connection where CLIENT has CmdInitiator role
+ *   2) 🎯 BEHAVIOR: Try IOC_waitCMD on client's CmdInitiator link
  *   3) ✅ VERIFY: Should return usage error (not SUCCESS or TIMEOUT)
  *   4) 🧹 CLEANUP: Close connections and offline service
  */
@@ -1314,6 +1321,7 @@ TEST(UT_TcpCommandMisuse, verifyTcpMisuse_byWaitOnInitiatorLink_expectUsageError
 
     IOC_SrvURI_T srvURI = {
         .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdMisuse_WaitInitiator"};
+    // Service has CmdExecutor capability (will receive commands)
     IOC_SrvArgs_T srvArgs = {
         .SrvURI = srvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageCmdExecutor, .UsageArgs = {}};
 
@@ -1322,6 +1330,7 @@ TEST(UT_TcpCommandMisuse, verifyTcpMisuse_byWaitOnInitiatorLink_expectUsageError
     IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
 
     ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
+    // Client connects as CmdInitiator (will send commands)
     IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
     std::thread cliThread([&] { IOC_connectService(&cliLinkID, &connArgs, NULL); });
     ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_acceptClient(srvID, &srvLinkID, NULL));
@@ -1330,6 +1339,7 @@ TEST(UT_TcpCommandMisuse, verifyTcpMisuse_byWaitOnInitiatorLink_expectUsageError
     IOC_CmdDesc_T cmdDesc = {};
     IOC_CmdDesc_initVar(&cmdDesc);
 
+    // Try to waitCMD on CmdInitiator link - should fail
     IOC_Result_T result = IOC_waitCMD(cliLinkID, &cmdDesc, NULL);
 
     VERIFY_KEYPOINT_NE(result, IOC_RESULT_SUCCESS, "Should fail when waitCMD called on initiator link");
