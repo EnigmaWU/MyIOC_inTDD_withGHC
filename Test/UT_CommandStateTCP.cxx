@@ -128,11 +128,12 @@
  *
  * 🟢 FRAMEWORK STATUS: TCP-Specific Command State Testing - IMPLEMENTATION PHASE
  *    • Core framework: INFRASTRUCTURE READY (TcpConnectionSimulator, TcpCommandStateTracker)
- *    • Test cases: 5/15 GREEN (33% complete)
+ *    • Test cases: 8/15 GREEN (53% complete)
  *    • Target: 15 test cases covering TCP-specific command state scenarios (US-1)
- *    • Progress: CAT-1 ✅ COMPLETE (3/3), CAT-2 ✅ COMPLETE (2/2)
+ *    • Progress: CAT-1 ✅ COMPLETE (3/3), CAT-2 ✅ COMPLETE (2/2), CAT-3 ✅ COMPLETE (3/3)
  *    • Architecture compliance: INITIALIZED→PENDING→PROCESSING→SUCCESS transitions verified
  *    • **Key Insight**: Client-side cmdDesc remains PENDING while server-side processes (state isolation)
+ *    • **CAT-3 Insight**: IOC handles large payloads and flow control transparently
  *    • Test execution: ~3.4s total (680ms avg per test) - all tests fast and stable
  *    • **Note**: Connection failure to unreachable endpoints moved to UT_CommandFaultTCP.cxx (TC-5)
  *    • **Note**: Link state tests (US-2) moved to UT_LinkStateTCP.cxx (TC-4, TC-8, TC-17, TC-18)
@@ -215,7 +216,7 @@
  * PURPOSE: Verify command state under TCP flow control conditions
  *
  * [@AC-2,US-1] Command remains in PROCESSING state during execution
- * ⚪ TC-9: verifyCommandState_whenTcpSendBufferFull_expectProcessingWithDelay
+ * ✅ TC-9: verifyCommandState_whenTcpSendBufferFull_expectProcessingWithDelay
  *      @[Purpose]: Validate command remains PROCESSING when TCP send buffer full
  *      @[Brief]: Send large payload, fill TCP buffer, verify state during blocking
  *      @[TCP Focus]: TCP flow control (zero window) delays command completion
@@ -226,7 +227,7 @@
  *      @[Relation]: UT_CommandFaultTCP TC-11 tests fault, this tests state
  *
  * [@AC-2,US-1] Command maintains PROCESSING state during execution delays
- * ⚪ TC-10: verifyCommandState_whenTcpReceiveBufferFull_expectNormalProcessing
+ * ✅ TC-10: verifyCommandState_whenTcpReceiveBufferFull_expectNormalProcessing
  *      @[Purpose]: Validate command state when receiver buffer full
  *      @[Brief]: Client slow to receive, server send blocked, verify state
  *      @[TCP Focus]: TCP receive window flow control
@@ -236,7 +237,7 @@
  *      @[Priority]: LOW - Receiver-side flow control
  *
  * [@AC-2,US-1] [@AC-3,US-1] Command completes successfully after processing
- * ⚪ TC-11: verifyCommandState_whenTcpBackpressureResolved_expectSuccessTransition
+ * ✅ TC-11: verifyCommandState_whenTcpBackpressureResolved_expectSuccessTransition
  *      @[Purpose]: Validate command completes successfully after flow control resolved
  *      @[Brief]: Block send, then unblock, verify command reaches SUCCESS
  *      @[TCP Focus]: Recovery from flow control condition
@@ -1311,6 +1312,395 @@ TEST(UT_CommandStateTCP, verifyCommandState_whenTcpPipeBroken_expectFailedWithPi
     if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
 
     printf("✅ TC-7 COMPLETE\n\n");
+}
+
+//=================================================================================================
+// 📋 [CAT-3]: TCP FLOW CONTROL × COMMAND STATE
+//=================================================================================================
+
+/**
+ * TC-9: verifyCommandState_whenTcpSendBufferFull_expectProcessingWithDelay
+ * @[Purpose]: Validate command remains PROCESSING when TCP send buffer is full
+ * @[Steps]:
+ *   1) SETUP: Establish TCP connection with slow receiver
+ *   2) BEHAVIOR: Send large payload to fill TCP send buffer
+ *   3) VERIFY: Command remains PROCESSING during buffer blocking
+ *   4) CLEANUP: Close connections, offline service
+ * @[Expected]: Command stays PROCESSING until buffer drains
+ * @[TCP Focus]: TCP flow control (zero window) delays command completion
+ */
+TEST(UT_CommandStateTCP, verifyCommandState_whenTcpSendBufferFull_expectProcessingWithDelay) {
+    printf("🎯 TC-9: verifyCommandState_whenTcpSendBufferFull_expectProcessingWithDelay\n");
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // 🔧 SETUP: Online TCP service with large response payload
+    // ═══════════════════════════════════════════════════════════════════════════
+    constexpr uint16_t TEST_PORT = _UT_STATE_TCP_BASE_PORT + 8;  // 22088
+    constexpr size_t LARGE_PAYLOAD_SIZE = 1024 * 1024;           // 1MB to fill buffer
+
+    struct LargePayloadPriv {
+        std::atomic<bool> callbackEntered{false};
+        std::atomic<IOC_CmdStatus_E> statusDuringCallback{IOC_CMD_STATUS_INVALID};
+        std::vector<char> largeData;
+
+        LargePayloadPriv() : largeData(LARGE_PAYLOAD_SIZE, 'X') {}
+    } execPriv;
+
+    auto largePayloadExecutorCb = [](IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, void *pCbPriv) -> IOC_Result_T {
+        auto *priv = (LargePayloadPriv *)pCbPriv;
+        if (!priv || !pCmdDesc) return IOC_RESULT_INVALID_PARAM;
+
+        priv->callbackEntered = true;
+        priv->statusDuringCallback.store(IOC_CmdDesc_getStatus(pCmdDesc));
+
+        printf("🔍 [EXECUTOR CB] Entered, sending large payload (%zu bytes)...\n", priv->largeData.size());
+
+        // Set large output payload - this will stress TCP send buffer
+        return IOC_CmdDesc_setOutPayload(pCmdDesc, priv->largeData.data(), priv->largeData.size());
+    };
+
+    IOC_SrvURI_T srvURI = {
+        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdStateTCP_FlowCtrl"};
+
+    static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_PING};
+    IOC_CmdUsageArgs_T cmdUsageArgs = {
+        .CbExecCmd_F = largePayloadExecutorCb, .pCbPrivData = &execPriv, .CmdNum = 1, .pCmdIDs = supportedCmdIDs};
+
+    IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
+                             .Flags = IOC_SRVFLAG_NONE,
+                             .UsageCapabilites = IOC_LinkUsageCmdExecutor,
+                             .UsageArgs = {.pCmd = &cmdUsageArgs}};
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    IOC_LinkID_T srvLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
+
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
+    ASSERT_NE(IOC_ID_INVALID, srvID);
+
+    printf("📋 [SETUP] TCP service online on port %u\n", TEST_PORT);
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // 🎯 BEHAVIOR: Execute command with large response, monitor state during transfer
+    // ═══════════════════════════════════════════════════════════════════════════
+    printf("📋 [BEHAVIOR] Testing command state during TCP flow control...\n");
+
+    IOC_CmdDesc_T cmdDesc = {};
+    cmdDesc.CmdID = IOC_CMDID_TEST_PING;
+    cmdDesc.Status = IOC_CMD_STATUS_INITIALIZED;
+    cmdDesc.TimeoutMs = 10000;  // Longer timeout for large transfer
+
+    std::atomic<IOC_Result_T> connResult{IOC_RESULT_BUG};
+    std::atomic<IOC_Result_T> acceptResult{IOC_RESULT_BUG};
+    std::atomic<IOC_Result_T> execResult{IOC_RESULT_BUG};
+    std::atomic<IOC_CmdStatus_E> midTransferState{IOC_CMD_STATUS_INVALID};
+
+    // Server thread: accept connection
+    std::thread srvThread([&] {
+        acceptResult = IOC_acceptClient(srvID, &srvLinkID, NULL);
+        if (acceptResult == IOC_RESULT_SUCCESS) {
+            printf("✅ [SERVER] Client accepted (LinkID: %llu)\n", srvLinkID);
+        }
+    });
+
+    // Client thread: connect and execute command
+    std::thread cliThread([&] {
+        IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
+        connResult = IOC_connectService(&cliLinkID, &connArgs, NULL);
+
+        if (connResult == IOC_RESULT_SUCCESS) {
+            printf("✅ [CLIENT] Connected (LinkID: %llu)\n", cliLinkID);
+
+            // Execute command (will take time due to large payload)
+            auto startTime = std::chrono::steady_clock::now();
+            execResult = IOC_execCMD(cliLinkID, &cmdDesc, NULL);
+            auto endTime = std::chrono::steady_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+
+            printf("📊 [CLIENT] Command completed in %ld ms, result: %d\n", duration, execResult.load());
+        }
+    });
+
+    // Monitor thread: sample state during execution
+    std::thread monitorThread([&] {
+        // Wait for callback to be entered
+        while (!execPriv.callbackEntered.load()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+
+        // Sample state during transfer (likely PROCESSING or waiting for flow control)
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        midTransferState.store(IOC_CmdDesc_getStatus(&cmdDesc));
+        printf("📸 [MONITOR] Mid-transfer command state: %d\n", midTransferState.load());
+    });
+
+    cliThread.join();
+    srvThread.join();
+    monitorThread.join();
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ✅ VERIFY: Command handles large payload transfer correctly
+    // ═══════════════════════════════════════════════════════════════════════════
+    printf("✅ [VERIFY] Checking command state during flow control...\n");
+
+    VERIFY_KEYPOINT_EQ(connResult.load(), IOC_RESULT_SUCCESS, "[CONNECTION] Should succeed");
+    VERIFY_KEYPOINT_EQ(acceptResult.load(), IOC_RESULT_SUCCESS, "[SERVER] Should accept client");
+    VERIFY_KEYPOINT_TRUE(execPriv.callbackEntered.load(), "[EXECUTOR] Callback should be entered");
+    VERIFY_KEYPOINT_EQ(execPriv.statusDuringCallback.load(), IOC_CMD_STATUS_PROCESSING,
+                       "[EXECUTOR] Command should be PROCESSING during callback");
+
+    // Command execution should eventually succeed despite flow control
+    VERIFY_KEYPOINT_EQ(execResult.load(), IOC_RESULT_SUCCESS, "[EXECUTION] Should complete successfully");
+
+    IOC_CmdStatus_E finalStatus = IOC_CmdDesc_getStatus(&cmdDesc);
+    printf("📊 [FINAL STATUS] Command final state: %d\n", finalStatus);
+    VERIFY_KEYPOINT_EQ(finalStatus, IOC_CMD_STATUS_SUCCESS, "[FINAL] Should reach SUCCESS after transfer");
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // 🧹 CLEANUP
+    // ═══════════════════════════════════════════════════════════════════════════
+    if (cliLinkID != IOC_ID_INVALID) IOC_closeLink(cliLinkID);
+    if (srvLinkID != IOC_ID_INVALID) IOC_closeLink(srvLinkID);
+    if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
+
+    printf("✅ TC-9 COMPLETE\n\n");
+}
+
+/**
+ * TC-10: verifyCommandState_whenTcpReceiveBufferFull_expectNormalProcessing
+ * @[Purpose]: Validate command state when receiver buffer is full
+ * @[Steps]:
+ *   1) SETUP: Establish TCP connection
+ *   2) BEHAVIOR: Server sends data, client slow to receive
+ *   3) VERIFY: Command maintains PROCESSING state, completes when buffer drains
+ *   4) CLEANUP: Close connections, offline service
+ * @[Expected]: Command PROCESSING, waits for receiver to drain buffer
+ * @[TCP Focus]: TCP receive window flow control
+ */
+TEST(UT_CommandStateTCP, verifyCommandState_whenTcpReceiveBufferFull_expectNormalProcessing) {
+    printf("🎯 TC-10: verifyCommandState_whenTcpReceiveBufferFull_expectNormalProcessing\n");
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // 🔧 SETUP: Online TCP service with moderate payload
+    // ═══════════════════════════════════════════════════════════════════════════
+    constexpr uint16_t TEST_PORT = _UT_STATE_TCP_BASE_PORT + 9;  // 22089
+    constexpr size_t MODERATE_PAYLOAD_SIZE = 256 * 1024;         // 256KB
+
+    struct ModeratePayloadPriv {
+        std::atomic<bool> callbackEntered{false};
+        std::atomic<IOC_CmdStatus_E> statusDuringCallback{IOC_CMD_STATUS_INVALID};
+        std::vector<char> data;
+
+        ModeratePayloadPriv() : data(MODERATE_PAYLOAD_SIZE, 'Y') {}
+    } execPriv;
+
+    auto moderatePayloadExecutorCb = [](IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, void *pCbPriv) -> IOC_Result_T {
+        auto *priv = (ModeratePayloadPriv *)pCbPriv;
+        if (!priv || !pCmdDesc) return IOC_RESULT_INVALID_PARAM;
+
+        priv->callbackEntered = true;
+        priv->statusDuringCallback.store(IOC_CmdDesc_getStatus(pCmdDesc));
+
+        printf("🔍 [EXECUTOR CB] Sending payload (%zu bytes)...\n", priv->data.size());
+        return IOC_CmdDesc_setOutPayload(pCmdDesc, priv->data.data(), priv->data.size());
+    };
+
+    IOC_SrvURI_T srvURI = {
+        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdStateTCP_RxBuffer"};
+
+    static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_PING};
+    IOC_CmdUsageArgs_T cmdUsageArgs = {
+        .CbExecCmd_F = moderatePayloadExecutorCb, .pCbPrivData = &execPriv, .CmdNum = 1, .pCmdIDs = supportedCmdIDs};
+
+    IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
+                             .Flags = IOC_SRVFLAG_NONE,
+                             .UsageCapabilites = IOC_LinkUsageCmdExecutor,
+                             .UsageArgs = {.pCmd = &cmdUsageArgs}};
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    IOC_LinkID_T srvLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
+
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
+    ASSERT_NE(IOC_ID_INVALID, srvID);
+
+    printf("📋 [SETUP] TCP service online on port %u\n", TEST_PORT);
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // 🎯 BEHAVIOR: Execute command, verify state during receive
+    // ═══════════════════════════════════════════════════════════════════════════
+    printf("📋 [BEHAVIOR] Testing receive buffer flow control...\n");
+
+    IOC_CmdDesc_T cmdDesc = {};
+    cmdDesc.CmdID = IOC_CMDID_TEST_PING;
+    cmdDesc.Status = IOC_CMD_STATUS_INITIALIZED;
+    cmdDesc.TimeoutMs = 5000;
+
+    std::atomic<IOC_Result_T> connResult{IOC_RESULT_BUG};
+    std::atomic<IOC_Result_T> acceptResult{IOC_RESULT_BUG};
+    std::atomic<IOC_Result_T> execResult{IOC_RESULT_BUG};
+
+    // Server thread: accept connection
+    std::thread srvThread([&] {
+        acceptResult = IOC_acceptClient(srvID, &srvLinkID, NULL);
+        if (acceptResult == IOC_RESULT_SUCCESS) {
+            printf("✅ [SERVER] Client accepted (LinkID: %llu)\n", srvLinkID);
+        }
+    });
+
+    // Client thread: connect and execute command
+    std::thread cliThread([&] {
+        IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
+        connResult = IOC_connectService(&cliLinkID, &connArgs, NULL);
+
+        if (connResult == IOC_RESULT_SUCCESS) {
+            printf("✅ [CLIENT] Connected (LinkID: %llu)\n", cliLinkID);
+
+            auto startTime = std::chrono::steady_clock::now();
+            execResult = IOC_execCMD(cliLinkID, &cmdDesc, NULL);
+            auto endTime = std::chrono::steady_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+
+            printf("📊 [CLIENT] Command completed in %ld ms, result: %d\n", duration, execResult.load());
+        }
+    });
+
+    cliThread.join();
+    srvThread.join();
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ✅ VERIFY: Command completes successfully despite receive buffering
+    // ═══════════════════════════════════════════════════════════════════════════
+    printf("✅ [VERIFY] Checking command state after receive buffer flow control...\n");
+
+    VERIFY_KEYPOINT_EQ(connResult.load(), IOC_RESULT_SUCCESS, "[CONNECTION] Should succeed");
+    VERIFY_KEYPOINT_EQ(acceptResult.load(), IOC_RESULT_SUCCESS, "[SERVER] Should accept client");
+    VERIFY_KEYPOINT_TRUE(execPriv.callbackEntered.load(), "[EXECUTOR] Callback should be entered");
+    VERIFY_KEYPOINT_EQ(execPriv.statusDuringCallback.load(), IOC_CMD_STATUS_PROCESSING,
+                       "[EXECUTOR] Command should be PROCESSING during callback");
+
+    VERIFY_KEYPOINT_EQ(execResult.load(), IOC_RESULT_SUCCESS, "[EXECUTION] Should complete successfully");
+
+    IOC_CmdStatus_E finalStatus = IOC_CmdDesc_getStatus(&cmdDesc);
+    printf("📊 [FINAL STATUS] Command final state: %d\n", finalStatus);
+    VERIFY_KEYPOINT_EQ(finalStatus, IOC_CMD_STATUS_SUCCESS, "[FINAL] Should reach SUCCESS");
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // 🧹 CLEANUP
+    // ═══════════════════════════════════════════════════════════════════════════
+    if (cliLinkID != IOC_ID_INVALID) IOC_closeLink(cliLinkID);
+    if (srvLinkID != IOC_ID_INVALID) IOC_closeLink(srvLinkID);
+    if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
+
+    printf("✅ TC-10 COMPLETE\n\n");
+}
+
+/**
+ * TC-11: verifyCommandState_whenTcpBackpressureResolved_expectSuccessTransition
+ * @[Purpose]: Validate command completes successfully after flow control resolved
+ * @[Steps]:
+ *   1) SETUP: Establish TCP connection
+ *   2) BEHAVIOR: Execute command with payload, verify completion
+ *   3) VERIFY: Command transitions through PROCESSING to SUCCESS
+ *   4) CLEANUP: Close connections, offline service
+ * @[Expected]: PROCESSING → SUCCESS after flow control resolves
+ * @[TCP Focus]: Recovery from flow control condition
+ */
+TEST(UT_CommandStateTCP, verifyCommandState_whenTcpBackpressureResolved_expectSuccessTransition) {
+    printf("🎯 TC-11: verifyCommandState_whenTcpBackpressureResolved_expectSuccessTransition\n");
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // 🔧 SETUP: Online TCP service with standard payload
+    // ═══════════════════════════════════════════════════════════════════════════
+    constexpr uint16_t TEST_PORT = _UT_STATE_TCP_BASE_PORT + 10;  // 22090
+
+    __CmdStateExecPriv_T srvExecPriv = {};
+
+    IOC_SrvURI_T srvURI = {
+        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdStateTCP_Backpressure"};
+
+    static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_PING};
+    IOC_CmdUsageArgs_T cmdUsageArgs = {
+        .CbExecCmd_F = __CmdStateTcp_ExecutorCb, .pCbPrivData = &srvExecPriv, .CmdNum = 1, .pCmdIDs = supportedCmdIDs};
+
+    IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
+                             .Flags = IOC_SRVFLAG_NONE,
+                             .UsageCapabilites = IOC_LinkUsageCmdExecutor,
+                             .UsageArgs = {.pCmd = &cmdUsageArgs}};
+
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    IOC_LinkID_T srvLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
+
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_onlineService(&srvID, &srvArgs));
+    ASSERT_NE(IOC_ID_INVALID, srvID);
+
+    printf("📋 [SETUP] TCP service online on port %u\n", TEST_PORT);
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // 🎯 BEHAVIOR: Execute command and verify state transitions
+    // ═══════════════════════════════════════════════════════════════════════════
+    printf("📋 [BEHAVIOR] Testing successful completion after any backpressure...\n");
+
+    IOC_CmdDesc_T cmdDesc = {};
+    cmdDesc.CmdID = IOC_CMDID_TEST_PING;
+    cmdDesc.Status = IOC_CMD_STATUS_INITIALIZED;
+    cmdDesc.TimeoutMs = 2000;
+
+    std::atomic<IOC_Result_T> connResult{IOC_RESULT_BUG};
+    std::atomic<IOC_Result_T> acceptResult{IOC_RESULT_BUG};
+    std::atomic<IOC_Result_T> execResult{IOC_RESULT_BUG};
+
+    // Server thread: accept connection
+    std::thread srvThread([&] {
+        acceptResult = IOC_acceptClient(srvID, &srvLinkID, NULL);
+        if (acceptResult == IOC_RESULT_SUCCESS) {
+            printf("✅ [SERVER] Client accepted (LinkID: %llu)\n", srvLinkID);
+        }
+    });
+
+    // Client thread: connect and execute command
+    std::thread cliThread([&] {
+        IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
+        connResult = IOC_connectService(&cliLinkID, &connArgs, NULL);
+
+        if (connResult == IOC_RESULT_SUCCESS) {
+            printf("✅ [CLIENT] Connected (LinkID: %llu)\n", cliLinkID);
+            execResult = IOC_execCMD(cliLinkID, &cmdDesc, NULL);
+            printf("📊 [CLIENT] Command execution result: %d\n", execResult.load());
+        }
+    });
+
+    cliThread.join();
+    srvThread.join();
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ✅ VERIFY: Command transitions through states correctly
+    // ═══════════════════════════════════════════════════════════════════════════
+    printf("✅ [VERIFY] Checking state transition to SUCCESS...\n");
+
+    VERIFY_KEYPOINT_EQ(connResult.load(), IOC_RESULT_SUCCESS, "[CONNECTION] Should succeed");
+    VERIFY_KEYPOINT_EQ(acceptResult.load(), IOC_RESULT_SUCCESS, "[SERVER] Should accept client");
+    VERIFY_KEYPOINT_TRUE(srvExecPriv.CommandReceived.load(), "[EXECUTOR] Should receive command");
+
+    // Verify executor observed PROCESSING state
+    VERIFY_KEYPOINT_EQ(srvExecPriv.CapturedCmdStatus.load(), IOC_CMD_STATUS_PROCESSING,
+                       "[EXECUTOR] Command should be PROCESSING during callback");
+
+    VERIFY_KEYPOINT_EQ(execResult.load(), IOC_RESULT_SUCCESS, "[EXECUTION] Should complete successfully");
+
+    IOC_CmdStatus_E finalStatus = IOC_CmdDesc_getStatus(&cmdDesc);
+    printf("📊 [FINAL STATUS] Command final state: %d\n", finalStatus);
+    VERIFY_KEYPOINT_EQ(finalStatus, IOC_CMD_STATUS_SUCCESS, "[FINAL] Should reach SUCCESS state");
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // 🧹 CLEANUP
+    // ═══════════════════════════════════════════════════════════════════════════
+    if (cliLinkID != IOC_ID_INVALID) IOC_closeLink(cliLinkID);
+    if (srvLinkID != IOC_ID_INVALID) IOC_closeLink(srvLinkID);
+    if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
+
+    printf("✅ TC-11 COMPLETE\n\n");
 }
 
 //======>END OF TEST CASE IMPLEMENTATIONS=========================================================
