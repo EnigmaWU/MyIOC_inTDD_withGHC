@@ -296,7 +296,11 @@
 //      @[Brief]: Establish connection, offline service, bring back online, verify states
 //      @[Status]: TODO - Implement service restart test
 //
+//======>END OF TEST CASES=========================================================================
+//======>END OF UNIT TESTING DESIGN================================================================
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF UNIT TESTING IMPLEMENTATION======================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF TEST HELPER FUNCTIONS============================================================
@@ -365,10 +369,27 @@ static IOC_Result_T __CmdTcpFault_ExecutorCb(IOC_LinkID_T LinkID, IOC_CmdDesc_pT
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF TEST IMPLEMENTATIONS=============================================================
 
-// [@AC-1,US-1] TC-1: verifyTcpFaultConnection_byClosedSocket_expectGracefulError
-// MOVED from UT_CommandTypicalTCP.cxx: verifyTcpConnectionFailure_byClosedSocket_expectGracefulError
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// [@AC-1,US-1] Null Pointer Handling Tests
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+// TC-1: verifyTcpFaultConnection_byClosedSocket_expectGracefulError
+/**
+ * @[Category]: P1-Fault (InvalidFunc) - HIGH Priority
+ * @[Purpose]: Validate graceful error handling when socket closes during command execution
+ * @[Brief]: Close server socket unexpectedly, attempt command execution, verify graceful failure
+ * @[Protocol]: tcp://localhost:21080/CmdFaultTCP_ConnLoss
+ * @[Status]: MOVED from UT_CommandTypicalTCP.cxx, GREEN ✅
+ * @[4-Phase Structure]:
+ *   1) 🔧 SETUP: Online TCP service and establish client connection
+ *   2) 🎯 BEHAVIOR: Close server socket, attempt command execution from client
+ *   3) ✅ VERIFY: Command returns error without hanging or crashing
+ *   4) 🧹 CLEANUP: Close connections and offline service
+ */
 TEST(UT_TcpCommandFault, verifyTcpFaultConnection_byClosedSocket_expectGracefulError) {
-    //===SETUP===
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // 🔧 SETUP: Online service and establish connection
+    // ═══════════════════════════════════════════════════════════════════════════════════
     constexpr uint16_t TEST_PORT = _UT_FAULT_TCP_BASE_PORT;
 
     __CmdExecPriv_T srvExecPriv = {};
@@ -406,7 +427,9 @@ TEST(UT_TcpCommandFault, verifyTcpFaultConnection_byClosedSocket_expectGracefulE
 
     cliThread.join();
 
-    //===BEHAVIOR===
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // 🎯 BEHAVIOR: Simulate connection loss by closing socket
+    // ═══════════════════════════════════════════════════════════════════════════════════
     printf("📋 [FAULT] Testing connection failure - closed socket\n");
 
     // Step 4: Close TCP socket unexpectedly (Simulate network failure)
@@ -425,20 +448,38 @@ TEST(UT_TcpCommandFault, verifyTcpFaultConnection_byClosedSocket_expectGracefulE
 
     IOC_Result_T result = IOC_execCMD(cliLinkID, &cmdDesc, NULL);
 
-    //===VERIFY===
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // ✅ VERIFY: Command fails gracefully without hang or crash
+    // ═══════════════════════════════════════════════════════════════════════════════════
     EXPECT_NE(IOC_RESULT_SUCCESS, result) << "Command execution should fail on closed connection";
     printf("✅ [FAULT] Connection failure detected gracefully, result=%d\n", result);
 
-    //===CLEANUP===
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // 🧹 CLEANUP: Release resources
+    // ═══════════════════════════════════════════════════════════════════════════════════
     IOC_CmdDesc_cleanup(&cmdDesc);
     if (cliLinkID != IOC_ID_INVALID) IOC_closeLink(cliLinkID);
     if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
 }
 
-// [@AC-2,US-1] TC-1: verifyTcpFaultTimeout_bySlowResponse_expectTimeoutBehavior
-// MOVED from UT_CommandTypicalTCP.cxx: verifyTcpNetworkTimeout_bySlowResponse_expectTimeoutBehavior
+// TC-2: verifyTcpFaultTimeout_bySlowResponse_expectTimeoutBehavior
+/**
+ * @[Category]: P1-Fault (InvalidFunc) - HIGH Priority
+ * @[Purpose]: Validate timeout behavior when response exceeds timeout period
+ * @[Brief]: Send DELAY command with delay > timeout, verify timeout detection and timing
+ * @[Protocol]: tcp://localhost:21081/CmdFaultTCP_Timeout
+ * @[Status]: MOVED from UT_CommandTypicalTCP.cxx, GREEN ✅
+ * @[4-Phase Structure]:
+ *   1) 🔧 SETUP: Online TCP service with DELAY command support
+ *   2) 🎯 BEHAVIOR: Send DELAY(2000ms) with timeout=100ms
+ *   3) ✅ VERIFY: Returns IOC_RESULT_TIMEOUT within expected time bounds
+ *   4) 🧹 CLEANUP: Close connections and offline service
+ * @[Notes]: TCP adds ~1000ms overhead to timeout
+ */
 TEST(UT_TcpCommandFault, verifyTcpFaultTimeout_bySlowResponse_expectTimeoutBehavior) {
-    //===SETUP===
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // 🔧 SETUP: Online service with DELAY command support
+    // ═══════════════════════════════════════════════════════════════════════════════════
     constexpr uint16_t TEST_PORT = _UT_FAULT_TCP_BASE_PORT + 1;
 
     __CmdExecPriv_T srvExecPriv = {};
@@ -476,7 +517,9 @@ TEST(UT_TcpCommandFault, verifyTcpFaultTimeout_bySlowResponse_expectTimeoutBehav
 
     cliThread.join();
 
-    //===BEHAVIOR===
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // 🎯 BEHAVIOR: Send command with delay exceeding timeout
+    // ═══════════════════════════════════════════════════════════════════════════════════
     printf("📋 [FAULT] Testing network timeout - slow response\n");
 
     // Send DELAY command with delay exceeding timeout
@@ -495,25 +538,41 @@ TEST(UT_TcpCommandFault, verifyTcpFaultTimeout_bySlowResponse_expectTimeoutBehav
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 
-    //===VERIFY===
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // ✅ VERIFY: Timeout detected with correct timing
+    // ═══════════════════════════════════════════════════════════════════════════════════
     EXPECT_EQ(IOC_RESULT_TIMEOUT, result) << "Command should timeout due to slow response";
     EXPECT_GE(duration, 1100) << "Duration should reflect timeout + overhead";
     EXPECT_LT(duration, 2500) << "Duration should not exceed delay significantly";
     printf("✅ [FAULT] Timeout detected as expected, duration=%ldms, result=%d\n", duration, result);
 
-    //===CLEANUP===
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // 🧹 CLEANUP: Release resources
+    // ═══════════════════════════════════════════════════════════════════════════════════
     IOC_CmdDesc_cleanup(&cmdDesc);
     if (cliLinkID != IOC_ID_INVALID) IOC_closeLink(cliLinkID);
     if (srvLinkID != IOC_ID_INVALID) IOC_closeLink(srvLinkID);
     if (srvID != IOC_ID_INVALID) IOC_offlineService(srvID);
 }
 
-//======>END OF TEST IMPLEMENTATIONS===============================================================
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
-// [@AC-1,US-2] TC-1: verifyTcpFaultResource_byPortConflict_expectPortInUseError
+// TC-3: verifyTcpFaultResource_byPortConflict_expectPortInUseError
+/**
+ * @[Category]: P1-Fault (InvalidFunc) - MEDIUM Priority
+ * @[Purpose]: Validate port conflict detection when bind() fails on occupied port
+ * @[Brief]: Online first service on port, attempt second service on same port, verify failure
+ * @[Protocol]: tcp://localhost:21082/CmdFaultTCP_PortConflict1 & CmdFaultTCP_PortConflict2
+ * @[Status]: GREEN ✅ (Found Bug #7: heap-use-after-free - FIXED)
+ * @[4-Phase Structure]:
+ *   1) 🔧 SETUP: Online first TCP service successfully on TEST_PORT
+ *   2) 🎯 BEHAVIOR: Attempt to online second service on same port
+ *   3) ✅ VERIFY: Second service fails with error, SrvID remains INVALID
+ *   4) 🧹 CLEANUP: Offline first service
+ * @[Bug]: Bug #7 - use-after-free in _IOC_SrvProtoTCP.c:366 (FIXED)
+ */
 TEST(UT_TcpCommandFault, verifyTcpFaultResource_byPortConflict_expectPortInUseError) {
-    //===SETUP===
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // 🔧 SETUP: Online first service on TEST_PORT
+    // ═══════════════════════════════════════════════════════════════════════════════════
     constexpr uint16_t TEST_PORT = _UT_FAULT_TCP_BASE_PORT + 2;
 
     printf("📋 [FAULT] Testing port conflict - port already in use\n");
@@ -528,11 +587,12 @@ TEST(UT_TcpCommandFault, verifyTcpFaultResource_byPortConflict_expectPortInUseEr
     IOC_SrvID_T srv1ID = IOC_ID_INVALID;
     IOC_Result_T result1 = IOC_onlineService(&srv1ID, &srv1Args);
 
-    //===VERIFY Step 1===
     ASSERT_EQ(IOC_RESULT_SUCCESS, result1) << "First service should online successfully";
     ASSERT_NE(IOC_ID_INVALID, srv1ID) << "First service ID should be valid";
 
-    //===BEHAVIOR===
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // 🎯 BEHAVIOR: Attempt second service on same port (conflict)
+    // ═══════════════════════════════════════════════════════════════════════════════════
     // Step 2: Attempt to online second service on SAME port
     IOC_SrvURI_T srv2URI = {.pProtocol = IOC_SRV_PROTO_TCP,
                             .pHost = "localhost",
@@ -545,7 +605,9 @@ TEST(UT_TcpCommandFault, verifyTcpFaultResource_byPortConflict_expectPortInUseEr
     IOC_SrvID_T srv2ID = IOC_ID_INVALID;
     IOC_Result_T result2 = IOC_onlineService(&srv2ID, &srv2Args);
 
-    //===VERIFY===
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // ✅ VERIFY: Second service fails, port conflict detected
+    // ═══════════════════════════════════════════════════════════════════════════════════
     EXPECT_NE(IOC_RESULT_SUCCESS, result2) << "Second service should fail due to port conflict";
     EXPECT_EQ(IOC_ID_INVALID, srv2ID) << "Second service ID should remain INVALID";
     printf("✅ [FAULT] Port conflict detected, result=%d\n", result2);
@@ -553,14 +615,30 @@ TEST(UT_TcpCommandFault, verifyTcpFaultResource_byPortConflict_expectPortInUseEr
     // Note: Skipping verification that first service still works to avoid complexity
     // The key test is that second online() fails
 
-    //===CLEANUP===
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // 🧹 CLEANUP: Release resources
+    // ═══════════════════════════════════════════════════════════════════════════════════
     if (srv1ID != IOC_ID_INVALID) IOC_offlineService(srv1ID);
     // srv2ID should be INVALID, no cleanup needed
 }
 
-// [@AC-1,US-3] TC-1: verifyTcpFaultUnavailable_byOfflineService_expectConnectionFailed
+// TC-4: verifyTcpFaultUnavailable_byOfflineService_expectConnectionFailed
+/**
+ * @[Category]: P1-Fault (InvalidFunc) - MEDIUM Priority
+ * @[Purpose]: Validate connection failure handling when service is offline/unreachable
+ * @[Brief]: Attempt to connect to non-existent service, verify graceful failure
+ * @[Protocol]: tcp://localhost:21083/CmdFaultTCP_Offline
+ * @[Status]: GREEN ✅
+ * @[4-Phase Structure]:
+ *   1) 🔧 SETUP: Ensure no service is listening on TEST_PORT
+ *   2) 🎯 BEHAVIOR: Attempt client connection to offline service
+ *   3) ✅ VERIFY: Connection fails immediately without hang
+ *   4) 🧹 CLEANUP: (None needed - no resources allocated)
+ */
 TEST(UT_TcpCommandFault, verifyTcpFaultUnavailable_byOfflineService_expectConnectionFailed) {
-    //===SETUP===
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // 🔧 SETUP: No service online (port has no listener)
+    // ═══════════════════════════════════════════════════════════════════════════════════
     constexpr uint16_t TEST_PORT = _UT_FAULT_TCP_BASE_PORT + 3;
 
     printf("📋 [FAULT] Testing connect to offline service\n");
@@ -569,7 +647,9 @@ TEST(UT_TcpCommandFault, verifyTcpFaultUnavailable_byOfflineService_expectConnec
     IOC_SrvURI_T srvURI = {
         .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdFaultTCP_Offline"};
 
-    //===BEHAVIOR===
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // 🎯 BEHAVIOR: Attempt connection to offline service
+    // ═══════════════════════════════════════════════════════════════════════════════════
     // Step 1: Attempt to connect to non-existent service
     IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
     IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageCmdInitiator};
@@ -584,19 +664,38 @@ TEST(UT_TcpCommandFault, verifyTcpFaultUnavailable_byOfflineService_expectConnec
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 
-    //===VERIFY===
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // ✅ VERIFY: Connection fails gracefully without hang
+    // ═══════════════════════════════════════════════════════════════════════════════════
     EXPECT_NE(IOC_RESULT_SUCCESS, result) << "Connection to offline service should fail";
     EXPECT_EQ(IOC_ID_INVALID, cliLinkID) << "LinkID should remain INVALID";
     EXPECT_LT(duration, 3000) << "Should timeout/fail within reasonable time (< 3 seconds)";
     printf("✅ [FAULT] Offline service connection failed gracefully, duration=%ldms, result=%d\n", duration, result);
 
-    //===CLEANUP===
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // 🧹 CLEANUP: (None needed - no resources allocated)
+    // ═══════════════════════════════════════════════════════════════════════════════════
     // No cleanup needed - no resources allocated
 }
 
-// [@AC-3,US-3] TC-1: verifyTcpFaultRestart_byServiceRestart_expectProperTransition
+// TC-5: verifyTcpFaultRestart_byServiceRestart_expectProperTransition
+/**
+ * @[Category]: P1-Fault (InvalidFunc) - MEDIUM Priority
+ * @[Purpose]: Validate behavior during service restart (offline → online transition)
+ * @[Brief]: Establish connection, offline service, verify existing connection fails,
+ *           bring service online again, verify new connection succeeds
+ * @[Protocol]: tcp://localhost:21084/CmdFaultTCP_Restart
+ * @[Status]: GREEN ✅
+ * @[4-Phase Structure]:
+ *   1) 🔧 SETUP: Online service, establish connection, verify command works
+ *   2) 🎯 BEHAVIOR: Offline service, test existing connection fails, online again, new connection
+ *   3) ✅ VERIFY: Existing connection fails, new connection succeeds
+ *   4) 🧹 CLEANUP: Close connections and offline service
+ */
 TEST(UT_TcpCommandFault, verifyTcpFaultRestart_byServiceRestart_expectProperTransition) {
-    //===SETUP===
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // 🔧 SETUP: Online service and establish working connection
+    // ═══════════════════════════════════════════════════════════════════════════════════
     constexpr uint16_t TEST_PORT = _UT_FAULT_TCP_BASE_PORT + 4;
 
     __CmdExecPriv_T srvExecPriv = {};
@@ -641,7 +740,9 @@ TEST(UT_TcpCommandFault, verifyTcpFaultRestart_byServiceRestart_expectProperTran
     IOC_Result_T result1 = IOC_execCMD(cliLinkID1, &cmdDesc1, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result1) << "Command should succeed before restart";
 
-    //===BEHAVIOR===
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // 🎯 BEHAVIOR: Service restart - offline → verify fail → online → new connection
+    // ═══════════════════════════════════════════════════════════════════════════════════
     // Step 3: Offline service (restart step 1)
     ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_offlineService(srvID1));
     srvID1 = IOC_ID_INVALID;
@@ -676,7 +777,9 @@ TEST(UT_TcpCommandFault, verifyTcpFaultRestart_byServiceRestart_expectProperTran
     ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_acceptClient(srvID2, &srvLinkID2, NULL));
     cliThread2.join();
 
-    //===VERIFY===
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // ✅ VERIFY: New connection succeeds after restart
+    // ═══════════════════════════════════════════════════════════════════════════════════
     // Step 7: Verify new connection works
     IOC_CmdDesc_T cmdDesc3 = {};
     cmdDesc3.CmdID = IOC_CMDID_TEST_PING;
@@ -687,7 +790,9 @@ TEST(UT_TcpCommandFault, verifyTcpFaultRestart_byServiceRestart_expectProperTran
     EXPECT_EQ(IOC_RESULT_SUCCESS, result3) << "New connection should work after restart";
     printf("✅ [FAULT] Service restart successful, new connection works\n");
 
-    //===CLEANUP===
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // 🧹 CLEANUP: Release all resources
+    // ═══════════════════════════════════════════════════════════════════════════════════
     IOC_CmdDesc_cleanup(&cmdDesc1);
     IOC_CmdDesc_cleanup(&cmdDesc2);
     IOC_CmdDesc_cleanup(&cmdDesc3);
@@ -697,6 +802,8 @@ TEST(UT_TcpCommandFault, verifyTcpFaultRestart_byServiceRestart_expectProperTran
     if (srvLinkID2 != IOC_ID_INVALID) IOC_closeLink(srvLinkID2);
     if (srvID2 != IOC_ID_INVALID) IOC_offlineService(srvID2);
 }
+
+//======>END OF TEST IMPLEMENTATIONS===============================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF TODO/IMPLEMENTATION TRACKING SECTION=============================================
