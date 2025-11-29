@@ -632,6 +632,83 @@ static void __TrackLinkCmdStateChange(__CmdDualStatePrivData_T *pPrivData, IOC_L
  */
 //======>END OF USER STORY 5===================================================================
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF USER STORY 6: PROTOCOL-SPECIFIC STATE INTEGRATION=============================
+/**
+ * US-6: As a command state developer, I want to verify protocol-specific state integration
+ *       so that each transport protocol's unique characteristics (TCP, FIFO) are properly
+ *       reflected in command and link states, enabling accurate protocol-specific debugging
+ *       and monitoring beyond generic state machine behavior.
+ *
+ * 🎯 FOCUS: Protocol-Specific State Behavior (TCP/FIFO-specific integration)
+ * 📁 IMPLEMENTATION: UT_CommandStateTCP.cxx, UT_CommandStateFIFO.cxx (future)
+ *
+ * 🎨 DESIGN RATIONALE:
+ *    • US-1 through US-5 test protocol-AGNOSTIC state machine behavior
+ *    • US-6 tests protocol-SPECIFIC state integration scenarios
+ *    • Separation ensures generic state logic remains clean and focused
+ *    • Protocol-specific files can use heavy infrastructure (socket simulation, etc.)
+ *
+ * 📊 PROTOCOL-SPECIFIC vs PROTOCOL-AGNOSTIC:
+ *    ┌───────────────────────────────┬─────────────────────────────────────────────────┐
+ *    │ Protocol-Agnostic (US-1 to 5) │ Protocol-Specific (US-6)                        │
+ *    ├───────────────────────────────┼─────────────────────────────────────────────────┤
+ *    │ State machine transitions     │ Transport protocol lifecycle × state            │
+ *    │ Generic timeout/error states  │ Protocol-specific errors (ECONNRESET, EPIPE)    │
+ *    │ Abstract link behavior        │ Connection establishment/loss impact            │
+ *    │ Command execution patterns    │ Flow control, backpressure, protocol timing     │
+ *    │ Generic error recovery        │ Protocol-specific reconnection/recovery         │
+ *    └───────────────────────────────┴─────────────────────────────────────────────────┘
+ *
+ * [@US-6] Protocol-Specific State Integration
+ *  AC-1: GIVEN a TCP-based command link during connection establishment,
+ *         WHEN TCP handshake (SYN → SYN-ACK → ACK) is in progress,
+ *         THEN command state should remain PENDING until TCP connection is ESTABLISHED
+ *         AND link state should reflect TCP connection establishment phase.
+ *
+ *  AC-2: GIVEN a TCP-based command link with active connection,
+ *         WHEN TCP-specific errors occur (ECONNRESET, EPIPE, ECONNREFUSED),
+ *         THEN command result should map to TCP-specific error codes
+ *         AND link state should reflect TCP connection failure accurately.
+ *
+ *  AC-3: GIVEN a TCP-based command link under flow control,
+ *         WHEN TCP send buffer is full or receive window is zero,
+ *         THEN command state should remain PROCESSING with appropriate delay
+ *         AND state should transition correctly once flow control resolves.
+ *
+ *  AC-4: GIVEN a TCP-based command link during shutdown,
+ *         WHEN graceful shutdown (FIN) vs ungraceful shutdown (RST) occurs,
+ *         THEN command and link states should differ appropriately
+ *         AND in-flight commands should be handled according to shutdown type.
+ *
+ *  AC-5: GIVEN a TCP-based command link during reconnection,
+ *         WHEN TCP connection is lost and recovery is attempted,
+ *         THEN command state should reflect reconnection status
+ *         AND successful reconnection should allow queued commands to proceed.
+ *
+ *  AC-6: GIVEN a FIFO-based command link initialization,
+ *         WHEN FIFO pipes are opened with specific permissions,
+ *         THEN command state should reflect FIFO readiness
+ *         AND link state should show FIFO-specific ready state.
+ *         (Future implementation in UT_CommandStateFIFO.cxx)
+ *
+ *  AC-7: GIVEN a FIFO-based command link with blocking behavior,
+ *         WHEN FIFO read/write operations block due to buffer limits,
+ *         THEN command state should handle FIFO-specific blocking correctly
+ *         AND state transitions should complete after FIFO unblocks.
+ *         (Future implementation in UT_CommandStateFIFO.cxx)
+ *
+ * 🔗 IMPLEMENTATION FILES:
+ *    • UT_CommandStateTCP.cxx  - AC-1 through AC-5 (TCP-specific state)
+ *    • UT_CommandStateFIFO.cxx - AC-6 through AC-7 (FIFO-specific state, future)
+ *
+ * 🎯 KEY PRINCIPLE:
+ *    US-6 bridges the gap between generic state machines (US-1 to US-5) and
+ *    real-world protocol implementations, ensuring state accuracy reflects
+ *    protocol-specific behavior that affects production systems.
+ */
+//======>END OF USER STORY 6===================================================================
+
 /**
  * ╔══════════════════════════════════════════════════════════════════════════════════════════╗
  * ║                            📊 USER STORY IMPLEMENTATION MAP                              ║
@@ -641,11 +718,14 @@ static void __TrackLinkCmdStateChange(__CmdDualStatePrivData_T *pPrivData, IOC_L
  * ║ US-3: Multi-Role Link State             → UT_CommandStateUS3.cxx (FRAMEWORK)            ║
  * ║ US-4: Timeout and Error State           → UT_CommandStateUS4.cxx (FRAMEWORK)            ║
  * ║ US-5: Performance and Scalability       → UT_CommandStateUS5.cxx (FRAMEWORK)            ║
+ * ║ US-6: Protocol-Specific State           → UT_CommandStateTCP.cxx (DESIGN PHASE)         ║
+ * ║                                            UT_CommandStateFIFO.cxx (FUTURE)             ║
  * ║                                                                                          ║
  * ║ 🎯 DUAL-STATE COVERAGE:                                                                  ║
- * ║   • Level 1 (Command State): US-1, US-4, US-5                                          ║
- * ║   • Level 2 (Link State): US-2, US-3, US-4, US-5                                       ║
+ * ║   • Level 1 (Command State): US-1, US-4, US-5, US-6                                    ║
+ * ║   • Level 2 (Link State): US-2, US-3, US-4, US-5, US-6                                 ║
  * ║   • Integration Testing: All USs provide correlation verification                       ║
+ * ║   • Protocol-Specific: US-6 extends US-1 to US-5 with TCP/FIFO specifics              ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
 

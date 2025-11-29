@@ -8,7 +8,9 @@
 // 📊 DESIGN RATIONALE:
 //    • UT_CommandStateUS1-5.cxx: Protocol-agnostic state machine testing
 //    • UT_CommandStateTCP.cxx: TCP-specific state integration scenarios
-//    • Key Difference: Connection lifecycle, network errors, TCP timing constraints
+//    • Key Difference: Connection lifecycle, TCP-specific errors, TCP protocol behavior
+//    • US-4 covers generic timeout/error (protocol-agnostic)
+//    • TCP file covers TCP-specific errors (ECONNRESET, EPIPE, flow control)
 //
 // 🏗️ ARCHITECTURE CONTEXT:
 //    This file addresses TCP-specific state scenarios that cannot be tested generically:
@@ -25,13 +27,22 @@
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
 #include <chrono>
 #include <thread>
+#include <vector>
 
 #include "UT_CommandState.h"
+
+// Include IOC APIs needed for state tracking
+#include "IOC/IOC.h"
+#include "IOC/IOC_CmdAPI.h"
+#include "IOC/IOC_CmdDesc.h"
+#include "IOC/IOC_SrvAPI.h"
+#include "IOC/IOC_Types.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -52,13 +63,20 @@
  *    ✓ Multi-role service state management
  *
  * 🔵 WHAT UT_CommandStateTCP.cxx TESTS (TCP-Specific):
- *    ⚡ Command state during TCP connection establishment
+ *    ⚡ Command state during TCP connection establishment (SYN→ESTABLISHED)
+ *    ⚡ TCP-specific errors: ECONNRESET, EPIPE, ECONNREFUSED
  *    ⚡ Command state during TCP connection loss (mid-execution)
- *    ⚡ State propagation when TCP errors occur (ECONNRESET, EPIPE, etc.)
- *    ⚡ Command state during TCP reconnection attempts
- *    ⚡ State behavior under TCP flow control (buffer full, backpressure)
- *    ⚡ Command state during TCP graceful/ungraceful shutdown
- *    ⚡ State timing constraints specific to TCP (retransmit, timeout)
+ *    ⚡ TCP flow control impact: send buffer full, backpressure, window management
+ *    ⚡ TCP shutdown behavior: FIN vs RST impact on command state
+ *    ⚡ TCP reconnection: command state during connection recovery
+ *    ⚡ TCP layer transparency: retransmit doesn't affect command state
+ *
+ * ❌ WHAT UT_CommandStateTCP.cxx DOES NOT TEST (Covered by US-4):
+ *    ✗ Generic timeout detection (US-4 AC-1)
+ *    ✗ Generic error propagation (US-4 AC-3)
+ *    ✗ Generic link recovery after error (US-4 AC-2)
+ *    ✗ Generic mixed success/failure (US-4 AC-4)
+ *    ✗ Generic error recovery (US-4 AC-5)
  *
  * 📊 TCP STATE × COMMAND STATE MATRIX:
  *    ┌────────────────────────┬──────────────────────────────────────────────────┐
@@ -111,7 +129,8 @@
  * ⚪ FRAMEWORK STATUS: TCP-Specific Command State Testing - DESIGN PHASE
  *    • Core framework: NOT YET IMPLEMENTED
  *    • Test cases: SKELETON ONLY
- *    • Target: 20-25 test cases covering all TCP × Command state scenarios
+ *    • Target: 18 test cases covering TCP-specific state scenarios
+ *    • Reduced from 25: Removed 7 tests duplicating US-4 (timeout/generic error)
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * 📋 [CAT-1]: TCP CONNECTION ESTABLISHMENT × COMMAND STATE
@@ -180,29 +199,14 @@
  *      @[Port]: 22086
  *      @[Priority]: HIGH - Send-side connection loss
  *
- * ⚪ TC-8: verifyCommandState_whenTcpTimeoutDuringExecution_expectTimeoutState
- *      @[Purpose]: Validate command transitions to TIMEOUT when TCP response delayed
- *      @[Brief]: Execute command, delay server response beyond timeout
- *      @[TCP Focus]: Application-level timeout during TCP connection alive
- *      @[Expected]: Command TIMEOUT while TCP connection still ESTABLISHED
- *      @[Port]: 22087
- *      @[Priority]: HIGH - Application timeout vs TCP timeout distinction
- *
- * ⚪ TC-9: verifyMultipleCommandStates_whenTcpConnectionLost_expectAllFailed
- *      @[Purpose]: Validate all pending commands fail when TCP connection drops
- *      @[Brief]: Queue multiple commands, drop connection, verify all transition to FAILED
- *      @[TCP Focus]: Connection loss affects all queued commands
- *      @[Expected]: All commands PROCESSING/PENDING → FAILED
- *      @[Port]: 22088
- *      @[Priority]: HIGH - Bulk command failure on connection loss
- *
- * ⚪ TC-10: verifyLinkState_whenTcpConnectionReset_expectDisconnectedState
+ * ⚪ TC-8: verifyLinkState_whenTcpConnectionReset_expectDisconnectedState
  *      @[Purpose]: Validate link state reflects TCP connection loss
  *      @[Brief]: Monitor IOC_getLinkState() when connection resets
- *      @[TCP Focus]: Link state synchronized with TCP state
+ *      @[TCP Focus]: Link state synchronized with TCP state (TCP-specific)
  *      @[Expected]: Link state transitions to OFFLINE/DISCONNECTED
- *      @[Port]: 22089
- *      @[Priority]: MEDIUM - Link state tracking during failure
+ *      @[Port]: 22087
+ *      @[Priority]: HIGH - TCP connection state correlation
+ *      @[Note]: Generic timeout/error recovery covered by US-4
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * 📋 [CAT-3]: TCP FLOW CONTROL × COMMAND STATE
@@ -214,142 +218,119 @@
  *      @[Brief]: Send large payload, fill TCP buffer, verify state during blocking
  *      @[TCP Focus]: TCP flow control (zero window) delays command completion
  *      @[Expected]: Command stays PROCESSING until buffer drains
- *      @[Port]: 22090
- *      @[Priority]: MEDIUM - Flow control impact on state
- *      @[Relation]: Similar to UT_CommandFaultTCP.cxx TC-11, but STATE focus
+ *      @[Port]: 22088
+ *      @[Priority]: HIGH - TCP flow control impact on state
+ *      @[Relation]: UT_CommandFaultTCP TC-11 tests fault, this tests state
  *
- * ⚪ TC-12: verifyCommandState_whenTcpReceiveBufferFull_expectNormalProcessing
+ * ⚪ TC-10: verifyCommandState_whenTcpReceiveBufferFull_expectNormalProcessing
  *      @[Purpose]: Validate command state when receiver buffer full
  *      @[Brief]: Client slow to receive, server send blocked, verify state
  *      @[TCP Focus]: TCP receive window flow control
  *      @[Expected]: Command PROCESSING, waits for receiver to drain buffer
- *      @[Port]: 22091
+ *      @[Port]: 22089
  *      @[Priority]: LOW - Receiver-side flow control
  *
- * ⚪ TC-13: verifyCommandState_whenTcpBackpressureResolved_expectSuccessTransition
+ * ⚪ TC-11: verifyCommandState_whenTcpBackpressureResolved_expectSuccessTransition
  *      @[Purpose]: Validate command completes successfully after flow control resolved
  *      @[Brief]: Block send, then unblock, verify command reaches SUCCESS
  *      @[TCP Focus]: Recovery from flow control condition
  *      @[Expected]: PROCESSING (blocked) → PROCESSING (unblocked) → SUCCESS
- *      @[Port]: 22092
- *      @[Priority]: MEDIUM - State recovery after blocking
+ *      @[Port]: 22090
+ *      @[Priority]: HIGH - TCP flow control recovery
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * 📋 [CAT-4]: TCP RECONNECTION × COMMAND STATE
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
- * PURPOSE: Verify command state during connection recovery
+ * PURPOSE: Verify command state during TCP connection recovery
  *
- * ⚪ TC-14: verifyCommandState_duringTcpReconnection_expectNewCommandPending
+ * ⚪ TC-12: verifyCommandState_duringTcpReconnection_expectNewCommandPending
  *      @[Purpose]: Validate new commands can be created during reconnection
  *      @[Brief]: Drop connection, create new command, attempt reconnect
  *      @[TCP Focus]: Command state during reconnection attempt
  *      @[Expected]: New command PENDING during reconnection
- *      @[Port]: 22093
- *      @[Priority]: MEDIUM - Reconnection behavior
+ *      @[Port]: 22091
+ *      @[Priority]: MEDIUM - TCP reconnection behavior
  *
- * ⚪ TC-15: verifyCommandState_afterReconnectionSuccess_expectResumedProcessing
+ * ⚪ TC-13: verifyCommandState_afterReconnectionSuccess_expectResumedProcessing
  *      @[Purpose]: Validate commands resume after successful reconnection
  *      @[Brief]: Reconnect TCP, verify pending commands can execute
  *      @[TCP Focus]: State recovery after reconnection
  *      @[Expected]: Queued commands transition to PROCESSING
- *      @[Port]: 22094
- *      @[Priority]: MEDIUM - Post-reconnection state
+ *      @[Port]: 22092
+ *      @[Priority]: MEDIUM - TCP reconnection state recovery
  *
- * ⚪ TC-16: verifyCommandState_afterReconnectionFailure_expectFailedState
+ * ⚪ TC-14: verifyCommandState_afterReconnectionFailure_expectFailedState
  *      @[Purpose]: Validate commands fail if reconnection impossible
  *      @[Brief]: Fail reconnection permanently, verify command cleanup
  *      @[TCP Focus]: Permanent connection loss handling
  *      @[Expected]: All queued commands transition to FAILED
- *      @[Port]: 22095
- *      @[Priority]: MEDIUM - Reconnection failure cleanup
+ *      @[Port]: 22093
+ *      @[Priority]: MEDIUM - TCP reconnection failure handling
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * 📋 [CAT-5]: TCP GRACEFUL/UNGRACEFUL SHUTDOWN × COMMAND STATE
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
- * PURPOSE: Verify command state during TCP connection termination
+ * PURPOSE: Verify command state during TCP shutdown (FIN vs RST)
  *
- * ⚪ TC-17: verifyCommandState_duringGracefulShutdown_expectCompletionBeforeClose
+ * ⚪ TC-15: verifyCommandState_duringGracefulShutdown_expectCompletionBeforeClose
  *      @[Purpose]: Validate in-flight commands complete before graceful close
  *      @[Brief]: Initiate graceful shutdown, verify commands finish first
  *      @[TCP Focus]: FIN handshake after command completion
  *      @[Expected]: Commands reach SUCCESS/FAILED before connection closes
- *      @[Port]: 22096
- *      @[Priority]: HIGH - Graceful shutdown sequencing
+ *      @[Port]: 22094
+ *      @[Priority]: HIGH - TCP graceful shutdown (FIN) behavior
  *
- * ⚪ TC-18: verifyCommandState_duringUngracefulShutdown_expectImmediateFailed
+ * ⚪ TC-16: verifyCommandState_duringUngracefulShutdown_expectImmediateFailed
  *      @[Purpose]: Validate commands fail immediately on ungraceful close
  *      @[Brief]: Force abortive close (RST), verify immediate FAILED state
  *      @[TCP Focus]: RST vs FIN handling in command state
  *      @[Expected]: Commands immediately transition to FAILED
- *      @[Port]: 22097
- *      @[Priority]: HIGH - Abortive close behavior
+ *      @[Port]: 22095
+ *      @[Priority]: HIGH - TCP abortive shutdown (RST) behavior
  *
- * ⚪ TC-19: verifyLinkState_afterTcpGracefulClose_expectCleanOffline
+ * ⚪ TC-17: verifyLinkState_afterTcpGracefulClose_expectCleanOffline
  *      @[Purpose]: Validate link state after clean TCP close
  *      @[Brief]: Monitor link state during FIN handshake
  *      @[TCP Focus]: Link state reflects graceful termination
  *      @[Expected]: Link transitions to OFFLINE cleanly
- *      @[Port]: 22098
- *      @[Priority]: MEDIUM - Graceful close link state
+ *      @[Port]: 22096
+ *      @[Priority]: MEDIUM - TCP FIN link state transition
  *
- * ⚪ TC-20: verifyLinkState_afterTcpAbortiveClose_expectErrorState
+ * ⚪ TC-18: verifyLinkState_afterTcpAbortiveClose_expectErrorState
  *      @[Purpose]: Validate link state after abortive TCP close
  *      @[Brief]: Monitor link state during RST
  *      @[TCP Focus]: Link state reflects error termination
  *      @[Expected]: Link transitions to ERROR/OFFLINE with error code
- *      @[Port]: 22099
- *      @[Priority]: MEDIUM - Abortive close link state
+ *      @[Port]: 22097
+ *      @[Priority]: MEDIUM - TCP RST link state transition
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
- * 📋 [CAT-6]: TCP TIMING CONSTRAINTS × COMMAND STATE
+ * 📋 [CAT-6]: TCP LAYER TRANSPARENCY × COMMAND STATE
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
- * PURPOSE: Verify command state respects TCP-specific timing constraints
+ * PURPOSE: Verify TCP layer operations don't affect command state incorrectly
  *
- * ⚪ TC-21: verifyCommandState_duringTcpRetransmit_expectStableProcessing
- *      @[Purpose]: Validate command state stable during TCP retransmissions
+ * ⚪ TC-19: verifyCommandState_duringTcpRetransmit_expectStableProcessing
+ *      @[Purpose]: Validate command state unaffected by TCP retransmissions
  *      @[Brief]: Induce packet loss, verify state during TCP recovery
- *      @[TCP Focus]: Command unaffected by TCP layer retransmits
+ *      @[TCP Focus]: TCP retransmit is transparent to command state
  *      @[Expected]: Command remains PROCESSING during TCP retransmit
- *      @[Port]: 22100
- *      @[Priority]: LOW - Retransmit transparency
- *
- * ⚪ TC-22: verifyCommandTimeout_shorterThanTcpTimeout_expectCommandTimeoutFirst
- *      @[Purpose]: Validate command timeout fires before TCP timeout
- *      @[Brief]: Set short command timeout, block network, verify ordering
- *      @[TCP Focus]: Application timeout vs TCP RTO
- *      @[Expected]: Command TIMEOUT before TCP connection times out
- *      @[Port]: 22101
- *      @[Priority]: MEDIUM - Timeout hierarchy
- *
- * ⚪ TC-23: verifyCommandTimeout_longerThanTcpTimeout_expectConnectionFailFirst
- *      @[Purpose]: Validate TCP timeout causes command failure
- *      @[Brief]: Set long command timeout, block network, verify TCP timeout
- *      @[TCP Focus]: TCP timeout triggers command failure
- *      @[Expected]: TCP timeout → Command FAILED (not TIMEOUT)
- *      @[Port]: 22102
- *      @[Priority]: MEDIUM - Timeout interaction
+ *      @[Port]: 22098
+ *      @[Priority]: LOW - TCP layer transparency
+ *      @[Note]: Generic timeout testing covered by US-4 AC-1
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
- * 📋 [CAT-7]: TCP ERROR PROPAGATION × COMMAND STATE CORRELATION
+ * 📋 [CAT-7]: TCP ERROR CODE MAPPING × COMMAND STATE
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
- * PURPOSE: Verify error information propagates correctly from TCP to command state
+ * PURPOSE: Verify TCP-specific error codes map correctly to command state
  *
- * ⚪ TC-24: verifyErrorPropagation_fromTcpToCommandResult_expectAccurateErrorCode
+ * ⚪ TC-20: verifyTcpErrorMapping_fromSocketError_toCommandResult
  *      @[Purpose]: Validate TCP error codes map correctly to IOC_Result_T
- *      @[Brief]: Generate various TCP errors, verify command result codes
- *      @[TCP Focus]: ECONNRESET → IOC_RESULT_CONN_RESET mapping
- *      @[Expected]: Command result reflects specific TCP error
- *      @[Port]: 22103
- *      @[Priority]: HIGH - Error code accuracy
- *
- * ⚪ TC-25: verifyStateCorrelation_betweenCommandAndLink_expectConsistency
- *      @[Purpose]: Validate command state and link state remain synchronized
- *      @[Brief]: Monitor both states during various TCP events
- *      @[TCP Focus]: Dual-state consistency under TCP errors
- *      @[Expected]: Command FAILED ⟺ Link OFFLINE, no desynchronization
- *      @[Port]: 22104
- *      @[Priority]: HIGH - State correlation integrity
- */
+ *      @[Brief]: Generate TCP errors (ECONNRESET, EPIPE, ECONNREFUSED), verify mapping
+ *      @[TCP Focus]: TCP errno → IOC_Result_T mapping accuracy
+ *      @[Expected]: ECONNRESET→IOC_RESULT_CONN_RESET, EPIPE→IOC_RESULT_PIPE_ERROR
+ *      @[Port]: 22099
+ *      @[Priority]: HIGH - TCP error code accuracy
+ *      @[Note]: Generic error propagation covered by US-4 AC-3
 //======>END OF TEST CASE ORGANIZATION============================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -361,7 +342,7 @@
  */
 class TcpConnectionSimulator {
    public:
-    TcpConnectionSimulator(uint16_t port) : m_port(port), m_serverFd(-1), m_clientFd(-1) {}
+    TcpConnectionSimulator(uint16_t port) : m_port(port), m_serverFd(-1), m_clientFd(-1), m_acceptedFd(-1) {}
 
     ~TcpConnectionSimulator() { cleanup(); }
 
@@ -391,6 +372,17 @@ class TcpConnectionSimulator {
         }
 
         return true;
+    }
+
+    // Accept client connection
+    bool acceptClient() {
+        if (m_serverFd < 0) return false;
+
+        struct sockaddr_in clientAddr = {};
+        socklen_t addrLen = sizeof(clientAddr);
+        m_acceptedFd = accept(m_serverFd, (struct sockaddr *)&clientAddr, &addrLen);
+
+        return m_acceptedFd >= 0;
     }
 
     // Simulate client connection attempt
@@ -432,6 +424,10 @@ class TcpConnectionSimulator {
     }
 
     void cleanup() {
+        if (m_acceptedFd >= 0) {
+            close(m_acceptedFd);
+            m_acceptedFd = -1;
+        }
         if (m_clientFd >= 0) {
             close(m_clientFd);
             m_clientFd = -1;
@@ -442,16 +438,19 @@ class TcpConnectionSimulator {
         }
     }
 
+    int getServerFd() const { return m_serverFd; }
+    int getClientFd() const { return m_clientFd; }
+    int getAcceptedFd() const { return m_acceptedFd; }
+
    private:
     uint16_t m_port;
     int m_serverFd;
     int m_clientFd;
-};
-
-/**
- * @brief TCP State × Command State Correlation Tracker
- *        Monitors both TCP connection state and command state simultaneously
- */
+    int m_acceptedFd;
+}; /**
+    * @brief TCP State × Command State Correlation Tracker
+    *        Monitors both TCP connection state and command state simultaneously
+    */
 class TcpCommandStateTracker {
    public:
     struct StateSnapshot {
@@ -510,6 +509,9 @@ class TcpCommandStateTracker {
         }
     }
 
+    void clear() { m_history.clear(); }
+    size_t getSnapshotCount() const { return m_history.size(); }
+
    private:
     std::vector<StateSnapshot> m_history;
 };
@@ -519,17 +521,54 @@ class TcpCommandStateTracker {
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF TEST CASE IMPLEMENTATIONS=======================================================
 
-// TODO: Implement 25 test cases across 7 categories
-// Current status: DESIGN PHASE - No implementations yet
+//=================================================================================================
+// 📋 [CAT-1]: TCP CONNECTION ESTABLISHMENT × COMMAND STATE
+//=================================================================================================
 
 /**
- * @brief Placeholder for first test case
- *        To be implemented: TC-1 from CAT-1
+ * TC-1: verifyCommandState_duringTcpConnect_expectPendingBeforeEstablished
+ * @[Purpose]: Validate command remains PENDING until TCP connection established
+ * @[Steps]:
+ *   1) 🔧 SETUP: Initialize service (CmdExecutor), start TCP server
+ *   2) 🎯 BEHAVIOR: Client initiates TCP handshake, monitor command state
+ *   3) ✅ VERIFY: Command stays PENDING during connection establishment
+ *   4) 🧹 CLEANUP: Close connection, offline service
+ * @[Expect]: Command PENDING while TCP state < ESTABLISHED
  */
-// TEST(UT_CommandStateTCP, verifyCommandState_duringTcpConnect_expectPendingBeforeEstablished) {
-//     // TODO: Implement
-//     GTEST_SKIP() << "Not yet implemented - design phase only";
-// }
+TEST(UT_CommandStateTCP, verifyCommandState_duringTcpConnect_expectPendingBeforeEstablished) {
+    printf("🎯 BEHAVIOR: verifyCommandState_duringTcpConnect_expectPendingBeforeEstablished\n");
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // 🔧 SETUP: Online TCP service
+    // ═══════════════════════════════════════════════════════════════════════════
+    constexpr uint16_t TEST_PORT = 22080;
+
+    // TODO: Create service with CmdExecutor capability
+    // TODO: Setup TcpConnectionSimulator
+    // TODO: Prepare command descriptor
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // 🎯 BEHAVIOR: Monitor command state during TCP connect
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // TODO: Initiate TCP connection in separate thread
+    // TODO: Capture command state snapshots during handshake
+    // TODO: Verify command PENDING until connection ESTABLISHED
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ✅ VERIFY: State correlation
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // TODO: Assert command stayed PENDING during connect phase
+    // TODO: Assert command transitioned after ESTABLISHED
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // 🧹 CLEANUP
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // Mark as RED - infrastructure ready, implementation pending
+    GTEST_SKIP() << "🔴 RED: Test structure ready, awaiting full implementation";
+}
 
 //======>END OF TEST CASE IMPLEMENTATIONS=========================================================
 
@@ -566,17 +605,17 @@ class TcpCommandStateTracker {
  *    - TC-2: Command state after connect success (PROCESSING)
  *    - TC-3: Command state on connect refused (FAILED)
  *
- * ⚪ Task 2.2: Implement CAT-2 (Connection Loss) - TCs 6-7
- *    - TC-6: Connection reset mid-execution
- *    - TC-7: Broken pipe during send
+ * ⚪ Task 2.2: Implement CAT-2 (Connection Loss) - TCs 6-8
+ *    - TC-6: Connection reset mid-execution (ECONNRESET)
+ *    - TC-7: Broken pipe during send (EPIPE)
+ *    - TC-8: Link state after connection reset
  *
  * ⚪ Task 2.3: Implement CAT-5 (Shutdown) - TCs 17-18
  *    - TC-17: Graceful shutdown sequencing
  *    - TC-18: Ungraceful shutdown immediate failure
  *
- * ⚪ Task 2.4: Implement CAT-7 (Error Propagation) - TC-24, TC-25
- *    - TC-24: TCP error → IOC_Result_T mapping
- *    - TC-25: Command ⟺ Link state correlation
+ * ⚪ Task 2.4: Implement CAT-7 (Error Mapping) - TC-20
+ *    - TC-20: TCP errno → IOC_Result_T mapping (ECONNRESET, EPIPE, ECONNREFUSED)
  *
  * MILESTONE 2: Critical path test cases implemented and GREEN
  *
@@ -587,38 +626,27 @@ class TcpCommandStateTracker {
  *    - TC-4: Connect timeout
  *    - TC-5: Link state during connection
  *
- * ⚪ Task 3.2: Implement CAT-2 remaining (TCs 8-10)
- *    - TC-8: Execution timeout
- *    - TC-9: Multiple commands on connection loss
- *    - TC-10: Link state on connection reset
+ * ⚪ Task 3.2: Implement CAT-3 (Flow Control) - TCs 9-11
+ *    - TC-9: Send buffer full
+ *    - TC-10: Receive buffer full
+ *    - TC-11: Backpressure resolved
  *
- * ⚪ Task 3.3: Implement CAT-3 (Flow Control) - TCs 11, 13
- *    - TC-11: Send buffer full
- *    - TC-13: Backpressure resolved
+ * ⚪ Task 3.3: Implement CAT-4 (Reconnection) - TCs 12-14
+ *    - TC-12: State during reconnection
+ *    - TC-13: State after reconnection success
+ *    - TC-14: State after reconnection failure
  *
- * ⚪ Task 3.4: Implement CAT-4 (Reconnection) - TCs 14-16
- *    - TC-14: State during reconnection
- *    - TC-15: State after reconnection success
- *    - TC-16: State after reconnection failure
- *
- * ⚪ Task 3.5: Implement CAT-5 remaining (TCs 19-20)
- *    - TC-19: Link state after graceful close
- *    - TC-20: Link state after abortive close
- *
- * ⚪ Task 3.6: Implement CAT-6 (Timing) - TCs 22-23
- *    - TC-22: Command timeout before TCP timeout
- *    - TC-23: TCP timeout before command timeout
+ * ⚪ Task 3.4: Implement CAT-5 remaining (TCs 17-18)
+ *    - TC-17: Link state after graceful close
+ *    - TC-18: Link state after abortive close
  *
  * MILESTONE 3: 80% test coverage complete
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * PHASE 4: LOW-PRIORITY TEST CASES (Week 5) - Priority: LOW
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
- * ⚪ Task 4.1: Implement CAT-3 remaining (TC-12)
- *    - TC-12: Receive buffer full
- *
- * ⚪ Task 4.2: Implement CAT-6 remaining (TC-21)
- *    - TC-21: State during TCP retransmit
+ * ⚪ Task 4.1: Implement CAT-6 (Transparency) - TC-19
+ *    - TC-19: State during TCP retransmit
  *
  * MILESTONE 4: 100% test coverage complete
  *
@@ -639,18 +667,20 @@ class TcpCommandStateTracker {
  * 📊 EFFORT ESTIMATION:
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * Phase 1: 5-8 hours   (Infrastructure)
- * Phase 2: 12-16 hours (8 critical test cases)
- * Phase 3: 15-20 hours (14 medium-priority test cases)
- * Phase 4: 3-5 hours   (3 low-priority test cases)
- * Phase 5: 4-6 hours   (Integration & docs)
- * ─────────────────────────────────────────────
- * TOTAL:   39-55 hours (~1-1.5 weeks full-time)
+ * Phase 2: 10-14 hours (8 critical test cases)
+ * Phase 3: 10-15 hours (8 medium-priority test cases)
+ * Phase 4: 2-3 hours   (2 low-priority test cases)
+ * Phase 5: 3-5 hours   (Integration & docs)
+ * ─────────────────────────────────────────
+ * TOTAL:   30-45 hours (~1 week full-time)
+ *
+ * NOTE: Reduced from 39-55 hours by removing 7 duplicate tests
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * 🎯 SUCCESS CRITERIA:
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
- * ✓ All 25 test cases implemented and GREEN
- * ✓ 100% coverage of TCP × Command state integration scenarios
+ * ✓ All 18 test cases implemented and GREEN
+ * ✓ 100% coverage of TCP-specific state integration scenarios
  * ✓ Zero state correlation violations detected
  * ✓ Test execution time < 60 seconds (all tests)
  * ✓ No memory leaks (valgrind clean)
@@ -662,6 +692,7 @@ class TcpCommandStateTracker {
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * • UT_CommandStateUS1.cxx - Individual command state (protocol-agnostic)
  * • UT_CommandStateUS2.cxx - Link command state (protocol-agnostic)
+ * • UT_CommandStateUS4.cxx - Timeout and error state (protocol-agnostic)
  * • UT_CommandFaultTCP.cxx - TCP fault scenarios (fault focus, not state focus)
  * • UT_CommandTypicalTCP.cxx - TCP happy-path scenarios
  * • README_ArchDesign.md - State machine diagrams
@@ -688,22 +719,29 @@ class TcpCommandStateTracker {
  *  ✓ Other protocols (FIFO) can follow same pattern with UT_CommandStateFIFO.cxx
  *
  * ─────────────────────────────────────────────────────────────────────────────────────────────
- * DECISION 2: Why 25 test cases organized into 7 categories?
+ * DECISION 2: Why 18 test cases (reduced from 25) organized into 7 categories?
  * ─────────────────────────────────────────────────────────────────────────────────────────────
  * RATIONALE:
  *  • TCP connection has distinct lifecycle phases (establish, active, loss, recovery, close)
- *  • Each phase has unique state implications for commands
- *  • 25 TCs provide comprehensive coverage without redundancy
- *  • 7 categories map to architectural concerns (connection, execution, flow control, etc.)
+ *  • Each phase has unique TCP-specific state implications
+ *  • 18 TCs provide TCP-specific coverage, avoiding duplication with US-4
+ *  • 7 categories map to TCP protocol concerns (not generic error handling)
  *
- * COVERAGE ANALYSIS:
- *  • CAT-1 (5 TCs): Connection phase - covers all connection establishment outcomes
- *  • CAT-2 (5 TCs): Execution phase - covers all mid-execution failure modes
- *  • CAT-3 (3 TCs): Flow control - covers TCP backpressure scenarios
- *  • CAT-4 (3 TCs): Reconnection - covers recovery scenarios
- *  • CAT-5 (4 TCs): Shutdown - covers graceful and abortive close
- *  • CAT-6 (3 TCs): Timing - covers timeout interaction
- *  • CAT-7 (2 TCs): Correlation - validates dual-state consistency
+ * COVERAGE ANALYSIS (UPDATED):
+ *  • CAT-1 (5 TCs): Connection establishment - TCP handshake state behavior
+ *  • CAT-2 (3 TCs): Connection loss - TCP-specific errors (ECONNRESET, EPIPE) + link state
+ *  • CAT-3 (3 TCs): Flow control - TCP buffer management and backpressure
+ *  • CAT-4 (3 TCs): Reconnection - TCP connection recovery patterns
+ *  • CAT-5 (4 TCs): Shutdown - TCP FIN vs RST behavior
+ *  • CAT-6 (1 TC): Transparency - TCP retransmit doesn't affect command state
+ *  • CAT-7 (1 TC): Error mapping - TCP errno → IOC_Result_T
+ *
+ * REMOVED (Duplicate US-4):
+ *  ✗ Generic timeout detection (US-4 AC-1 covers this)
+ *  ✗ Generic error propagation (US-4 AC-3 covers this)
+ *  ✗ Multiple command failure (US-4 AC-4 covers this)
+ *  ✗ Generic state correlation (US-4 covers this)
+ *  ✗ Timeout hierarchy (US-4 AC-1 covers this)
  *
  * ─────────────────────────────────────────────────────────────────────────────────────────────
  * DECISION 3: Why TcpConnectionSimulator and TcpCommandStateTracker helper classes?
@@ -720,32 +758,36 @@ class TcpCommandStateTracker {
  *  • Separation of concerns: Control vs Observation
  *
  * ─────────────────────────────────────────────────────────────────────────────────────────────
- * DECISION 4: Relationship with UT_CommandFaultTCP.cxx?
+ * DECISION 4: Relationship with UT_CommandFaultTCP.cxx and UT_CommandStateUS4.cxx?
  * ─────────────────────────────────────────────────────────────────────────────────────────────
- * COMPARISON:
- *  ┌─────────────────────────┬─────────────────────────────┬──────────────────────────────┐
- *  │ Aspect                  │ UT_CommandFaultTCP.cxx      │ UT_CommandStateTCP.cxx       │
- *  ├─────────────────────────┼─────────────────────────────┼──────────────────────────────┤
- *  │ Primary Focus           │ FAULT injection & recovery  │ STATE tracking & correlation │
- *  │ Test Goal               │ "Does it fail gracefully?"  │ "Is state correct?"          │
- *  │ State Checking          │ Final state after fault     │ State throughout lifecycle   │
- *  │ TCP Error Handling      │ Comprehensive fault matrix  │ State transition during errors│
- *  │ Timing Focus            │ Timeout detection           │ State timing accuracy        │
- *  │ State History           │ Not tracked                 │ Full state history captured  │
- *  │ Correlation Validation  │ Not primary concern         │ Core validation requirement  │
- *  └─────────────────────────┴─────────────────────────────┴──────────────────────────────┘
+ * THREE-WAY COMPARISON:
+ *  ┌────────────────────┬────────────────────────┬───────────────────────┬─────────────────────────┐
+ *  │ Aspect             │ UT_CommandFaultTCP     │ UT_CommandStateUS4    │ UT_CommandStateTCP      │
+ *  ├────────────────────┼────────────────────────┼───────────────────────┼─────────────────────────┤
+ *  │ Primary Focus      │ FAULT injection        │ GENERIC timeout/error │ TCP-SPECIFIC state      │
+ *  │ Test Goal          │ "Fails gracefully?"    │ "Timeout detected?"   │ "TCP state correct?"    │
+ *  │ Protocol Scope     │ TCP only               │ Protocol-agnostic     │ TCP-specific            │
+ *  │ Error Types        │ Network faults         │ Generic timeouts      │ TCP errno (ECONNRESET)  │
+ *  │ State Tracking     │ Final state only       │ Timeout/error states  │ Full TCP state history  │
+ *  │ Timeout Testing    │ Detection only         │ Comprehensive         │ TCP-specific (retrans.) │
+ *  │ Flow Control       │ Not tested             │ Not tested            │ TCP buffer management   │
+ *  │ Connection Lifecycle│ Fault scenarios       │ Not tested            │ Full TCP lifecycle      │
+ *  └────────────────────┴────────────────────────┴───────────────────────┴─────────────────────────┘
  *
- * OVERLAP:
- *  • Both test TCP errors (reset, timeout, etc.)
- *  • Different verification: Fault tests result codes, State tests state transitions
+ * OVERLAP RESOLUTION:
+ *  Initially had overlap with US-4 (timeout/error), removed 7 duplicate tests:
+ *  ✗ Removed: Generic timeout (TC-8), multiple failures (TC-9), timeout hierarchy (TC-22/23)
+ *  ✗ Removed: Generic error propagation (TC-24 parts), state correlation (TC-25)
+ *  ✓ Kept: TCP-specific scenarios only
  *
- * COMPLEMENTARY:
- *  • UT_CommandFaultTCP: "System survives failure" (reliability)
- *  • UT_CommandStateTCP: "System accurately reports state" (observability)
- *  • Together: Complete TCP command testing
+ * COMPLEMENTARY RELATIONSHIP:
+ *  • UT_CommandFaultTCP: "System survives TCP failure" (reliability testing)
+ *  • UT_CommandStateUS4: "Timeout/error detected correctly" (protocol-agnostic)
+ *  • UT_CommandStateTCP: "TCP state reported correctly" (TCP-specific observability)
+ *  • Together: Complete command testing (Fault + Generic Error + TCP State)
  *
  * ─────────────────────────────────────────────────────────────────────────────────────────────
- * DECISION 5: Port allocation strategy (22080-22104)?
+ * DECISION 5: Port allocation strategy (22080-22099, reduced from 22080-22104)?
  * ─────────────────────────────────────────────────────────────────────────────────────────────
  * RATIONALE:
  *  • Avoid conflict with UT_CommandFaultTCP (21080-21099) and Typical tests (20xxx)
@@ -753,14 +795,15 @@ class TcpCommandStateTracker {
  *  • Sequential allocation makes tracking easier during debugging
  *  • Each test case gets dedicated port (prevents cross-test interference)
  *
- * ALLOCATION:
- *  • 22080-22084: CAT-1 (Connection Establishment)
- *  • 22085-22089: CAT-2 (Connection Loss)
- *  • 22090-22092: CAT-3 (Flow Control)
- *  • 22093-22095: CAT-4 (Reconnection)
- *  • 22096-22099: CAT-5 (Shutdown)
- *  • 22100-22102: CAT-6 (Timing)
- *  • 22103-22104: CAT-7 (Correlation)
+ * ALLOCATION (UPDATED):
+ *  • 22080-22084: CAT-1 (Connection Establishment) - 5 TCs
+ *  • 22085-22087: CAT-2 (Connection Loss) - 3 TCs
+ *  • 22088-22090: CAT-3 (Flow Control) - 3 TCs
+ *  • 22091-22093: CAT-4 (Reconnection) - 3 TCs
+ *  • 22094-22097: CAT-5 (Shutdown) - 4 TCs
+ *  • 22098: CAT-6 (Transparency) - 1 TC
+ *  • 22099: CAT-7 (Error Mapping) - 1 TC
+ *  • Total: 18 TCs (22080-22099, 20 ports allocated for future expansion)
  *
  * ─────────────────────────────────────────────────────────────────────────────────────────────
  * DECISION 6: Why implement StateSnapshot history tracking?
