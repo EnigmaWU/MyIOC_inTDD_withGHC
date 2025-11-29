@@ -73,6 +73,7 @@ typedef struct {
     pthread_cond_t CmdResponseCond;
     int CmdResponseReady;
     IOC_CmdDesc_T CmdResponse;
+    IOC_Result_T RecvError;  // Stores error from recv thread (0 if no error)
 
     // Command request queue (for executor side polling)
     IOC_CmdDesc_T IncomingCmdQueue[16];
@@ -95,6 +96,8 @@ typedef struct {
 
 /**
  * @brief Send data over TCP socket (helper)
+ *
+ * BUG FIX #8: Distinguish between connection errors and other failures
  */
 static IOC_Result_T __TCP_sendAll(int SocketFd, const void* pData, size_t Size) {
     size_t TotalSent = 0;
@@ -103,8 +106,17 @@ static IOC_Result_T __TCP_sendAll(int SocketFd, const void* pData, size_t Size) 
     while (TotalSent < Size) {
         ssize_t Sent = send(SocketFd, pBuffer + TotalSent, Size - TotalSent, 0);
         if (Sent < 0) {
-            _IOC_LogError("TCP send failed");
-            return IOC_RESULT_BUG;
+            int err = errno;
+            if (err == ECONNRESET || err == EPIPE || err == ECONNABORTED) {
+                _IOC_LogError("TCP send failed: connection broken");
+                return IOC_RESULT_LINK_BROKEN;
+            } else if (err == ETIMEDOUT) {
+                _IOC_LogError("TCP send failed: timeout");
+                return IOC_RESULT_TIMEOUT;
+            } else {
+                _IOC_LogError("TCP send failed: errno=%d", err);
+                return IOC_RESULT_BUG;
+            }
         }
         TotalSent += Sent;
     }
@@ -113,6 +125,12 @@ static IOC_Result_T __TCP_sendAll(int SocketFd, const void* pData, size_t Size) 
 
 /**
  * @brief Receive data over TCP socket (helper)
+ *
+ * BUG FIX #8: Distinguish between connection errors and other failures
+ * - recv() returns 0: connection closed gracefully
+ * - recv() returns -1 with ECONNRESET/ECONNABORTED: connection reset
+ * - recv() returns -1 with ETIMEDOUT: actual timeout
+ * - Other errors: internal/unknown errors
  */
 static IOC_Result_T __TCP_recvAll(int SocketFd, void* pData, size_t Size) {
     size_t TotalRecv = 0;
@@ -122,11 +140,26 @@ static IOC_Result_T __TCP_recvAll(int SocketFd, void* pData, size_t Size) {
         ssize_t Recvd = recv(SocketFd, pBuffer + TotalRecv, Size - TotalRecv, 0);
         if (Recvd <= 0) {
             if (Recvd == 0) {
+                // Connection closed gracefully by peer
                 _IOC_LogInfo("TCP connection closed");
+                return IOC_RESULT_LINK_BROKEN;
             } else {
-                _IOC_LogError("TCP recv failed");
+                // recv() failed - check errno to determine cause
+                int err = errno;
+                if (err == ECONNRESET || err == ECONNABORTED || err == EPIPE) {
+                    // Connection reset/aborted by peer
+                    _IOC_LogError("TCP recv failed: connection reset");
+                    return IOC_RESULT_LINK_BROKEN;
+                } else if (err == ETIMEDOUT) {
+                    // Actual timeout on recv()
+                    _IOC_LogError("TCP recv failed: timeout");
+                    return IOC_RESULT_TIMEOUT;
+                } else {
+                    // Other errors (EINTR, EAGAIN, etc.)
+                    _IOC_LogError("TCP recv failed");
+                    return IOC_RESULT_BUG;
+                }
             }
-            return IOC_RESULT_BUG;
         }
         TotalRecv += Recvd;
     }
@@ -144,6 +177,12 @@ static void* __TCP_recvThread(void* pArg) {
         TCPMessageHeader_T Header;
         IOC_Result_T Result = __TCP_recvAll(pTCPLinkObj->SocketFd, &Header, sizeof(Header));
         if (Result != IOC_RESULT_SUCCESS) {
+            // Connection error - store it and signal waiting command
+            pthread_mutex_lock(&pTCPLinkObj->Mutex);
+            pTCPLinkObj->RecvError = Result;
+            pTCPLinkObj->CmdResponseReady = 1;  // Wake up waiting command
+            pthread_cond_signal(&pTCPLinkObj->CmdResponseCond);
+            pthread_mutex_unlock(&pTCPLinkObj->Mutex);
             break;
         }
 
@@ -156,6 +195,11 @@ static void* __TCP_recvThread(void* pArg) {
             IOC_EvtDesc_T EvtDesc;
             Result = __TCP_recvAll(pTCPLinkObj->SocketFd, &EvtDesc, sizeof(EvtDesc));
             if (Result != IOC_RESULT_SUCCESS) {
+                pthread_mutex_lock(&pTCPLinkObj->Mutex);
+                pTCPLinkObj->RecvError = Result;
+                pTCPLinkObj->CmdResponseReady = 1;
+                pthread_cond_signal(&pTCPLinkObj->CmdResponseCond);
+                pthread_mutex_unlock(&pTCPLinkObj->Mutex);
                 break;
             }
 
@@ -415,6 +459,7 @@ static IOC_Result_T __IOC_connectService_ofProtoTCP(_IOC_LinkObject_pT pLinkObj,
     pthread_mutex_init(&pTCPLinkObj->Mutex, NULL);
     pthread_cond_init(&pTCPLinkObj->CmdResponseCond, NULL);
     pTCPLinkObj->CmdResponseReady = 0;
+    pTCPLinkObj->RecvError = IOC_RESULT_SUCCESS;  // Initialize to no error
 
     pthread_cond_init(&pTCPLinkObj->IncomingCmdCond, NULL);
     pTCPLinkObj->IncomingCmdHead = 0;
@@ -546,6 +591,7 @@ static IOC_Result_T __IOC_acceptClient_ofProtoTCP(_IOC_ServiceObject_pT pSrvObj,
     pthread_mutex_init(&pTCPLinkObj->Mutex, NULL);
     pthread_cond_init(&pTCPLinkObj->CmdResponseCond, NULL);
     pTCPLinkObj->CmdResponseReady = 0;
+    pTCPLinkObj->RecvError = IOC_RESULT_SUCCESS;  // Initialize to no error
 
     pthread_cond_init(&pTCPLinkObj->IncomingCmdCond, NULL);
     pTCPLinkObj->IncomingCmdHead = 0;
@@ -812,6 +858,7 @@ static IOC_Result_T __IOC_execCmd_ofProtoTCP(_IOC_LinkObject_pT pLinkObj, IOC_Cm
 
     // Clear previous response
     pTCPLinkObj->CmdResponseReady = 0;
+    pTCPLinkObj->RecvError = IOC_RESULT_SUCCESS;  // Clear previous error
 
     // Send command request
     TCPMessageHeader_T Header;
@@ -895,6 +942,15 @@ static IOC_Result_T __IOC_execCmd_ofProtoTCP(_IOC_LinkObject_pT pLinkObj, IOC_Cm
     if (WaitResult == ETIMEDOUT) {
         pthread_mutex_unlock(&pTCPLinkObj->Mutex);
         return IOC_RESULT_TIMEOUT;
+    }
+
+    // BUG FIX #8 & #9: Check if recv thread encountered an error
+    // If RecvError is set, connection was broken during command execution
+    if (pTCPLinkObj->RecvError != IOC_RESULT_SUCCESS) {
+        IOC_Result_T Error = pTCPLinkObj->RecvError;
+        pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+        _IOC_LogError("Connection error during command execution");
+        return Error;  // Return the actual error (LINK_BROKEN, TIMEOUT, etc.)
     }
 
     // Copy response back (including OUT payload)
