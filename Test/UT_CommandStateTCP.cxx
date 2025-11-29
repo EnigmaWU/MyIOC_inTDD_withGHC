@@ -128,16 +128,17 @@
  *
  * 🟢 FRAMEWORK STATUS: TCP-Specific Command State Testing - IMPLEMENTATION PHASE
  *    • Core framework: INFRASTRUCTURE READY (TcpConnectionSimulator, TcpCommandStateTracker)
- *    • Test cases: 3/19 GREEN (16% complete)
- *    • Target: 19 test cases covering TCP-specific state scenarios
+ *    • Test cases: 3/15 GREEN (20% complete)
+ *    • Target: 15 test cases covering TCP-specific command state scenarios (US-1)
  *    • Progress: TC-1, TC-2, TC-3 (CAT-1) ✅ GREEN - Connection establishment verified
  *    • Architecture compliance: INITIALIZED→PENDING→PROCESSING→SUCCESS transitions verified
  *    • **Key Insight**: Client-side cmdDesc remains PENDING while server-side processes (state isolation)
- *    • Test execution: ~144ms total (48ms avg per test) - all tests fast and stable
+ *    • Test execution: ~141ms total (47ms avg per test) - all tests fast and stable
  *    • **Note**: Connection failure to unreachable endpoints moved to UT_CommandFaultTCP.cxx (TC-5)
+ *    • **Note**: Link state tests (US-2) moved to UT_LinkStateTCP.cxx (TC-4, TC-8, TC-17, TC-18)
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
- * 📋 [CAT-1]: TCP CONNECTION ESTABLISHMENT × COMMAND STATE (3/4 GREEN)
+ * 📋 [CAT-1]: TCP CONNECTION ESTABLISHMENT × COMMAND STATE (3/3 GREEN) ✅ COMPLETE
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * PURPOSE: Verify command state behavior during TCP connection setup phase
  *
@@ -177,16 +178,7 @@
  *      @[Priority]: HIGH - Connection failure handling
  *      @[Status]: ✅ GREEN - Connection correctly fails, LinkID remains INVALID
  *      @[Note]: Connection failure to unreachable endpoints covered by UT_CommandFaultTCP.cxx TC-5
- *
- * [@AC-1,US-2] [@AC-2,US-2] Link state reflects command activity during connection
- * ⚪ TC-4: verifyLinkState_duringTcpConnectAttempt_expectConnectingSubState
- *      @[Purpose]: Validate link state reflects TCP connection attempt
- *      @[Brief]: Check IOC_getLinkState() during connection establishment
- *      @[TCP Focus]: Link state should show connecting/establishing
- *      @[US Mapping]: US-2 AC-1/AC-2 (Link state reflects command readiness/activity)
- *      @[Expected]: Link SubState indicates connection in progress
- *      @[Port]: 22084
- *      @[Priority]: MEDIUM - Link state during TCP handshake
+ *      @[Note]: Link state testing moved to UT_LinkStateTCP.cxx
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * 📋 [CAT-2]: TCP CONNECTION LOSS × COMMAND STATE DURING EXECUTION
@@ -213,17 +205,7 @@
  *      @[Expected]: Command FAILED with pipe/send error
  *      @[Port]: 22086
  *      @[Priority]: HIGH - Send-side connection loss
- *
- * [@AC-2,US-4] [@AC-7,US-2] Link state reflects timeout/error impact
- * ⚪ TC-8: verifyLinkState_whenTcpConnectionReset_expectDisconnectedState
- *      @[Purpose]: Validate link state reflects TCP connection loss
- *      @[Brief]: Monitor IOC_getLinkState() when connection resets
- *      @[TCP Focus]: Link state synchronized with TCP state (TCP-specific)
- *      @[US Mapping]: US-4 AC-2 (link state reflects timeout), US-2 AC-7 (return to ready state)
- *      @[Expected]: Link state transitions to OFFLINE/DISCONNECTED
- *      @[Port]: 22087
- *      @[Priority]: HIGH - TCP connection state correlation
- *      @[Note]: Generic timeout/error recovery covered by US-4
+ *      @[Note]: Link state testing moved to UT_LinkStateTCP.cxx
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * 📋 [CAT-3]: TCP FLOW CONTROL × COMMAND STATE
@@ -320,26 +302,7 @@
  *      @[Expected]: Commands immediately transition to FAILED
  *      @[Port]: 22095
  *      @[Priority]: HIGH - TCP abortive shutdown (RST) behavior
- *
- * [@AC-7,US-2] Link state returns to appropriate ready/offline state
- * ⚪ TC-17: verifyLinkState_afterTcpGracefulClose_expectCleanOffline
- *      @[Purpose]: Validate link state after clean TCP close
- *      @[Brief]: Monitor link state during FIN handshake
- *      @[TCP Focus]: Link state reflects graceful termination
- *      @[US Mapping]: US-2 AC-7 (link returns to ready state after completion)
- *      @[Expected]: Link transitions to OFFLINE cleanly
- *      @[Port]: 22096
- *      @[Priority]: MEDIUM - TCP FIN link state transition
- *
- * [@AC-2,US-4] Link state reflects timeout/error impact
- * ⚪ TC-18: verifyLinkState_afterTcpAbortiveClose_expectErrorState
- *      @[Purpose]: Validate link state after abortive TCP close
- *      @[Brief]: Monitor link state during RST
- *      @[TCP Focus]: Link state reflects error termination
- *      @[US Mapping]: US-4 AC-2 (link reflects timeout/error impact)
- *      @[Expected]: Link transitions to ERROR/OFFLINE with error code
- *      @[Port]: 22097
- *      @[Priority]: MEDIUM - TCP RST link state transition
+ *      @[Note]: Link state testing moved to UT_LinkStateTCP.cxx
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * 📋 [CAT-6]: TCP LAYER TRANSPARENCY × COMMAND STATE
@@ -1082,20 +1045,18 @@ TEST(UT_CommandStateTCP, verifyCommandState_afterTcpConnectSuccess_expectProcess
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * PHASE 2: HIGH-PRIORITY TEST CASES (Week 2-3) - Priority: HIGH
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
- * ⚪ Task 2.1: Implement CAT-1 (Connection Establishment) - TCs 1-4
- *    - TC-1: Command state during TCP connect (PENDING)
- *    - TC-2: Command state after connect success (PROCESSING)
- *    - TC-3: Command state on connect refused (FAILED)
- *    - TC-4: Link state during connection attempt
+ * ⚪ Task 2.1: Implement CAT-1 (Connection Establishment) - TCs 1-3
+ *    - TC-1: Command state during TCP connect (PENDING) ✅ GREEN
+ *    - TC-2: Command state after connect success (PROCESSING) ✅ GREEN
+ *    - TC-3: Command state on connect refused (FAILED) ✅ GREEN
  *
- * ⚪ Task 2.2: Implement CAT-2 (Connection Loss) - TCs 6-8
+ * ⚪ Task 2.2: Implement CAT-2 (Connection Loss) - TCs 6-7
  *    - TC-6: Connection reset mid-execution (ECONNRESET)
  *    - TC-7: Broken pipe during send (EPIPE)
- *    - TC-8: Link state after connection reset
  *
- * ⚪ Task 2.3: Implement CAT-5 (Shutdown) - TCs 17-18
- *    - TC-17: Graceful shutdown sequencing
- *    - TC-18: Ungraceful shutdown immediate failure
+ * ⚪ Task 2.3: Implement CAT-5 (Shutdown) - TCs 15-16
+ *    - TC-15: Graceful shutdown sequencing
+ *    - TC-16: Ungraceful shutdown immediate failure
  *
  * ⚪ Task 2.4: Implement CAT-7 (Error Mapping) - TC-20
  *    - TC-20: TCP errno → IOC_Result_T mapping (ECONNRESET, EPIPE, ECONNREFUSED)
@@ -1147,25 +1108,27 @@ TEST(UT_CommandStateTCP, verifyCommandState_afterTcpConnectSuccess_expectProcess
  * 📊 EFFORT ESTIMATION:
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * Phase 1: 5-8 hours   (Infrastructure)
- * Phase 2: 10-14 hours (8 critical test cases)
- * Phase 3: 10-15 hours (8 medium-priority test cases)
- * Phase 4: 2-3 hours   (2 low-priority test cases)
+ * Phase 2: 8-12 hours (6 critical test cases)
+ * Phase 3: 8-12 hours (6 medium-priority test cases)
+ * Phase 4: 2-3 hours   (1 low-priority test case)
  * Phase 5: 3-5 hours   (Integration & docs)
  * ─────────────────────────────────────────
- * TOTAL:   30-45 hours (~1 week full-time)
+ * TOTAL:   26-40 hours (~5 days full-time)
  *
  * NOTE: Reduced from 39-55 hours by removing 7 duplicate tests
+ * NOTE: Further reduced from 30-45 hours by moving 4 link state tests to UT_LinkStateTCP.cxx
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * 🎯 SUCCESS CRITERIA:
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
- * ✓ All 19 test cases implemented and GREEN
- * ✓ 100% coverage of TCP-specific state integration scenarios
+ * ✓ All 15 test cases implemented and GREEN
+ * ✓ 100% coverage of TCP-specific command state (US-1) scenarios
  * ✓ Zero state correlation violations detected
- * ✓ Test execution time < 60 seconds (all tests)
+ * ✓ Test execution time < 45 seconds (all tests)
  * ✓ No memory leaks (valgrind clean)
  * ✓ Documentation complete and accurate
- * ✓ Clear relationship with UT_CommandFaultTCP.cxx established
+ * ✓ Clear separation: Command State (US-1) vs Link State (US-2) tests
+ * ✓ Clear relationship with UT_CommandFaultTCP.cxx and UT_LinkStateTCP.cxx established
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * 🔗 RELATED WORK:
