@@ -365,24 +365,40 @@
 // 🔴 RED PHASE: CAT-1 Ready State Verification (P1)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
+// Helper struct to capture server-side linkID from auto-accept callback
+struct _TC1_AutoAcceptContext {
+    std::atomic<IOC_LinkID_T> ServerLinkID{IOC_ID_INVALID};
+    std::atomic<bool> CallbackInvoked{false};
+};
+
+static void _TC1_OnAutoAccepted(IOC_SrvID_T srvID, IOC_LinkID_T newLinkID, void *pPriv) {
+    auto *pCtx = static_cast<_TC1_AutoAcceptContext *>(pPriv);
+    pCtx->ServerLinkID = newLinkID;
+    pCtx->CallbackInvoked = true;
+}
+
 /**
- * @[TDD Phase]: 🔴 RED
+ * @[TDD Phase]: 🟢 GREEN (Updated to test BOTH sides)
  * @[RGR Cycle]: 1 of 12
  * @[Test]: verifyLinkState_afterConnect_expectReady_ConetMode
- * @[Purpose]: Validate Ready state in ConetMode after successful TCP connection
+ * @[Purpose]: Validate Ready state in ConetMode after TCP connection FOR BOTH CLIENT AND SERVER
  * @[Cross-Reference]: README_ArchDesign-State.md "Link Operation States (Level 2)"
  *
  * @[Expected Behavior]:
- * - After IOC_connectService() succeeds, link is in Connected state (Level 1)
- * - Operation state (Level 2) should be Ready (no operations in progress)
- * - SubState (Level 3) should be Default/Idle
+ * - After IOC_connectService() succeeds, BOTH links exist (client + server)
+ * - Client link (CmdInitiator): Operation state Ready with CmdInitiatorReady substate
+ * - Server link (CmdExecutor): Operation state Ready with CmdExecutorReady substate
+ * - BOTH links: Connection state (Level 1) = Connected
  *
  * @[Level 2 Independence]:
  * - Operation state Ready is independent of connection state Connected
- * - Demonstrates 3-level hierarchy: Connected (L1) + Ready (L2) + Default (L3)
+ * - Demonstrates 3-level hierarchy: Connected (L1) + Ready (L2) + Role-specific (L3)
+ *
+ * @[Critical Insight]: TCP connection creates TWO links with DIFFERENT roles!
  */
 TEST(UT_LinkStateOperation_Ready, TC1_verifyLinkState_afterConnect_expectReady_ConetMode) {
-    //===SETUP: Create TCP service and establish connection===
+    //===SETUP: Create TCP service with auto-accept callback===
+    _TC1_AutoAcceptContext autoAcceptCtx;
     IOC_SrvID_T srvID = IOC_ID_INVALID;
     const uint16_t TEST_PORT = 24000;
 
@@ -394,11 +410,14 @@ TEST(UT_LinkStateOperation_Ready, TC1_verifyLinkState_afterConnect_expectReady_C
     srvArgs.SrvURI.pPath = "LinkStateOp_TC1";
     srvArgs.UsageCapabilites = IOC_LinkUsageCmdExecutor;
     srvArgs.Flags = IOC_SRVFLAG_AUTO_ACCEPT;
+    srvArgs.OnAutoAccepted_F = _TC1_OnAutoAccepted;  // Capture server linkID
+    srvArgs.pSrvPriv = &autoAcceptCtx;
 
     IOC_Result_T result = IOC_onlineService(&srvID, &srvArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
 
-    IOC_LinkID_T linkID = IOC_ID_INVALID;
+    //===BEHAVIOR: Client connects (auto-accept creates server link)===
+    IOC_LinkID_T linkID = IOC_ID_INVALID;  // Client-side link
     IOC_ConnArgs_T connArgs = {0};
     IOC_Helper_initConnArgs(&connArgs);
     connArgs.SrvURI.pProtocol = IOC_SRV_PROTO_TCP;
@@ -411,38 +430,56 @@ TEST(UT_LinkStateOperation_Ready, TC1_verifyLinkState_afterConnect_expectReady_C
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
     ASSERT_NE(IOC_ID_INVALID, linkID);
 
-    // Small delay to ensure connection is fully established
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    // Wait for auto-accept callback to capture server-side linkID
+    for (int i = 0; i < 100 && !autoAcceptCtx.CallbackInvoked.load(); i++) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    ASSERT_TRUE(autoAcceptCtx.CallbackInvoked.load()) << "Auto-accept callback should be invoked";
 
-    //===BEHAVIOR: Query operation state (Level 2) after connection===
+    IOC_LinkID_T serverLinkID = autoAcceptCtx.ServerLinkID.load();
+    ASSERT_NE(IOC_ID_INVALID, serverLinkID) << "Server link should be created";
+    ASSERT_NE(linkID, serverLinkID) << "Client and server links should be different";
+
+    //===BEHAVIOR: Query operation state (Level 2) for BOTH links===
+    // CLIENT SIDE (CmdInitiator)
     IOC_LinkState_T mainState = IOC_LinkStateUndefined;
     IOC_LinkSubState_T subState = IOC_LinkSubStateDefault;
 
     result = IOC_getLinkState(linkID, &mainState, &subState);
 
-    //===VERIFY: Operation state should be Ready with role-specific substate===
-    ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "IOC_getLinkState should succeed for valid ConetMode link";
+    //===VERIFY CLIENT SIDE: CmdInitiator link state===
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Client link state query should succeed";
 
-    EXPECT_EQ(IOC_LinkStateReady, mainState)
-        << "After connection, link operation state should be Ready (no operations in progress)";
+    EXPECT_EQ(IOC_LinkStateReady, mainState) << "Client link (CmdInitiator) should be Ready after connection";
 
-    // SubState depends on link usage/role:
-    // - CmdInitiator → IOC_LinkSubStateCmdInitiatorReady
-    // - CmdExecutor → IOC_LinkSubStateCmdExecutorReady
-    // - Generic link → IOC_LinkSubStateDefault
-    EXPECT_EQ(IOC_LinkSubStateCmdInitiatorReady, subState)
-        << "When Ready as CmdInitiator, substate should be CmdInitiatorReady";
+    EXPECT_EQ(IOC_LinkSubStateCmdInitiatorReady, subState) << "Client link substate should be CmdInitiatorReady";
 
     // Additional verification: Connection state (Level 1) should be Connected
     IOC_LinkConnState_T connState;
     result = IOC_getLinkConnState(linkID, &connState);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
-    EXPECT_EQ(IOC_LinkConnStateConnected, connState)
-        << "Level 1 (Connection) should be Connected while Level 2 (Operation) is Ready";
+    EXPECT_EQ(IOC_LinkConnStateConnected, connState) << "Client link Level 1 should be Connected";
+
+    //===VERIFY SERVER SIDE: CmdExecutor link state===
+    IOC_LinkState_T serverMainState = IOC_LinkStateUndefined;
+    IOC_LinkSubState_T serverSubState = IOC_LinkSubStateDefault;
+    result = IOC_getLinkState(serverLinkID, &serverMainState, &serverSubState);
+
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Server link state query should succeed";
+    EXPECT_EQ(IOC_LinkStateReady, serverMainState) << "Server link (CmdExecutor) should be Ready after auto-accept";
+    EXPECT_EQ(IOC_LinkSubStateCmdExecutorReady, serverSubState)
+        << "Server link substate should be CmdExecutorReady (not CmdInitiatorReady!)";
+
+    IOC_LinkConnState_T serverConnState;
+    result = IOC_getLinkConnState(serverLinkID, &serverConnState);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result);
+    EXPECT_EQ(IOC_LinkConnStateConnected, serverConnState) << "Server link Level 1 should also be Connected";
 
     //===CLEANUP===
-    IOC_closeLink(linkID);
-    IOC_offlineService(srvID);
+    IOC_closeLink(linkID);  // Close client link
+    // NOTE: Don't close serverLinkID manually! It's owned by the service.
+    // IOC_offlineService will auto-close it unless IOC_SRVFLAG_KEEP_ACCEPTED_LINK is set.
+    IOC_offlineService(srvID);  // This will clean up server-side link
 }
 
 /**

@@ -497,6 +497,14 @@ static void* __IOC_ServiceAutoAcceptDaemonThread(void* pArg) {
 
             pLinkObj->pMethods = pSrvObj->pMethods;  // Copy protocol methods from Service
 
+            // 🎯 TDD GREEN: Initialize connection state to Connected for auto-accepted link
+            // Bug found by UT_LinkStateOperation TC-1 testing both client and server sides
+            pthread_mutex_lock(&pLinkObj->ConnState.StateMutex);
+            pLinkObj->ConnState.CurrentState = IOC_LinkConnStateConnected;
+            pLinkObj->ConnState.IsConnected = true;
+            pLinkObj->ConnState.LastStateChangeTime = time(NULL);
+            pthread_mutex_unlock(&pLinkObj->ConnState.StateMutex);
+
             // 🔧 [TDD GREEN] Copy DAT callback configuration to auto-accepted connection
             if (pSrvObj->Args.UsageArgs.pDat) {
                 pLinkObj->Args.UsageArgs.pDat = pSrvObj->Args.UsageArgs.pDat;
