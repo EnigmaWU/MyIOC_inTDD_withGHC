@@ -2,17 +2,60 @@
 
 # About
 
-This document describes the **State Machine Design** for IOC (Inter-Object Communication) framework components. It provides detailed state diagrams and sequence diagrams for Service, Link, Command, Event, and Data communication patterns.
+This document describes the **State Machine Design** for IOC (Inter-Object Communication) framework. It provides detailed state diagrams and sequence diagrams for managing the lifecycle of services, links, and communication operations.
+
+## How to Read This Document
+
+**For Quick Start** (First-time readers):
+1. Read [Communication Modes Overview](#communication-modes-overview) to understand ConetMode vs ConlesMode
+2. Read [Overview](#overview) for the big picture
+3. Jump to the specific subsystem you're using:
+   - [Service States](#service-state-machine) - Service lifecycle (online/offline)
+   - [Command States](#command-state-machine) - Request-response (CMD)
+   - [Event States](#event-state-machine) - Fire-and-forget (EVT)
+   - [Data States](#data-state-machine) - Stream transfer (DAT)
+4. See [State Query APIs](#state-query-apis) to inspect runtime state
+
+**For Deep Understanding** (Architecture study):
+1. Start from [Overview](#overview) for the hierarchical model
+2. Read [Link State Hierarchy](#understanding-link-state-hierarchy) to understand the 3-level state system
+3. Study each state machine section with sequence diagrams
+4. Review [Practical Decision Guide](#practical-decision-guide) for real-world scenarios
+
+**Symbols Used**:
+- ✅ **IMPLEMENTED** - State enum exists in header files, can be queried via API
+- 📐 **CONCEPTUAL** - Logical state for documentation, helps understand behavior but not a separate enum
+- 🔴 **TODO** - API declared but implementation pending
+
+## Communication Modes Overview
+
+IOC supports **two communication modes** with different connection requirements:
+
+| Mode | Full Name | Connection Required? | Link Management | Use Cases | State Complexity |
+|------|-----------|---------------------|-----------------|-----------|------------------|
+| **ConetMode** | Connection-Oriented | Yes (TCP/FIFO) | Manual connect/disconnect | Client-Server, P2P, Multi-client services | 3 levels: Connection + Operation + Detail |
+| **ConlesMode** | Connectionless | No (Auto LinkID) | Automatic | Broadcast, Pub-Sub, Internal modules | 1 level: Operation only |
+
+**Key Insight**: 
+- **ConetMode** requires `IOC_connectService()` and manages transport layer (TCP/FIFO)
+- **ConlesMode** uses `IOC_CONLES_MODE_AUTO_LINK_ID`, no connection setup needed
+- Choose based on whether you need explicit connection control
 
 # Overview
 
-IOC framework uses hierarchical state machines to manage communication lifecycle across multiple components:
+IOC framework uses **hierarchical state machines** to manage communication lifecycle across multiple components:
 
-- **Service States**: Service online/offline lifecycle
-- **Link States**: Connection establishment and maintenance
-- **Command States**: Request-response command execution
-- **Event States**: Fire-and-forget event notification
-- **Data States**: Stream-based data transfer
+- **Service States**: Service online/offline lifecycle (manages multiple links)
+- **Link States**: Connection and operation lifecycle (3-level hierarchy for ConetMode)
+- **Command States**: Request-response command execution (link + individual command)
+- **Event States**: Fire-and-forget event notification (different patterns for Conet/Conles modes)
+- **Data States**: Stream-based data transfer (bidirectional with flow control)
+
+**State Machine Characteristics**:
+- **Independent**: Each component maintains its own state machine
+- **Hierarchical**: Links have 3 levels (Connection → Operation → Detail) in ConetMode
+- **Concurrent**: Multiple operations can be active simultaneously
+- **Testable**: Clear transitions enable comprehensive unit testing
 
 Each component maintains independent state machines with clear transition rules, enabling reliable, concurrent, and testable communication patterns.
 
@@ -262,30 +305,44 @@ IOC_postEVT(srvID, evtID, &evtDesc);  // All connected clients receive
 
 ## Understanding Link State Hierarchy 🔑
 
-**KEY CONCEPT**: IOC uses a **3-level state hierarchy** to track link behavior:
+**KEY CONCEPT**: IOC uses a **3-level state hierarchy** to track link behavior, but which levels you use depends on your communication mode:
+
+### The Three Levels Explained
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│ Level 1: IOC_LinkConnState_T (Connection Layer)                │
-│  ↓ Tracks: TCP/UDP/FIFO connection establishment               │
-│  ↓ Scope:  ConetMode ONLY                                      │
-│  ↓ States: Disconnected → Connecting → Connected → ...         │
-└─────────────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────────────┐
-│ Level 2: IOC_LinkState_T (Operation Layer)                     │
-│  ↓ Tracks: Operational readiness for CMD/EVT/DAT               │
-│  ↓ Scope:  Both ConetMode & ConlesMode                         │
-│  ↓ States: Ready ↔ BusyCbProcEvt/BusySubEvt/BusyUnsubEvt      │
-└─────────────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────────────┐
-│ Level 3: IOC_LinkSubState_T (Operation Details)                │
-│  ↓ Tracks: Specific CMD/DAT operation details                  │
-│  ↓ Scope:  ConetMode CMD/DAT operations                        │
-│  ↓ States: CmdInitiatorReady, DatSenderBusySendDat, ...       │
-└─────────────────────────────────────────────────────────────────┘
+Level 1: Connection State (IOC_LinkConnState_T)
+  What:   TCP/FIFO connection lifecycle
+  Who:    ConetMode ONLY
+  States: Disconnected → Connecting → Connected → Disconnecting → Broken
+  API:    IOC_getLinkConnState(linkID, &connState)
+
+         ↓ (sits on top of)
+
+Level 2: Operation State (IOC_LinkState_T)  
+  What:   Application readiness (can I operate now?)
+  Who:    BOTH ConetMode & ConlesMode
+  States: Ready ↔ Busy (BusyCbProcEvt, BusySubEvt, BusyUnsubEvt)
+  API:    IOC_getLinkState(linkID, &linkState)
+
+         ↓ (provides details for)
+
+Level 3: Operation Detail (IOC_LinkSubState_T)
+  What:   Specific CMD/DAT operation in progress
+  Who:    ConetMode CMD/DAT ONLY (not EVT!)
+  States: CmdInitiatorReady, CmdInitiatorBusyExecCmd, DatSenderBusySendDat, ...
+  API:    IOC_getLinkSubState(linkID, &subState)
 ```
+
+## Practical Decision Guide
+
+**"Which state should I check for my use case?"**
+
+| Your Question | Check This State | Mode | Example |
+|---------------|------------------|------|---------|  
+| "Is network connected?" | Level 1: `IOC_LinkConnState_T` | ConetMode | `Connected`, `Broken` |
+| "Can I send/receive now?" | Level 2: `IOC_LinkState_T` | Both | `Ready` vs `BusyCbProcEvt` |
+| "What operation is happening?" | Level 3: `IOC_LinkSubState_T` | ConetMode CMD/DAT | `CmdInitiatorBusyExecCmd` |
+| "Is my event subscription active?" | Level 2: `IOC_LinkState_T` | ConlesMode | `BusySubEvt`, `BusyUnsubEvt` |
 
 ### Quick Comparison: LinkConnState vs LinkState
 
@@ -302,16 +359,32 @@ IOC_postEVT(srvID, evtID, &evtDesc);  // All connected clients receive
 
 **ConetMode** (Connection-Oriented):
 - Uses **ALL 3 levels**: Connection State + Operation State + SubState
-- Example: `Connected` → `Ready` → `CmdInitiatorBusyExecCmd`
+- Example flow: `Connected` (L1) → `Ready` (L2) → `CmdInitiatorBusyExecCmd` (L3)
+- Requires: `IOC_connectService()` before any operations
 
 **ConlesMode** (Connectionless):
 - Uses **Level 2 only**: Operation State (no connection phase)
-- Uses `IOC_CONLES_MODE_AUTO_LINK_ID` (no connect/disconnect)
-- Example: `Ready` → `BusyCbProcEvt` → `Ready`
+- Uses `IOC_CONLES_MODE_AUTO_LINK_ID` (no connect/disconnect needed)
+- Example flow: `Ready` → `BusyCbProcEvt` → `Ready`
+- No connection setup: start posting/subscribing immediately
+
+### Why Three Levels?
+
+1. **Separation of Concerns**: Network problems ≠ Application problems
+   - Level 1 handles TCP disconnects, timeouts, network errors
+   - Level 2/3 handle operation flow, busy states, processing
+
+2. **Mode Flexibility**: ConlesMode doesn't need Level 1 (no connections)
+   - Simpler programming model for broadcast/pub-sub
+   - No connect/disconnect APIs needed
+
+3. **Independent Lifecycles**: Connection can be `Connected` but operation `Busy`
+   - Prevents state conflicts
+   - Clearer error handling (network vs application)
 
 ---
 
-## Link Lifecycle States ✅ IMPLEMENTED
+## Link Connection States (Level 1) ✅ IMPLEMENTED
 
 **Implementation**: `IOC_LinkConnState_T` enum in `Include/IOC/IOC_Types.h`
 
@@ -444,21 +517,32 @@ sequenceDiagram
 
 **Implementation**: `IOC_LinkSubState_T` enum in `Include/IOC/IOC_Types.h`
 
-Commands operate in **ConetMode** (connection-oriented) with bidirectional roles on each link. Each link maintains independent **Initiator** and **Executor** sub-state machines for concurrent command processing.
+**Pattern**: **Synchronous Request-Response** - CmdInitiator sends command and **blocks waiting** for result from CmdExecutor.
 
-### Link Usage Types
+**Key Characteristics** (from UserGuide_CMD.md):
+- **Synchronous Execution**: `IOC_execCMD()` blocks until executor responds
+- **Request-Response**: Guaranteed response with result data or error
+- **NODROP Guarantee**: Reliable command delivery
+- **Timeout Support**: Configurable timeout for command execution
+- **ConetMode ONLY**: Requires established link (connection-oriented)
 
-- **IOC_LinkUsageCmdInitiator**: Link configured to initiate commands via `IOC_execCMD()`
+Commands operate in **ConetMode** with bidirectional roles on each link. Each link maintains independent **Initiator** and **Executor** sub-state machines for concurrent command processing in both directions.
+
+### Link Usage Types (Configuration)
+
+- **IOC_LinkUsageCmdInitiator**: Link configured to **send commands** via `IOC_execCMD()`
   - Corresponds to **Initiator** role in state machine
-  - Sends commands and waits for responses
-  - States: InitiatorReady ↔ InitiatorBusyExecCmd
+  - Sends commands and **waits synchronously** for responses
+  - States: InitiatorReady ↔ InitiatorBusyExecCmd (blocked during execution)
 
-- **IOC_LinkUsageCmdExecutor**: Link configured to execute commands via callback or polling
+- **IOC_LinkUsageCmdExecutor**: Link configured to **receive and execute commands**
   - Corresponds to **Executor** role in state machine
-  - Receives commands and sends responses
-  - States: ExecutorReady → ExecutorBusyCbExecCmd (callback) or ExecutorReady → ExecutorBusyWaitCmd (polling)
+  - Processes commands and sends responses back
+  - Two modes:
+    - **Callback Mode**: ExecutorReady → ExecutorBusyCbExecCmd (via `CbExecCmd_F` callback)
+    - **Polling Mode**: ExecutorReady → ExecutorBusyWaitCmd (via `IOC_waitCMD()` + `IOC_ackCMD()`)
 
-**Note**: A single link can have both usage types enabled for bidirectional command execution.
+**Note**: A single link can have **both usage types enabled** for bidirectional command execution (service can both send and receive commands).
 
 ```mermaid
 stateDiagram-v2
@@ -718,6 +802,23 @@ sequenceDiagram
 ---
 
 # Event State Machine
+
+**Pattern**: **Fire-and-Forget Notification** - EvtProducer posts event and **returns immediately** without waiting. Event delivery happens asynchronously.
+
+**Key Characteristics** (from UserGuide_EVT.md):
+- **Fire-and-Forget**: `IOC_postEVT()` / `IOC_postEVT_inConlesMode()` returns immediately after queuing
+- **Asynchronous Delivery**: Events delivered to consumers via callback or polling, separate from posting
+- **Dual Modes**: Both **ConlesMode** (connectionless broadcast) and **ConetMode** (connection-oriented P2P)
+- **Publish-Subscribe Pattern**: EvtProducer posts to EventID, EvtConsumers subscribe by EventID
+- **Flexible Processing**: Callback-based (`CbProcEvt_F`) or polling-based (`IOC_waitEVT`)
+- **Performance Options**: Synchronous, asynchronous, blocking, and non-blocking modes (`IOC_OPTID_SYNC_MODE`, `IOC_OPTID_ASYNC_MODE`)
+- **No EVT SubStates**: Unlike CMD/DAT, EVT uses main `IOC_LinkState_T` states only (see [Why No EVT SubStates?](#-why-no-evt-substates))
+
+**Why No EVT SubStates?** (Critical Design Decision explained later)
+- EVT is **instant queue operation**: post to queue and return immediately, no waiting needed
+- CMD/DAT **block and wait**: need substates to track "waiting for response" or "sending chunks with flow control"
+- EVT callback processing tracked by `IOC_LinkStateBusyCbProcEvt` (main state, not substate)
+- See detailed comparison table in [Why No EVT SubStates?](#-why-no-evt-substates) section
 
 ## Link-Level Event States (EVT::Conet) 📐 CONCEPTUAL
 
@@ -1091,6 +1192,21 @@ sequenceDiagram
 ---
 
 # Data State Machine
+
+**Pattern**: **Stream-based Transfer** - DatSender transmits data chunks asynchronously, DatReceiver processes them via callback or polling.
+
+**Key Characteristics** (from UserGuide_DAT.md):
+- **NODROP Guarantee**: Reliable data delivery with no data loss (like CMD, unlike fire-and-forget EVT)
+- **Stream-based**: Continuous data streaming with multiple chunks (not single-shot like CMD)
+- **Asynchronous Send**: `IOC_sendDAT()` queues data and returns immediately (may block on flow control if buffer full)
+- **Flexible Reception**: Callback-based (`CbRecvDat_F` automatic) or polling-based (`IOC_recvDAT()` manual)
+- **Two Service Patterns** (User Stories from UserGuide_DAT.md):
+  - **US-1: DatReceiver Service**: Service receives data, clients send (e.g., file upload, log collection, data ingestion)
+  - **US-2: DatSender Service**: Service sends data, clients receive (e.g., video streaming, data broadcast, live feeds)
+- **ConetMode ONLY**: Requires established link for reliable transfer and flow control
+- **Bidirectional**: Single link can have both Sender and Receiver roles for full-duplex streaming
+- **Flow Control**: May block on `IOC_sendDAT()` if receiver buffer full (prevents data loss via backpressure)
+- **Flush Support**: `IOC_flushDAT()` ensures all queued chunks transmitted immediately
 
 ## Link-Level Data States (DAT::Conet) ✅ IMPLEMENTED
 
@@ -1522,19 +1638,27 @@ IOC_Result_T IOC_getServiceLinkIDs(
 
 ## State Query APIs
 
-| Component | Query API | Returns | Status | Header |
-|-----------|-----------|---------|--------|--------|
-| **Service Lifecycle** | `IOC_getSrvState(SrvID, &state)` | `IOC_SrvState_T` | ✅ IMPLEMENTED | IOC_SrvTypes.h |
-| **Link Connection** | `IOC_getLinkConnState(LinkID, &state)` | `IOC_LinkConnState_T` | ✅ IMPLEMENTED | IOC_Types.h |
-| **Link Main** | `IOC_getLinkState(LinkID, &state)` | `IOC_LinkState_T` | 🔴 TODO | IOC_Types.h |
-| **Link Substate** | `IOC_getLinkSubState(LinkID, &substate)` | `IOC_LinkSubState_T` | 🔴 TODO | IOC_Types.h |
-| **Command Status** | `IOC_CmdDesc_getStatus(pCmdDesc)` | `IOC_CmdStatus_E` | ✅ IMPLEMENTED | IOC_CmdDesc.h |
-| **Link Usage** | `IOC_getLinkUsage(LinkID, &usage)` | `IOC_LinkUsage_T` | 🔴 TODO | IOC_Types.h |
+**Purpose**: Query runtime state for monitoring, debugging, error handling, and operational decisions.
+
+**Cross-Reference**: See User Guides for complete API documentation and usage examples:
+- [UserGuide_SRV.md](Doc/UserGuide_SRV.md) - Service lifecycle and link management APIs
+- [UserGuide_CMD.md](Doc/UserGuide_CMD.md) - Command execution patterns and timeout handling  
+- [UserGuide_EVT.md](Doc/UserGuide_EVT.md) - Event subscription and processing patterns
+- [UserGuide_DAT.md](Doc/UserGuide_DAT.md) - Data transmission and flow control patterns
+
+| Component | Query API | Returns | Status | Header | When to Use |
+|-----------|-----------|---------|--------|--------|-------------|
+| **Service Lifecycle** | `IOC_getSrvState(SrvID, &state)` | `IOC_SrvState_T` | ✅ IMPLEMENTED | IOC_SrvTypes.h | Check if service is online before connecting |
+| **Link Connection** | `IOC_getLinkConnState(LinkID, &state)` | `IOC_LinkConnState_T` | ✅ IMPLEMENTED | IOC_Types.h | Detect network issues (ConetMode) |
+| **Link Operation** | `IOC_getLinkState(LinkID, &state)` | `IOC_LinkState_T` | 🔴 TODO | IOC_Types.h | Check if link is Ready vs Busy |
+| **Link Detail** | `IOC_getLinkSubState(LinkID, &substate)` | `IOC_LinkSubState_T` | 🔴 TODO | IOC_Types.h | Debug what operation is blocking |
+| **Command Status** | `IOC_CmdDesc_getStatus(pCmdDesc)` | `IOC_CmdStatus_E` | ✅ IMPLEMENTED | IOC_CmdDesc.h | Check command result after `IOC_execCMD()` |
+| **Link Usage** | `IOC_getLinkUsage(LinkID, &usage)` | `IOC_LinkUsage_T` | 🔴 TODO | IOC_Types.h | Verify link capabilities |
 
 **Legend**:
-- ✅ **IMPLEMENTED**: API declared in header, state enum defined
-- 🔴 **TODO**: API needs implementation
-- 📐 **CONCEPTUAL**: Logical state for documentation, no runtime enum
+- ✅ **IMPLEMENTED**: API declared in header, state enum defined, can be called in code
+- 🔴 **TODO**: API declared but implementation pending
+- 📐 **CONCEPTUAL**: Logical state for documentation only, no runtime enum exists
 
 ## Testing Strategy
 
