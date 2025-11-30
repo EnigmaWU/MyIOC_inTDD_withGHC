@@ -508,10 +508,24 @@ static IOC_Result_T __IOC_connectService_ofProtoTCP(_IOC_LinkObject_pT pLinkObj,
     SrvAddr.sin_port = htons(pConnArgs->SrvURI.Port);
 
     if (connect(SocketFd, (struct sockaddr*)&SrvAddr, sizeof(SrvAddr)) < 0) {
+        int ConnectErrno = errno;  // Save errno before any other calls
         close(SocketFd);
         free(pTCPLinkObj);
         _IOC_LogError("Failed to connect to TCP service on port %u", pConnArgs->SrvURI.Port);
-        return IOC_RESULT_NOT_EXIST_SERVICE;
+        
+        // 🐛 BUG FIX #3 (TC-20): Map TCP errno to specific IOC error codes
+        // Architecture requirement: TCP errors must map to precise IOC_Result_T codes
+        switch (ConnectErrno) {
+            case ECONNREFUSED:   // Connection refused - server not listening
+                return IOC_RESULT_NOT_EXIST_LINK;  // -505
+            case ETIMEDOUT:      // Connection timeout
+                return IOC_RESULT_TIMEOUT;         // -506
+            case ENETUNREACH:    // Network unreachable
+            case EHOSTUNREACH:   // Host unreachable
+                return IOC_RESULT_LINK_BROKEN;     // -508
+            default:
+                return IOC_RESULT_LINK_BROKEN;     // -508 for other connection errors
+        }
     }
 
     pTCPLinkObj->SocketFd = SocketFd;
@@ -955,6 +969,9 @@ static IOC_Result_T __IOC_execCmd_ofProtoTCP(_IOC_LinkObject_pT pLinkObj, IOC_Cm
 
     // Check if timeout occurred
     if (WaitResult == ETIMEDOUT) {
+        // 🐛 BUG FIX #1 (TC-7): Synchronize state with result
+        // When IOC_execCMD returns TIMEOUT, state MUST be TIMEOUT, not PENDING
+        pCmdDesc->Status = IOC_CMD_STATUS_TIMEOUT;
         pthread_mutex_unlock(&pTCPLinkObj->Mutex);
         return IOC_RESULT_TIMEOUT;
     }
@@ -963,6 +980,10 @@ static IOC_Result_T __IOC_execCmd_ofProtoTCP(_IOC_LinkObject_pT pLinkObj, IOC_Cm
     // If RecvError is set, connection was broken during command execution
     if (pTCPLinkObj->RecvError != IOC_RESULT_SUCCESS) {
         IOC_Result_T Error = pTCPLinkObj->RecvError;
+        // 🐛 BUG FIX #1 (TC-7): Synchronize state with result
+        // When returning error, state MUST be FAILED, not PENDING
+        // (Connection was established, command started, then failed - NOT "pending")
+        pCmdDesc->Status = IOC_CMD_STATUS_FAILED;
         pthread_mutex_unlock(&pTCPLinkObj->Mutex);
         _IOC_LogError("Connection error during command execution");
         return Error;  // Return the actual error (LINK_BROKEN, TIMEOUT, etc.)

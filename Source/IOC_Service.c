@@ -920,18 +920,23 @@ static IOC_Result_T __IOC_connectServiceByProto(
             }
         }
     } else {
+        bool ProtocolFound = false;
         for (int CmpProtoIdx = 0; CmpProtoIdx < IOC_calcArrayElmtCnt(_mIOC_SrvProtoMethods); CmpProtoIdx++) {
             if (!strcmp(pConnArgs->SrvURI.pProtocol, _mIOC_SrvProtoMethods[CmpProtoIdx]->pProtocol)) {
+                ProtocolFound = true;  // Mark protocol as found
                 Result = _mIOC_SrvProtoMethods[CmpProtoIdx]->OpConnectService_F(pLinkObj, pConnArgs, pOption);
                 if (IOC_RESULT_SUCCESS == Result) {
                     pLinkObj->pMethods = _mIOC_SrvProtoMethods[CmpProtoIdx];
                 }
+                // 🐛 BUG FIX #3 (TC-20): Break after finding protocol, even if connect failed
+                // Don't mask connection errors with "protocol not supported"!
                 break;
             }
         }
 
         // 🎯 TDD GREEN FIX: Return error if no matching protocol found
-        if (pLinkObj->pMethods == NULL) {
+        // Only return NOT_SUPPORT if protocol wasn't found, not if connection failed!
+        if (!ProtocolFound) {
             _IOC_LogWarn("Unsupported protocol: %s", pConnArgs->SrvURI.pProtocol);
             return IOC_RESULT_NOT_SUPPORT;
         }
