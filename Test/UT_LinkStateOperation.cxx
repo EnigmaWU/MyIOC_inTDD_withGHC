@@ -25,9 +25,9 @@
 //   Design → Draft → Structure → Test (RED) → Code (GREEN) → Refactor → Repeat
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
+#include <atomic>
 #include <chrono>
 #include <thread>
-#include <atomic>
 
 #include "_UT_IOC_Common.h"
 
