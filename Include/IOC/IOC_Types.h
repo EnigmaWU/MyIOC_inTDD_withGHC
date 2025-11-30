@@ -139,6 +139,76 @@ enum IOC_AutoLinkID_enum {
 };
 
 /**
+ * @brief Link connection lifecycle state enumeration
+ *        Tracks the TRANSPORT-LAYER connection state (TCP/UDP/FIFO establishment)
+ *
+ * 🔑 KEY DIFFERENCE: IOC_LinkConnState_T vs IOC_LinkState_T
+ *
+ * ┌────────────────────────────────────────────────────────────────────────────┐
+ * │ IOC_LinkConnState_T (THIS ENUM)   │ IOC_LinkState_T                       │
+ * ├───────────────────────────────────┼───────────────────────────────────────┤
+ * │ Transport/Network Layer           │ Application/Operation Layer           │
+ * │ Tracks connection establishment   │ Tracks operational readiness          │
+ * │ ConetMode ONLY                    │ Both ConetMode & ConlesMode           │
+ * │ Connect → Connected → Disconnect  │ Ready ↔ Busy (during operations)     │
+ * │ Example: Connecting, Broken       │ Example: Ready, BusyCbProcEvt        │
+ * └───────────────────────────────────┴───────────────────────────────────────┘
+ *
+ * USAGE SCOPE:
+ *  - ConetMode:   BOTH IOC_LinkConnState_T (connection) + IOC_LinkState_T (operation)
+ *  - ConlesMode:  ONLY IOC_LinkState_T (no connection phase, uses AUTO_LINK_ID)
+ *
+ * RELATIONSHIP:
+ *  Connection State (this) → Operation State → SubState (CMD/DAT/EVT details)
+ *  Example: Connected → Ready → CmdInitiatorBusyExecCmd
+ *
+ * RefMore: README_ArchDesign-State.md::Link State Machine
+ */
+typedef enum {
+    IOC_LinkConnStateDisconnected = 0,  ///< No connection, no LinkID assigned
+    IOC_LinkConnStateConnecting,        ///< IOC_connectService() in progress, establishing connection
+    IOC_LinkConnStateConnected,         ///< TCP/UDP/FIFO connection established, handshake complete
+    IOC_LinkConnStateDisconnecting,     ///< IOC_disconnectService() in progress, closing connection
+    IOC_LinkConnStateBroken,            ///< Connection error detected, requires cleanup
+} IOC_LinkConnState_T,
+    *IOC_LinkConnState_pT;
+
+/**
+ * @brief Query the current connection state of a link
+ *
+ * @param LinkID: Link ID to query
+ * @param pState: Pointer to receive the current connection state
+ *
+ * @return IOC_RESULT_SUCCESS: State retrieved successfully
+ * @return IOC_RESULT_INVALID_PARAM: Invalid LinkID or NULL pState
+ * @return IOC_RESULT_NOT_EXIST_LINK: LinkID does not exist
+ */
+IOC_Result_T IOC_getLinkConnState(IOC_LinkID_T LinkID, IOC_LinkConnState_T *pState);
+
+/**
+ * @brief Link operational state enumeration
+ *        Tracks the APPLICATION-LAYER operational readiness for CMD/EVT/DAT operations
+ *
+ * 🔑 KEY DIFFERENCE: IOC_LinkState_T (THIS ENUM) vs IOC_LinkConnState_T
+ *
+ * ┌────────────────────────────────────────────────────────────────────────────┐
+ * │ IOC_LinkState_T (THIS ENUM)       │ IOC_LinkConnState_T                   │
+ * ├───────────────────────────────────┼───────────────────────────────────────┤
+ * │ Application/Operation Layer       │ Transport/Network Layer               │
+ * │ Tracks operational readiness      │ Tracks connection establishment       │
+ * │ Both ConetMode & ConlesMode       │ ConetMode ONLY                        │
+ * │ Ready ↔ Busy (during operations)  │ Connect → Connected → Disconnect      │
+ * │ Example: Ready, BusyCbProcEvt     │ Example: Connecting, Broken           │
+ * └───────────────────────────────────┴───────────────────────────────────────┘
+ *
+ * USAGE SCOPE:
+ *  - ConetMode:   IOC_LinkConnState_T (connection) + THIS ENUM (operation)
+ *  - ConlesMode:  THIS ENUM ONLY (no connection phase, uses AUTO_LINK_ID)
+ *
+ * STATE HIERARCHY:
+ *  IOC_LinkConnState_T → IOC_LinkState_T (THIS) → IOC_LinkSubState_T
+ *  Example: Connected → Ready → CmdInitiatorBusyExecCmd
+ *
  * RefMore README_ArchDesign::State
  *    |-> EVT::Conet
  *    |-> EVT::Conles
@@ -171,6 +241,24 @@ typedef enum {
     IOC_LinkSubStateCmdExecutorReady,         // Command executor ready to receive commands
     IOC_LinkSubStateCmdExecutorBusyExecCmd,   // Command executor busy processing command (callback mode)
     IOC_LinkSubStateCmdExecutorBusyWaitCmd,   // Command executor busy waiting for command (polling mode)
+
+    // ❓ WHY NO EVT SubStates?
+    //
+    // EVT operations are FIRE-AND-FORGET (stateless, non-blocking):
+    //  - postEVT(): Queue event → Done immediately (no waiting for subscribers)
+    //  - subEVT()/unsubEVT(): Register/unregister callback → Done immediately
+    //  - Event delivery: Asynchronous via callback (tracked by IOC_LinkState_T::BusyCbProcEvt)
+    //
+    // CMD/DAT are STATEFUL (blocking or flow-controlled):
+    //  - CMD: Request → WAIT for response → Complete (needs "BusyExecCmd" state)
+    //  - DAT: Send → Track buffer/flow control → Continue (needs "BusySendDat" state)
+    //
+    // EVT uses IOC_LinkState_T main states instead:
+    //  - IOC_LinkStateReady: Ready for postEVT/subEVT/unsubEVT
+    //  - IOC_LinkStateBusyCbProcEvt: Processing event in callback (ConlesMode only)
+    //  - IOC_LinkStateBusySubEvt/BusyUnsubEvt: Managing subscriptions (ConlesMode only)
+    //
+    // RefMore: README_ArchDesign-State.md::Event State Machine::Why No EVT SubStates
 
 } IOC_LinkSubState_T,
     *IOC_LinkSubState_pT;

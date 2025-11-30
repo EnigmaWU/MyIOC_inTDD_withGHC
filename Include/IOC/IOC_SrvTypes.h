@@ -18,6 +18,31 @@ extern "C" {
 #endif
 
 /**
+ * @brief Service lifecycle state enumeration
+ *        Tracks the high-level state of a service from registration to deregistration
+ *
+ * RefMore: README_ArchDesign-State.md::Service State Machine
+ */
+typedef enum {
+    IOC_SrvStateOffline = 0,  ///< Service not available, no SrvID assigned, cannot accept connections
+    IOC_SrvStateOnlining,     ///< IOC_onlineService() in progress, binding to protocol
+    IOC_SrvStateOnline,       ///< Service available at SrvURI, SrvID assigned, ready to accept clients
+    IOC_SrvStateOfflining,    ///< IOC_offlineService() in progress, closing connections
+} IOC_SrvState_T;
+
+/**
+ * @brief Query the current lifecycle state of a service
+ *
+ * @param SrvID: Service ID to query
+ * @param pState: Pointer to receive the current service state
+ *
+ * @return IOC_RESULT_SUCCESS: State retrieved successfully
+ * @return IOC_RESULT_INVALID_PARAM: Invalid SrvID or NULL pState
+ * @return IOC_RESULT_NOT_EXIST_SERVICE: SrvID does not exist
+ */
+IOC_Result_T IOC_getSrvState(IOC_SrvID_T SrvID, IOC_SrvState_T *pState);
+
+/**
  * @brief Command execution callback function type
  *        This callback is invoked when a command needs to be executed in callback mode
  *
@@ -164,6 +189,12 @@ static inline IOC_BoolResult_T IOC_Helper_isEqualSrvURI(const IOC_SrvURI_pT pSrv
 #define IOC_SRV_HOST_IPV4_ANY "0.0.0.0"            //=inter-host communication
 
 typedef enum {
+    /**
+     * @brief NONE — no special service flags (standard behavior)
+     *  - Manual client acceptance (no background accept loop)
+     *  - Point-to-point event delivery (no broadcast)
+     *  - Automatic link cleanup on service shutdown
+     */
     IOC_SRVFLAG_NONE = 0,
 
     /**
