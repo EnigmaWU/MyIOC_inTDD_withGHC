@@ -362,12 +362,225 @@
 //======>END OF TEST CASES=========================================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// 🔴 RED PHASE: Test Implementation (P1 Tests)
+// 🔴 RED PHASE: CAT-1 Ready State Verification (P1)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-// TODO: Implement TC-1 through TC-12
-// This is a placeholder file structure demonstrating the comprehensive test design
-// Each test will be implemented following the RED-GREEN-REFACTOR cycle
+/**
+ * @[TDD Phase]: 🔴 RED
+ * @[RGR Cycle]: 1 of 12
+ * @[Test]: verifyLinkState_afterConnect_expectReady_ConetMode
+ * @[Purpose]: Validate Ready state in ConetMode after successful TCP connection
+ * @[Cross-Reference]: README_ArchDesign-State.md "Link Operation States (Level 2)"
+ *
+ * @[Expected Behavior]:
+ * - After IOC_connectService() succeeds, link is in Connected state (Level 1)
+ * - Operation state (Level 2) should be Ready (no operations in progress)
+ * - SubState (Level 3) should be Default/Idle
+ *
+ * @[Level 2 Independence]:
+ * - Operation state Ready is independent of connection state Connected
+ * - Demonstrates 3-level hierarchy: Connected (L1) + Ready (L2) + Default (L3)
+ */
+TEST(UT_LinkStateOperation_Ready, TC1_verifyLinkState_afterConnect_expectReady_ConetMode) {
+    //===SETUP: Create TCP service and establish connection===
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    const uint16_t TEST_PORT = 24000;
+
+    IOC_SrvArgs_T srvArgs = {0};
+    IOC_Helper_initSrvArgs(&srvArgs);
+    srvArgs.SrvURI.pProtocol = IOC_SRV_PROTO_TCP;
+    srvArgs.SrvURI.pHost = IOC_SRV_HOST_LOCAL_PROCESS;
+    srvArgs.SrvURI.Port = TEST_PORT;
+    srvArgs.SrvURI.pPath = "LinkStateOp_TC1";
+    srvArgs.UsageCapabilites = IOC_LinkUsageCmdExecutor;
+    srvArgs.Flags = IOC_SRVFLAG_AUTO_ACCEPT;
+
+    IOC_Result_T result = IOC_onlineService(&srvID, &srvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result);
+
+    IOC_LinkID_T linkID = IOC_ID_INVALID;
+    IOC_ConnArgs_T connArgs = {0};
+    IOC_Helper_initConnArgs(&connArgs);
+    connArgs.SrvURI.pProtocol = IOC_SRV_PROTO_TCP;
+    connArgs.SrvURI.pHost = IOC_SRV_HOST_LOCAL_PROCESS;
+    connArgs.SrvURI.Port = TEST_PORT;
+    connArgs.SrvURI.pPath = "LinkStateOp_TC1";
+    connArgs.Usage = IOC_LinkUsageCmdInitiator;
+
+    result = IOC_connectService(&linkID, &connArgs, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result);
+    ASSERT_NE(IOC_ID_INVALID, linkID);
+
+    // Small delay to ensure connection is fully established
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    //===BEHAVIOR: Query operation state (Level 2) after connection===
+    IOC_LinkState_T mainState = IOC_LinkStateUndefined;
+    IOC_LinkSubState_T subState = IOC_LinkSubStateDefault;
+
+    result = IOC_getLinkState(linkID, &mainState, &subState);
+
+    //===VERIFY: Operation state should be Ready with role-specific substate===
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "IOC_getLinkState should succeed for valid ConetMode link";
+
+    EXPECT_EQ(IOC_LinkStateReady, mainState)
+        << "After connection, link operation state should be Ready (no operations in progress)";
+
+    // SubState depends on link usage/role:
+    // - CmdInitiator → IOC_LinkSubStateCmdInitiatorReady
+    // - CmdExecutor → IOC_LinkSubStateCmdExecutorReady
+    // - Generic link → IOC_LinkSubStateDefault
+    EXPECT_EQ(IOC_LinkSubStateCmdInitiatorReady, subState)
+        << "When Ready as CmdInitiator, substate should be CmdInitiatorReady";
+
+    // Additional verification: Connection state (Level 1) should be Connected
+    IOC_LinkConnState_T connState;
+    result = IOC_getLinkConnState(linkID, &connState);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result);
+    EXPECT_EQ(IOC_LinkConnStateConnected, connState)
+        << "Level 1 (Connection) should be Connected while Level 2 (Operation) is Ready";
+
+    //===CLEANUP===
+    IOC_closeLink(linkID);
+    IOC_offlineService(srvID);
+}
+
+/**
+ * @[TDD Phase]: 🔴 RED
+ * @[RGR Cycle]: 2 of 12
+ * @[Test]: verifyLinkState_afterInit_expectReady_ConlesMode
+ * @[Purpose]: Validate Ready state in ConlesMode after initialization
+ * @[Cross-Reference]: README_ArchDesign-State.md "ConlesMode Auto-Link Management"
+ *
+ * @[Expected Behavior]:
+ * - ConlesMode uses IOC_CONLES_MODE_AUTO_LINK_ID (no explicit connection)
+ * - Auto-link should be in Ready state
+ * - SubState should be Default
+ *
+ * @[Mode Difference]:
+ * - ConlesMode: No connection state (Level 1 not applicable)
+ * - Only Level 2 (Operation) and Level 3 (SubState) are relevant
+ *
+ * @[Note]: ConlesMode is always available - no setup needed
+ */
+TEST(UT_LinkStateOperation_Ready, TC2_verifyLinkState_afterInit_expectReady_ConlesMode) {
+    //===SETUP: No setup needed - ConlesMode is always available===
+
+    //===BEHAVIOR: Query operation state using auto-link ID===
+    IOC_LinkState_T mainState = IOC_LinkStateUndefined;
+    IOC_LinkSubState_T subState = IOC_LinkSubStateDefault;
+
+    IOC_Result_T result = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &mainState, &subState);
+
+    //===VERIFY: Operation state should be Ready===
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "IOC_getLinkState should succeed for ConlesMode auto-link";
+
+    EXPECT_EQ(IOC_LinkStateReady, mainState) << "ConlesMode auto-link should always be Ready for operations";
+
+    EXPECT_EQ(IOC_LinkSubStateDefault, subState) << "When Ready in ConlesMode, substate should be Default";
+
+    // Verify connection state query is NOT applicable in ConlesMode
+    IOC_LinkConnState_T connState;
+    result = IOC_getLinkConnState(IOC_CONLES_MODE_AUTO_LINK_ID, &connState);
+    EXPECT_NE(IOC_RESULT_SUCCESS, result)
+        << "Connection state query should NOT be valid for ConlesMode (no connection phase)";
+
+    //===CLEANUP: No cleanup needed===
+}
+
+/**
+ * @[TDD Phase]: 🔴 RED
+ * @[RGR Cycle]: 3 of 12
+ * @[Test]: verifyLinkState_betweenOperations_expectReady
+ * @[Purpose]: Validate state returns to Ready after operation completes
+ * @[Cross-Reference]: README_ArchDesign-State.md "State Transition Patterns"
+ *
+ * @[Expected Behavior]:
+ * - Before operation: Ready
+ * - During operation: Busy (with appropriate substate)
+ * - After operation: Ready (state restored)
+ *
+ * @[State Lifecycle]:
+ * - Demonstrates Ready → Busy → Ready transition
+ * - Validates state cleanup after operation completion
+ */
+TEST(UT_LinkStateOperation_Ready, TC3_verifyLinkState_betweenOperations_expectReady) {
+    //===SETUP: Create service and establish connection===
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    const uint16_t TEST_PORT = 24001;
+
+    IOC_SrvArgs_T srvArgs = {0};
+    IOC_Helper_initSrvArgs(&srvArgs);
+    srvArgs.SrvURI.pProtocol = IOC_SRV_PROTO_TCP;
+    srvArgs.SrvURI.pHost = IOC_SRV_HOST_LOCAL_PROCESS;
+    srvArgs.SrvURI.Port = TEST_PORT;
+    srvArgs.SrvURI.pPath = "LinkStateOp_TC3";
+    srvArgs.UsageCapabilites = IOC_LinkUsageCmdExecutor;
+    srvArgs.Flags = IOC_SRVFLAG_AUTO_ACCEPT;
+
+    IOC_Result_T result = IOC_onlineService(&srvID, &srvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result);
+
+    IOC_LinkID_T linkID = IOC_ID_INVALID;
+    IOC_ConnArgs_T connArgs = {0};
+    IOC_Helper_initConnArgs(&connArgs);
+    connArgs.SrvURI.pProtocol = IOC_SRV_PROTO_TCP;
+    connArgs.SrvURI.pHost = IOC_SRV_HOST_LOCAL_PROCESS;
+    connArgs.SrvURI.Port = TEST_PORT;
+    connArgs.SrvURI.pPath = "LinkStateOp_TC3";
+    connArgs.Usage = IOC_LinkUsageCmdInitiator;
+
+    result = IOC_connectService(&linkID, &connArgs, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result);
+    ASSERT_NE(IOC_ID_INVALID, linkID);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    //===VERIFY: Initial state is Ready===
+    IOC_LinkState_T stateBefore = IOC_LinkStateUndefined;
+    IOC_LinkSubState_T subStateBefore = IOC_LinkSubStateDefault;
+    result = IOC_getLinkState(linkID, &stateBefore, &subStateBefore);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result);
+    ASSERT_EQ(IOC_LinkStateReady, stateBefore) << "Initial state should be Ready";
+    ASSERT_EQ(IOC_LinkSubStateCmdInitiatorReady, subStateBefore) << "SubState should be CmdInitiatorReady for CMD link";
+
+    //===BEHAVIOR: Execute a simple operation (command with short timeout)===
+    IOC_CmdDesc_T cmdDesc = {0};
+    IOC_CmdDesc_initVar(&cmdDesc);
+    cmdDesc.CmdID = 1;
+    cmdDesc.TimeoutMs = 100;  // Short timeout
+
+    // Execute command (will timeout since no executor, but that's OK for state testing)
+    result = IOC_execCMD(linkID, &cmdDesc, NULL);
+    // Don't check result - we're testing state, not command execution success
+
+    //===VERIFY: State returns to Ready after operation===
+    IOC_LinkState_T stateAfter = IOC_LinkStateUndefined;
+    IOC_LinkSubState_T subStateAfter = IOC_LinkSubStateDefault;
+    result = IOC_getLinkState(linkID, &stateAfter, &subStateAfter);
+
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result);
+    EXPECT_EQ(IOC_LinkStateReady, stateAfter)
+        << "After operation completes (or times out), state should return to Ready";
+
+    EXPECT_EQ(IOC_LinkSubStateCmdInitiatorReady, subStateAfter)
+        << "SubState should also return to CmdInitiatorReady when Ready (CMD link)";
+
+    //===VERIFY: Multiple operations - state consistency===
+    // Execute second operation
+    cmdDesc.CmdID = 2;
+    result = IOC_execCMD(linkID, &cmdDesc, NULL);
+
+    // Check state again
+    IOC_LinkState_T stateAfter2 = IOC_LinkStateUndefined;
+    result = IOC_getLinkState(linkID, &stateAfter2, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result);
+    EXPECT_EQ(IOC_LinkStateReady, stateAfter2) << "State should be Ready between multiple operations";
+
+    //===CLEANUP===
+    IOC_closeLink(linkID);
+    IOC_offlineService(srvID);
+}
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF TODO/IMPLEMENTATION TRACKING SECTION============================================
@@ -387,20 +600,20 @@
 // P1 🥇 FUNCTIONAL TESTING – Ready State (CAT-1)
 //===================================================================================================
 //
-//   ⚪ [@AC-1,US-1] TC-1: verifyLinkState_afterConnect_expectReady_ConetMode
+//   ✅ [@AC-1,US-1] TC-1: verifyLinkState_afterConnect_expectReady_ConetMode
 //        - Category: Ready State (ValidFunc)
-//        - Status: PLANNED
-//        - Estimated effort: 20 min
+//        - Status: GREEN - Test PASSED
+//        - Result: ConetMode link shows Ready with CmdInitiatorReady substate
 //
-//   ⚪ [@AC-1,US-2] TC-2: verifyLinkState_afterInit_expectReady_ConlesMode
+//   ✅ [@AC-1,US-2] TC-2: verifyLinkState_afterInit_expectReady_ConlesMode
 //        - Category: Ready State (ValidFunc)
-//        - Status: PLANNED
-//        - Estimated effort: 20 min
+//        - Status: GREEN - Test PASSED
+//        - Result: ConlesMode auto-link is always Ready
 //
-//   ⚪ [@AC-1,US-3] TC-3: verifyLinkState_betweenOperations_expectReady
+//   ✅ [@AC-1,US-3] TC-3: verifyLinkState_betweenOperations_expectReady
 //        - Category: Ready State (ValidFunc)
-//        - Status: PLANNED
-//        - Estimated effort: 25 min
+//        - Status: GREEN - Test PASSED
+//        - Result: State correctly returns to Ready after operations
 //
 //===================================================================================================
 // P2 🥈 DESIGN-ORIENTED TESTING – Busy States (CAT-2, CAT-3)
@@ -458,23 +671,28 @@
 // 🚪 GATE P1: First 3 tests (Ready state) must be GREEN before proceeding to P2
 //
 // 📊 Progress Summary:
-//   P1: 0/3 tests implemented (0%) - Ready state verification
+//   P1: 3/3 tests implemented (100%) ✅ GREEN - ALL PASSING
 //   P2: 0/9 tests implemented (0%) - Busy states and transitions
-//   Total: 0/12 tests implemented (0%)
+//   Total: 3/12 tests implemented (25%)
+//
+// ✅ GREEN Phase Status:
+//   ✅ TC-1: verifyLinkState_afterConnect_expectReady_ConetMode [PASSED]
+//   ✅ TC-2: verifyLinkState_afterInit_expectReady_ConlesMode [PASSED]
+//   ✅ TC-3: verifyLinkState_betweenOperations_expectReady [PASSED]
 //
 // 📝 Implementation Notes:
-//   - This file provides comprehensive test structure for Phase 1.2
-//   - Tests are designed following CaTDD methodology
-//   - Each test includes detailed acceptance criteria
-//   - Integration with Phase 1.1 (Connection State) is considered
-//   - Phase 1.3 (3-Level Correlation) builds on this foundation
+//   - P1 gate cleared: All Ready state tests passing
+//   - Key learning: SubState reflects role (CmdInitiatorReady vs Default)
+//   - ConlesMode auto-link always available (no setup needed)
+//   - Operation state independent of connection state (as designed)
+//   - Ready to proceed to P2: Busy states (EVT/CMD/DAT)
 //
 // 🎯 Next Steps:
-//   1. Implement TC-1 (ConetMode Ready state) - Start with RED test
-//   2. Implement IOC_getLinkState() API if not yet available
-//   3. Add operation state tracking to _IOC_LinkObject_T structure
-//   4. Continue with TC-2 and TC-3 for P1 gate completion
-//   5. Proceed to P2 tests after P1 gate is cleared
+//   1. Implement TC-4 (BusyCbProcEvt during event callback)
+//   2. Implement TC-5 (BusySubEvt during subscription)
+//   3. Implement TC-6 (BusyUnsubEvt during unsubscription)
+//   4. Continue with CMD/DAT Busy states (TC-7, TC-8, TC-9)
+//   5. Complete State Transition tests (TC-10, TC-11, TC-12)
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>END OF TODO/IMPLEMENTATION TRACKING SECTION===============================================
