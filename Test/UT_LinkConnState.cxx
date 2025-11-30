@@ -300,8 +300,7 @@ TEST(UT_LinkConnState_Typical, TC1_verifyConnState_afterSuccessfulConnect_expect
     result = IOC_getLinkConnState(linkID, &connState);
 
     ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "IOC_getLinkConnState should succeed";
-    EXPECT_EQ(IOC_LinkConnStateConnected, connState) 
-        << "Connection state should be Connected after successful connect";
+    EXPECT_EQ(IOC_LinkConnStateConnected, connState) << "Connection state should be Connected after successful connect";
 
     //===CLEANUP===
     IOC_closeLink(linkID);
@@ -382,8 +381,7 @@ TEST(UT_LinkConnState_Boundary, TC1_verifyConnStateQuery_byInvalidLinkID_expectE
     IOC_Result_T result = IOC_getLinkConnState(IOC_ID_INVALID, &connState);
 
     //===VERIFY: Should return error===
-    EXPECT_EQ(IOC_RESULT_INVALID_PARAM, result) 
-        << "IOC_getLinkConnState should reject IOC_ID_INVALID";
+    EXPECT_EQ(IOC_RESULT_INVALID_PARAM, result) << "IOC_getLinkConnState should reject IOC_ID_INVALID";
 }
 
 /**
@@ -425,8 +423,7 @@ TEST(UT_LinkConnState_Boundary, TC2_verifyConnStateQuery_byNullPointer_expectErr
     result = IOC_getLinkConnState(linkID, NULL);
 
     //===VERIFY: Should return error===
-    EXPECT_EQ(IOC_RESULT_INVALID_PARAM, result)
-        << "IOC_getLinkConnState should reject NULL pointer";
+    EXPECT_EQ(IOC_RESULT_INVALID_PARAM, result) << "IOC_getLinkConnState should reject NULL pointer";
 
     //===CLEANUP===
     IOC_closeLink(linkID);
