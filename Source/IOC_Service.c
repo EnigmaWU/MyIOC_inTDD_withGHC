@@ -242,10 +242,21 @@ _IOC_LinkObject_pT __IOC_allocLinkObj(void) {
 
             pLinkObj->ID = ___IOC_convertLinkObjTblIdxToLinkID(i);
 
+            // 🎯 TDD IMPLEMENTATION: Initialize Connection state for IOC_getLinkConnState() support (Level 1)
+            pLinkObj->ConnState.CurrentState = IOC_LinkConnStateDisconnected;  // Start disconnected
+            if (pthread_mutex_init(&pLinkObj->ConnState.StateMutex, NULL) != 0) {
+                _IOC_LogError("Failed to initialize Connection state mutex for LinkID=%llu", pLinkObj->ID);
+                free(pLinkObj);
+                return NULL;
+            }
+            pLinkObj->ConnState.IsConnected = false;
+            pLinkObj->ConnState.LastStateChangeTime = time(NULL);
+
             // 🎯 TDD IMPLEMENTATION: Initialize DAT state for IOC_getLinkState() support
             pLinkObj->DatState.CurrentSubState = IOC_LinkSubStateDefault;
             if (pthread_mutex_init(&pLinkObj->DatState.SubStateMutex, NULL) != 0) {
                 _IOC_LogError("Failed to initialize DAT substate mutex for LinkID=%llu", pLinkObj->ID);
+                pthread_mutex_destroy(&pLinkObj->ConnState.StateMutex);
                 free(pLinkObj);
                 return NULL;
             }
@@ -288,8 +299,10 @@ void __IOC_freeLinkObj(_IOC_LinkObject_pT pLinkObj) {
     _mIOC_LinkObjTbl[___IOC_convertLinkIDToLinkObjTblIdx(pLinkObj->ID)] = NULL;
     ___IOC_unlockLinkObjTbl();
 
-    // 🎯 TDD IMPLEMENTATION: Cleanup DAT state mutex
+    // 🎯 TDD IMPLEMENTATION: Cleanup state mutexes
+    pthread_mutex_destroy(&pLinkObj->ConnState.StateMutex);
     pthread_mutex_destroy(&pLinkObj->DatState.SubStateMutex);
+    pthread_mutex_destroy(&pLinkObj->CmdState.SubStateMutex);
 
     free(pLinkObj);
     pthread_mutex_lock(&_mIOC_TestHooksMutex);
@@ -907,6 +920,12 @@ static IOC_Result_T __IOC_connectServiceByProto(
     // This ensures that protocol implementations can access the connection parameters
     memcpy(&pLinkObj->Args, pConnArgs, sizeof(IOC_ConnArgs_T));
 
+    // 🎯 TDD GREEN: Set connection state to Connecting before attempting connection
+    pthread_mutex_lock(&pLinkObj->ConnState.StateMutex);
+    pLinkObj->ConnState.CurrentState = IOC_LinkConnStateConnecting;
+    pLinkObj->ConnState.LastStateChangeTime = time(NULL);
+    pthread_mutex_unlock(&pLinkObj->ConnState.StateMutex);
+
     // IF ProtoAuto, TRY OneByOne Proto in _mIOC_SrvProtoMethods until the first success or all failed.
     // ELSE: TRY the specified Proto in _mIOC_SrvProtoMethods and return the result.
     IOC_Bool_T IsProtoAuto = !strcmp(pConnArgs->SrvURI.pProtocol, IOC_SRV_PROTO_AUTO);
@@ -927,6 +946,13 @@ static IOC_Result_T __IOC_connectServiceByProto(
                 Result = _mIOC_SrvProtoMethods[CmpProtoIdx]->OpConnectService_F(pLinkObj, pConnArgs, pOption);
                 if (IOC_RESULT_SUCCESS == Result) {
                     pLinkObj->pMethods = _mIOC_SrvProtoMethods[CmpProtoIdx];
+
+                    // 🎯 TDD GREEN: Set connection state to Connected after successful connection
+                    pthread_mutex_lock(&pLinkObj->ConnState.StateMutex);
+                    pLinkObj->ConnState.CurrentState = IOC_LinkConnStateConnected;
+                    pLinkObj->ConnState.IsConnected = true;
+                    pLinkObj->ConnState.LastStateChangeTime = time(NULL);
+                    pthread_mutex_unlock(&pLinkObj->ConnState.StateMutex);
                 }
                 // 🐛 BUG FIX #3 (TC-20): Break after finding protocol, even if connect failed
                 // Don't mask connection errors with "protocol not supported"!
@@ -1163,6 +1189,52 @@ IOC_Result_T IOC_getServiceState(IOC_SrvID_T SrvID, void* pServiceState, uint16_
         // Future: populate service state information
         memset(pServiceState, 0, sizeof(void*));  // Safe null operation
     }
+
+    return IOC_RESULT_SUCCESS;
+}
+
+/**
+ * @brief Get link connection state (Level 1 of 3-level hierarchy)
+ * @param LinkID: The link ID to query
+ * @param pState: Pointer to store the connection state
+ * @return IOC_Result_T
+ *   - IOC_RESULT_SUCCESS: State retrieved successfully
+ *   - IOC_RESULT_INVALID_PARAM: NULL pointer or invalid LinkID
+ *   - IOC_RESULT_NOT_EXIST_LINK: LinkID does not exist
+ *
+ * @architecture README_ArchDesign-State.md "Link Connection States (Level 1)"
+ * @note This API is for ConetMode only (TCP/FIFO). ConlesMode has no connection state.
+ * @note Connection State (L1) is independent of Operation State (L2) and SubState (L3)
+ *
+ * @[TDD Phase]: 🟢 GREEN - Implementing to make RED tests pass
+ * @[Tests]: UT_LinkConnStateTCP.cxx TC1-TC3
+ */
+IOC_Result_T IOC_getLinkConnState(IOC_LinkID_T LinkID, IOC_LinkConnState_T* pState) {
+    // Fast-fail validation (Fast-Fail Six #1: NULL pointer)
+    if (NULL == pState) {
+        _IOC_LogError("IOC_getLinkConnState: NULL state pointer");
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
+    // Fast-fail validation (Fast-Fail Six #4: Invalid ID)
+    if (IOC_ID_INVALID == LinkID) {
+        _IOC_LogError("IOC_getLinkConnState: Invalid LinkID");
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
+    // Get link object
+    _IOC_LinkObject_pT pLinkObj = _IOC_getLinkObjByLinkID(LinkID);
+    if (NULL == pLinkObj) {
+        _IOC_LogError("IOC_getLinkConnState: LinkID %" PRIu64 " does not exist", LinkID);
+        return IOC_RESULT_NOT_EXIST_LINK;
+    }
+
+    // Thread-safe state retrieval
+    pthread_mutex_lock(&pLinkObj->ConnState.StateMutex);
+    *pState = pLinkObj->ConnState.CurrentState;
+    pthread_mutex_unlock(&pLinkObj->ConnState.StateMutex);
+
+    _IOC_LogDebug("IOC_getLinkConnState: LinkID=%" PRIu64 " State=%d", LinkID, *pState);
 
     return IOC_RESULT_SUCCESS;
 }

@@ -1,27 +1,29 @@
 /**************************************************************************************************
  * @file UT_LinkStateTCP.cxx
- * @brief Unit tests for Link State (US-2) behavior over TCP protocol
- * @date 2025-11-29
+ * @brief Unit tests for Link Operation State (Level 2) and SubState (Level 3) over TCP protocol
+ * @date 2025-11-30
  *
- * @purpose Validate IOC link state machine behavior specific to TCP transport protocol.
- *          Tests link main state and substates during TCP connection lifecycle, state
- *          transitions during command/event activity, and correlation with TCP socket state.
+ * @purpose Validate IOC link operation state behavior specific to TCP transport protocol.
+ *          Tests link main state (Ready/Busy) and role-specific substates during command/data
+ *          activity over TCP connections.
  *
- * @architecture_mapping US-2: Link Command State (README_ArchDesign.md)
- *          Link State Machine: LinkStateReady (composite) with role-specific substates
- *          - CmdInitiatorReady ⟷ CmdInitiatorBusyExecCmd
- *          - CmdExecutorReady → BusyWaitCmd → BusyExecCmd → BusyAckCmd → Ready
+ * @architecture_mapping
+ *          Link State Hierarchy (3 Levels):
+ *          - Level 1 (Connection State): Tested in UT_LinkConnStateTCP.cxx
+ *          - Level 2 (Operation State): Ready ⟷ Busy (THIS FILE)
+ *          - Level 3 (Detail SubState): CmdInitiator/CmdExecutor substates (THIS FILE)
  *
- * @scope TCP-specific link state testing (US-2 × TCP protocol integration)
+ * @scope TCP-specific link operation state testing (Level 2 & 3)
  * @related_files
- *   - UT_CommandStateTCP.cxx: Command state (US-1) over TCP
- *   - UT_LinkStateUS2.cxx: Protocol-agnostic link state testing
- *   - README_ArchDesign.md: Link State Machine specifications
+ *   - UT_LinkConnStateTCP.cxx: TCP Connection State (Level 1)
+ *   - UT_LinkConnState.cxx: Protocol-agnostic Connection State
+ *   - UT_LinkStateOperation.cxx: Protocol-agnostic Operation State (Level 2)
+ *   - README_ArchDesign-State.md: Link State Machine specifications
  *
- * FRAMEWORK STATUS: ⚪ Link State Testing - DESIGN PHASE
- *    • Test infrastructure: PENDING (TcpLinkStateMonitor, LinkStateValidator)
- *    • Test cases: 0/14 (0% complete)
- *    • Target: 14 test cases covering TCP-specific link state scenarios
+ * FRAMEWORK STATUS: ⚪ Link Operation State Testing - DESIGN PHASE
+ *    • Test infrastructure: PENDING (TcpLinkOperationMonitor, SubStateValidator)
+ *    • Test cases: 0/11 (0% complete - 3 tests migrated to UT_LinkConnStateTCP.cxx)
+ *    • Target: 11 test cases covering TCP-specific operation state scenarios
  *    • Progress: Design skeleton created, ready for implementation
  **************************************************************************************************/
 
@@ -39,65 +41,83 @@
 #include "_UT_IOC_Common.h"
 
 /**************************************************************************************************
- * @brief 【TCP-Specific Link State Test Cases】
+ * @brief 【TCP-Specific Link Operation State Test Cases】
  *
  * ORGANIZATION STRATEGY:
- *  🔷 By TCP Connection Lifecycle Phase:
- *     • Connection Establishment Phase (SYN → SYN-ACK → ACK → ESTABLISHED)
- *     • Active Connection Phase (ESTABLISHED with command/event activity)
- *     • Connection Loss Phase (RESET, TIMEOUT, network partition)
- *     • Connection Shutdown Phase (Graceful FIN vs Abortive RST)
- *     • State Correlation (Link state ⟺ TCP socket state ⟺ Command activity)
+ *  🔷 By Link State Layer (Levels 2 & 3 only - Level 1 in UT_LinkConnStateTCP.cxx):
+ *     • Link Main State (Level 2): Ready ⟷ Busy transitions
+ *     • Link SubState (Level 3): CmdInitiator/CmdExecutor role-specific substates
  *
- *  🔷 By Link State Layer:
- *     • Link Main State: Ready/Busy/Offline/Disconnected
- *     • Link SubState: CmdInitiatorReady, CmdInitiatorBusyExecCmd, CmdExecutorBusyWaitCmd, etc.
- *     • TCP Socket State: LISTEN, SYN_SENT, ESTABLISHED, FIN_WAIT, CLOSE_WAIT, etc.
+ *  🔷 By Command Activity Phase:
+ *     • Command Initiation Phase (CmdInitiator: Ready → BusyExecCmd)
+ *     • Command Execution Phase (CmdExecutor: Ready → BusyWaitCmd → BusyExecCmd)
+ *     • Command Completion Phase (Both: Busy → Ready)
  *
- *  🔷 By State Transition Trigger:
- *     • Connection events: connect(), accept(), close()
- *     • Command activity: IOC_execCMD() triggering substate transitions
- *     • TCP errors: ECONNRESET, EPIPE, ETIMEDOUT
- *     • Application control: IOC_closeLink(), IOC_offlineService()
+ *  🔷 By TCP Interaction:
+ *     • Normal TCP data flow × Link Operation State
+ *     • TCP delays/buffering × Link State transitions
+ *     • TCP errors during command execution × State handling
  *
- * 🎯 COVERAGE TARGET: 100% of TCP-specific link state integration scenarios
+ * 🎯 COVERAGE TARGET: 100% of TCP-specific link operation state scenarios
  *
  * STATUS TRACKING: ⚪ = Planned/TODO，🔴 = Implemented/RED, 🟢 = Passed/GREEN, ⚠️ = Issues
  *
- * 🟢 FRAMEWORK STATUS: TCP-Specific Link State Testing - DESIGN PHASE
- *    • Core framework: PENDING (TcpLinkStateMonitor, LinkStateValidator)
- *    • Test cases: 0/14 (0% complete)
- *    • Target: 14 test cases covering TCP-specific link state scenarios
- *    • Progress: Design skeleton established, 4 tests moved from UT_CommandStateTCP.cxx
- *    • Architecture compliance: Link State Machine per README_ArchDesign.md
+ * 🟢 FRAMEWORK STATUS: TCP-Specific Link Operation State Testing - DESIGN PHASE
+ *    • Core framework: PENDING (TcpLinkOperationMonitor, SubStateValidator)
+ *    • Test cases: 0/11 (0% complete)
+ *    • Target: 11 test cases covering TCP-specific operation state scenarios
+ *    • Architecture compliance: Link State Machine Level 2 & 3 per README_ArchDesign-State.md
+ *    • Migrated: 3 Connection State tests moved to UT_LinkConnStateTCP.cxx
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
- * 📋 [CAT-1]: TCP CONNECTION ESTABLISHMENT × LINK STATE (0/3)
+ * 📋 [CAT-2]: ACTIVE CONNECTION × LINK OPERATION STATE (0/3)
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
- * PURPOSE: Verify link state behavior during TCP connection setup phase
+ * PURPOSE: Verify link operation state (L2) and substate (L3) during command activity over TCP
  *
- * [@AC-1,US-2] [@AC-2,US-2] Link state reflects command readiness and activity
- * ⚪ TC-1: verifyLinkState_duringTcpConnectAttempt_expectConnectingSubState
- *      @[Purpose]: Validate link state reflects TCP connection attempt
- *      @[Brief]: Check IOC_getLinkState() during connection establishment
- *      @[TCP Focus]: Link state should show connecting/establishing during TCP handshake
- *      @[US Mapping]: US-2 AC-1 (link ready for commands), AC-2 (reflects command activity)
- *      @[Expected]: Link SubState indicates connection in progress
- *      @[Architecture]: LinkStateReady composite state with CmdInitiator substates
- *      @[Port]: 23080 (base port for link state testing)
- *      @[Priority]: HIGH - Link state during TCP handshake
- *      @[Origin]: Moved from UT_CommandStateTCP.cxx TC-4
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ * 📋 [CAT-2]: ACTIVE CONNECTION × LINK OPERATION STATE (0/3)
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ * PURPOSE: Verify link operation state (L2) and substate (L3) during command activity over TCP
  *
- * [@AC-1,US-2] [@AC-7,US-2] Link state transitions to ready after connection success
- * ⚪ TC-2: verifyLinkState_afterTcpConnectSuccess_expectReadyState
- *      @[Purpose]: Validate link transitions to Ready state after TCP connection established
- *      @[Brief]: Monitor link main state and substate after successful connection
- *      @[TCP Focus]: Link state synchronized with TCP ESTABLISHED state
- *      @[US Mapping]: US-2 AC-1 (link ready for commands), AC-7 (ready state after completion)
- *      @[Expected]: Link Main State = Ready, SubState = CmdInitiatorReady or CmdExecutorReady
- *      @[Port]: 23081
- *      @[Priority]: HIGH - Link state after connection establishment
+ * NOTE: Connection State tests (CAT-1) have been migrated to UT_LinkConnStateTCP.cxx
+ *       This file now focuses on Operation State (Level 2) and SubState (Level 3) only.
  *
+ * [@AC-1,US-2] [@AC-2,US-2] Link operation state reflects command activity
+ * ⚪ TC-1: verifyLinkOperationState_duringCommandExecution_expectBusyState
+ *      @[Purpose]: Validate link main state transitions to Busy during command execution
+ *      @[Brief]: Execute command, query IOC_getLinkState() during execution, expect Busy
+ *      @[TCP Focus]: Operation state independent of TCP connection state (L1 vs L2)
+ *      @[US Mapping]: US-2 AC-2 (reflects command activity)
+ *      @[Expected]: Link Main State = Busy during command execution
+ *      @[Architecture]: Link State Level 2 (Operation State)
+ *      @[Port]: 23083 (continuing from UT_LinkConnStateTCP.cxx port 23102)
+ *      @[Priority]: HIGH - Operation state during command activity
+ *      @[API]: IOC_getLinkState(LinkID, &mainState, &subState) - Level 2 & 3 query
+ *
+ * [@AC-2,US-2] [@AC-3,US-2] Link substate reflects role-specific activity
+ * ⚪ TC-2: verifyLinkSubState_asCmdInitiator_expectBusyExecCmdState
+ *      @[Purpose]: Validate CmdInitiator role substate during command execution
+ *      @[Brief]: As CmdInitiator, execute command, query substate, expect BusyExecCmd
+ *      @[TCP Focus]: Substate transitions independent of TCP socket state
+ *      @[US Mapping]: US-2 AC-2 (reflects activity), AC-3 (role-specific states)
+ *      @[Expected]: Link SubState = CmdInitiatorBusyExecCmd during execution
+ *      @[Architecture]: Link State Level 3 (SubState - role-specific detail)
+ *      @[Port]: 23084
+ *      @[Priority]: HIGH - Role-specific substate validation
+ *
+ * [@AC-7,US-2] Link state returns to Ready after command completion
+ * ⚪ TC-3: verifyLinkOperationState_afterCommandCompletion_expectReadyState
+ *      @[Purpose]: Validate link returns to Ready state after command completes
+ *      @[Brief]: Execute command, wait for completion, query state, expect Ready
+ *      @[TCP Focus]: State cleanup after TCP data transfer completes
+ *      @[US Mapping]: US-2 AC-7 (ready state after completion)
+ *      @[Expected]: Link Main State = Ready, SubState = CmdInitiatorReady
+ *      @[Port]: 23085
+ *      @[Priority]: HIGH - State cleanup validation
+ *
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ * 📋 [CAT-3]: TCP ERROR DURING OPERATION × LINK STATE (0/3)
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * [@AC-1,US-2] Link state remains offline/disconnected when connection fails
  * ⚪ TC-3: verifyLinkState_whenTcpConnectRefused_expectOfflineState
  *      @[Purpose]: Validate link remains offline when connection refused (ECONNREFUSED)
@@ -686,4 +706,62 @@ static IOC_Result_T __LinkStateTcp_ExecutorCb(IOC_LinkID_T LinkID, IOC_CmdDesc_p
  *     Current: Command-focused
  *     Future: Need DataSender/DataReceiver substate testing
  */
-//======>END OF DESIGN NOTES & DECISION LOG=======================================================
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF TEST IMPLEMENTATION (TDD: RED → GREEN → REFACTOR)================================
+
+/**
+ * MIGRATION NOTE:
+ * ✅ The 3 Connection State tests (CAT-1) have been successfully migrated to UT_LinkConnStateTCP.cxx:
+ *   - TC1: verifyTcpHandshake_duringConnect_expectConnectingOrConnected (Port 23100) - 🟢 PASSING
+ *   - TC2: verifyTcpEstablished_afterHandshake_expectConnected (Port 23101) - 🟢 PASSING
+ *   - TC3: verifyTcpConnRefused_byOfflineService_expectConnectFailure (Port 23102) - 🟢 PASSING
+ *
+ * ✅ IOC_getLinkConnState() API implemented and all tests passing (GREEN phase complete)
+ *
+ * This file now focuses on:
+ *   - CAT-2: Active Connection × Link Operation State (Level 2 & 3)
+ *   - CAT-3: TCP Error During Operation × Link State
+ *   - CAT-4: TCP Connection Loss × Link State Recovery
+ *   - CAT-5: State Correlation (3-level hierarchy)
+ */
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// ⚪ TODO: Implement CAT-2 TC-1 (RED phase) - Link Operation State during command
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// TEST(UT_LinkStateTCP_CAT2, TC1_verifyLinkOperationState_duringCommandExecution_expectBusyState) {
+//   // Will be implemented following TDD RED→GREEN→REFACTOR cycle
+//   // Port: 23083
+//   // Tests: IOC_getLinkState(LinkID, &mainState, &subState) - Level 2
+// }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// 📝 TDD PROGRESS TRACKER
+///////////////////////////////////////////////////////////////////////////////////////////////////
+/**
+ * Phase 1.1 (P0): UT_LinkStateTCP.cxx - Operation State Tests
+ *
+ * RGR Cycle Status:
+ * ✅ Cycle 1-3/14: Connection State tests MIGRATED to UT_LinkConnStateTCP.cxx
+ * ⚪ Cycle 4/11: TC1 - Pending (CAT-2: Operation State during command)
+ * ⚪ Cycle 5/11: TC2 - Pending (CAT-2: SubState as CmdInitiator)
+ * ⚪ Cycle 6/11: TC3 - Pending (CAT-2: Return to Ready after completion)
+ * ⚪ Cycle 7/11: TC4 - Pending (CAT-3: TCP error during operation)
+ * ⚪ Cycle 8/11: TC5 - Pending (CAT-3: TCP timeout during command)
+ * ⚪ Cycle 9/11: TC6 - Pending (CAT-3: TCP write failure)
+ * ⚪ Cycle 10/11: TC7 - Pending (CAT-4: Connection loss detection)
+ * ⚪ Cycle 11/11: TC8 - Pending (CAT-5: State correlation)
+ *
+ * File Organization:
+ * - UT_LinkConnState.cxx: Protocol-agnostic Connection State (L1)
+ * - UT_LinkConnStateTCP.cxx: TCP-specific Connection State errors (L1)
+ * - UT_LinkStateTCP.cxx (THIS FILE): TCP-specific Operation State (L2 & L3)
+ * - UT_LinkStateOperation.cxx (FUTURE): Protocol-agnostic Operation State (L2)
+ *
+ * Next Steps:
+ * 1. Implement CAT-2 tests (Operation State Level 2 & 3)
+ * 2. Implement CAT-3 tests (TCP errors during operations)
+ * 3. Implement CAT-4 tests (Connection loss recovery)
+ * 4. Implement CAT-5 tests (3-level hierarchy correlation)
+ */
+
+//======>END OF TEST IMPLEMENTATION================================================================

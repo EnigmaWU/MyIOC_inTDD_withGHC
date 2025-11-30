@@ -1,0 +1,329 @@
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// UT_LinkConnState.cxx - Protocol-Agnostic Link Connection State Testing
+//
+// PURPOSE:
+//   Test fundamental Link Connection State (Level 1) behavior independent of protocol.
+//   This file verifies state transitions, query APIs, and state consistency across all protocols.
+//
+// COVERAGE STRATEGY:
+//   - Protocol-agnostic Connection State fundamentals (FIFO/TCP common behavior)
+//   - Protocol-specific details tested in UT_LinkConnStateTCP.cxx, UT_LinkConnStateFIFO.cxx
+//   - Operation State (L2) tested in UT_LinkStateOperation.cxx
+//
+// REFERENCE:
+//   - README_ArchDesign-State.md "Link Connection States (Level 1 - ConetMode Only)"
+//   - LLM/CaTDD_DesignPrompt.md for methodology
+//
+// TDD WORKFLOW:
+//   Design → Draft → Structure → Test (RED) → Code (GREEN) → Refactor → Repeat
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+#include "_UT_IOC_Common.h"
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF OVERVIEW OF THIS UNIT TESTING FILE===============================================
+/**
+ * @brief
+ *   [WHAT] This file verifies Link Connection State (Level 1) behavior
+ *   [WHERE] in the IOC Link State Management subsystem
+ *   [WHY] to ensure correct state transitions and query APIs work consistently across protocols
+ *
+ * SCOPE:
+ *   - In scope:
+ *     • Connection state transitions (Disconnected/Connecting/Connected/Disconnecting/Broken)
+ *     • IOC_getLinkConnState() API correctness
+ *     • State consistency during service lifecycle
+ *     • Protocol-agnostic connection establishment patterns
+ *   - Out of scope:
+ *     • Protocol-specific connection details (see UT_LinkConnStateTCP.cxx, UT_LinkConnStateFIFO.cxx)
+ *     • Operation State Level 2 (see UT_LinkStateOperation.cxx)
+ *     • SubState Level 3 (see UT_LinkSubState.cxx)
+ *
+ * KEY CONCEPTS:
+ *   - Link Connection State: Level 1 of 3-level state hierarchy (ConetMode only)
+ *   - 5 States: Disconnected, Connecting, Connected, Disconnecting, Broken
+ *   - Protocol Independence: Common behavior tested here, specifics tested separately
+ *   - State Query API: IOC_getLinkConnState(LinkID, &connState)
+ *
+ * RELATIONSHIPS:
+ *   - Depends on: IOC_Service.c, IOC_Command.c (connection establishment)
+ *   - Related tests: UT_LinkConnStateTCP.cxx (TCP-specific), UT_LinkConnStateFIFO.cxx (FIFO-specific)
+ *   - Production code: Source/IOC_Service.c (state management)
+ *   - Architecture: README_ArchDesign-State.md
+ */
+//======>END OF OVERVIEW OF THIS UNIT TESTING FILE=================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF UNIT TESTING DESIGN==============================================================
+
+/**************************************************************************************************
+ * 📋 TEST CASE DESIGN ASPECTS/CATEGORIES
+ *
+ * PRIORITY FRAMEWORK (from CaTDD):
+ *   P1 🥇 FUNCTIONAL:     Must complete before P2 (ValidFunc + InvalidFunc)
+ *   P2 🥈 DESIGN-ORIENTED: Test after P1 (State, Capability, Concurrency)
+ *   P3 🥉 QUALITY-ORIENTED: Test for quality attributes (Performance, Robust, etc.)
+ *
+ * CONTEXT-SPECIFIC ADJUSTMENT:
+ *   - This is State-focused component → Promote State to early P2
+ *   - Protocol-agnostic focus → Defer protocol specifics to separate files
+ *************************************************************************************************/
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF USER STORY=======================================================================
+/**
+ * COVERAGE STRATEGY:
+ *   Dimension 1: Connection Lifecycle Phase (Establishment / Active / Teardown)
+ *   Dimension 2: Protocol Type (TCP / FIFO / Any)
+ *   Dimension 3: State Transition (Normal / Error / Forced)
+ *
+ * COVERAGE MATRIX:
+ * ┌─────────────────────┬─────────────┬─────────────────┬──────────────────────────────┐
+ * │ Lifecycle Phase     │ Protocol    │ Transition Type │ Key Scenarios                │
+ * ├─────────────────────┼─────────────┼─────────────────┼──────────────────────────────┤
+ * │ Establishment       │ Any         │ Normal          │ US-1: Basic state query      │
+ * │ Establishment       │ Any         │ Error           │ US-2: Connect failure        │
+ * │ Active              │ Any         │ Normal          │ US-3: Stable connection      │
+ * │ Teardown            │ Any         │ Normal          │ US-4: Graceful close         │
+ * │ Teardown            │ Any         │ Forced          │ US-5: Abrupt disconnection   │
+ * └─────────────────────┴─────────────┴─────────────────┴──────────────────────────────┘
+ *
+ * USER STORIES:
+ *
+ *  US-1: As a connection state monitor,
+ *        I want to query connection state during establishment,
+ *        So that I can detect when connection is ready for use.
+ *
+ *  US-2: As an error handler,
+ *        I want to detect connection failures via state query,
+ *        So that I can implement retry or fallback logic.
+ *
+ *  US-3: As a service maintainer,
+ *        I want stable Connected state during normal operation,
+ *        So that I can reliably send/receive data.
+ *
+ *  US-4: As a resource manager,
+ *        I want to track graceful disconnection states,
+ *        So that I can properly release resources.
+ *
+ *  US-5: As a fault detector,
+ *        I want to detect abrupt connection loss,
+ *        So that I can alert users or trigger recovery.
+ */
+//======>END OF USER STORY=========================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//=======>BEGIN OF ACCEPTANCE CRITERIA=============================================================
+/**
+ * [@US-1] Query connection state during establishment
+ *  AC-1: GIVEN a service with CmdExecutor capability,
+ *         WHEN client calls IOC_connectService() successfully,
+ *         THEN IOC_getLinkConnState() returns Connected or Connecting,
+ *          AND state query succeeds with IOC_RESULT_SUCCESS.
+ *
+ *  AC-2: GIVEN an established connection,
+ *         WHEN querying connection state multiple times,
+ *         THEN state remains consistent (Connected),
+ *          AND each query returns IOC_RESULT_SUCCESS.
+ *
+ * [@US-2] Detect connection failures
+ *  AC-1: GIVEN no service running on target URI,
+ *         WHEN client attempts IOC_connectService(),
+ *         THEN connection fails with appropriate error code,
+ *          AND linkID remains IOC_ID_INVALID (no state to query).
+ *
+ *  AC-2: GIVEN connection attempt to invalid URI,
+ *         WHEN IOC_connectService() is called,
+ *         THEN operation fails immediately,
+ *          AND no link is created (IOC_ID_INVALID).
+ *
+ * [@US-3] Stable Connected state
+ *  AC-1: GIVEN a successfully established connection,
+ *         WHEN no operations are performed,
+ *         THEN connection state remains Connected,
+ *          AND state query continues to succeed.
+ *
+ *  AC-2: GIVEN an active connection,
+ *         WHEN commands are executed successfully,
+ *         THEN connection state remains Connected,
+ *          AND state does not transition during command execution.
+ *
+ * [@US-4] Graceful disconnection tracking
+ *  AC-1: GIVEN an active connection,
+ *         WHEN IOC_closeLink() is called,
+ *         THEN connection transitions to Disconnecting or Disconnected,
+ *          AND resources are released properly.
+ *
+ * [@US-5] Abrupt disconnection detection
+ *  AC-1: GIVEN an active connection,
+ *         WHEN service is terminated abruptly,
+ *         THEN connection state transitions to Broken or Disconnected,
+ *          AND subsequent operations return appropriate errors.
+ */
+//=======>END OF ACCEPTANCE CRITERIA================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF TEST CASES=======================================================================
+/**
+ * TEST ORGANIZATION: By Connection Lifecycle Phase → State Category
+ *
+ * STATUS TRACKING:
+ *  ⚪ = Planned/TODO     - Designed but not implemented
+ *  🔴 = Implemented/RED  - Test written and failing (need prod code)
+ *  🟢 = Passed/GREEN     - Test written and passing
+ *
+ * NAMING CONVENTION: verifyBehavior_byCondition_expectResult
+ *
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ * 📋 [CATEGORY: Typical] Core Connection State Behavior
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * [@AC-1,US-1] Query connection state after successful connect
+ *  ⚪ TC-1: verifyConnState_afterSuccessfulConnect_expectConnected
+ *      @[Purpose]: Validate basic state query after connection establishment
+ *      @[Brief]: Connect successfully, query state, expect Connected
+ *      @[Protocol]: TCP (simplest to test)
+ *      @[Status]: PLANNED - Foundation test
+ *
+ * [@AC-2,US-1] Consistent state during stable connection
+ *  ⚪ TC-2: verifyConnState_duringStableConnection_expectConsistentConnected
+ *      @[Purpose]: Verify state stability over multiple queries
+ *      @[Brief]: Query state 10 times consecutively, expect all Connected
+ *      @[Status]: PLANNED
+ *
+ * [@AC-2,US-3] State stability during command execution
+ *  ⚪ TC-3: verifyConnState_duringCommandExecution_expectStableConnected
+ *      @[Purpose]: Connection state independent of operation state
+ *      @[Brief]: Execute command, query connection state during execution, expect Connected
+ *      @[Status]: PLANNED - Validates L1/L2 independence
+ *
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ * 📋 [CATEGORY: Boundary] Edge Cases and API Validation
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * [@AC-1,US-2] Query with invalid LinkID
+ *  ⚪ TC-1: verifyConnStateQuery_byInvalidLinkID_expectError
+ *      @[Purpose]: Fast-fail validation for invalid handle
+ *      @[Brief]: Call IOC_getLinkConnState(IOC_ID_INVALID, &state), expect error
+ *      @[Status]: PLANNED - Fast-Fail Six #4
+ *
+ * [@AC-1,US-2] Query with NULL state pointer
+ *  ⚪ TC-2: verifyConnStateQuery_byNullPointer_expectError
+ *      @[Purpose]: Fast-fail validation for NULL pointer
+ *      @[Brief]: Call IOC_getLinkConnState(validID, NULL), expect error
+ *      @[Status]: PLANNED - Fast-Fail Six #1
+ *
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ * 📋 [CATEGORY: State] Lifecycle Transitions
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * [@AC-1,US-4] Graceful close state transition
+ *  ⚪ TC-1: verifyConnState_afterCloseLink_expectDisconnected
+ *      @[Purpose]: Verify state after graceful disconnection
+ *      @[Brief]: Establish connection, close link, query state, expect Disconnected
+ *      @[Status]: PLANNED
+ *
+ * [@AC-1,US-4] State after service shutdown
+ *  ⚪ TC-2: verifyConnState_afterServiceOffline_expectDisconnectedOrBroken
+ *      @[Purpose]: Verify state when service goes offline
+ *      @[Brief]: Connect, offline service, query client link state
+ *      @[Status]: PLANNED
+ *
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ * 📋 [CATEGORY: Misuse] Incorrect API Usage
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * [@AC-1,US-2] Query state after link closed
+ *  ⚪ TC-1: verifyConnStateQuery_afterCloseLink_expectError
+ *      @[Purpose]: Detect use-after-close error
+ *      @[Brief]: Close link, attempt state query, expect error
+ *      @[Status]: PLANNED - Validates handle lifecycle
+ *
+ * [@AC-2,US-2] Connect to invalid protocol
+ *  ⚪ TC-2: verifyConnect_byInvalidProtocol_expectError
+ *      @[Purpose]: Reject unsupported protocol early
+ *      @[Brief]: Set pProtocol="INVALID", call IOC_connectService(), expect error
+ *      @[Status]: PLANNED
+ */
+//======>END OF TEST CASES=========================================================================
+//======>END OF UNIT TESTING DESIGN================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======BEGIN OF UNIT TESTING IMPLEMENTATION=======================================================
+
+// ⚪ TODO: Implement TC-1 (RED phase)
+// TEST(UT_LinkConnState_Typical, verifyConnState_afterSuccessfulConnect_expectConnected) {
+//   // Will be implemented following TDD RED→GREEN→REFACTOR cycle
+// }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF TODO/IMPLEMENTATION TRACKING SECTION============================================
+// 🔴 IMPLEMENTATION STATUS TRACKING
+//
+// STATUS LEGEND:
+//   ⚪ TODO/PLANNED:      Designed but not implemented yet
+//   🔴 RED/FAILING:       Test written, production code missing
+//   🟢 GREEN/PASSED:      Test written and passing
+//
+// PRIORITY LEVELS:
+//   P1 🥇 FUNCTIONAL:     Typical + Boundary + Misuse
+//   P2 🥈 DESIGN:         State transitions
+//   P3 🥉 QUALITY:        Robust, Performance
+//
+//===================================================================================================
+// P1 🥇 FUNCTIONAL TESTING – ValidFunc (Typical + Boundary)
+//===================================================================================================
+//
+//   ⚪ [@AC-1,US-1] TC-1: verifyConnState_afterSuccessfulConnect_expectConnected
+//        - Category: Typical (ValidFunc)
+//        - Estimated effort: 30 min
+//
+//   ⚪ [@AC-2,US-1] TC-2: verifyConnState_duringStableConnection_expectConsistentConnected
+//        - Category: Typical (ValidFunc)
+//        - Estimated effort: 20 min
+//
+//   ⚪ [@AC-1,US-2] TC-1: verifyConnStateQuery_byInvalidLinkID_expectError
+//        - Category: Boundary (ValidFunc) - Fast-Fail Six #4
+//        - Estimated effort: 15 min
+//
+//   ⚪ [@AC-1,US-2] TC-2: verifyConnStateQuery_byNullPointer_expectError
+//        - Category: Boundary (ValidFunc) - Fast-Fail Six #1
+//        - Estimated effort: 15 min
+//
+//===================================================================================================
+// P1 🥇 FUNCTIONAL TESTING – InvalidFunc (Misuse + Fault)
+//===================================================================================================
+//
+//   ⚪ [@AC-1,US-2] TC-1: verifyConnStateQuery_afterCloseLink_expectError
+//        - Category: Misuse (InvalidFunc)
+//        - Estimated effort: 20 min
+//
+//   ⚪ [@AC-2,US-2] TC-2: verifyConnect_byInvalidProtocol_expectError
+//        - Category: Misuse (InvalidFunc)
+//        - Estimated effort: 15 min
+//
+// 🚪 GATE P1: All P1 tests must be GREEN before proceeding to P2
+//
+//===================================================================================================
+// P2 🥈 DESIGN-ORIENTED TESTING – State Transitions
+//===================================================================================================
+//
+//   ⚪ [@AC-1,US-4] TC-1: verifyConnState_afterCloseLink_expectDisconnected
+//        - Category: State
+//        - Depends on: P1 complete
+//        - Estimated effort: 30 min
+//
+//   ⚪ [@AC-1,US-4] TC-2: verifyConnState_afterServiceOffline_expectDisconnectedOrBroken
+//        - Category: State
+//        - Depends on: P1 complete
+//        - Estimated effort: 45 min
+//
+//   ⚪ [@AC-2,US-3] TC-3: verifyConnState_duringCommandExecution_expectStableConnected
+//        - Category: State - Validates L1/L2 independence
+//        - Depends on: P1 complete
+//        - Estimated effort: 30 min
+//
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>END OF TODO/IMPLEMENTATION TRACKING SECTION===============================================
+
+// END OF FILE

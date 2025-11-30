@@ -60,6 +60,20 @@ struct _IOC_LinkObjectStru {
 
     _IOC_SrvProtoMethods_pT pMethods;
 
+    // 🎯 TDD IMPLEMENTATION: Connection state tracking for IOC_getLinkConnState()
+    // Added to support RED→GREEN transition for Link Connection State tests (Level 1)
+    // Architecture: README_ArchDesign-State.md "3-Level Link State Hierarchy"
+    struct {
+        IOC_LinkConnState_T CurrentState;  // Current connection state (Level 1)
+        pthread_mutex_t StateMutex;        // Thread-safe state updates
+
+        // Connection tracking
+        bool IsConnected;  // True when connection established (Protocol layer sets this)
+
+        // Last state change timestamp for debugging
+        time_t LastStateChangeTime;
+    } ConnState;
+
     // 🎯 TDD IMPLEMENTATION: DAT substate tracking for IOC_getLinkState()
     // Added to support RED→GREEN transition for DAT state verification tests
     struct {
