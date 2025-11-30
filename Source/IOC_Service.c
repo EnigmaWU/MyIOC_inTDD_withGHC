@@ -1035,6 +1035,17 @@ IOC_Result_T IOC_closeLink(
     _IOC_LogAssert(pLinkObj->pMethods != NULL);
     _IOC_LogAssert(pLinkObj->pMethods->OpCloseLink_F != NULL);
 
+    // Update connection state to Disconnecting before closing (Level 1 - Connection State)
+    // This provides observable state transition: Connected → Disconnecting → (freed)
+    // Cross-reference: README_ArchDesign-State.md - Connection state lifecycle
+    if (pthread_mutex_lock(&pLinkObj->ConnState.StateMutex) == 0) {
+        pLinkObj->ConnState.CurrentState = IOC_LinkConnStateDisconnecting;
+        pLinkObj->ConnState.IsConnected = false;
+        pLinkObj->ConnState.LastStateChangeTime = time(NULL);
+        pthread_mutex_unlock(&pLinkObj->ConnState.StateMutex);
+        _IOC_LogDebug("Link connection state set to Disconnecting for LinkID=%" PRIu64, LinkID);
+    }
+
     IOC_Result_T Result = pLinkObj->pMethods->OpCloseLink_F(pLinkObj);
     if (Result != IOC_RESULT_SUCCESS) {
         _IOC_LogError("Failed to closeLink by protocol, Result=%d", Result);
