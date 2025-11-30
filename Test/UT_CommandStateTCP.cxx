@@ -1005,9 +1005,13 @@ TEST(UT_CommandStateTCP, verifyCommandState_afterTcpConnectSuccess_expectProcess
                       (capturedStateMid.load() == IOC_CMD_STATUS_PENDING) &&
                       (capturedStateLate.load() == IOC_CMD_STATUS_PENDING);
 
+    // 🟡 ARCHITECTURE QUESTION: Is client PENDING during server PROCESSING correct per spec?
+    // Current behavior: Client stays PENDING(2) while server is PROCESSING(3)
+    // Question: Should client see PROCESSING once server starts? Or is this isolation correct?
+    // TODO: Verify with architect - if client SHOULD see PROCESSING, this is a state sync BUG!
     VERIFY_KEYPOINT_TRUE(allPending,
                          "[CLIENT] Client-side cmdDesc should remain PENDING(2) while server processes (validates "
-                         "state isolation)");  // Verify final state is SUCCESS
+                         "state isolation - VERIFY WITH ARCHITECT)");  // Verify final state is SUCCESS
     IOC_CmdStatus_E finalState = IOC_CmdDesc_getStatus(&cmdDesc);
     printf("📊 [FINAL] Command final state: %d (SUCCESS=4 expected)\n", finalState);
     VERIFY_KEYPOINT_EQ(finalState, IOC_CMD_STATUS_SUCCESS,
@@ -1297,11 +1301,20 @@ TEST(UT_CommandStateTCP, verifyCommandState_whenTcpPipeBroken_expectFailedWithPi
     IOC_CmdStatus_E finalStatus = IOC_CmdDesc_getStatus(&cmdDesc);
     printf("📊 [FINAL STATUS] Command final state: %d\n", finalStatus);
 
-    // Command should be PENDING(2), FAILED(5), or TIMEOUT(6) - broken pipe prevents execution
-    // PENDING is valid because IOC_execCMD may return before transitioning to PROCESSING
-    VERIFY_KEYPOINT_TRUE(finalStatus == IOC_CMD_STATUS_PENDING || finalStatus == IOC_CMD_STATUS_FAILED ||
-                             finalStatus == IOC_CMD_STATUS_TIMEOUT,
-                         "[FINAL] Command should be PENDING(2)/FAILED(5)/TIMEOUT(6) with broken pipe");
+    // 🔴 TDD REQUIREMENT: State must match execution result
+    // Architecture: EPIPE during send → connection accepted → command started → pipe broke
+    // Therefore: PENDING is WRONG (means never started), MUST be FAILED or TIMEOUT
+    IOC_Result_T pipeExecResult = execResult.load();
+    if (pipeExecResult == IOC_RESULT_TIMEOUT) {
+        VERIFY_KEYPOINT_EQ(finalStatus, IOC_CMD_STATUS_TIMEOUT,
+                           "[BUG] TIMEOUT result MUST have TIMEOUT state, not PENDING");
+    } else if (pipeExecResult == IOC_RESULT_LINK_BROKEN || pipeExecResult < 0) {
+        VERIFY_KEYPOINT_EQ(finalStatus, IOC_CMD_STATUS_FAILED,
+                           "[BUG] Error result MUST have FAILED state, not PENDING");
+    } else {
+        VERIFY_KEYPOINT_EQ(finalStatus, IOC_CMD_STATUS_SUCCESS,
+                           "[INCONSISTENCY] SUCCESS result requires SUCCESS state");
+    }
 
     // Note: Error result may be SUCCESS(0) if IOC_execCMD detects connection failure early
     // and returns without updating cmdDesc result field. This is implementation-specific.
@@ -2411,13 +2424,19 @@ TEST(UT_CommandStateTCP, verifyCommandState_duringUngracefulShutdown_expectImmed
     IOC_CmdStatus_E finalStatus = IOC_CmdDesc_getStatus(&cmdDesc);
     printf("📊 [FINAL STATUS] Command final state: %d\n", finalStatus);
 
-    // Command state depends on when connection closed relative to callback completion
-    printf("📊 [OBSERVATION] Final state is %s\n",
-           finalStatus == IOC_CMD_STATUS_SUCCESS   ? "SUCCESS (callback completed before close)"
-           : finalStatus == IOC_CMD_STATUS_FAILED  ? "FAILED (close interrupted callback)"
-           : finalStatus == IOC_CMD_STATUS_TIMEOUT ? "TIMEOUT (close detected as timeout)"
-           : finalStatus == IOC_CMD_STATUS_PENDING ? "PENDING (close before response)"
-                                                   : "OTHER");
+    // 🔴 TDD REQUIREMENT: State must be consistent with result AND callback progress
+    // Architecture: Callback entered → PROCESSING started → state cannot revert to PENDING
+    // PENDING would violate state machine invariant (cannot go backward PROCESSING→PENDING)
+    if (execResult.load() == IOC_RESULT_SUCCESS) {
+        VERIFY_KEYPOINT_EQ(finalStatus, IOC_CMD_STATUS_SUCCESS, "[CONSISTENCY] SUCCESS result requires SUCCESS state");
+    } else if (execResult.load() == IOC_RESULT_LINK_BROKEN) {
+        VERIFY_KEYPOINT_TRUE(finalStatus == IOC_CMD_STATUS_FAILED || finalStatus == IOC_CMD_STATUS_TIMEOUT,
+                             "[BUG] LINK_BROKEN must result in FAILED/TIMEOUT, not PENDING (callback entered!)");
+    } else if (execResult.load() < 0) {
+        VERIFY_KEYPOINT_TRUE(finalStatus == IOC_CMD_STATUS_FAILED || finalStatus == IOC_CMD_STATUS_TIMEOUT,
+                             "[BUG] Error result requires FAILED/TIMEOUT state, not PENDING/SUCCESS");
+    }
+    // CRITICAL: PENDING after callback entered violates state machine - cannot go backwards!
 
     // ═══════════════════════════════════════════════════════════════════════════
     // 🧹 CLEANUP
@@ -2646,12 +2665,20 @@ TEST(UT_CommandStateTCP, verifyTcpErrorMapping_fromSocketError_toCommandResult) 
     VERIFY_KEYPOINT_NE(refusedResult, IOC_RESULT_SUCCESS, "[ECONNREFUSED] Connection should fail");
     VERIFY_KEYPOINT_EQ(refusedLinkID, IOC_ID_INVALID, "[ECONNREFUSED] LinkID should remain INVALID");
 
-    // Error could be various connection failure codes
-    bool isValidRefusedError = (refusedResult == IOC_RESULT_NOT_EXIST_LINK || refusedResult == IOC_RESULT_LINK_BROKEN ||
-                                refusedResult == IOC_RESULT_TIMEOUT || refusedResult < 0);  // Any negative error code
-    VERIFY_KEYPOINT_TRUE(isValidRefusedError, "[ECONNREFUSED] Should return connection error code");
+    // 🔴 TDD REQUIREMENT: ECONNREFUSED must map to specific error code
+    // TCP Error Mapping Specification: ECONNREFUSED → NOT_EXIST_LINK(-505) or LINK_BROKEN(-508)
+    // Accepting "any negative" masks incorrect error mapping implementation!
+    bool isCorrectRefusedError =
+        (refusedResult == IOC_RESULT_NOT_EXIST_LINK || refusedResult == IOC_RESULT_LINK_BROKEN);
+    VERIFY_KEYPOINT_TRUE(isCorrectRefusedError,
+                         "[ERROR MAPPING BUG] ECONNREFUSED must map to NOT_EXIST_LINK(-505) or LINK_BROKEN(-508)");
 
-    printf("✅ [TEST 1] ECONNREFUSED mapped to IOC_Result_T: %d\n\n", refusedResult);
+    printf("✅ [TEST 1] ECONNREFUSED mapped to IOC_Result_T: %d\n", refusedResult);
+    if (!isCorrectRefusedError) {
+        printf("⚠️  [CRITICAL] Error code %d violates TCP error mapping spec!\n\n", refusedResult);
+    } else {
+        printf("\n");
+    }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // 🔧 TEST 2: EPIPE (Broken Pipe) - Reuse TC-7 scenario
@@ -2724,13 +2751,18 @@ TEST(UT_CommandStateTCP, verifyTcpErrorMapping_fromSocketError_toCommandResult) 
             // Verify error mapping
             VERIFY_KEYPOINT_NE(pipeExecResult, IOC_RESULT_SUCCESS, "[EPIPE] Should fail on broken pipe");
 
-            // Error could be TIMEOUT, LINK_BROKEN, or other connection errors
-            bool isValidPipeError =
-                (pipeExecResult == IOC_RESULT_TIMEOUT || pipeExecResult == IOC_RESULT_LINK_BROKEN ||
-                 pipeExecResult == IOC_RESULT_NOT_EXIST_LINK || pipeExecResult < 0);  // Any negative error code
-            VERIFY_KEYPOINT_TRUE(isValidPipeError, "[EPIPE] Should return pipe/connection error code");
+            // 🔴 TDD REQUIREMENT: EPIPE must map to specific error code
+            // TCP Error Mapping: Write to closed socket (EPIPE) → TIMEOUT(-506) or LINK_BROKEN(-508)
+            // Accepting "any negative" or NOT_EXIST_LINK masks incorrect error mapping!
+            bool isCorrectPipeError =
+                (pipeExecResult == IOC_RESULT_TIMEOUT || pipeExecResult == IOC_RESULT_LINK_BROKEN);
+            VERIFY_KEYPOINT_TRUE(isCorrectPipeError,
+                                 "[ERROR MAPPING BUG] EPIPE must map to TIMEOUT(-506) or LINK_BROKEN(-508)");
 
             printf("✅ [TEST 2] EPIPE mapped to IOC_Result_T: %d\n", pipeExecResult);
+            if (!isCorrectPipeError) {
+                printf("⚠️  [CRITICAL] Error code %d violates EPIPE mapping spec!\n", pipeExecResult);
+            }
         }
     });
 
