@@ -363,7 +363,7 @@ Commands operate in **ConetMode** (connection-oriented) with bidirectional roles
 - **IOC_LinkUsageCmdExecutor**: Link configured to execute commands via callback or polling
   - Corresponds to **Executor** role in state machine
   - Receives commands and sends responses
-  - States: ExecutorReady → ExecutorBusyCbExecCmd (callback) or ExecutorReady → ExecutorBusyWaitCmd → ExecutorBusyAckCmd (polling)
+  - States: ExecutorReady → ExecutorBusyCbExecCmd (callback) or ExecutorReady → ExecutorBusyWaitCmd (polling)
 
 **Note**: A single link can have both usage types enabled for bidirectional command execution.
 
@@ -386,13 +386,19 @@ stateDiagram-v2
       ExecutorBusyCbExecCmd --> ExecutorReady: cbExecCmdCompleted
       
       ExecutorReady --> ExecutorBusyWaitCmd: waitCmd
-      ExecutorBusyWaitCmd --> ExecutorBusyAckCmd: cmdReceived_PollingMode
-      ExecutorBusyAckCmd --> ExecutorReady: ackCmdCompleted
+      ExecutorBusyWaitCmd --> ExecutorReady: cmdProcessed_ackCmdComplete
     }
   }
 ```
 
 ### Link Command State Descriptions
+
+**Implementation Note**: These logical states map to `IOC_LinkSubState_T` enum values in `IOC_Types.h`:
+- InitiatorReady → `IOC_LinkSubStateCmdInitiatorReady`
+- InitiatorBusyExecCmd → `IOC_LinkSubStateCmdInitiatorBusyExecCmd`
+- ExecutorReady → `IOC_LinkSubStateCmdExecutorReady`
+- ExecutorBusyCbExecCmd → `IOC_LinkSubStateCmdExecutorBusyExecCmd`
+- ExecutorBusyWaitCmd → `IOC_LinkSubStateCmdExecutorBusyWaitCmd`
 
 | State | Role | Description | Entry | Exit | Operations |
 |-------|------|-------------|-------|------|------------|
@@ -400,8 +406,7 @@ stateDiagram-v2
 | **InitiatorBusyExecCmd** | Initiator | Awaiting command response | execCMD called | Response received or timeout | Wait for result |
 | **ExecutorReady** | Executor | Ready to receive commands | Init or processing complete | Command received or waitCMD called | IOC_waitCMD() |
 | **ExecutorBusyCbExecCmd** | Executor | Processing command (callback) | CbExecCmd_F invoked | Callback returns | Execute logic |
-| **ExecutorBusyWaitCmd** | Executor | Waiting for commands (polling) | waitCMD called | Command received | Block until command |
-| **ExecutorBusyAckCmd** | Executor | Sending response (polling) | Command received | ackCMD complete | IOC_ackCMD() |
+| **ExecutorBusyWaitCmd** | Executor | Waiting for commands (polling) | waitCMD called | Command received | Block until command, then IOC_ackCMD() |
 
 ### Design Principles
 
@@ -669,6 +674,8 @@ stateDiagram-v2
 
 ### Link Event State Descriptions (ConetMode)
 
+**Implementation Note**: Event states in ConetMode are **conceptual/logical** states for documentation purposes. In `IOC_Types.h`, ConetMode events do not have dedicated link sub-states like CMD/DAT. Event operations use the main `IOC_LinkStateReady` state with default sub-state. The Publisher/Subscriber pattern is implemented through usage configuration and callbacks, not explicit state machine states.
+
 | State | Role | Description | Entry | Exit | Operations |
 |-------|------|-------------|-------|------|------------|
 | **EventPublisherReady** | Publisher | Ready to post events | Init or post complete | postEVT called | IOC_postEVT() |
@@ -760,6 +767,12 @@ stateDiagram-v2
 ```
 
 ### Link Event State Descriptions (ConlesMode)
+
+**Implementation Note**: These states map to actual `IOC_LinkState_T` main states in `IOC_Types.h`:
+- LinkStateReady → `IOC_LinkStateReady`
+- LinkStateBusyCbProcEvt → `IOC_LinkStateBusyCbProcEvt`
+- LinkStateBusySubEvt → `IOC_LinkStateBusySubEvt`
+- LinkStateBusyUnsubEvt → `IOC_LinkStateBusyUnsubEvt`
 
 | State | Description | Entry | Exit | Operations |
 |-------|-------------|-------|------|------------|
@@ -972,6 +985,13 @@ stateDiagram-v2
 ```
 
 ### Link Data State Descriptions
+
+**Implementation Note**: These logical states map to `IOC_LinkSubState_T` enum values in `IOC_Types.h`:
+- DataSenderReady → `IOC_LinkSubStateDatSenderReady`
+- DataSenderBusySendDat → `IOC_LinkSubStateDatSenderBusySendDat`
+- DataReceiverReady → `IOC_LinkSubStateDatReceiverReady`
+- DataReceiverBusyRecvDat → `IOC_LinkSubStateDatReceiverBusyRecvDat`
+- DataReceiverBusyCbRecvDat → `IOC_LinkSubStateDatReceiverBusyCbRecvDat`
 
 | State | Role | Description | Entry | Exit | Operations |
 |-------|------|-------------|-------|------|------------|
@@ -1201,6 +1221,59 @@ IOC Framework
     └── Individual Event States (Queued → Delivered/Dropped)
 ```
 
+## State Machine Implementation Reference
+
+### Header File Mapping
+
+All state machine definitions are implemented in IOC header files:
+
+**Command States** (`IOC_CmdDesc.h`):
+```c
+typedef enum {
+    IOC_CMD_STATUS_INVALID = 0,
+    IOC_CMD_STATUS_INITIALIZED = 1,
+    IOC_CMD_STATUS_PENDING = 2,
+    IOC_CMD_STATUS_PROCESSING = 3,
+    IOC_CMD_STATUS_SUCCESS = 4,
+    IOC_CMD_STATUS_FAILED = 5,
+    IOC_CMD_STATUS_TIMEOUT = 6,
+} IOC_CmdStatus_E;
+```
+
+**Link States** (`IOC_Types.h`):
+```c
+// Main States (ConlesMode events)
+typedef enum {
+    IOC_LinkStateUndefined = 0,
+    IOC_LinkStateReady = 1,
+    IOC_LinkStateBusyCbProcEvt,    // ConlesMode event processing
+    IOC_LinkStateBusySubEvt,       // ConlesMode subscription
+    IOC_LinkStateBusyUnsubEvt,     // ConlesMode unsubscription
+} IOC_LinkState_T;
+
+// Sub-States (ConetMode CMD/DAT operations)
+typedef enum {
+    IOC_LinkSubStateDefault = 0,
+    // DAT states
+    IOC_LinkSubStateDatSenderReady,
+    IOC_LinkSubStateDatSenderBusySendDat,
+    IOC_LinkSubStateDatReceiverReady,
+    IOC_LinkSubStateDatReceiverBusyRecvDat,
+    IOC_LinkSubStateDatReceiverBusyCbRecvDat,
+    // CMD states
+    IOC_LinkSubStateCmdInitiatorReady,
+    IOC_LinkSubStateCmdInitiatorBusyExecCmd,
+    IOC_LinkSubStateCmdExecutorReady,
+    IOC_LinkSubStateCmdExecutorBusyExecCmd,
+    IOC_LinkSubStateCmdExecutorBusyWaitCmd,
+} IOC_LinkSubState_T;
+```
+
+**Key Implementation Details**:
+- **ConetMode Events**: No dedicated sub-states; use `IOC_LinkStateReady` with default sub-state
+- **ConlesMode Events**: Use main `IOC_LinkState_T` states (BusyCbProcEvt, BusySubEvt, BusyUnsubEvt)
+- **CMD/DAT**: Use `IOC_LinkSubState_T` sub-states while main state remains `IOC_LinkStateReady`
+
 ## State Machine Principles
 
 1. **Hierarchical Organization**: Clear parent-child relationships between state machines
@@ -1231,7 +1304,7 @@ typedef enum {
 | Scenario | Link Usage Configuration | State Machines Enabled |
 |----------|-------------------------|------------------------|
 | **Command Client** | `IOC_LinkUsageCmdInitiator` | InitiatorReady ↔ InitiatorBusyExecCmd |
-| **Command Server** | `IOC_LinkUsageCmdExecutor` | ExecutorReady → ExecutorBusyCbExecCmd/WaitCmd/AckCmd |
+| **Command Server** | `IOC_LinkUsageCmdExecutor` | ExecutorReady → ExecutorBusyCbExecCmd (callback) or ExecutorBusyWaitCmd (polling) |
 | **Bidirectional CMD** | `IOC_LinkUsageCmdInitiator \| IOC_LinkUsageCmdExecutor` | Both Initiator and Executor sub-states |
 | **Event Publisher** | `IOC_LinkUsageEvtProducer` | EventPublisherReady ↔ EventPublisherBusyPostEvt |
 | **Event Subscriber** | `IOC_LinkUsageEvtConsumer` | EventSubscriberReady → EventSubscriberBusy* |
