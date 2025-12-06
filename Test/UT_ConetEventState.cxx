@@ -3,29 +3,290 @@
  * @brief Unit tests for Link Event State patterns in ConetMode (connection-oriented mode)
  * @date 2025-11-30
  *
- * @purpose Validate IOC event state behavior for ConetMode (link-based event operations).
- *          Tests link main state (Ready/Busy) during event subscription, unsubscription, and
- *          callback execution over TCP connections.
+ * CaTDD Implementation - Following LLM/CaTDD_DesignPrompt.md methodology
  *
- * @architecture_mapping
- *          Link State Hierarchy for Events:
- *          - Level 1 (Connection State): Tested in UT_LinkConnStateTCP.cxx
- *          - Level 2 (Operation State): Ready ⟷ BusyCbProcEvt/BusySubEvt/BusyUnsubEvt (THIS FILE)
- *          - Level 3 (Detail SubState): ALWAYS Default (0) - EVT has NO substates
- *
- * @scope ConetMode event state testing (Level 2 only, no Level 3 substates)
- * @related_files
- *   - UT_ConlesEventState.cxx: ConlesMode (connectionless) event state patterns
- *   - UT_LinkStateOperation.cxx: Protocol-agnostic operation state (Level 2)
- *   - UT_LinkStateCorrelation.cxx: 3-level hierarchy correlation
- *   - README_ArchDesign-State.md: Event state machine specifications
- *
- * FRAMEWORK STATUS: ✅ ConetMode Event State Testing - IMPLEMENTATION COMPLETE
- *    • Test infrastructure: StateMonitor, EventCallbackHelper
- *    • Test cases: 8/8 (100% complete)
- *    • Target: 8 test cases covering ConetMode-specific event state scenarios
- *    • Progress: Full implementation of Phase 2.2
+ * DESIGN PHASE: Complete ✅
+ * IMPLEMENTATION PHASE: Tests written but BLOCKED ⚠️
+ * STATUS: Need to resolve EventCallbackHelper LinkID tracking issue
  **************************************************************************************************/
+
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <mutex>
+#include <thread>
+#include <vector>
+
+#include "IOC/IOC.h"
+#include "IOC/IOC_EvtAPI.h"
+#include "IOC/IOC_SrvAPI.h"
+#include "IOC/IOC_Types.h"
+#include "_UT_IOC_Common.h"
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF OVERVIEW OF THIS UNIT TESTING FILE===============================================
+/**
+ * @brief
+ *   [WHAT] This file verifies Link Operation State (Level 2) behavior during ConetMode event operations
+ *   [WHERE] in the IOC Event API (ConetMode - connection-oriented)
+ *   [WHY] to ensure link states correctly reflect Ready/Busy transitions during event operations
+ *
+ * SCOPE:
+ *   - In scope: ConetMode event state (postEVT, subEVT, unsubEVT, callback execution)
+ *   - In scope: Level 2 (Operation State): Ready ⟷ BusyCbProcEvt/BusySubEvt/BusyUnsubEvt
+ *   - In scope: Verification that Level 3 (SubState) is ALWAYS Default (architectural constraint)
+ *   - Out of scope: Level 1 (Connection State) - covered in UT_LinkConnStateTCP.cxx
+ *   - Out of scope: ConlesMode events - covered in UT_ConlesEventState.cxx
+ *
+ * KEY CONCEPTS:
+ *   - ConetMode: Connection-oriented event delivery using explicit LinkID
+ *   - LinkID: Obtained from IOC_connectService() or IOC_acceptClient()
+ *   - Event Operations: IOC_postEVT(LinkID, ...), IOC_subEVT(LinkID, ...)
+ *   - Fire-and-forget: Event posting is asynchronous, link stays Ready
+ *   - NO EVT SubStates: Unlike CMD/DAT, events don't use Level 3 substates (always Default)
+ *
+ * RELATIONSHIPS:
+ *   - Depends on: IOC_onlineService, IOC_connectService, IOC_acceptClient, IOC_postEVT, IOC_subEVT
+ *   - Related tests: UT_ConlesEventState.cxx (ConlesMode), UT_LinkStateOperation.cxx (protocol-agnostic)
+ *   - Production code: Source/IOC_Event.c, Source/_IOC_ConetEvent.c
+ *   - Architecture doc: README_ArchDesign-State.md (3-level state hierarchy)
+ */
+//======>END OF OVERVIEW OF THIS UNIT TESTING FILE=================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF UNIT TESTING DESIGN==============================================================
+
+/**************************************************************************************************
+ * 📋 COVERAGE STRATEGY: ConetMode Event State Testing
+ *
+ * DIMENSIONS:
+ *   Dimension 1: Event Operation (Post, Subscribe, Unsubscribe, Callback)
+ *   Dimension 2: Link State (Ready, BusyCbProcEvt, BusySubEvt, BusyUnsubEvt)
+ *   Dimension 3: Mode Comparison (ConetMode vs ConlesMode)
+ *
+ * COVERAGE MATRIX:
+ * ┌──────────────────┬────────────────┬──────────────┬────────────────────────────────┐
+ * │ Operation        │ Expected State │ Mode         │ User Story                     │
+ * ├──────────────────┼────────────────┼──────────────┼────────────────────────────────┤
+ * │ Post Event       │ Ready          │ ConetMode    │ US-1: Fire-and-forget post     │
+ * │ Subscribe Event  │ Ready          │ ConetMode    │ US-2: Subscription management  │
+ * │ Callback Execute │ BusyCbProcEvt  │ ConetMode    │ US-3: State during callback    │
+ * │ All Operations   │ SubState=0     │ ConetMode    │ US-4: No EVT substates         │
+ * │ Post Comparison  │ Ready          │ Both         │ US-5: Mode pattern comparison  │
+ * └──────────────────┴────────────────┴──────────────┴────────────────────────────────┘
+ *
+ * PRIORITY: P2 🥈 DESIGN-ORIENTED (State Testing)
+ *   - State transitions are architectural core for event operations
+ *   - Tests validate FSM correctness for ConetMode
+ **************************************************************************************************/
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF USER STORY=======================================================================
+/**
+ * US-1: As an event system developer,
+ *       I want IOC_postEVT to be fire-and-forget (link stays Ready),
+ *       So that event producers don't block on delivery.
+ *
+ * US-2: As an event consumer implementer,
+ *       I want IOC_subEVT/unsubEVT to transition through proper states,
+ *       So that I can monitor subscription lifecycle.
+ *
+ * US-3: As a callback function implementer,
+ *       I want to know link state during callback execution (BusyCbProcEvt),
+ *       So that I can detect reentrant calls or debugging.
+ *
+ * US-4: As an architecture validator,
+ *       I want to verify EVT operations never use Level 3 substates,
+ *       So that design decision "NO EVT SubStates" is enforced.
+ *
+ * US-5: As a system integrator,
+ *       I want to understand ConetMode vs ConlesMode state patterns,
+ *       So that I can choose the right mode for my use case.
+ */
+//======>END OF USER STORY=========================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//=======>BEGIN OF ACCEPTANCE CRITERIA=============================================================
+/**
+ * [@US-1] Fire-and-forget event posting
+ *  AC-1: GIVEN a ConetMode link in Ready state,
+ *         WHEN IOC_postEVT is called with valid event,
+ *         THEN link remains in Ready state immediately after post,
+ *          AND SubState remains Default (0).
+ *
+ * [@US-2] Subscription state management
+ *  AC-1: GIVEN a ConetMode link in Ready state,
+ *         WHEN IOC_subEVT is called,
+ *         THEN link returns to Ready state after subscription completes,
+ *          AND SubState remains Default (0).
+ *  AC-2: GIVEN a ConetMode link with active subscription,
+ *         WHEN IOC_unsubEVT is called,
+ *         THEN link returns to Ready state after unsubscription completes,
+ *          AND SubState remains Default (0).
+ *
+ * [@US-3] State during callback execution
+ *  AC-1: GIVEN a ConetMode link with subscription and registered callback,
+ *         WHEN event triggers callback execution,
+ *         THEN link shows BusyCbProcEvt state during callback,
+ *          AND SubState remains Default (0),
+ *          AND link returns to Ready after callback completes.
+ *
+ * [@US-4] Architectural constraint: No EVT substates
+ *  AC-1: GIVEN various EVT operations (post, subscribe, unsubscribe, callback),
+ *         WHEN state is queried at any point,
+ *         THEN SubState is ALWAYS Default (0),
+ *          AND this holds for all operations regardless of timing.
+ *
+ * [@US-5] ConetMode vs ConlesMode comparison
+ *  AC-1: GIVEN equivalent operations in both modes,
+ *         WHEN comparing state patterns,
+ *         THEN both modes show similar state behavior (Ready for fire-and-forget),
+ *          AND both modes use SubState=Default (0),
+ *          AND key difference is LinkID (explicit vs AutoLinkID).
+ */
+//=======>END OF ACCEPTANCE CRITERIA===============================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF TEST CASES=======================================================================
+/**
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ * 📋 [CATEGORY: State] ConetMode Event Operation State Patterns
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * [@AC-1,US-1] Fire-and-forget event posting
+ *  ⚠️ TC-1: verifyEventState_postEvtViaLink_expectReadyWithDefaultSubstate
+ *      @[Purpose]: Validate fire-and-forget semantics - link stays Ready after post
+ *      @[Brief]: Post event via ConetMode link, verify Ready state immediately after
+ *      @[Status]: BLOCKED - Need to run to verify GREEN status
+ *
+ * [@AC-1,US-2] Subscription state management
+ *  ⚠️ TC-2: verifyEventState_subscriptionViaLink_expectLinkStateOnly
+ *      @[Purpose]: Validate link state during subscribe/unsubscribe lifecycle
+ *      @[Brief]: Subscribe and unsubscribe, verify Ready state after each operation
+ *      @[Status]: BLOCKED - Need to run to verify GREEN status
+ *
+ * [@AC-1,US-3] State during callback execution
+ *  🚫 TC-3: verifyEventState_callbackExecution_expectBusyCbProcEvt
+ *      @[Purpose]: Validate link shows BusyCbProcEvt during callback
+ *      @[Brief]: Trigger callback with blocking, query state during execution
+ *      @[Status]: BLOCKED - EventCallbackHelper cannot track LinkID!
+ *      @[ISSUE]: pEvtDesc doesn't have PostedByLinkID field
+ *      @[SOLUTION NEEDED]: Pass LinkID to helper via setup or redesign test
+ *
+ * [@AC-1,US-4] No EVT substates verification
+ *  ⚠️ TC-4: verifyEventState_noEVTSubstates_expectDefault
+ *      @[Purpose]: Comprehensive verification that SubState is ALWAYS Default
+ *      @[Brief]: Perform all EVT operations, capture state snapshots, verify SubState=0
+ *      @[Status]: BLOCKED - Need to run to verify GREEN status
+ *
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ * 📋 [CATEGORY: Comparison] ConetMode vs ConlesMode State Patterns
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * [@AC-1,US-5] Post pattern comparison
+ *  ⚠️ TC-5: compareEventState_postPatterns_expectSimilarBehavior
+ *      @[Purpose]: Verify both modes use fire-and-forget with Ready state
+ *      @[Brief]: Post via ConetMode and ConlesMode, compare state patterns
+ *      @[Status]: BLOCKED - Need to run to verify GREEN status
+ *
+ * [@AC-1,US-5] Subscription model comparison
+ *  ⚠️ TC-6: compareEventState_subscriptionModels_expectDifferences
+ *      @[Purpose]: Highlight LinkID vs AutoLinkID difference
+ *      @[Brief]: Subscribe in both modes, verify same state but different IDs
+ *      @[Status]: BLOCKED - Need to run to verify GREEN status
+ *
+ * [@AC-1,US-5] State tracking comparison
+ *  ⚠️ TC-7: compareEventState_stateTracking_expectMainStatesOnly
+ *      @[Purpose]: Verify both modes use only Level 2 states (no Level 3)
+ *      @[Brief]: Query state in both modes, verify SubState=Default
+ *      @[Status]: BLOCKED - Need to run to verify GREEN status
+ *
+ * [@AC-1,US-5] Architecture compliance comparison
+ *  ⚠️ TC-8: verifyArchitectureCompliance_noEVTSubstates_expectConsistent
+ *      @[Purpose]: Comprehensive verification of "NO EVT SubStates" design decision
+ *      @[Brief]: Perform all operations in both modes, verify SubState=0 throughout
+ *      @[Status]: BLOCKED - Need to run to verify GREEN status
+ */
+//======>END OF TEST CASES=========================================================================
+//======>END OF UNIT TESTING DESIGN================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF TODO/IMPLEMENTATION TRACKING SECTION=============================================
+// 🔴 IMPLEMENTATION STATUS TRACKING
+//
+// STATUS LEGEND:
+//   🟢 GREEN/PASSED:      Test written and passing
+//   ⚠️  BLOCKED/ISSUES:   Test written but cannot verify (need to run or fix issue)
+//   🚫 CRITICAL_BLOCK:    Fundamental issue preventing test execution
+//
+//===================================================================================================
+// P2 🥈 DESIGN-ORIENTED TESTING – State Patterns
+//===================================================================================================
+//
+//   ⚠️ [@AC-1,US-1] TC-1: verifyEventState_postEvtViaLink_expectReadyWithDefaultSubstate
+//        - Status: Test implemented, compiles, need to RUN to verify GREEN
+//        - Category: State (ConetMode fire-and-forget)
+//        - Estimated: Should pass immediately (simple state query)
+//
+//   ⚠️ [@AC-1,US-2] TC-2: verifyEventState_subscriptionViaLink_expectLinkStateOnly
+//        - Status: Test implemented, compiles, need to RUN to verify GREEN
+//        - Category: State (subscription lifecycle)
+//        - Estimated: Should pass immediately
+//
+//   🚫 [@AC-1,US-3] TC-3: verifyEventState_callbackExecution_expectBusyCbProcEvt
+//        - Status: CRITICAL BLOCK - EventCallbackHelper cannot track state!
+//        - Category: State (callback execution)
+//        - ISSUE: Callback receives pEvtDesc but no LinkID
+//        - ISSUE: Cannot call IOC_getLinkState(linkID, ...) without LinkID
+//        - SOLUTION OPTIONS:
+//          A) Pass LinkID via helper constructor/setup method (RECOMMENDED)
+//          B) Store LinkID in test fixture shared state
+//          C) Accept limitation - verify state from OUTSIDE callback only
+//        - Estimated: 30min to fix + verify
+//
+//   ⚠️ [@AC-1,US-4] TC-4: verifyEventState_noEVTSubstates_expectDefault
+//        - Status: Test implemented, compiles, need to RUN to verify GREEN
+//        - Category: State (architectural compliance)
+//        - Estimated: Should pass immediately
+//
+//===================================================================================================
+// P2 🥈 DESIGN-ORIENTED TESTING – Mode Comparison
+//===================================================================================================
+//
+//   ⚠️ [@AC-1,US-5] TC-5: compareEventState_postPatterns_expectSimilarBehavior
+//        - Status: Test implemented, compiles, need to RUN to verify GREEN
+//        - Category: Comparison (ConetMode vs ConlesMode)
+//        - Estimated: Should pass immediately
+//
+//   ⚠️ [@AC-1,US-5] TC-6: compareEventState_subscriptionModels_expectDifferences
+//        - Status: Test implemented, compiles, need to RUN to verify GREEN
+//        - Category: Comparison (subscription patterns)
+//        - Estimated: Should pass immediately
+//
+//   ⚠️ [@AC-1,US-5] TC-7: compareEventState_stateTracking_expectMainStatesOnly
+//        - Status: Test implemented, compiles, need to RUN to verify GREEN
+//        - Category: Comparison (state tracking)
+//        - Estimated: Should pass immediately
+//
+//   ⚠️ [@AC-1,US-5] TC-8: verifyArchitectureCompliance_noEVTSubstates_expectConsistent
+//        - Status: Test implemented, compiles, need to RUN to verify GREEN
+//        - Category: Comparison (comprehensive verification)
+//        - Estimated: Should pass immediately
+//
+//===================================================================================================
+// 🚪 IMMEDIATE ACTIONS REQUIRED
+//===================================================================================================
+//
+//   1. FIX TC-3 EventCallbackHelper LinkID tracking issue (CRITICAL)
+//   2. RUN all 8 tests to verify GREEN status
+//   3. Update status markers based on results
+//   4. Move to GREEN/PASSED once all tests pass
+//
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>END OF TODO/IMPLEMENTATION TRACKING SECTION===============================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======BEGIN OF UNIT TESTING IMPLEMENTATION=======================================================
 
 #include <atomic>
 #include <chrono>
@@ -55,12 +316,6 @@ struct EventStateSnapshot {
     IOC_LinkSubState_T SubState;
     IOC_Result_T QueryResult;
     std::chrono::steady_clock::time_point Timestamp;
-
-    EventStateSnapshot()
-        : MainState(IOC_LinkStateUndefined),
-          SubState(IOC_LinkSubStateDefault),
-          QueryResult(IOC_RESULT_UNDEFINED),
-          Timestamp(std::chrono::steady_clock::now()) {}
 };
 
 // Helper to capture current link state
@@ -74,6 +329,7 @@ static EventStateSnapshot CaptureEventState(IOC_LinkID_T linkID) {
 // Callback helper to track state during event processing
 class EventCallbackHelper {
    public:
+    IOC_LinkID_T TrackedLinkID = IOC_ID_INVALID;  // LinkID to monitor during callback
     std::atomic<int> CallbackCount{0};
     std::atomic<IOC_LinkState_T> StateInCallback{IOC_LinkStateUndefined};
     std::atomic<IOC_LinkSubState_T> SubStateInCallback{IOC_LinkSubStateDefault};
@@ -82,18 +338,23 @@ class EventCallbackHelper {
     std::atomic<bool> CallbackStarted{false};
     std::atomic<bool> AllowCallbackToProceed{false};
 
-    static void StaticCallback(IOC_EvtID_T evtID, IOC_EvtDesc_pT pEvtDesc, void* pCbPrivData) {
-        auto* helper = static_cast<EventCallbackHelper*>(pCbPrivData);
-        helper->OnCallback(evtID, pEvtDesc);
+    // Set LinkID to track - call before subscription
+    void SetTrackedLink(IOC_LinkID_T linkID) { TrackedLinkID = linkID; }
+
+    static IOC_Result_T StaticCallback(IOC_EvtDesc_pT pEvtDesc, void *pCbPrivData) {
+        auto *helper = static_cast<EventCallbackHelper *>(pCbPrivData);
+        return helper->OnCallback(pEvtDesc);
     }
 
    private:
-    void OnCallback(IOC_EvtID_T evtID, IOC_EvtDesc_pT pEvtDesc) {
+    IOC_Result_T OnCallback(IOC_EvtDesc_pT pEvtDesc) {
         CallbackCount++;
 
-        // Capture state during callback execution
-        IOC_LinkID_T linkID = pEvtDesc->PostedByLinkID;
-        IOC_getLinkState(linkID, (IOC_LinkState_pT)&StateInCallback, (IOC_LinkSubState_pT)&SubStateInCallback);
+        // Capture state during callback execution (if LinkID was set)
+        if (TrackedLinkID != IOC_ID_INVALID) {
+            IOC_getLinkState(TrackedLinkID, (IOC_LinkState_pT)&StateInCallback,
+                             (IOC_LinkSubState_pT)&SubStateInCallback);
+        }
 
         // Signal that callback started
         CallbackStarted = true;
@@ -102,6 +363,7 @@ class EventCallbackHelper {
         // Wait for test to allow callback to proceed (for blocking tests)
         std::unique_lock<std::mutex> lock(Mutex);
         CV.wait(lock, [this] { return AllowCallbackToProceed.load(); });
+        return IOC_RESULT_SUCCESS;
     }
 };
 
@@ -132,41 +394,74 @@ class EventCallbackHelper {
  *   5. Cleanup
  */
 TEST(UT_ConetEventState_Patterns, TC1_verifyEventState_postEvtViaLink_expectReadyWithDefaultSubstate) {
-    //===SETUP: Create TCP service and client link===
-    IOC_SrvID_T srvID;
-    IOC_SrvCfg_T srvCfg = BUILD_INIT_SrvCfg_InFIFO_OutTCP(26000, (char*)"ConetEvt_TC1");
-    IOC_Result_T result = IOC_onlineService(&srvCfg, &srvID);
+    //===SETUP: Capture accepted link via callback===
+    struct AutoAcceptCtx {
+        std::atomic<IOC_LinkID_T> AcceptedLinkID{IOC_ID_INVALID};
+    } ctx;
+
+    auto onAccepted = [](IOC_SrvID_T, IOC_LinkID_T linkID, void *pPriv) {
+        auto *pCtx = static_cast<AutoAcceptCtx *>(pPriv);
+        pCtx->AcceptedLinkID = linkID;
+        printf("🎯 Auto-accept callback: accepted LinkID=%" PRIu64 "\n", linkID);
+    };
+
+    IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char *)"ConetEvtState_TC1"};
+    IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
+                             .Flags = IOC_SRVFLAG_AUTO_ACCEPT,
+                             .UsageCapabilites = IOC_LinkUsageEvtProducer,
+                             .OnAutoAccepted_F = onAccepted,
+                             .pSrvPriv = &ctx};
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    IOC_Result_T result = IOC_onlineService(&srvID, &srvArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
 
-    IOC_LinkID_T linkID;
-    IOC_LinkCfg_T linkCfg =
-        BUILD_INIT_LinkCfg_InOutTCP(IOC_LinkUsageEvtPoster, (char*)"tcp://localprocess:26000/ConetEvt_TC1");
-    result = IOC_openLink(&linkCfg, &linkID);
+    //===SETUP: Client connects with auto-subscribe (will trigger auto-accept)===
+    EventCallbackHelper helper;
+    helper.AllowCallbackToProceed = true;  // Allow callback to proceed immediately (non-blocking test)
+
+    IOC_EvtID_T evtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
+    IOC_EvtUsageArgs_T evtArgs = {
+        .CbProcEvt_F = EventCallbackHelper::StaticCallback, .pCbPrivData = &helper, .EvtNum = 1, .pEvtIDs = evtIDs};
+
+    IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageEvtConsumer};
+    connArgs.UsageArgs.pEvt = &evtArgs;  // Auto-subscribe on client side
+    IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
+    result = IOC_connectService(&cliLinkID, &connArgs, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));  // Allow connection
+    // Wait for auto-accept
+    for (int i = 0; i < 100 && ctx.AcceptedLinkID == IOC_ID_INVALID; ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    IOC_LinkID_T srvLinkID = ctx.AcceptedLinkID.load();
+    ASSERT_NE(IOC_ID_INVALID, srvLinkID) << "Auto-accept should provide server link ID";
 
-    //===VERIFY: Initial state - Ready with Default substate===
-    EventStateSnapshot initial = CaptureEventState(linkID);
+    printf("🔍 TC-1: cliLinkID=%" PRIu64 ", srvLinkID=%" PRIu64 "\n", cliLinkID, srvLinkID);
+
+    //===VERIFY: Initial state===
+    EventStateSnapshot initial = CaptureEventState(srvLinkID);
     ASSERT_EQ(IOC_RESULT_SUCCESS, initial.QueryResult);
-    EXPECT_EQ(IOC_LinkStateReady, initial.MainState) << "ConetMode link should be Ready initially";
-    EXPECT_EQ(IOC_LinkSubStateDefault, initial.SubState) << "EVT operations have NO substates (always Default)";
+    EXPECT_EQ(IOC_LinkStateReady, initial.MainState);
+    EXPECT_EQ(IOC_LinkSubStateDefault, initial.SubState);
 
-    //===BEHAVIOR: Post event via link===
+    //===BEHAVIOR: Post event from service side===
     IOC_EvtDesc_T evtDesc = {};
     evtDesc.EvtID = IOC_EVTID_TEST_KEEPALIVE;
-    evtDesc.PostedByLinkID = linkID;
-    result = IOC_postEVT(&evtDesc);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, result);
+    evtDesc.EvtValue = 12345;
 
-    //===VERIFY: State immediately after post - still Ready (fire-and-forget)===
-    EventStateSnapshot afterPost = CaptureEventState(linkID);
+    result = IOC_postEVT(srvLinkID, &evtDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Post from service link should succeed";
+
+    //===VERIFY: State after post===
+    EventStateSnapshot afterPost = CaptureEventState(srvLinkID);
     ASSERT_EQ(IOC_RESULT_SUCCESS, afterPost.QueryResult);
-    EXPECT_EQ(IOC_LinkStateReady, afterPost.MainState) << "Post is fire-and-forget, link should remain Ready";
-    EXPECT_EQ(IOC_LinkSubStateDefault, afterPost.SubState) << "EVT substates always Default";
+    EXPECT_EQ(IOC_LinkStateReady, afterPost.MainState);
+    EXPECT_EQ(IOC_LinkSubStateDefault, afterPost.SubState);
 
     //===CLEANUP===
-    IOC_closeLink(linkID);
+    IOC_closeLink(cliLinkID);
     IOC_offlineService(srvID);
 }
 
@@ -188,57 +483,81 @@ TEST(UT_ConetEventState_Patterns, TC1_verifyEventState_postEvtViaLink_expectRead
  *   6. Cleanup
  */
 TEST(UT_ConetEventState_Patterns, TC2_verifyEventState_subscriptionViaLink_expectLinkStateOnly) {
-    //===SETUP: Create TCP service and client link===
-    IOC_SrvID_T srvID;
-    IOC_SrvCfg_T srvCfg = BUILD_INIT_SrvCfg_InFIFO_OutTCP(26001, (char*)"ConetEvt_TC2");
-    IOC_Result_T result = IOC_onlineService(&srvCfg, &srvID);
+    //===SETUP: Create service as event producer===
+    IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char *)"ConetEvtState_TC2"};
+    IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageEvtProducer};
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    IOC_Result_T result = IOC_onlineService(&srvID, &srvArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
+    ASSERT_NE(IOC_ID_INVALID, srvID);
 
-    IOC_LinkID_T linkID;
-    IOC_LinkCfg_T linkCfg =
-        BUILD_INIT_LinkCfg_InOutTCP(IOC_LinkUsageEvtSubscriber, (char*)"tcp://localprocess:26001/ConetEvt_TC2");
-    result = IOC_openLink(&linkCfg, &linkID);
+    //===SETUP: Client connects as event subscriber===
+    IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageEvtConsumer};
+    IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
+
+    std::atomic<bool> clientConnected{false};
+    std::thread clientThread([&] {
+        IOC_Result_T connResult = IOC_connectService(&cliLinkID, &connArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, connResult);
+        ASSERT_NE(IOC_ID_INVALID, cliLinkID);
+        clientConnected = true;
+    });
+
+    IOC_LinkID_T srvLinkID = IOC_ID_INVALID;
+    result = IOC_acceptClient(srvID, &srvLinkID, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
+    ASSERT_NE(IOC_ID_INVALID, srvLinkID);
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));  // Allow connection
+    clientThread.join();
+    ASSERT_TRUE(clientConnected.load());
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-    //===BEHAVIOR: Subscribe to event===
+    //===BEHAVIOR: Subscribe to event using actual API signature===
     EventCallbackHelper helper;
     IOC_EvtID_T evtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
     IOC_SubEvtArgs_T subArgs = {};
-    subArgs.LinkID = linkID;
-    subArgs.EvtCnt = 1;
+    subArgs.EvtNum = 1;
     subArgs.pEvtIDs = evtIDs;
     subArgs.CbProcEvt_F = EventCallbackHelper::StaticCallback;
     subArgs.pCbPrivData = &helper;
 
-    result = IOC_subEVT(&subArgs);
+    // Actual signature: IOC_subEVT(LinkID, pSubEvtArgs)
+    result = IOC_subEVT(cliLinkID, &subArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
 
     //===VERIFY: State after subscription - Ready with Default substate===
-    EventStateSnapshot afterSub = CaptureEventState(linkID);
+    EventStateSnapshot afterSub = CaptureEventState(cliLinkID);
     ASSERT_EQ(IOC_RESULT_SUCCESS, afterSub.QueryResult);
     EXPECT_EQ(IOC_LinkStateReady, afterSub.MainState) << "After subscription, link should be Ready";
     EXPECT_EQ(IOC_LinkSubStateDefault, afterSub.SubState) << "EVT operations have NO substates";
 
     //===BEHAVIOR: Unsubscribe from event===
     IOC_UnsubEvtArgs_T unsubArgs = {};
-    unsubArgs.LinkID = linkID;
     unsubArgs.CbProcEvt_F = EventCallbackHelper::StaticCallback;
     unsubArgs.pCbPrivData = &helper;
 
-    result = IOC_unsubEVT(&unsubArgs);
+    // Actual signature: IOC_unsubEVT(LinkID, pUnsubEvtArgs)
+    result = IOC_unsubEVT(cliLinkID, &unsubArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
 
     //===VERIFY: State after unsubscription - Ready with Default substate===
-    EventStateSnapshot afterUnsub = CaptureEventState(linkID);
+    EventStateSnapshot afterUnsub = CaptureEventState(cliLinkID);
     ASSERT_EQ(IOC_RESULT_SUCCESS, afterUnsub.QueryResult);
     EXPECT_EQ(IOC_LinkStateReady, afterUnsub.MainState) << "After unsubscription, link should be Ready";
     EXPECT_EQ(IOC_LinkSubStateDefault, afterUnsub.SubState) << "EVT substates always Default";
 
     //===CLEANUP===
-    IOC_closeLink(linkID);
-    IOC_offlineService(srvID);
+    if (cliLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(cliLinkID);
+    }
+    if (srvLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(srvLinkID);
+    }
+    if (srvID != IOC_ID_INVALID) {
+        IOC_offlineService(srvID);
+    }
 }
 
 /**
@@ -261,46 +580,58 @@ TEST(UT_ConetEventState_Patterns, TC2_verifyEventState_subscriptionViaLink_expec
  *   8. Cleanup
  */
 TEST(UT_ConetEventState_Patterns, TC3_verifyEventState_callbackExecution_expectBusyCbProcEvt) {
-    //===SETUP: Create service and two links===
-    IOC_SrvID_T srvID;
-    IOC_SrvCfg_T srvCfg = BUILD_INIT_SrvCfg_InFIFO_OutTCP(26002, (char*)"ConetEvt_TC3");
-    IOC_Result_T result = IOC_onlineService(&srvCfg, &srvID);
+    //===SETUP: Create service as event producer (supports sending to subscribers)===
+    IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char *)"ConetEvtState_TC3"};
+    IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
+                             .Flags = IOC_SRVFLAG_NONE,
+                             .UsageCapabilites = IOC_LinkUsageEvtProducer};  // Service will SEND events
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    IOC_Result_T result = IOC_onlineService(&srvID, &srvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result);
+    ASSERT_NE(IOC_ID_INVALID, srvID);
+
+    //===SETUP: Client connects as subscriber===
+    IOC_ConnArgs_T subscriberConnArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageEvtConsumer};
+    IOC_LinkID_T subscriberLinkID = IOC_ID_INVALID;
+
+    std::atomic<bool> subscriberConnected{false};
+    std::thread subscriberThread([&] {
+        IOC_Result_T connResult = IOC_connectService(&subscriberLinkID, &subscriberConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, connResult);
+        ASSERT_NE(IOC_ID_INVALID, subscriberLinkID);
+        subscriberConnected = true;
+    });
+
+    IOC_LinkID_T srvLink1ID = IOC_ID_INVALID;
+    result = IOC_acceptClient(srvID, &srvLink1ID, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
 
-    // Subscriber link
-    IOC_LinkID_T subscriberLinkID;
-    IOC_LinkCfg_T subscriberCfg =
-        BUILD_INIT_LinkCfg_InOutTCP(IOC_LinkUsageEvtSubscriber, (char*)"tcp://localprocess:26002/ConetEvt_TC3");
-    result = IOC_openLink(&subscriberCfg, &subscriberLinkID);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, result);
-
-    // Poster link
-    IOC_LinkID_T posterLinkID;
-    IOC_LinkCfg_T posterCfg =
-        BUILD_INIT_LinkCfg_InOutTCP(IOC_LinkUsageEvtPoster, (char*)"tcp://localprocess:26002/ConetEvt_TC3");
-    result = IOC_openLink(&posterCfg, &posterLinkID);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, result);
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));  // Allow connections
+    subscriberThread.join();
+    ASSERT_TRUE(subscriberConnected.load());
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     //===BEHAVIOR: Subscribe with blocking callback===
     EventCallbackHelper helper;
+    helper.SetTrackedLink(subscriberLinkID);  // Tell helper which link to monitor
     IOC_EvtID_T evtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
     IOC_SubEvtArgs_T subArgs = {};
-    subArgs.LinkID = subscriberLinkID;
-    subArgs.EvtCnt = 1;
+    subArgs.EvtNum = 1;
     subArgs.pEvtIDs = evtIDs;
     subArgs.CbProcEvt_F = EventCallbackHelper::StaticCallback;
     subArgs.pCbPrivData = &helper;
 
-    result = IOC_subEVT(&subArgs);
+    result = IOC_subEVT(subscriberLinkID, &subArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
 
-    //===BEHAVIOR: Post event from another link===
+    //===BEHAVIOR: Service posts event (will trigger subscriber's callback)===
     IOC_EvtDesc_T evtDesc = {};
     evtDesc.EvtID = IOC_EVTID_TEST_KEEPALIVE;
-    evtDesc.PostedByLinkID = posterLinkID;
-    result = IOC_postEVT(&evtDesc);
+    evtDesc.EvtValue = 99999;
+
+    // Service posts via its link to subscriber
+    result = IOC_postEVT(srvLink1ID, &evtDesc, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
 
     //===WAIT: For callback to start===
@@ -325,7 +656,7 @@ TEST(UT_ConetEventState_Patterns, TC3_verifyEventState_callbackExecution_expectB
     //===BEHAVIOR: Allow callback to complete===
     helper.AllowCallbackToProceed = true;
     helper.CV.notify_all();
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));  // Allow callback to finish
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     //===VERIFY: State after callback - Ready===
     EventStateSnapshot afterCallback = CaptureEventState(subscriberLinkID);
@@ -335,14 +666,19 @@ TEST(UT_ConetEventState_Patterns, TC3_verifyEventState_callbackExecution_expectB
 
     //===CLEANUP===
     IOC_UnsubEvtArgs_T unsubArgs = {};
-    unsubArgs.LinkID = subscriberLinkID;
     unsubArgs.CbProcEvt_F = EventCallbackHelper::StaticCallback;
     unsubArgs.pCbPrivData = &helper;
-    IOC_unsubEVT(&unsubArgs);
+    IOC_unsubEVT(subscriberLinkID, &unsubArgs);
 
-    IOC_closeLink(posterLinkID);
-    IOC_closeLink(subscriberLinkID);
-    IOC_offlineService(srvID);
+    if (subscriberLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(subscriberLinkID);
+    }
+    if (srvLink1ID != IOC_ID_INVALID) {
+        IOC_closeLink(srvLink1ID);
+    }
+    if (srvID != IOC_ID_INVALID) {
+        IOC_offlineService(srvID);
+    }
 }
 
 /**
@@ -363,61 +699,76 @@ TEST(UT_ConetEventState_Patterns, TC3_verifyEventState_callbackExecution_expectB
  *   5. Cleanup
  */
 TEST(UT_ConetEventState_Patterns, TC4_verifyEventState_noEVTSubstates_expectDefault) {
-    //===SETUP: Create TCP service and link===
-    IOC_SrvID_T srvID;
-    IOC_SrvCfg_T srvCfg = BUILD_INIT_SrvCfg_InFIFO_OutTCP(26003, (char*)"ConetEvt_TC4");
-    IOC_Result_T result = IOC_onlineService(&srvCfg, &srvID);
+    //===SETUP: Create service as event producer===
+    IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char *)"ConetEvtState_TC4"};
+    IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
+                             .Flags = IOC_SRVFLAG_NONE,
+                             .UsageCapabilites = IOC_LinkUsageEvtProducer};  // Service will SEND events
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    IOC_Result_T result = IOC_onlineService(&srvID, &srvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result);
+    ASSERT_NE(IOC_ID_INVALID, srvID);
+
+    //===SETUP: Client connects as consumer===
+    IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageEvtConsumer};  // Client will RECEIVE events
+    IOC_LinkID_T cliLinkID = IOC_ID_INVALID;
+
+    std::atomic<bool> clientConnected{false};
+    std::thread clientThread([&] {
+        IOC_Result_T connResult = IOC_connectService(&cliLinkID, &connArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, connResult);
+        ASSERT_NE(IOC_ID_INVALID, cliLinkID);
+        clientConnected = true;
+    });
+
+    IOC_LinkID_T srvLinkID = IOC_ID_INVALID;
+    result = IOC_acceptClient(srvID, &srvLinkID, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
 
-    IOC_LinkID_T linkID;
-    IOC_LinkCfg_T linkCfg =
-        BUILD_INIT_LinkCfg_InOutTCP((IOC_LinkUsage_T)(IOC_LinkUsageEvtPoster | IOC_LinkUsageEvtSubscriber),
-                                    (char*)"tcp://localprocess:26003/ConetEvt_TC4");
-    result = IOC_openLink(&linkCfg, &linkID);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, result);
-
+    clientThread.join();
+    ASSERT_TRUE(clientConnected.load());
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
     std::vector<EventStateSnapshot> snapshots;
 
     //===VERIFY: Initial state - SubState is Default===
-    snapshots.push_back(CaptureEventState(linkID));
+    snapshots.push_back(CaptureEventState(srvLinkID));  // Query service link that will post
 
     //===BEHAVIOR: Subscribe to event===
     EventCallbackHelper helper;
     helper.AllowCallbackToProceed = true;  // Non-blocking callback
     IOC_EvtID_T evtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
     IOC_SubEvtArgs_T subArgs = {};
-    subArgs.LinkID = linkID;
-    subArgs.EvtCnt = 1;
+    subArgs.EvtNum = 1;
     subArgs.pEvtIDs = evtIDs;
     subArgs.CbProcEvt_F = EventCallbackHelper::StaticCallback;
     subArgs.pCbPrivData = &helper;
-    result = IOC_subEVT(&subArgs);
+    result = IOC_subEVT(cliLinkID, &subArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
 
-    snapshots.push_back(CaptureEventState(linkID));
+    snapshots.push_back(CaptureEventState(srvLinkID));
 
-    //===BEHAVIOR: Post event===
+    //===BEHAVIOR: Service posts event===
     IOC_EvtDesc_T evtDesc = {};
     evtDesc.EvtID = IOC_EVTID_TEST_KEEPALIVE;
-    evtDesc.PostedByLinkID = linkID;
-    result = IOC_postEVT(&evtDesc);
+    evtDesc.EvtValue = 77777;
+    result = IOC_postEVT(srvLinkID, &evtDesc, NULL);  // Service posts to client
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
 
-    snapshots.push_back(CaptureEventState(linkID));
+    snapshots.push_back(CaptureEventState(srvLinkID));
     std::this_thread::sleep_for(std::chrono::milliseconds(100));  // Allow callback
-    snapshots.push_back(CaptureEventState(linkID));
+    snapshots.push_back(CaptureEventState(srvLinkID));
 
     //===BEHAVIOR: Unsubscribe from event===
     IOC_UnsubEvtArgs_T unsubArgs = {};
-    unsubArgs.LinkID = linkID;
     unsubArgs.CbProcEvt_F = EventCallbackHelper::StaticCallback;
     unsubArgs.pCbPrivData = &helper;
-    result = IOC_unsubEVT(&unsubArgs);
+    result = IOC_unsubEVT(cliLinkID, &unsubArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
 
-    snapshots.push_back(CaptureEventState(linkID));
+    snapshots.push_back(CaptureEventState(srvLinkID));
 
     //===VERIFY: SubState ALWAYS Default throughout all operations===
     for (size_t i = 0; i < snapshots.size(); i++) {
@@ -426,8 +777,15 @@ TEST(UT_ConetEventState_Patterns, TC4_verifyEventState_noEVTSubstates_expectDefa
     }
 
     //===CLEANUP===
-    IOC_closeLink(linkID);
-    IOC_offlineService(srvID);
+    if (cliLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(cliLinkID);
+    }
+    if (srvLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(srvLinkID);
+    }
+    if (srvID != IOC_ID_INVALID) {
+        IOC_offlineService(srvID);
+    }
 }
 
 /**************************************************************************************************
@@ -457,34 +815,47 @@ TEST(UT_ConetEventState_Patterns, TC4_verifyEventState_noEVTSubstates_expectDefa
  *   5. Cleanup
  */
 TEST(UT_ConetEventState_Comparison, TC5_compareEventState_postPatterns_expectSimilarBehavior) {
-    //===SETUP: ConetMode link===
-    IOC_SrvID_T srvID;
-    IOC_SrvCfg_T srvCfg = BUILD_INIT_SrvCfg_InFIFO_OutTCP(26004, (char*)"ConetEvt_TC5");
-    IOC_Result_T result = IOC_onlineService(&srvCfg, &srvID);
+    //===SETUP: ConetMode link - Service as producer===
+    IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char *)"ConetEvtState_TC5"};
+    IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageEvtProducer};
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    IOC_Result_T result = IOC_onlineService(&srvID, &srvArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
 
-    IOC_LinkID_T conetLinkID;
-    IOC_LinkCfg_T conetCfg =
-        BUILD_INIT_LinkCfg_InOutTCP(IOC_LinkUsageEvtPoster, (char*)"tcp://localprocess:26004/ConetEvt_TC5");
-    result = IOC_openLink(&conetCfg, &conetLinkID);
+    IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageEvtConsumer};
+    IOC_LinkID_T conetLinkID = IOC_ID_INVALID;
+
+    std::atomic<bool> connected{false};
+    std::thread connThread([&] {
+        IOC_Result_T connResult = IOC_connectService(&conetLinkID, &connArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, connResult);
+        connected = true;
+    });
+
+    IOC_LinkID_T srvLinkID = IOC_ID_INVALID;
+    result = IOC_acceptClient(srvID, &srvLinkID, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
 
+    connThread.join();
+    ASSERT_TRUE(connected.load());
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-    //===BEHAVIOR: Post via ConetMode===
+    //===BEHAVIOR: Service posts via ConetMode (explicit LinkID)===
     IOC_EvtDesc_T evtDescConet = {};
     evtDescConet.EvtID = IOC_EVTID_TEST_KEEPALIVE;
-    evtDescConet.PostedByLinkID = conetLinkID;
-    result = IOC_postEVT(&evtDescConet);
+    evtDescConet.EvtValue = 11111;
+    result = IOC_postEVT(srvLinkID, &evtDescConet, NULL);  // Service posts to client
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
 
-    EventStateSnapshot conetAfterPost = CaptureEventState(conetLinkID);
+    EventStateSnapshot conetAfterPost = CaptureEventState(srvLinkID);  // Query service link
 
-    //===BEHAVIOR: Post via ConlesMode===
+    //===BEHAVIOR: Post via ConlesMode (AUTO_LINK_ID)===
     IOC_EvtDesc_T evtDescConles = {};
     evtDescConles.EvtID = IOC_EVTID_TEST_KEEPALIVE;
-    evtDescConles.PostedByLinkID = IOC_CONLES_MODE_AUTO_LINK_ID;
-    result = IOC_postEVT(&evtDescConles);
+    evtDescConles.EvtValue = 22222;
+    result = IOC_postEVT(IOC_CONLES_MODE_AUTO_LINK_ID, &evtDescConles, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
 
     EventStateSnapshot conlesAfterPost = CaptureEventState(IOC_CONLES_MODE_AUTO_LINK_ID);
@@ -503,8 +874,15 @@ TEST(UT_ConetEventState_Comparison, TC5_compareEventState_postPatterns_expectSim
     EXPECT_EQ(conetAfterPost.MainState, conlesAfterPost.MainState) << "Post pattern consistent across modes";
 
     //===CLEANUP===
-    IOC_closeLink(conetLinkID);
-    IOC_offlineService(srvID);
+    if (conetLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(conetLinkID);
+    }
+    if (srvLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(srvLinkID);
+    }
+    if (srvID != IOC_ID_INVALID) {
+        IOC_offlineService(srvID);
+    }
 }
 
 /**
@@ -525,29 +903,40 @@ TEST(UT_ConetEventState_Comparison, TC5_compareEventState_postPatterns_expectSim
  */
 TEST(UT_ConetEventState_Comparison, TC6_compareEventState_subscriptionModels_expectDifferences) {
     //===SETUP: ConetMode link===
-    IOC_SrvID_T srvID;
-    IOC_SrvCfg_T srvCfg = BUILD_INIT_SrvCfg_InFIFO_OutTCP(26005, (char*)"ConetEvt_TC6");
-    IOC_Result_T result = IOC_onlineService(&srvCfg, &srvID);
+    IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char *)"ConetEvtState_TC6"};
+    IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageEvtProducer};
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    IOC_Result_T result = IOC_onlineService(&srvID, &srvArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
 
-    IOC_LinkID_T conetLinkID;
-    IOC_LinkCfg_T conetCfg =
-        BUILD_INIT_LinkCfg_InOutTCP(IOC_LinkUsageEvtSubscriber, (char*)"tcp://localprocess:26005/ConetEvt_TC6");
-    result = IOC_openLink(&conetCfg, &conetLinkID);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, result);
+    IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageEvtConsumer};
+    IOC_LinkID_T conetLinkID = IOC_ID_INVALID;
 
+    std::atomic<bool> connected{false};
+    std::thread connThread([&] {
+        IOC_Result_T connResult = IOC_connectService(&conetLinkID, &connArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, connResult);
+        connected = true;
+    });
+
+    IOC_LinkID_T srvLinkID = IOC_ID_INVALID;
+    result = IOC_acceptClient(srvID, &srvLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result);
+    connThread.join();
+    ASSERT_TRUE(connected.load());
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
     //===BEHAVIOR: Subscribe via ConetMode===
     EventCallbackHelper conetHelper;
     IOC_EvtID_T evtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
     IOC_SubEvtArgs_T conetSubArgs = {};
-    conetSubArgs.LinkID = conetLinkID;
-    conetSubArgs.EvtCnt = 1;
+    conetSubArgs.EvtNum = 1;
     conetSubArgs.pEvtIDs = evtIDs;
     conetSubArgs.CbProcEvt_F = EventCallbackHelper::StaticCallback;
     conetSubArgs.pCbPrivData = &conetHelper;
-    result = IOC_subEVT(&conetSubArgs);
+    result = IOC_subEVT(conetLinkID, &conetSubArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
 
     EventStateSnapshot conetAfterSub = CaptureEventState(conetLinkID);
@@ -555,12 +944,11 @@ TEST(UT_ConetEventState_Comparison, TC6_compareEventState_subscriptionModels_exp
     //===BEHAVIOR: Subscribe via ConlesMode===
     EventCallbackHelper conlesHelper;
     IOC_SubEvtArgs_T conlesSubArgs = {};
-    conlesSubArgs.LinkID = IOC_CONLES_MODE_AUTO_LINK_ID;
-    conlesSubArgs.EvtCnt = 1;
+    conlesSubArgs.EvtNum = 1;
     conlesSubArgs.pEvtIDs = evtIDs;
     conlesSubArgs.CbProcEvt_F = EventCallbackHelper::StaticCallback;
     conlesSubArgs.pCbPrivData = &conlesHelper;
-    result = IOC_subEVT(&conlesSubArgs);
+    result = IOC_subEVT(IOC_CONLES_MODE_AUTO_LINK_ID, &conlesSubArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
 
     EventStateSnapshot conlesAfterSub = CaptureEventState(IOC_CONLES_MODE_AUTO_LINK_ID);
@@ -579,19 +967,24 @@ TEST(UT_ConetEventState_Comparison, TC6_compareEventState_subscriptionModels_exp
 
     //===CLEANUP===
     IOC_UnsubEvtArgs_T conetUnsubArgs = {};
-    conetUnsubArgs.LinkID = conetLinkID;
     conetUnsubArgs.CbProcEvt_F = EventCallbackHelper::StaticCallback;
     conetUnsubArgs.pCbPrivData = &conetHelper;
-    IOC_unsubEVT(&conetUnsubArgs);
+    IOC_unsubEVT(conetLinkID, &conetUnsubArgs);
 
     IOC_UnsubEvtArgs_T conlesUnsubArgs = {};
-    conlesUnsubArgs.LinkID = IOC_CONLES_MODE_AUTO_LINK_ID;
     conlesUnsubArgs.CbProcEvt_F = EventCallbackHelper::StaticCallback;
     conlesUnsubArgs.pCbPrivData = &conlesHelper;
-    IOC_unsubEVT(&conlesUnsubArgs);
+    IOC_unsubEVT(IOC_CONLES_MODE_AUTO_LINK_ID, &conlesUnsubArgs);
 
-    IOC_closeLink(conetLinkID);
-    IOC_offlineService(srvID);
+    if (conetLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(conetLinkID);
+    }
+    if (srvLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(srvLinkID);
+    }
+    if (srvID != IOC_ID_INVALID) {
+        IOC_offlineService(srvID);
+    }
 }
 
 /**
@@ -611,23 +1004,35 @@ TEST(UT_ConetEventState_Comparison, TC6_compareEventState_subscriptionModels_exp
  *   5. Cleanup
  */
 TEST(UT_ConetEventState_Comparison, TC7_compareEventState_stateTracking_expectMainStatesOnly) {
-    //===SETUP: ConetMode link===
-    IOC_SrvID_T srvID;
-    IOC_SrvCfg_T srvCfg = BUILD_INIT_SrvCfg_InFIFO_OutTCP(26006, (char*)"ConetEvt_TC7");
-    IOC_Result_T result = IOC_onlineService(&srvCfg, &srvID);
+    //===SETUP: ConetMode link - Service as producer===
+    IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char *)"ConetEvtState_TC7"};
+    IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
+                             .Flags = IOC_SRVFLAG_NONE,
+                             .UsageCapabilites = IOC_LinkUsageEvtProducer};  // Service sends events
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    IOC_Result_T result = IOC_onlineService(&srvID, &srvArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
 
-    IOC_LinkID_T conetLinkID;
-    IOC_LinkCfg_T conetCfg =
-        BUILD_INIT_LinkCfg_InOutTCP((IOC_LinkUsage_T)(IOC_LinkUsageEvtPoster | IOC_LinkUsageEvtSubscriber),
-                                    (char*)"tcp://localprocess:26006/ConetEvt_TC7");
-    result = IOC_openLink(&conetCfg, &conetLinkID);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, result);
+    IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageEvtConsumer};  // Client receives events
+    IOC_LinkID_T conetLinkID = IOC_ID_INVALID;
+    std::atomic<bool> connected{false};
+    std::thread connThread([&] {
+        IOC_Result_T connResult = IOC_connectService(&conetLinkID, &connArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, connResult);
+        connected = true;
+    });
 
+    IOC_LinkID_T srvLinkID = IOC_ID_INVALID;
+    result = IOC_acceptClient(srvID, &srvLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result);
+    connThread.join();
+    ASSERT_TRUE(connected.load());
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
     //===BEHAVIOR: Query both modes===
-    EventStateSnapshot conetState = CaptureEventState(conetLinkID);
+    EventStateSnapshot conetState = CaptureEventState(srvLinkID);  // Query service link
     EventStateSnapshot conlesState = CaptureEventState(IOC_CONLES_MODE_AUTO_LINK_ID);
 
     //===VERIFY: Both modes use main states only, no substates===
@@ -646,8 +1051,15 @@ TEST(UT_ConetEventState_Comparison, TC7_compareEventState_stateTracking_expectMa
     EXPECT_EQ(conetState.MainState, conlesState.MainState) << "Both modes use same operation state tracking";
 
     //===CLEANUP===
-    IOC_closeLink(conetLinkID);
-    IOC_offlineService(srvID);
+    if (conetLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(conetLinkID);
+    }
+    if (srvLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(srvLinkID);
+    }
+    if (srvID != IOC_ID_INVALID) {
+        IOC_offlineService(srvID);
+    }
 }
 
 /**
@@ -669,19 +1081,31 @@ TEST(UT_ConetEventState_Comparison, TC7_compareEventState_stateTracking_expectMa
  *   5. Cleanup
  */
 TEST(UT_ConetEventState_Comparison, TC8_verifyArchitectureCompliance_noEVTSubstates_expectConsistent) {
-    //===SETUP: Both modes===
-    IOC_SrvID_T srvID;
-    IOC_SrvCfg_T srvCfg = BUILD_INIT_SrvCfg_InFIFO_OutTCP(26007, (char*)"ConetEvt_TC8");
-    IOC_Result_T result = IOC_onlineService(&srvCfg, &srvID);
+    //===SETUP: ConetMode - Service as producer===
+    IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
+                           .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+                           .pPath = (const char *)"ConetEvtState_TC8"};
+    IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
+                             .Flags = IOC_SRVFLAG_NONE,
+                             .UsageCapabilites = IOC_LinkUsageEvtProducer};  // Service sends events
+    IOC_SrvID_T srvID = IOC_ID_INVALID;
+    IOC_Result_T result = IOC_onlineService(&srvID, &srvArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
 
-    IOC_LinkID_T conetLinkID;
-    IOC_LinkCfg_T conetCfg =
-        BUILD_INIT_LinkCfg_InOutTCP((IOC_LinkUsage_T)(IOC_LinkUsageEvtPoster | IOC_LinkUsageEvtSubscriber),
-                                    (char*)"tcp://localprocess:26007/ConetEvt_TC8");
-    result = IOC_openLink(&conetCfg, &conetLinkID);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, result);
+    IOC_ConnArgs_T connArgs = {.SrvURI = srvURI, .Usage = IOC_LinkUsageEvtConsumer};  // Client receives events
+    IOC_LinkID_T conetLinkID = IOC_ID_INVALID;
+    std::atomic<bool> connected{false};
+    std::thread connThread([&] {
+        IOC_Result_T connResult = IOC_connectService(&conetLinkID, &connArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, connResult);
+        connected = true;
+    });
 
+    IOC_LinkID_T srvLinkID = IOC_ID_INVALID;
+    result = IOC_acceptClient(srvID, &srvLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result);
+    connThread.join();
+    ASSERT_TRUE(connected.load());
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
     std::vector<EventStateSnapshot> conetSnapshots;
@@ -692,56 +1116,42 @@ TEST(UT_ConetEventState_Comparison, TC8_verifyArchitectureCompliance_noEVTSubsta
     helper.AllowCallbackToProceed = true;
 
     // Initial state
-    conetSnapshots.push_back(CaptureEventState(conetLinkID));
+    conetSnapshots.push_back(CaptureEventState(srvLinkID));  // Query service link
     conlesSnapshots.push_back(CaptureEventState(IOC_CONLES_MODE_AUTO_LINK_ID));
 
     // Subscribe operations
     IOC_EvtID_T evtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
-    IOC_SubEvtArgs_T subArgsConet = {};
-    subArgsConet.LinkID = conetLinkID;
-    subArgsConet.EvtCnt = 1;
-    subArgsConet.pEvtIDs = evtIDs;
-    subArgsConet.CbProcEvt_F = EventCallbackHelper::StaticCallback;
-    subArgsConet.pCbPrivData = &helper;
-    IOC_subEVT(&subArgsConet);
+    IOC_SubEvtArgs_T subArgsConet = {
+        .EvtNum = 1, .pEvtIDs = evtIDs, .CbProcEvt_F = EventCallbackHelper::StaticCallback, .pCbPrivData = &helper};
+    IOC_subEVT(conetLinkID, &subArgsConet);
 
-    IOC_SubEvtArgs_T subArgsConles = {};
-    subArgsConles.LinkID = IOC_CONLES_MODE_AUTO_LINK_ID;
-    subArgsConles.EvtCnt = 1;
-    subArgsConles.pEvtIDs = evtIDs;
-    subArgsConles.CbProcEvt_F = EventCallbackHelper::StaticCallback;
-    subArgsConles.pCbPrivData = &helper;
-    IOC_subEVT(&subArgsConles);
+    IOC_SubEvtArgs_T subArgsConles = {
+        .EvtNum = 1, .pEvtIDs = evtIDs, .CbProcEvt_F = EventCallbackHelper::StaticCallback, .pCbPrivData = &helper};
+    IOC_subEVT(IOC_CONLES_MODE_AUTO_LINK_ID, &subArgsConles);
 
-    conetSnapshots.push_back(CaptureEventState(conetLinkID));
+    conetSnapshots.push_back(CaptureEventState(srvLinkID));
     conlesSnapshots.push_back(CaptureEventState(IOC_CONLES_MODE_AUTO_LINK_ID));
 
-    // Post operations
-    IOC_EvtDesc_T evtDescConet = {IOC_EVTID_TEST_KEEPALIVE, conetLinkID};
-    IOC_postEVT(&evtDescConet);
-    IOC_EvtDesc_T evtDescConles = {IOC_EVTID_TEST_KEEPALIVE, IOC_CONLES_MODE_AUTO_LINK_ID};
-    IOC_postEVT(&evtDescConles);
+    // Post operations - Service posts
+    IOC_EvtDesc_T evtDescConet = {.EvtID = IOC_EVTID_TEST_KEEPALIVE, .EvtValue = 88888};
+    IOC_postEVT(srvLinkID, &evtDescConet, NULL);  // Service posts to client
+    IOC_EvtDesc_T evtDescConles = {.EvtID = IOC_EVTID_TEST_KEEPALIVE, .EvtValue = 99999};
+    IOC_postEVT(IOC_CONLES_MODE_AUTO_LINK_ID, &evtDescConles, NULL);
 
-    conetSnapshots.push_back(CaptureEventState(conetLinkID));
+    conetSnapshots.push_back(CaptureEventState(srvLinkID));
     conlesSnapshots.push_back(CaptureEventState(IOC_CONLES_MODE_AUTO_LINK_ID));
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));  // Allow callbacks
 
-    conetSnapshots.push_back(CaptureEventState(conetLinkID));
+    conetSnapshots.push_back(CaptureEventState(srvLinkID));
     conlesSnapshots.push_back(CaptureEventState(IOC_CONLES_MODE_AUTO_LINK_ID));
 
     // Unsubscribe operations
-    IOC_UnsubEvtArgs_T unsubArgsConet = {};
-    unsubArgsConet.LinkID = conetLinkID;
-    unsubArgsConet.CbProcEvt_F = EventCallbackHelper::StaticCallback;
-    unsubArgsConet.pCbPrivData = &helper;
-    IOC_unsubEVT(&unsubArgsConet);
+    IOC_UnsubEvtArgs_T unsubArgsConet = {.CbProcEvt_F = EventCallbackHelper::StaticCallback, .pCbPrivData = &helper};
+    IOC_unsubEVT(conetLinkID, &unsubArgsConet);
 
-    IOC_UnsubEvtArgs_T unsubArgsConles = {};
-    unsubArgsConles.LinkID = IOC_CONLES_MODE_AUTO_LINK_ID;
-    unsubArgsConles.CbProcEvt_F = EventCallbackHelper::StaticCallback;
-    unsubArgsConles.pCbPrivData = &helper;
-    IOC_unsubEVT(&unsubArgsConles);
+    IOC_UnsubEvtArgs_T unsubArgsConles = {.CbProcEvt_F = EventCallbackHelper::StaticCallback, .pCbPrivData = &helper};
+    IOC_unsubEVT(IOC_CONLES_MODE_AUTO_LINK_ID, &unsubArgsConles);
 
     conetSnapshots.push_back(CaptureEventState(conetLinkID));
     conlesSnapshots.push_back(CaptureEventState(IOC_CONLES_MODE_AUTO_LINK_ID));
@@ -764,8 +1174,15 @@ TEST(UT_ConetEventState_Comparison, TC8_verifyArchitectureCompliance_noEVTSubsta
     // tracking provides no additional value and is architecturally excluded for EVT.
 
     //===CLEANUP===
-    IOC_closeLink(conetLinkID);
-    IOC_offlineService(srvID);
+    if (conetLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(conetLinkID);
+    }
+    if (srvLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(srvLinkID);
+    }
+    if (srvID != IOC_ID_INVALID) {
+        IOC_offlineService(srvID);
+    }
 }
 
 /**************************************************************************************************
