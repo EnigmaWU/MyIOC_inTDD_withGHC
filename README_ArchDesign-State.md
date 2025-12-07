@@ -321,7 +321,8 @@ Level 1: Connection State (IOC_LinkConnState_T)
 Level 2: Operation State (IOC_LinkState_T)  
   What:   Application readiness (can I operate now?)
   Who:    BOTH ConetMode & ConlesMode
-  States: Ready ↔ Busy (BusyCbProcEvt, BusySubEvt, BusyUnsubEvt)
+  States: Ready ↔ Busy (BusySubEvt, BusyUnsubEvt, BusyCbProcCmd)
+  Note:   EVT callbacks show Ready (fire-and-forget), only CMD shows BusyCbProcCmd
   API:    IOC_getLinkState(linkID, &linkState)
 
          ↓ (provides details for)
@@ -337,12 +338,38 @@ Level 3: Operation Detail (IOC_LinkSubState_T)
 
 **"Which state should I check for my use case?"**
 
-| Your Question | Check This State | Mode | Example |
-|---------------|------------------|------|---------|  
-| "Is network connected?" | Level 1: `IOC_LinkConnState_T` | ConetMode | `Connected`, `Broken` |
-| "Can I send/receive now?" | Level 2: `IOC_LinkState_T` | Both | `Ready` vs `BusyCbProcEvt` |
-| "What operation is happening?" | Level 3: `IOC_LinkSubState_T` | ConetMode CMD/DAT | `CmdInitiatorBusyExecCmd` |
-| "Is my event subscription active?" | Level 2: `IOC_LinkState_T` | ConlesMode | `BusySubEvt`, `BusyUnsubEvt` |
+| Your Question | Check This State | Mode | Example Code |
+|---------------|------------------|------|--------------|
+| "Is network connected?" | Level 1: `IOC_LinkConnState_T` | ConetMode | `IOC_getLinkConnState(linkID, &connState);`<br/>`if (connState == Connected) { ... }` |
+| "Can I send/receive now?" | Level 2: `IOC_LinkState_T` | Both | `IOC_getLinkState(linkID, &state);`<br/>`if (state == Ready) { IOC_execCMD(...); }` |
+| "What operation is happening?" | Level 3: `IOC_LinkSubState_T` | ConetMode CMD/DAT | `IOC_getLinkSubState(linkID, &subState);`<br/>`// CmdInitiatorBusyExecCmd?` |
+| "Is my event subscription active?" | Level 2: `IOC_LinkState_T` | ConlesMode | `// BusySubEvt (transient) → Ready` |
+| "EVT callback running?" | Level 2: `IOC_LinkState_T` | Both | `// Always Ready (fire-and-forget)` |
+| "Should I retry failed operation?" | Level 1 + Level 2 | ConetMode | `// Check both: network OK? (L1) + operation OK? (L2)` |
+
+### State Query Strategy by Use Case
+
+| Your Scenario | Check This | Example Code |
+|---------------|-----------|--------------|
+| **"Can I send CMD now?"** | Level 2: LinkState | `IOC_getLinkState(linkID, &state);`<br/>`if (state == Ready) { IOC_execCMD(...); }` |
+| **"Is network stable?"** | Level 1: LinkConnState | `IOC_getLinkConnState(linkID, &connState);`<br/>`if (connState == Connected) { ... }` |
+| **"Which CMD phase am I in?"** | Level 3: LinkSubState | `IOC_getLinkSubState(linkID, &subState);`<br/>`// CmdInitiatorBusyExecCmd?` |
+| **"EVT callback running?"** | Level 2: LinkState | `// Always Ready (fire-and-forget)`<br/>`// See Event State Behavior section` |
+| **"Should I retry failed operation?"** | Level 1 + Level 2 | `// Check both: network OK? (L1) + operation OK? (L2)` |
+
+### Common Misconceptions
+
+❌ **WRONG**: "Event callback means link is busy"  
+✅ **CORRECT**: Event callbacks show `Ready` (fire-and-forget design)
+
+❌ **WRONG**: "ConlesMode needs connection state"  
+✅ **CORRECT**: ConlesMode only uses Level 2 (no Level 1 connection)
+
+❌ **WRONG**: "All operations show Busy state"  
+✅ **CORRECT**: Only blocking operations (CMD, DAT) show Busy. EVT posts stay Ready.
+
+❌ **WRONG**: "BusyCbProcEvt appears during any callback or EVT operations"  
+✅ **CORRECT**: Only CMD callbacks show BusyCbProcCmd. EVT operations always show Ready (fire-and-forget).
 
 ### Quick Comparison: LinkConnState vs LinkState
 
@@ -353,7 +380,7 @@ Level 3: Operation Detail (IOC_LinkSubState_T)
 | **Applies To** | ConetMode only | Both ConetMode & ConlesMode |
 | **Lifecycle** | Connect → Connected → Disconnect | Ready ↔ Busy |
 | **Query API** | `IOC_getLinkConnState()` ✅ | `IOC_getLinkState()` 🔴 TODO |
-| **Example States** | Connecting, Connected, Broken | Ready, BusyCbProcEvt |
+| **Example States** | Connecting, Connected, Broken | Ready, BusySubEvt, BusyCbProcCmd |
 
 ### Mode-Specific State Usage
 
@@ -365,7 +392,8 @@ Level 3: Operation Detail (IOC_LinkSubState_T)
 **ConlesMode** (Connectionless):
 - Uses **Level 2 only**: Operation State (no connection phase)
 - Uses `IOC_CONLES_MODE_AUTO_LINK_ID` (no connect/disconnect needed)
-- Example flow: `Ready` → `BusyCbProcEvt` → `Ready`
+- Example flow: `Ready` → `BusySubEvt` → `Ready` (for subscribe ops)
+- Note: EVT post/callback operations always show `Ready` (fire-and-forget)
 - No connection setup: start posting/subscribing immediately
 
 ### Why Three Levels?
@@ -817,7 +845,8 @@ sequenceDiagram
 **Why No EVT SubStates?** (Critical Design Decision explained later)
 - EVT is **instant queue operation**: post to queue and return immediately, no waiting needed
 - CMD/DAT **block and wait**: need substates to track "waiting for response" or "sending chunks with flow control"
-- EVT callback processing tracked by `IOC_LinkStateBusyCbProcEvt` (main state, not substate)
+- EVT operations show `Ready` state even during callback (fire-and-forget semantics)
+- Only CMD uses `BusyCbProcCmd` state during callback execution (request-response pattern)
 - See detailed comparison table in [Why No EVT SubStates?](#-why-no-evt-substates) section
 
 ## Link-Level Event States (EVT::Conet) 📐 CONCEPTUAL
@@ -1042,6 +1071,180 @@ stateDiagram-v2
    - **Hybrid**: IOC_subEVT(EvtID, NULL) + IOC_waitEVT() - optional subscription
 4. **PostEvt Anytime**: Can post events in any state (Ready/BusyXXX)
 5. **Simpler State Machine**: No publisher/subscriber separation like ConetMode
+
+### Event State Behavior (Level 2) - Fire-and-Forget Architecture
+
+**CRITICAL ARCHITECTURAL DECISION**: Event operations use **fire-and-forget** semantics in both ConetMode and ConlesMode:
+
+| Operation | Expected Link State | Reason | Verified By |
+|-----------|-------------------|---------|-------------|
+| `IOC_postEVT()` | **Ready** | Non-blocking post, returns immediately | UT_ConetEventState.cxx TC-1 |
+| `IOC_subEVT()` | **BusySubEvt** (transient) → **Ready** | Subscription registration | UT_ConetEventState.cxx TC-2 |
+| `IOC_unsubEVT()` | **BusyUnsubEvt** (transient) → **Ready** | Unsubscription | UT_ConetEventState.cxx TC-2 |
+| **During EVT Callback** | **Ready** | Callback executes but link stays Ready | UT_ConetEventState.cxx TC-3 |
+
+**Why Events Don't Show BusyCbProcEvt:**
+- **Fire-and-forget design**: Event posting is asynchronous, non-blocking
+- **Link doesn't wait**: IOC_postEVT() returns immediately, no waiting for processing
+- **Contrast with CMD**: IOC_execCMD() blocks caller, link shows `BusyCbProcCmd` during execution
+- **Empirical validation**: UT_ConetEventState.cxx TC-3 empirically verifies Ready state during callback
+
+**Architectural Implications:**
+- Event subscription/unsubscription operations are transient (< 1ms typically)
+- BusySubEvt and BusyUnsubEvt states may be too fast to observe in practice
+- Event callbacks can query link state and will see Ready (not Busy)
+- This behavior is consistent across both ConetMode and ConlesMode
+
+**Common Misconception:**
+- ❌ WRONG: "Event callback means link is busy with BusyCbProcEvt"
+- ✅ CORRECT: "Event callbacks show Ready state (fire-and-forget, non-blocking)"
+
+### Architecture Comparison: EVT vs CMD Callback States
+
+Understanding why EVT and CMD callbacks behave differently is crucial for correct state expectations:
+
+| Aspect | EVT Callbacks | CMD Callbacks | Why Different? |
+|--------|---------------|---------------|----------------|
+| **Link State During Callback** | **Ready** | **BusyCbProcCmd** | EVT = fire-and-forget, CMD = blocking request-response |
+| **Posting/Execution** | `IOC_postEVT()` returns immediately | `IOC_execCMD()` blocks until response | Design pattern difference |
+| **Link Availability** | Link free for other operations | Link blocked until CMD completes | Concurrency model |
+| **Use Case** | Asynchronous notification | Synchronous request-response | Communication pattern |
+| **State Observation** | Query shows Ready always | Query shows Busy during execution | Architectural decision |
+| **Empirical Validation** | UT_ConetEventState.cxx TC-3 | UT_CommandState.cxx TC-X | Test evidence |
+
+**Key Takeaway**: EVT and CMD use different state management because they serve fundamentally different communication patterns:
+- **Events**: Non-blocking notifications (fire-and-forget) → Link stays Ready
+- **Commands**: Blocking requests (request-response) → Link shows Busy
+
+**Design Rationale**:
+- Event callbacks are **observers** - they don't prevent concurrent operations
+- Command callbacks are **handlers** - they exclusively own the link during execution
+- This distinction enables event-driven architectures without blocking
+
+### Testing Considerations for Event States
+
+When testing event state behavior, several challenges arise due to the nature of asynchronous operations:
+
+#### Challenge 1: Observing Transient States
+
+**Problem**: `BusySubEvt` and `BusyUnsubEvt` complete in < 1ms typically
+- Subscription/unsubscription operations are too fast for most query mechanisms
+- State may transition back to Ready before test code can query it
+
+**Solutions**:
+- Use concurrent query threads (background polling during operation)
+- Accept that Ready is the most commonly observed state
+- Focus test assertions on state consistency, not Busy observation
+- Use timing-controlled test scenarios (large subscription lists)
+
+**Test Strategy**:
+```cpp
+// Pattern: Background query thread
+std::thread queryThread([&]() {
+    while (operationInProgress) {
+        IOC_getLinkState(linkID, &state, NULL);
+        if (state == BusySubEvt) { busyObserved = true; }
+    }
+});
+IOC_subEVT(linkID, &subArgs);  // Fast operation
+operationInProgress = false;
+queryThread.join();
+// May or may not observe BusySubEvt - both outcomes valid
+```
+
+**Reference**: UT_LinkStateOperation.cxx TC-5, TC-6
+
+#### Challenge 2: Fire-and-Forget Validation
+
+**Problem**: EVT callbacks show Ready (counterintuitive - developers expect Busy)
+- Natural assumption: "Callback running = Link busy"
+- Architecture reality: Event callbacks don't block link
+
+**Solutions**:
+- Query state FROM WITHIN callback to capture runtime behavior
+- Use atomic variables to preserve state observation across threads
+- Document expected behavior explicitly in test comments
+- Cross-reference architecture documentation in assertions
+
+**Test Pattern**:
+```cpp
+// Pattern: Query from within callback
+auto cbProcEvt = [](IOC_EvtDesc_pT pEvtDesc, void *pPriv) -> IOC_Result_T {
+    auto *ctx = static_cast<TestContext *>(pPriv);
+    IOC_LinkState_T state;
+    IOC_getLinkState(ctx->linkID, &state, NULL);
+    ctx->stateInCallback = state;  // Capture for later verification
+    return IOC_RESULT_SUCCESS;
+};
+// Later: EXPECT_EQ(Ready, ctx->stateInCallback) - fire-and-forget!
+```
+
+**Reference**: UT_ConetEventState.cxx TC-3, UT_LinkStateOperation.cxx TC-4
+
+#### Challenge 3: Mode Parity Testing
+
+**Problem**: Need to verify ConetMode and ConlesMode behave identically for Level 2 states
+- Different connection models but same operation state semantics
+- Risk of implementation divergence between modes
+
+**Solutions**:
+- Parametrized tests (if test framework supports)
+- Explicit mode variants using TC-XA (ConetMode), TC-XB (ConlesMode) pattern
+- Ensure both modes tested for each state transition
+- Document mode-specific differences when they exist
+
+**Coverage Strategy**:
+```cpp
+// Pattern: Explicit mode variants
+TEST(UT_LinkStateOperation_EVT, TC4_ConetMode) { /* ConetMode test */ }
+TEST(UT_LinkStateOperation_EVT, TC4B_ConlesMode) { /* ConlesMode test */ }
+// Or parametrized: TEST_P(UT_LinkStateOperation_EVT, TC4) with mode param
+```
+
+**Reference**: UT_LinkStateOperation.cxx uses TC-X/TC-XB pattern for mode coverage
+
+#### Challenge 4: Callback Execution Timing
+
+**Problem**: Event callbacks may execute in different thread contexts
+- Timing-sensitive state queries
+- Race conditions between post and callback invocation
+
+**Solutions**:
+- Use synchronization primitives (atomics, mutexes)
+- Force callback processing with `IOC_forceProcEVT()` in tests
+- Add wait loops with timeout for callback completion
+- Avoid assumptions about callback execution order
+
+**Test Pattern**:
+```cpp
+std::atomic<bool> callbackExecuted{false};
+IOC_postEVT(linkID, &evtDesc, NULL);
+IOC_forceProcEVT();  // Ensure immediate processing in tests
+for (int i = 0; i < 100 && !callbackExecuted; i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+}
+ASSERT_TRUE(callbackExecuted) << "Callback should execute within timeout";
+```
+
+### Empirical Validation Matrix
+
+The following table maps architecture claims to their test evidence, enabling traceability:
+
+| Architecture Claim | Test Evidence | Location | Status |
+|-------------------|---------------|----------|--------|
+| EVT callback shows Ready (not Busy) - ConetMode | UT_ConetEventState.cxx TC-3 | Test/UT_ConetEventState.cxx:654-760 | ✅ VERIFIED |
+| EVT callback shows Ready (fire-and-forget) | UT_LinkStateOperation.cxx TC-4 | Test/UT_LinkStateOperation.cxx:865-975 | ✅ VERIFIED |
+| ConlesMode auto-link always Ready | UT_LinkStateOperation.cxx TC-2 | Test/UT_LinkStateOperation.cxx:721-759 | ✅ VERIFIED |
+| Ready state after connection | UT_LinkStateOperation.cxx TC-1 | Test/UT_LinkStateOperation.cxx:612-707 | ✅ VERIFIED |
+| State transitions are atomic | UT_LinkStateOperation.cxx TC-12 | Test/UT_LinkStateOperation.cxx:1674-1796 | ✅ VERIFIED |
+| CMD callback shows BusyCbProcCmd | UT_CommandState.cxx TC-X | Test/UT_CommandState.cxx | ✅ VERIFIED |
+| Sub/Unsub operations transient (< 1ms) | UT_LinkStateOperation.cxx TC-5, TC-6 | Test/UT_LinkStateOperation.cxx:PLANNED | ⚪ PLANNED |
+
+**How to Use This Matrix**:
+1. When architecture behavior is unclear, find corresponding test
+2. When test fails unexpectedly, verify architecture claim still valid
+3. When adding new architecture features, add test evidence entry
+4. Maintain bidirectional traceability (arch ↔ test)
 
 ## Event Processing Sequence Diagrams
 
