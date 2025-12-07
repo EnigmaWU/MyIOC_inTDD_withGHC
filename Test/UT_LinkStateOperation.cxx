@@ -390,138 +390,173 @@
  *      @[Status]: PLANNED - Stress test for thread safety
  */
 //======>END OF TEST CASES=========================================================================
+//======>END OF UNIT TESTING DESIGN================================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF TODO/IMPLEMENTATION TRACKING SECTION=============================================
 /**
- * 🎯 PROGRESS TRACKING (CaTDD Workflow: ⚪ TODO → 🔴 RED → 🟢 GREEN)
+ * 🔴 IMPLEMENTATION STATUS TRACKING - TDD Red→Green Methodology
  *
- * ═══════════════════════════════════════════════════════════════════════════════════════
- * P1-FUNCTIONAL: Ready/Busy State Verification (15 tests total: 12 base + 3 ConlesMode)
- * ═══════════════════════════════════════════════════════════════════════════════════════
+ * STATUS LEGEND:
+ *   ⚪ TODO/PLANNED:  Designed but not implemented yet
+ *   🔴 RED/FAILING:   Test written, production code missing
+ *   🟢 GREEN/PASSED:  Test written and passing
+ *   ⚠️  ISSUES:       Known problem needing attention
+ *   🚫 BLOCKED:      Cannot proceed due to dependency
  *
- * [CAT-1: Ready State Verification - 3 tests]
+ * PRIORITY LEVELS:
+ *   P1 🥇 FUNCTIONAL:     ValidFunc (Typical+Boundary) + InvalidFunc (Misuse+Fault)
+ *   P2 🥈 DESIGN-ORIENTED: State, Capability, Concurrency
+ *   P3 🥉 QUALITY-ORIENTED: Performance, Robust, Compatibility
+ *   P4 🎯 ADDONS:          Demo, Examples
+ *
+ *===================================================================================================
+ * P1 🥇 FUNCTIONAL TESTING - ValidFunc (Typical + Boundary)
+ *===================================================================================================
+ *
+ * [CAT-1: Ready State - Typical]
  *  🟢 TC-1: verifyLinkState_afterConnect_expectReady_ConetMode
- *       Status: PASSED ✅ (162ms)
- *       Verified: Both client (CmdInitiator) and server (CmdExecutor) links show Ready
- *       Fix Applied: Auto-accept pattern, query both sides
- *       Lesson: Must test BOTH sides of ConetMode connection
+ *       Status: PASSED ✅ (162ms) - Both client/server links show Ready
  *
  *  ⚪ TC-2: verifyLinkState_alwaysReady_ConlesMode
- *       Status: READY TO IMPLEMENT ✅
- *       Unblocked: ConlesMode is ALWAYS AVAILABLE (IOC_CONLES_MODE_AUTO_LINK_ID)
- *       Pattern: See UT_ConlesEventTypical.cxx - no initialization needed
- *       Priority: P1 - Foundation for all ConlesMode tests
+ *       Status: READY TO IMPLEMENT - ConlesMode always available
+ *       Pattern: IOC_CONLES_MODE_AUTO_LINK_ID (no init needed)
  *
  *  ⚪ TC-3: verifyLinkState_betweenOperations_expectReady
- *       Status: READY TO IMPLEMENT ✅
- *       Dependencies: TC-1 (foundation ✅), any operation test (CMD/EVT/DAT)
- *       Strategy: Execute operation, wait for completion, verify Ready state restored
+ *       Status: READY TO IMPLEMENT - Verify Ready after operation complete
  *
- * [CAT-2: Busy State During EVT Operations - 6 tests (3 base + 3 ConlesMode)]
- *  🔴 TC-4: verifyLinkState_duringEvtCallback_expectReady_ConetMode
- *       Status: IMPLEMENTED ✅ - Test written, ready to run
- *       Architecture Note: EVT callbacks DON'T show BusyCbProcEvt (fire-and-forget)
- *       Verified: UT_ConetEventState.cxx TC-3 empirically shows Ready during callback
- *       Expected: Ready (not Busy) - architecture corrected from initial design
- *       Cross-Ref: README_ArchDesign-State.md Event States section
+ * [CAT-1: Ready State - Boundary]
+ *  ⚪ TC-1B: verifyBoundary_byMaxConcurrentLinks_expectReady
+ *       Estimated: 1 hour
+ *
+ *  ⚪ TC-2B: verifyBoundary_byQueueFull_expectConlesReady
+ *       Estimated: 30 min
+ *
+ *  ⚪ TC-3B: verifyBoundary_byOperationTimeout_expectReadyRecovery
+ *       Estimated: 1 hour
+ *
+ *===================================================================================================
+ * P1 🥇 FUNCTIONAL TESTING - InvalidFunc (Misuse + Fault)
+ *===================================================================================================
+ *
+ *  ⚪ TC-1M: verifyMisuse_byInvalidLinkID_expectError
+ *       Estimated: 30 min
+ *
+ *  ⚪ TC-2M: verifyMisuse_byQueryBeforeInit_expectError
+ *       Estimated: 30 min
+ *
+ *  ⚪ TC-3M: verifyMisuse_byQueryClosedLink_expectError
+ *       Estimated: 30 min
+ *
+ *  ⚪ TC-1F: verifyFault_byNetworkFailure_expectReadyRecovery
+ *       Estimated: 1 hour
+ *
+ * 🚪 GATE P1: Must complete all above before P2
+ *
+ *===================================================================================================
+ * P2 🥈 DESIGN-ORIENTED TESTING - State Transitions
+ *===================================================================================================
+ *
+ * [CAT-2: Busy During EVT Operations]
+ *  🟢 TC-4: verifyLinkState_duringEvtCallback_expectReady_ConetMode
+ *       Status: PASSED ✅ - EVT is fire-and-forget (no Busy state)
  *
  *  ⚪ TC-4B: verifyLinkState_duringEvtCallback_expectReady_ConlesMode
- *       Status: READY TO IMPLEMENT ✅
- *       Unblocked: ConlesMode always available - no initialization needed
- *       Pattern: Same as TC-4 but with IOC_CONLES_MODE_AUTO_LINK_ID
+ *       Status: READY TO IMPLEMENT
  *
  *  ⚪ TC-5: verifyLinkState_duringSubEvt_expectBusySubEvt_ConetMode
- *       Status: READY TO IMPLEMENT ✅
- *       Challenge: Operation may be too fast to observe (< 1ms)
- *       Strategy: Large subscription list (100+ events) or controlled timing
- *       Alternative: Accept that state transitions to Ready before observable
+ *       Challenge: Operation too fast (< 1ms), may not observe
  *
  *  ⚪ TC-5B: verifyLinkState_duringSubEvt_expectBusySubEvt_ConlesMode
- *       Status: READY TO IMPLEMENT ✅
- *       Unblocked: ConlesMode always available - no initialization needed
+ *       Status: READY TO IMPLEMENT
  *
  *  ⚪ TC-6: verifyLinkState_duringUnsubEvt_expectBusyUnsubEvt_ConetMode
- *       Status: READY TO IMPLEMENT ✅
  *       Challenge: Same timing issue as TC-5
  *
  *  ⚪ TC-6B: verifyLinkState_duringUnsubEvt_expectBusyUnsubEvt_ConlesMode
- *       Status: READY TO IMPLEMENT ✅
- *       Unblocked: ConlesMode always available - no initialization needed
+ *       Status: READY TO IMPLEMENT
  *
- * [CAT-3: Busy State During CMD/DAT Operations - 3 tests]
- *  ⚪ TC-7: verifyLinkState_duringExecCmd_expectBusyWithSubstate
- *       Status: PLANNED
- *       Dependencies: IOC_getLinkSubState() implementation (Level 3 API)
- *       Cross-Ref: README_ArchDesign-State.md "Command State Machine"
- *       Strategy: Blocking CMD execution, query from separate thread
+ * [CAT-3: Busy During CMD/DAT Operations]
+ *  🚫 TC-7: verifyLinkState_duringExecCmd_expectBusyWithSubstate
+ *       BLOCKED: Need IOC_getLinkSubState() API (Level 3)
  *
- *  ⚪ TC-8: verifyLinkState_duringSendDat_expectBusyWithSubstate
- *       Status: PLANNED
- *       Strategy: Large data (10MB+) to slow transmission, query during send
- *       Alternative: Throttled DAT callback to extend transmission time
+ *  🚫 TC-8: verifyLinkState_duringSendDat_expectBusyWithSubstate
+ *       BLOCKED: Need IOC_getLinkSubState() API (Level 3)
  *
- *  ⚪ TC-9: verifyLinkState_duringRecvDat_expectBusyWithSubstate
- *       Status: PLANNED
- *       Strategy: Controlled recv rate, query from callback
+ *  🚫 TC-9: verifyLinkState_duringRecvDat_expectBusyWithSubstate
+ *       BLOCKED: Need IOC_getLinkSubState() API (Level 3)
  *
- * [CAT-4: State Transitions - 3 tests]
- *  ⚪ TC-10: verifyStateTransition_ReadyToBusy_onOperation
- *       Status: PLANNED
- *       Focus: Atomicity, no intermediate states visible
- *       Test: Concurrent queries during transition
+ * [CAT-4: State Transitions]
+ *  🟢 TC-10: verifyStateTransition_ReadyToBusy_onOperation
+ *       Status: PASSED ✅
  *
- *  ⚪ TC-11: verifyStateTransition_BusyToReady_afterCompletion
- *       Status: PLANNED
- *       Focus: Clean transition back to Ready
+ *  🟢 TC-11: verifyStateTransition_BusyToReady_afterCompletion
+ *       Status: PASSED ✅
  *
- *  ⚪ TC-12: verifyStateTransition_atomicity_underConcurrency
- *       Status: PLANNED - P3 Quality (Concurrency testing)
- *       Priority: After all P1 tests GREEN
- *       Strategy: Multiple threads querying state, verify thread-safe
+ *  🟢 TC-12: verifyStateTransition_atomicity_underConcurrency
+ *       Status: PASSED ✅
  *
- * ═══════════════════════════════════════════════════════════════════════════════════════
- * QUALITY GATE: P1 Completion Criteria
- * ═══════════════════════════════════════════════════════════════════════════════════════
- *  Target: 12/15 tests GREEN (TC-1 through TC-9, including ConlesMode variants)
- *  Current: 1/15 GREEN (6.7% complete)
- *  Next Milestone: 3/15 (TC-1, TC-2, TC-3) - Ready state foundation
+ * 🚪 GATE P2: State transitions validated, architecture confirmed
  *
- * BLOCKING ISSUES:
- *  ✅ RESOLVED: ConlesMode needs NO initialization - IOC_CONLES_MODE_AUTO_LINK_ID always available!
- *     - TC-2, TC-4B, TC-5B, TC-6B are UNBLOCKED ✅
- *     - Pattern: See UT_ConlesEventTypical.cxx for direct usage
- *  🚫 TC-7, TC-8, TC-9: Need IOC_getLinkSubState() API (Level 3)
- *  ⚠️ TC-5, TC-6: Fast operations may not be observable (architectural limitation)
+ *===================================================================================================
+ * P3 🥉 QUALITY-ORIENTED TESTING
+ *===================================================================================================
+ *
+ *  ⚪ Performance: State query latency < 1μs
+ *       Estimated: 2 hours
+ *
+ *  ⚪ Robust: 10000x repeated queries (stability)
+ *       Estimated: 1 hour
+ *
+ *  ⚪ Robust: 24h soak test with continuous monitoring
+ *       Estimated: 24h + 1h setup
+ *
+ * 🚪 GATE P3: Production ready
+ *
+ * PROGRESS SUMMARY:
+ *   P1: 1/12 GREEN (8%) - Need Boundary+Misuse+Fault tests
+ *   P2: 4/9 GREEN (44%) - Core state transitions verified
+ *   P3: 0/3 TODO (0%) - Not started
+ *   Total: 5/24 GREEN (21%)
+ *
+ * NEXT ACTIONS:
+ *   1. Implement TC-2, TC-3 (P1 Typical completion)
+ *   2. Complete P1 Boundary tests (TC-1B, TC-2B, TC-3B)
+ *   3. Complete P1 Misuse/Fault tests
+ *   4. Unblock TC-7/8/9 (need Level 3 API)
  *
  * LESSONS LEARNED:
- *  ✅ Auto-accept simplifies service-side link capture
- *  ✅ Must test BOTH sides of ConetMode connection (client + server)
- *  ✅ EVT operations are fire-and-forget - DON'T expect BusyCbProcEvt
- *  ✅ Architecture drives test expectations - empirical validation critical
- *  ✅ ConlesMode is ALWAYS AVAILABLE - no initialization needed!
- *  ⚠️ Fast operations (sub/unsub) hard to observe in Busy state
- *  📋 UT_ConetEventState.cxx provides empirical validation of EVT behavior
- *  📋 UT_ConlesEventTypical.cxx shows direct IOC_CONLES_MODE_AUTO_LINK_ID usage
- *  📋 Level 2 (operation state) independent of Level 1 (connection state)
+ *   ✅ Auto-accept simplifies service-side link capture
+ *   ✅ Must test BOTH sides of ConetMode connection
+ *   ✅ EVT operations are fire-and-forget (no Busy state)
+ *   ✅ ConlesMode is ALWAYS AVAILABLE (IOC_CONLES_MODE_AUTO_LINK_ID)
+ *   ⚠️  Fast operations (sub/unsub) hard to observe in Busy state
  *
  * DEPENDENCIES:
- *  - UT_LinkConnState.cxx: Level 1 foundation (COMPLETED)
- *  - UT_LinkConnStateTCP.cxx: TCP-specific Level 1 (COMPLETED)
- *  - UT_ConetEventState.cxx: EVT state validation (COMPLETED - 8/8 GREEN)
- *  - UT_LinkStateCorrelation.cxx: 3-level correlation (NEXT PHASE)
- *
- * REFERENCE ARCHITECTURE:
- *  📖 README_ArchDesign-State.md "Understanding Link State Hierarchy"
- *  📖 README_ArchDesign-State.md "Link Operation States (Level 2)"
- *  📖 README_ArchDesign-State.md "Event State Behavior" (fire-and-forget)
- *  📖 Doc/UserGuide_CMD.md "Command Execution States"
- *  📖 Doc/UserGuide_EVT.md "Event Processing States"
+ *   - UT_LinkConnState.cxx: Level 1 foundation ✅ COMPLETED
+ *   - UT_ConetEventState.cxx: EVT validation ✅ COMPLETED
+ *   - UT_LinkStateCorrelation.cxx: 3-level correlation (NEXT PHASE)
  */
 //======>END OF TODO/IMPLEMENTATION TRACKING SECTION===============================================
+//======>END OF UNIT TESTING DESIGN================================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// 🔴 RED PHASE: CAT-1 Ready State Verification (P1)
+//======BEGIN OF UNIT TESTING IMPLEMENTATION=======================================================
+
+/**
+ * TEST CASE TEMPLATE (copy for each TC)
+ *  @[Name]: verifyBehaviorX_byCondition_expectResult
+ *  @[Steps]:
+ *    1) 🔧 SETUP: Initialize resources, set preconditions
+ *    2) 🎯 BEHAVIOR: Execute the action being tested
+ *    3) ✅ VERIFY: Assert outcomes (≤3 key assertions per CaTDD)
+ *    4) 🧹 CLEANUP: Release resources, reset state
+ *  @[Expect]: Describe expected result
+ *  @[Notes]: Additional context, cross-references
+ */
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// CAT-1: Ready State Verification (P1)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Helper struct to capture server-side linkID from auto-accept callback
@@ -537,26 +572,17 @@ static void _TC1_OnAutoAccepted(IOC_SrvID_T srvID, IOC_LinkID_T newLinkID, void 
 }
 
 /**
- * @[TDD Phase]: 🟢 GREEN (Updated to test BOTH sides)
- * @[RGR Cycle]: 1 of 12
- * @[Test]: verifyLinkState_afterConnect_expectReady_ConetMode
- * @[Purpose]: Validate Ready state in ConetMode after TCP connection FOR BOTH CLIENT AND SERVER
- * @[Cross-Reference]: README_ArchDesign-State.md "Link Operation States (Level 2)"
- *
- * @[Expected Behavior]:
- * - After IOC_connectService() succeeds, BOTH links exist (client + server)
- * - Client link (CmdInitiator): Operation state Ready with CmdInitiatorReady substate
- * - Server link (CmdExecutor): Operation state Ready with CmdExecutorReady substate
- * - BOTH links: Connection state (Level 1) = Connected
- *
- * @[Level 2 Independence]:
- * - Operation state Ready is independent of connection state Connected
- * - Demonstrates 3-level hierarchy: Connected (L1) + Ready (L2) + Role-specific (L3)
- *
- * @[Critical Insight]: TCP connection creates TWO links with DIFFERENT roles!
+ *  @[Name]: verifyLinkState_afterConnect_expectReady_ConetMode
+ *  @[Steps]:
+ *    1) 🔧 SETUP: Create TCP service with auto-accept, prepare connection
+ *    2) 🎯 BEHAVIOR: Client connects (triggers auto-accept on server)
+ *    3) ✅ VERIFY: Both links show Ready state (≤3 key assertions)
+ *    4) 🧹 CLEANUP: Close link, offline service
+ *  @[Expect]: Operation state Ready, connection state Connected
+ *  @[Notes]: Creates TWO links - client CmdInitiator + server CmdExecutor
  */
-TEST(UT_LinkStateOperation_Ready, TC1_verifyLinkState_afterConnect_expectReady_ConetMode) {
-    //===SETUP: Create TCP service with auto-accept callback===
+TEST(LinkStateOperationReady, TC1_verifyLinkState_afterConnect_expectReady_ConetMode) {
+    // 🔧 SETUP: Create TCP service with auto-accept callback
     _TC1_AutoAcceptContext autoAcceptCtx;
     IOC_SrvID_T srvID = IOC_ID_INVALID;
     const uint16_t TEST_PORT = 24000;
@@ -575,7 +601,9 @@ TEST(UT_LinkStateOperation_Ready, TC1_verifyLinkState_afterConnect_expectReady_C
     IOC_Result_T result = IOC_onlineService(&srvID, &srvArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
 
-    //===BEHAVIOR: Client connects (auto-accept creates server link)===
+    // 🎯 BEHAVIOR: Client connects (auto-accept creates server link)
+    printf("🎯 BEHAVIOR: TC1_verifyLinkState_afterConnect_expectReady_ConetMode\n");
+
     IOC_LinkID_T linkID = IOC_ID_INVALID;  // Client-side link
     IOC_ConnArgs_T connArgs = {0};
     IOC_Helper_initConnArgs(&connArgs);
@@ -599,14 +627,14 @@ TEST(UT_LinkStateOperation_Ready, TC1_verifyLinkState_afterConnect_expectReady_C
     ASSERT_NE(IOC_ID_INVALID, serverLinkID) << "Server link should be created";
     ASSERT_NE(linkID, serverLinkID) << "Client and server links should be different";
 
-    //===BEHAVIOR: Query operation state (Level 2) for BOTH links===
-    // CLIENT SIDE (CmdInitiator)
+    // ✅ VERIFY: (≤3 key assertions per CaTDD guideline)
+    // Query operation state (Level 2) for BOTH links
     IOC_LinkState_T mainState = IOC_LinkStateUndefined;
     IOC_LinkSubState_T subState = IOC_LinkSubStateDefault;
 
     result = IOC_getLinkState(linkID, &mainState, &subState);
 
-    //===VERIFY CLIENT SIDE: CmdInitiator link state===
+    // CLIENT SIDE: CmdInitiator link state
     ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "Client link state query should succeed";
 
     EXPECT_EQ(IOC_LinkStateReady, mainState) << "Client link (CmdInitiator) should be Ready after connection";
@@ -619,7 +647,7 @@ TEST(UT_LinkStateOperation_Ready, TC1_verifyLinkState_afterConnect_expectReady_C
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
     EXPECT_EQ(IOC_LinkConnStateConnected, connState) << "Client link Level 1 should be Connected";
 
-    //===VERIFY SERVER SIDE: CmdExecutor link state===
+    // SERVER SIDE: CmdExecutor link state
     IOC_LinkState_T serverMainState = IOC_LinkStateUndefined;
     IOC_LinkSubState_T serverSubState = IOC_LinkSubStateDefault;
     result = IOC_getLinkState(serverLinkID, &serverMainState, &serverSubState);
@@ -634,7 +662,7 @@ TEST(UT_LinkStateOperation_Ready, TC1_verifyLinkState_afterConnect_expectReady_C
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
     EXPECT_EQ(IOC_LinkConnStateConnected, serverConnState) << "Server link Level 1 should also be Connected";
 
-    //===CLEANUP===
+    // 🧹 CLEANUP: Release resources
     IOC_closeLink(linkID);  // Close client link
     // NOTE: Don't close serverLinkID manually! It's owned by the service.
     // IOC_offlineService will auto-close it unless IOC_SRVFLAG_KEEP_ACCEPTED_LINK is set.
@@ -664,16 +692,31 @@ TEST(UT_LinkStateOperation_Ready, TC1_verifyLinkState_afterConnect_expectReady_C
  * - Auto-link exists from process start, always available
  * - See UT_ConlesEventTypical.cxx for direct usage patterns
  */
-TEST(UT_LinkStateOperation_Ready, TC2_verifyLinkState_alwaysReady_ConlesMode) {
-    //===SETUP: No setup needed - ConlesMode auto-link is ALWAYS available===
 
-    //===BEHAVIOR: Query operation state using auto-link ID===
+/**
+ * @[Test]: TC-2
+ * @[Name]: verifyLinkState_alwaysReady_ConlesMode
+ * @[Purpose]: Validate ConlesMode is always Ready (no initialization needed)
+ * @[Steps]:
+ *   1) 🔧 SETUP: No setup - ConlesMode exists from process start
+ *   2) 🎯 BEHAVIOR: Query IOC_CONLES_MODE_AUTO_LINK_ID directly
+ *   3) ✅ VERIFY: State is Ready, subState is Default (≤3 assertions)
+ *   4) 🧹 CLEANUP: No cleanup needed
+ * @[Expect]: Operation state Ready without any initialization
+ * @[Notes]: Demonstrates ConlesMode always-available architecture
+ */
+TEST(LinkStateOperationReady, TC2_verifyLinkState_alwaysReady_ConlesMode) {
+    // 🔧 SETUP: No setup needed - ConlesMode auto-link is ALWAYS available
+
+    // 🎯 BEHAVIOR: Query operation state using auto-link ID
+    printf("🎯 BEHAVIOR: TC2_verifyLinkState_alwaysReady_ConlesMode\n");
+
     IOC_LinkState_T mainState = IOC_LinkStateUndefined;
     IOC_LinkSubState_T subState = IOC_LinkSubStateDefault;
 
     IOC_Result_T result = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &mainState, &subState);
 
-    //===VERIFY: Operation state should be Ready===
+    // ✅ VERIFY: (≤3 key assertions per CaTDD guideline)
     ASSERT_EQ(IOC_RESULT_SUCCESS, result) << "IOC_getLinkState should succeed for ConlesMode auto-link";
 
     EXPECT_EQ(IOC_LinkStateReady, mainState) << "ConlesMode auto-link should always be Ready for operations";
@@ -686,7 +729,7 @@ TEST(UT_LinkStateOperation_Ready, TC2_verifyLinkState_alwaysReady_ConlesMode) {
     EXPECT_NE(IOC_RESULT_SUCCESS, result)
         << "Connection state query should NOT be valid for ConlesMode (no connection phase)";
 
-    //===CLEANUP: No cleanup needed===
+    // 🧹 CLEANUP: No cleanup needed for ConlesMode
 }
 
 /**
@@ -705,8 +748,21 @@ TEST(UT_LinkStateOperation_Ready, TC2_verifyLinkState_alwaysReady_ConlesMode) {
  * - Demonstrates Ready → Busy → Ready transition
  * - Validates state cleanup after operation completion
  */
-TEST(UT_LinkStateOperation_Ready, TC3_verifyLinkState_betweenOperations_expectReady) {
-    //===SETUP: Create service and establish connection===
+
+/**
+ * @[Test]: TC-3
+ * @[Name]: verifyLinkState_betweenOperations_expectReady
+ * @[Purpose]: Validate state returns to Ready after each operation completes
+ * @[Steps]:
+ *   1) 🔧 SETUP: Create TCP service, connect client, register CMD handler
+ *   2) 🎯 BEHAVIOR: Execute 2 CMDs sequentially, query state between/after
+ *   3) ✅ VERIFY: Ready before op1, Ready after op1, Ready after op2 (≤3 assertions)
+ *   4) 🧹 CLEANUP: Close link, offline service
+ * @[Expect]: Link transitions Ready → Busy → Ready for each operation
+ * @[Notes]: Uses CMD operations to test state transitions (blocking operations)
+ */
+TEST(LinkStateOperationReady, TC3_verifyLinkState_betweenOperations_expectReady) {
+    // 🔧 SETUP: Create service and establish connection
     IOC_SrvID_T srvID = IOC_ID_INVALID;
     const uint16_t TEST_PORT = 24001;
 
@@ -808,22 +864,34 @@ TEST(UT_LinkStateOperation_Ready, TC3_verifyLinkState_betweenOperations_expectRe
  *
  * @[Challenge]: Query state FROM WITHIN callback to capture during execution
  */
-TEST(UT_LinkStateOperation_EVT, TC4_verifyLinkState_duringEvtCallback_expectReady_ConetMode) {
-    // Context to track state queries from callback
+
+/**
+ * @[Test]: TC-4
+ * @[Name]: verifyLinkState_duringEvtCallback_expectReady_ConetMode
+ * @[Purpose]: Validate Ready state persists during EVT callback (fire-and-forget)
+ * @[Steps]:
+ *   1) 🔧 SETUP: Create service (EvtProducer), connect client (EvtConsumer with auto-subscribe)
+ *   2) 🎯 BEHAVIOR: Server posts event → triggers client callback
+ *   3) ✅ VERIFY: State queried FROM callback is Ready (NOT Busy) (≤3 assertions)
+ *   4) 🧹 CLEANUP: Close link, offline service
+ * @[Expect]: Fire-and-forget → link Ready during callback (architecture validated)
+ * @[Notes]: EVT≠CMD: Events don't block link (only CMD shows BusyCbProcCmd)
+ */
+TEST(LinkStateOperationEVT, TC4_verifyLinkState_duringEvtCallback_expectReady_ConetMode) {
+    // 🔧 SETUP: Context to track state queries from callback
     struct _CallbackContext {
         std::atomic<bool> CallbackInvoked{false};
         std::atomic<IOC_LinkState_T> StateInCallback{IOC_LinkStateUndefined};
         IOC_LinkID_T QueryLinkID{IOC_ID_INVALID};
     } ctx;
 
-    // Auto-accept callback to capture server-side link
-    auto cbAccepted = [](IOC_LinkID_T linkID, void *pPriv) -> IOC_Result_T {
+    // Auto-accept callback to capture server-side link for posting
+    auto cbAccepted = [](IOC_SrvID_T /*srvID*/, IOC_LinkID_T linkID, void *pPriv) -> void {
         auto *pCtx = static_cast<_CallbackContext *>(pPriv);
-        pCtx->QueryLinkID = linkID;
-        return IOC_RESULT_SUCCESS;
+        pCtx->QueryLinkID = linkID;  // Server will use this to POST events
     };
 
-    //===SETUP: Create auto-accept service===
+    // Create auto-accept service as EVT PRODUCER
     IOC_SrvID_T srvID = IOC_ID_INVALID;
     const uint16_t TEST_PORT = 24002;
 
@@ -833,98 +901,101 @@ TEST(UT_LinkStateOperation_EVT, TC4_verifyLinkState_duringEvtCallback_expectRead
     srvArgs.SrvURI.pHost = IOC_SRV_HOST_LOCAL_PROCESS;
     srvArgs.SrvURI.Port = TEST_PORT;
     srvArgs.SrvURI.pPath = "LinkStateOp_TC4";
-    srvArgs.UsageCapabilites = IOC_LinkUsageCmdExecutor;
+    srvArgs.UsageCapabilites = IOC_LinkUsageEvtProducer;  // Service SENDS events
     srvArgs.Flags = IOC_SRVFLAG_AUTO_ACCEPT;
-    srvArgs.CbAccepted_F = cbAccepted;
-    srvArgs.pCbAcceptedPriv = &ctx;
+    srvArgs.OnAutoAccepted_F = +cbAccepted;  // Convert lambda to function pointer
+    srvArgs.pSrvPriv = &ctx;
 
     IOC_Result_T result = IOC_onlineService(&srvID, &srvArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
 
-    //===SETUP: Connect client===
+    // 🎯 BEHAVIOR: Setup event callback and post event to trigger it
+    printf("🎯 BEHAVIOR: TC4_verifyLinkState_duringEvtCallback_expectReady_ConetMode\n");
+
+    // Event callback that queries its own link state (CLIENT callback)
+    auto cbProcEvt = [](IOC_EvtDesc_pT /*pEvtDesc*/, void *pPriv) -> IOC_Result_T {
+        auto *pCtx = static_cast<_CallbackContext *>(pPriv);
+
+        // Query CLIENT state DURING callback execution
+        IOC_LinkState_T state;
+        IOC_Result_T result = IOC_getLinkState(pCtx->QueryLinkID, &state, NULL);
+
+        if (result == IOC_RESULT_SUCCESS) {
+            pCtx->StateInCallback = state;
+        }
+        pCtx->CallbackInvoked = true;
+
+        return IOC_RESULT_SUCCESS;
+    };
+
+    // Client connects as EVT CONSUMER with auto-subscribe
     IOC_LinkID_T clientLinkID = IOC_ID_INVALID;
+    IOC_EvtID_T evtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
+    IOC_EvtUsageArgs_T evtUsageArgs = {
+        .CbProcEvt_F = cbProcEvt,
+        .pCbPrivData = &ctx,
+        .EvtNum = 1,
+        .pEvtIDs = evtIDs,
+    };
+
     IOC_ConnArgs_T connArgs = {0};
     IOC_Helper_initConnArgs(&connArgs);
     connArgs.SrvURI.pProtocol = IOC_SRV_PROTO_TCP;
     connArgs.SrvURI.pHost = IOC_SRV_HOST_LOCAL_PROCESS;
     connArgs.SrvURI.Port = TEST_PORT;
     connArgs.SrvURI.pPath = "LinkStateOp_TC4";
-    connArgs.Usage = IOC_LinkUsageCmdInitiator;
+    connArgs.Usage = IOC_LinkUsageEvtConsumer;  // Client RECEIVES events
+    connArgs.UsageArgs.pEvt = &evtUsageArgs;    // Auto-subscribe during connection
+
+    // Need to update QueryLinkID to CLIENT link after connection
+    IOC_LinkID_T tempServerLink = ctx.QueryLinkID;  // Save server link
 
     result = IOC_connectService(&clientLinkID, &connArgs, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
     ASSERT_NE(IOC_ID_INVALID, clientLinkID);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    ASSERT_NE(IOC_ID_INVALID, ctx.QueryLinkID) << "Server should have accepted connection";
+
+    IOC_LinkID_T serverLinkID = ctx.QueryLinkID;  // Server link to post from
+    ctx.QueryLinkID = clientLinkID;               // UPDATE: Query CLIENT state in callback
+
+    printf("[TC-4] Client linkID=%llu, Server linkID=%llu\n", clientLinkID, serverLinkID);
+
+    //===BEHAVIOR: Post event from SERVER (triggers CLIENT callback)===
+    IOC_EvtDesc_T evtDesc = {0};
+    evtDesc.EvtID = IOC_EVTID_TEST_KEEPALIVE;
+
+    result = IOC_postEVT(serverLinkID, &evtDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, result);
+
+    printf("[TC-4] Posted event from server link %llu\n", serverLinkID);
+
+    // Force callback processing
+    IOC_forceProcEVT();
+
     // Wait for callback
     for (int i = 0; i < 100 && !ctx.CallbackInvoked.load(); i++) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     ASSERT_TRUE(ctx.CallbackInvoked.load()) << "Callback should be invoked";
 
-    //===VERIFY: State was Ready during callback (fire-and-forget!)===
+    // ✅ VERIFY: (≤3 key assertions per CaTDD guideline)
+    // State was Ready during callback (fire-and-forget!)
     EXPECT_EQ(IOC_LinkStateReady, ctx.StateInCallback.load())
         << "Link state should be Ready during EVT callback (fire-and-forget architecture)"
         << "\nArchitecture Note: EVT operations DON'T show BusyCbProcEvt"
         << "\nEmpirical Validation: UT_ConetEventState.cxx TC-3 verified this behavior";
 
-    //===VERIFY: State remains Ready after callback===
+    // State remains Ready after callback
     IOC_LinkState_T stateAfter;
-    result = IOC_getLinkState(ctx.QueryLinkID, &stateAfter, NULL);
+    result = IOC_getLinkState(clientLinkID, &stateAfter, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, result);
     EXPECT_EQ(IOC_LinkStateReady, stateAfter) << "State should remain Ready after callback completes";
 
-    //===CLEANUP===
-    IOC_UnsubEvtArgs_T unsubArgs = {
-        .CbProcEvt_F = cbProcEvt,
-        .pCbPriv = &ctx,
-    };
-    result = IOC_unsubEVT(ctx.QueryLinkID, &unsubArgs);
-    ASSERT_EQ(IOC_RESULT_SUCCESS, result);
-
+    // 🧹 CLEANUP: Release resources
     IOC_closeLink(clientLinkID);
     IOC_offlineService(srvID);
-}
-ASSERT_EQ(IOC_RESULT_SUCCESS, result);
-
-//===BEHAVIOR: Post event from client (triggers server callback)===
-IOC_EvtDesc_T evtDesc = {0};
-evtDesc.EvtID = IOC_EVTID_TEST_KEEPALIVE;
-
-result = IOC_postEVT(clientLinkID, &evtDesc, NULL);
-ASSERT_EQ(IOC_RESULT_SUCCESS, result);
-
-// Force callback processing
-IOC_forceProcEVT();
-
-// Wait for callback
-for (int i = 0; i < 100 && !ctx.CallbackInvoked.load(); i++) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-}
-ASSERT_TRUE(ctx.CallbackInvoked.load()) << "Callback should be invoked";
-
-//===VERIFY: State was BusyCbProcEvt during callback===
-EXPECT_EQ(IOC_LinkStateBusyCbProcEvt, ctx.StateInCallback.load())
-    << "Link state should be BusyCbProcEvt during event callback processing";
-
-// SubState for EVT operations should be Default (no substates for events)
-EXPECT_EQ(IOC_LinkSubStateDefault, ctx.SubStateInCallback.load())
-    << "SubState should be Default during EVT callback (no EVT substates)";
-
-//===VERIFY: State returns to Ready after callback===
-IOC_LinkState_T stateAfter;
-IOC_LinkSubState_T subStateAfter;
-result = IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &stateAfter, &subStateAfter);
-ASSERT_EQ(IOC_RESULT_SUCCESS, result);
-EXPECT_EQ(IOC_LinkStateReady, stateAfter) << "State should return to Ready after callback completes";
-
-//===CLEANUP===
-IOC_UnsubEvtArgs_T unsubArgs = {
-    .CbProcEvt_F = cbProcEvt,
-    .pCbPriv = &ctx,
-};
-result = IOC_unsubEVT_inConlesMode(&unsubArgs);
-ASSERT_EQ(IOC_RESULT_SUCCESS, result);
 }
 
 /**
@@ -1868,6 +1939,6 @@ TEST(UT_LinkStateOperation_Transitions, TC12_verifyStateTransition_atomicity_und
 //   - Total: 27 tests (15 Phase 1.1 + 12 Phase 1.2) ALL PASSING
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>END OF TODO/IMPLEMENTATION TRACKING SECTION===============================================
+//======>END OF UNIT TESTING IMPLEMENTATION========================================================
 
 // END OF FILE
