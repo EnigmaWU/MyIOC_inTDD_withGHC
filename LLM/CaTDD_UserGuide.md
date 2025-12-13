@@ -13,10 +13,27 @@
 > **Core Workflow Cycle**:  
 > `Design Comments → Generate Test Code → Generate Production Code → Improve Design Iteratively`
 >
-> **Inner Spirit**:
 
-> - 🏠 **Design Lives in Code** - No separate docs that rot
-> - 🧪 **Tests Verify the Behavior** - Executable specifications
+## Visual Workflow
+
+```mermaid
+graph TD
+    A[US: User Story] --> B[AC: Acceptance Criteria]
+    B --> C[TC: Test Cases<br/>Verification Design]
+    C --> D[TEST Implementation<br/>LLM Generated]
+    D --> E[Production Code<br/>LLM Generated]
+    E --> F[Run Tests]
+    F --> G{Pass?}
+    G -->|Yes| H[Refactor/Improve Design]
+    G -->|No| D
+    H --> C
+    
+    style C fill:#f9f,stroke:#333,stroke-width:2px
+    style D fill:#bbf,stroke:#333,stroke-width:2px
+    style E fill:#bfb,stroke:#333,stroke-width:2px
+```
+
+**Inner Spirit**:
 > - 🤖 **LLM-Friendly Context** - Human + AI collaboration
 > - 🔄 **Iterate Forever** - Design and code evolve as one
 
