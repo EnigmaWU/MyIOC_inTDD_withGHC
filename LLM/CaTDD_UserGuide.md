@@ -324,6 +324,20 @@ TEST(EventPosting, verifyNonBlockPost_byFullQueue_expectImmediateReturn) {
 
 ### The Hierarchy
 
+```mermaid
+graph TD
+    US[User Story US<br/>WHY we need this feature<br/>Business value from user perspective]
+    AC[Acceptance Criteria AC<br/>WHAT behavior must be satisfied<br/>Testable conditions]
+    TC[Test Case TC<br/>HOW to verify the behavior<br/>Concrete verification steps]
+    
+    US --> AC
+    AC --> TC
+    
+    style US fill:#ffe6e6,stroke:#333,stroke-width:2px
+    style AC fill:#e6f3ff,stroke:#333,stroke-width:2px
+    style TC fill:#e6ffe6,stroke:#333,stroke-width:2px
+```
+
 ```
 User Story (US) - WHY we need this feature
     ↓
@@ -439,6 +453,48 @@ verifyBehavior_byCondition_expectResult
 
 ### Priority Framework
 
+```mermaid
+graph TD
+    subgraph P1["P1 🥇 FUNCTIONAL (MUST COMPLETE)"]
+        ValidFunc[ValidFunc]
+        InvalidFunc[InvalidFunc]
+        Typical[⭐ Typical]
+        Boundary[🔲 Boundary]
+        Misuse[🚫 Misuse]
+        Fault[⚠️ Fault]
+        ValidFunc --> Typical
+        ValidFunc --> Boundary
+        InvalidFunc --> Misuse
+        InvalidFunc --> Fault
+    end
+    
+    subgraph P2["P2 🥈 DESIGN"]
+        State[🔄 State]
+        Capability[🏆 Capability]
+        Concurrency[🚀 Concurrency]
+    end
+    
+    subgraph P3["P3 🥉 QUALITY"]
+        Performance[⚡ Performance]
+        Robust[🛡️ Robust]
+        Compatibility[🔄 Compatibility]
+        Configuration[🎛️ Configuration]
+    end
+    
+    subgraph P4["P4 🎯 ADDONS"]
+        Demo[🎨 Demo/Example]
+    end
+    
+    P1 --> P2
+    P2 --> P3
+    P3 --> P4
+    
+    style P1 fill:#ffd700,stroke:#333,stroke-width:3px
+    style P2 fill:#c0c0c0,stroke:#333,stroke-width:2px
+    style P3 fill:#cd7f32,stroke:#333,stroke-width:2px
+    style P4 fill:#e6e6fa,stroke:#333,stroke-width:1px
+```
+
 ```
 P1 🥇 FUNCTIONAL = ValidFunc(Typical + Boundary) + InvalidFunc(Misuse + Fault)
 P2 🥈 DESIGN = State → Capability → Concurrency
@@ -537,6 +593,50 @@ P4 🎯 ADDONS = Demo/Example
 ## Status Tracking
 
 ### Status Markers
+
+```mermaid
+stateDiagram-v2
+    [*] --> TODO: Write TC Spec
+    TODO --> BLOCKED: Missing Dependency
+    TODO --> RED: Write Test Code
+    RED --> GREEN: Implement Production Code
+    GREEN --> GREEN: Refactor
+    GREEN --> ISSUES: Test Fails
+    ISSUES --> GREEN: Fix Bug
+    ISSUES --> RED: Redesign Test
+    BLOCKED --> TODO: Dependency Ready
+    GREEN --> [*]: Complete
+    
+    note right of TODO
+        ⚪ TODO/PLANNED
+        TC spec written
+        No test code yet
+    end note
+    
+    note right of RED
+        🔴 RED/IMPLEMENTED
+        Test code written
+        Test fails (expected!)
+    end note
+    
+    note right of GREEN
+        🟢 GREEN/PASSED
+        Test passes
+        Production code works
+    end note
+    
+    note left of ISSUES
+        ⚠️ ISSUES
+        Flaky/intermittent
+        Need investigation
+    end note
+    
+    note left of BLOCKED
+        🚫 BLOCKED
+        External dependency
+        Cannot proceed
+    end note
+```
 
 ```
 ⚪ TODO/PLANNED     - Designed but not implemented yet
