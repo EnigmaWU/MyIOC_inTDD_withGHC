@@ -772,17 +772,21 @@ cp LLM/CaTDD_ImplTemplate.cxx Test/UT_YourFeature.cxx
 **Use when**: Testing basic happy-path behavior
 
 **Example from IOC project**:
+
+**TC Spec (in TEST CASES section)**:
 ```cpp
 /**
- * [@US-1] Basic service registration
- *  AC-1: GIVEN valid service name,
- *        WHEN register service,
- *        THEN succeeds and service is accessible.
- * 
- * [@AC-1,US-1]
+ * [@AC-1,US-1] Basic service registration
  *  TC-1:
  *    @[Name]: verifyServiceRegister_byValidName_expectSuccess
+ *    @[Purpose]: Validate fundamental service registration
+ *    @[Brief]: Register service with valid name, verify success
+ *    @[Expect]: Returns SUCCESS and service is accessible
  */
+```
+
+**TEST Implementation (in IMPLEMENTATION section)**:
+```cpp
 TEST(ServiceAPI, verifyServiceRegister_byValidName_expectSuccess) {
     //===SETUP===
     const char* serviceName = "TestService";
@@ -811,17 +815,21 @@ TEST(ServiceAPI, verifyServiceRegister_byValidName_expectSuccess) {
 **Use when**: Testing edge cases that should fail gracefully
 
 **Example from IOC project**:
+
+**TC Spec (in TEST CASES section)**:
 ```cpp
 /**
- * [@US-1] Input validation
- *  AC-2: GIVEN NULL service name,
- *        WHEN register service,
- *        THEN returns INVALID_PARAM error.
- * 
- * [@AC-2,US-1]
+ * [@AC-2,US-1] Input validation
  *  TC-1:
  *    @[Name]: verifyServiceRegister_byNullName_expectError
+ *    @[Purpose]: Fast-fail validation for null pointer
+ *    @[Brief]: Call register with NULL, verify INVALID_PARAM error
+ *    @[Expect]: Returns INVALID_PARAM without crashing
  */
+```
+
+**TEST Implementation (in IMPLEMENTATION section)**:
+```cpp
 TEST(ServiceAPI, verifyServiceRegister_byNullName_expectError) {
     //===SETUP===
     // No setup needed
@@ -846,17 +854,21 @@ TEST(ServiceAPI, verifyServiceRegister_byNullName_expectError) {
 **Use when**: Testing state machine behavior
 
 **Example from IOC project**:
+
+**TC Spec (in TEST CASES section)**:
 ```cpp
 /**
- * [@US-2] Service lifecycle
- *  AC-1: GIVEN registered service,
- *        WHEN start → stop → start again,
- *        THEN transitions correctly through states.
- * 
- * [@AC-1,US-2]
+ * [@AC-1,US-2] Service lifecycle
  *  TC-1:
  *    @[Name]: verifyServiceLifecycle_byStartStopSequence_expectCorrectStates
+ *    @[Purpose]: Validate state machine transitions
+ *    @[Brief]: Start → Stop → Start sequence, verify states at each step
+ *    @[Expect]: Correct state after each transition
  */
+```
+
+**TEST Implementation (in IMPLEMENTATION section)**:
+```cpp
 TEST(ServiceLifecycle, verifyServiceLifecycle_byStartStopSequence_expectCorrectStates) {
     //===SETUP===
     IOC_registerService("TestService", ...);
@@ -893,17 +905,21 @@ TEST(ServiceLifecycle, verifyServiceLifecycle_byStartStopSequence_expectCorrectS
 **Use when**: Testing thread-safety
 
 **Example from IOC project**:
+
+**TC Spec (in TEST CASES section)**:
 ```cpp
 /**
- * [@US-3] Thread safety
- *  AC-1: GIVEN multiple threads posting events,
- *        WHEN posting simultaneously,
- *        THEN all events are queued without corruption.
- * 
- * [@AC-1,US-3]
+ * [@AC-1,US-3] Thread safety
  *  TC-1:
  *    @[Name]: verifyEventPost_byMultipleThreads_expectAllQueued
+ *    @[Purpose]: Validate thread-safe concurrent access
+ *    @[Brief]: 10 threads post 100 events each, verify all succeed
+ *    @[Expect]: All 1000 events posted successfully, no corruption
  */
+```
+
+**TEST Implementation (in IMPLEMENTATION section)**:
+```cpp
 TEST(EventConcurrency, verifyEventPost_byMultipleThreads_expectAllQueued) {
     //===SETUP===
     const int numThreads = 10;
@@ -933,6 +949,12 @@ TEST(EventConcurrency, verifyEventPost_byMultipleThreads_expectAllQueued) {
     // Clear event queue
 }
 ```
+
+**💡 Key Takeaway from Patterns**: 
+- **TC specs** (verification design) go in the TEST CASES section
+- **TEST code** (implementation) goes in the IMPLEMENTATION section  
+- **Both** live in the same file - this is "comment-alive"!
+- **LLM** reads TC specs to generate TEST implementation
 
 ---
 
