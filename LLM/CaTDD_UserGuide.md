@@ -93,15 +93,39 @@ cp LLM/CaTDD_ImplTemplate.cxx Test/UT_YourFeature.cxx
  */
 ```
 
-### 5. Let LLM Generate Test Code
+### 5. Specify Test Case (in TEST CASES section)
 ```cpp
+//======>BEGIN OF TEST CASES=======================================================================
+/**
+ * [@AC-1,US-1] Non-blocking behavior when queue is full
+ *  TC-1:
+ *    @[Name]: verifyNonBlockPost_byFullQueue_expectImmediateReturn
+ *    @[Purpose]: Validate non-blocking semantics under load
+ *    @[Brief]: Fill queue, post event, verify immediate return with error
+ *    @[Expect]: Returns immediately with TOO_MANY_QUEUING error
+ */
+//======>END OF TEST CASES=========================================================================
+```
+
+### 6. Let LLM Generate Test Implementation
+```cpp
+//======BEGIN OF UNIT TESTING IMPLEMENTATION=======================================================
+/**
+ * TEST CASE TEMPLATE (copy for each TC)
+ *  @[Name]: ${verifyNonBlockPost_byFullQueue_expectImmediateReturn}
+ *  @[Steps]:
+ *    1) 🔧 SETUP: Fill event queue to capacity
+ *    2) 🎯 BEHAVIOR: Post event in async mode
+ *    3) ✅ VERIFY: Check immediate return with error code
+ *    4) 🧹 CLEANUP: Clear queue
+ */
 TEST(EventPosting, verifyNonBlockPost_byFullQueue_expectImmediateReturn) {
-    // LLM reads your US/AC/TC comments above and generates:
-    // 1. Test implementation code (RED phase)
-    // 2. Production code to make it pass (GREEN phase)
-    // You review, refine, and iterate together
+    // LLM reads TC spec from TEST CASES section and generates:
+    // SETUP → BEHAVIOR → VERIFY → CLEANUP
 }
 ```
+
+**💡 Key Structure**: TC specs in design section, implementation later - this is "comment-alive"!
 
 **💡 LLM Era Advantage**: With structured verification design in comments, LLMs can generate both test and production code. You focus on WHAT to verify, LLM handles HOW to implement.
 
