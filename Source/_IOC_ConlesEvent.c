@@ -753,6 +753,17 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
         return IOC_RESULT_INVALID_AUTO_LINK_ID;  // Path@C->[1]
     }
 
+    // TC-9: CRITICAL - Prevent deadlock by forbidding SYNC_MODE during callback
+    // If we're currently in a callback (IOC_LinkStateBusyCbProcEvt), attempting to
+    // post with SYNC_MODE will deadlock because sync post waits for event processing,
+    // but the event processor is blocked in the current callback.
+    if (!IsAsyncMode && pLinkObj->State.Main == IOC_LinkStateBusyCbProcEvt) {
+        _IOC_LogError("[ConlesEvent]: SYNC_MODE forbidden during callback (LinkState=%d) to prevent deadlock",
+                      pLinkObj->State.Main);
+        Result = IOC_RESULT_NOT_SUPPORT;  // TODO: Change to IOC_RESULT_FORBIDDEN when added to IOC_Types.h
+        goto _returnResult;
+    }
+
     IOC_BoolResult_T IsEmptySuberList = __IOC_ClsEvt_isEmptySuberList(&pLinkObj->EvtSuberList);
     if (IsEmptySuberList == IOC_RESULT_YES) {
         _IOC_LogWarn("[ConlesEvent]: No EvtSuber of AutoLinkID(%" PRIu64 ")", LinkID);

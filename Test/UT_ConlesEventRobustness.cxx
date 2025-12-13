@@ -870,7 +870,7 @@
 //   ⚪ [@AC-2,US-1] TC-2: verifyQueueOverflow_byFastProducer_expectErrorReturned
 //   ⚪ [@AC-3,US-1] TC-3: verifyTimeout_byFullQueue_expectTimeoutReturned
 //   ⚪ [@AC-4,US-1] TC-4: verifyRecovery_afterBackpressure_expectNormalFlow
-//   ⚪ [@AC-1,US-3] TC-9: verifySyncMode_duringCallback_expectForbidden – CRITICAL: deadlock prevention
+//   � [@AC-1,US-3] TC-9: verifySyncMode_duringCallback_expectForbidden – CRITICAL: deadlock prevention [GREEN ✓]
 //   ⚪ [@AC-2,US-3] TC-10: verifyAsyncMode_duringCallback_expectSuccess
 //   ⚪ [@AC-3,US-3] TC-11: verifySyncMode_afterCallback_expectSuccess
 //
@@ -914,18 +914,133 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF TEST IMPLEMENTATION==============================================================
 //
-// 🚧 IMPLEMENTATION PHASE NOT STARTED
+// � PHASE 3: TDD Red→Green Implementation in Progress
 //
 // Following CaTDD Phase 3 workflow:
-//   - Write test first (RED)
+//   - Write test first (RED) ← Current step
 //   - Implement minimal production code (GREEN)
 //   - Refactor both test and production code
 //   - Update TODO section status after each test
 //
-// Implementation will begin after human approval at Checkpoint 2.
-//
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+// =================================================================================================
+// US-3: Sync Mode Deadlock Prevention (CRITICAL - Highest Priority)
+// =================================================================================================
+
+/**
+ * [@AC-1,US-3] TC-9: verifySyncMode_duringCallback_expectForbidden
+ *
+ * PURPOSE: Verify SYNC_MODE is forbidden when postEVT called from within callback
+ *          This prevents deadlock scenarios in event-driven architectures.
+ *
+ * SPECIFICATION: README_Specification.md #10
+ *   "IF ObjA is cbProcEvting, then postEVT to ObjB in SyncMode, it will return FORBIDDEN"
+ *
+ * PRIORITY: 🥇 CRITICAL - Deadlock prevention is a safety requirement
+ */
+
+// Test context structure to track callback execution and results
+namespace {
+struct Tc9Context {
+    std::atomic<bool> CallbackExecuted{false};
+    std::atomic<IOC_Result_T> SyncPostResult{IOC_RESULT_BUG};
+    std::atomic<bool> SyncPostAttempted{false};
+};
+
+// Callback that attempts to post event with SYNC_MODE
+IOC_Result_T tc9CbProcEvtAttemptSyncPost(const IOC_EvtDesc_pT pEvtDesc, void* pCbPrivData) {
+    (void)pEvtDesc;  // Unused parameter
+    auto* pCtx = static_cast<Tc9Context*>(pCbPrivData);
+
+    pCtx->CallbackExecuted.store(true);
+
+    // BEHAVIOR: Attempt to post event with SYNC_MODE while inside callback
+    IOC_EvtDesc_T InnerEvtDesc = {
+        .EvtID = IOC_EVTID_TEST_KEEPALIVE,  // Different event to avoid confusion
+    };
+
+    // Use macro to define sync mode option
+    IOC_Option_defineSyncMode(SyncOption);
+
+    pCtx->SyncPostAttempted.store(true);
+    IOC_Result_T Result = IOC_postEVT_inConlesMode(&InnerEvtDesc, &SyncOption);
+    pCtx->SyncPostResult.store(Result);
+
+    return IOC_RESULT_SUCCESS;  // Outer callback succeeds regardless
+}
+}  // namespace
+
+/**
+ * @[Name]: verifySyncModeDuringCallback_expectForbidden
+ * @[Purpose]: CRITICAL - Prevent deadlock by forbidding SYNC_MODE during callback execution.
+ *             This is a safety requirement to avoid hanging the entire event processing system.
+ * @[Steps]:
+ *    1) 🔧 SETUP: Subscribe callback that attempts sync post internally
+ *    2) 🎯 BEHAVIOR: Post event to trigger callback, which attempts SYNC_MODE post inside
+ *    3) ✅ VERIFY: Callback executed, sync post attempted, but returned NOT_SUPPORT (preventing deadlock)
+ *    4) 🧹 CLEANUP: Unsubscribe callback
+ * @[Expect]: Sync post inside callback returns IOC_RESULT_NOT_SUPPORT (or FORBIDDEN when added)
+ *            without blocking. The system remains responsive and avoids deadlock.
+ * @[Notes]: This test validates the core deadlock prevention mechanism. Without this check,
+ *           SYNC_MODE during callback would wait for event processing, but the processor
+ *           is blocked in the current callback, creating infinite wait.
+ *           Related: TC-10 verifies ASYNC_MODE works, TC-11 verifies restriction is scoped.
+ */
+TEST(UTConlesEventRobustnessSyncRestriction, verifySyncModeDuringCallback_expectForbidden) {
+    //===SETUP===
+    Tc9Context Ctx;
+
+    // Subscribe consumer with callback that attempts sync post
+    IOC_EvtID_T EvtIDs[] = {IOC_EVTID_TEST_SLEEP_9MS};
+    IOC_SubEvtArgs_T SubArgs = {
+        .CbProcEvt_F = tc9CbProcEvtAttemptSyncPost,
+        .pCbPrivData = &Ctx,
+        .EvtNum = IOC_calcArrayElmtCnt(EvtIDs),
+        .pEvtIDs = EvtIDs,
+    };
+
+    IOC_Result_T Result = IOC_subEVT_inConlesMode(&SubArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Setup: Subscribe should succeed";
+
+    //===BEHAVIOR===
+    // Post event to trigger callback (which will attempt sync post internally)
+    IOC_EvtDesc_T TriggerEvtDesc = {
+        .EvtID = IOC_EVTID_TEST_SLEEP_9MS,
+    };
+
+    Result = IOC_postEVT_inConlesMode(&TriggerEvtDesc, nullptr);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Behavior: Initial post should succeed";
+
+    // Force immediate processing to ensure callback executes
+    IOC_forceProcEVT();
+
+    // Brief wait to ensure callback completes
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    //===VERIFY===
+    // Key Verification Point 1: Callback executed
+    VERIFY_KEYPOINT_TRUE(Ctx.CallbackExecuted.load(), "Callback must execute to trigger the deadlock scenario");
+
+    // Key Verification Point 2: Sync post was attempted inside callback
+    VERIFY_KEYPOINT_TRUE(Ctx.SyncPostAttempted.load(),
+                         "Sync post must be attempted inside callback to test restriction");
+
+    // Key Verification Point 3: NOT_SUPPORT result returned (CRITICAL - deadlock prevention)
+    // NOTE: Using IOC_RESULT_NOT_SUPPORT temporarily until IOC_RESULT_FORBIDDEN is implemented
+    VERIFY_KEYPOINT_EQ(Ctx.SyncPostResult.load(), IOC_RESULT_NOT_SUPPORT,
+                       "CRITICAL: SYNC_MODE during callback MUST return NOT_SUPPORT to prevent deadlock "
+                       "(TODO: change to IOC_RESULT_FORBIDDEN once implemented)");
+
+    //===CLEANUP===
+    IOC_UnsubEvtArgs_T UnsubArgs = {
+        .CbProcEvt_F = tc9CbProcEvtAttemptSyncPost,
+        .pCbPrivData = &Ctx,
+    };
+
+    Result = IOC_unsubEVT_inConlesMode(&UnsubArgs);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result) << "Cleanup: Unsubscribe should succeed";
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>END OF TEST IMPLEMENTATION================================================================
-
-// NOTE: Actual test implementations will be added here during Phase 3 (TDD Red→Green cycle)
-// following the test case specifications defined above.
