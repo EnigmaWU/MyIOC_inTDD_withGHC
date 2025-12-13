@@ -24,12 +24,17 @@
 
 ## What is CaTDD?
 
-**CaTDD** (Comment-alive Test-Driven Development) is a **software development methodology** where **design details live inside your test files as structured comments**, evolving with the code rather than becoming stale external documentation.
+**CaTDD** (Comment-alive Test-Driven Development) is a **software development methodology** where **structured comments define verification design**, which LLMs use to generate test and production code, enabling humans and AI to iterate forward together.
 
-**Key Idea**: Your test file IS your living design document.
+**Key Principles**:
+- **Comments ARE Verification Design** - Not documentation, but executable specifications (US/AC/TC)
+- **LLMs Generate Code** - AI parses structured comments to produce test and production code
+- **Iterate Forward Together** - Design and code evolve as one through human+AI collaboration
+
+**Revolutionary Shift**: Your test file becomes the **single source of truth** - readable by humans, parseable by LLMs, and verified by tests.
 
 **CaTDD vs IOC**:
-- **CaTDD** = The **methodology** (a TDD approach improved for the LLM era by EnigmaWU)
+- **CaTDD** = The **methodology** (TDD improved for the LLM era by EnigmaWU)
 - **IOC** = A **demonstration project** (PlayKata module showcasing CaTDD in practice)
 
 > This guide explains the CaTDD methodology with examples drawn from the IOC project.
@@ -38,11 +43,12 @@
 
 ## Why Use CaTDD?
 
-✅ **Design before code** - Think through requirements before implementation  
-✅ **LLM-friendly** - AI assistants can parse and update structured comments  
-✅ **Never stale** - Design lives WITH the code, not separately  
-✅ **Testable** - US/AC/TC format bridges intent to executable tests  
-✅ **Traceable** - Clear path from User Story → Acceptance Criteria → Test Case  
+✅ **Verification Design First** - Define HOW to verify before writing code (US/AC/TC structure)  
+✅ **LLM Generates Code** - AI reads your comments and produces working implementations  
+✅ **Never Stale** - Comments ARE the design, evolving with code, never outdated  
+✅ **Human+AI Collaboration** - You design verification, LLM generates code, iterate together  
+✅ **Single Source of Truth** - Test file contains design, tests, and traceability in one place  
+✅ **Iterate Forward** - Continuous improvement cycle between design comments and code  
 
 ---
 
@@ -87,13 +93,17 @@ cp LLM/CaTDD_ImplTemplate.cxx Test/UT_YourFeature.cxx
  */
 ```
 
-### 5. Implement the Test (TDD Red→Green)
+### 5. Let LLM Generate Test Code
 ```cpp
 TEST(EventPosting, verifyNonBlockPost_byFullQueue_expectImmediateReturn) {
-    // Write the test FIRST (it will fail - that's RED)
-    // Then implement the production code to make it pass (GREEN)
+    // LLM reads your US/AC/TC comments above and generates:
+    // 1. Test implementation code (RED phase)
+    // 2. Production code to make it pass (GREEN phase)
+    // You review, refine, and iterate together
 }
 ```
+
+**💡 LLM Era Advantage**: With structured verification design in comments, LLMs can generate both test and production code. You focus on WHAT to verify, LLM handles HOW to implement.
 
 ---
 
