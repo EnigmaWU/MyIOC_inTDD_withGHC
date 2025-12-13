@@ -222,28 +222,25 @@ Make stories testable with GIVEN/WHEN/THEN:
 ```
 
 **Step 6: Specify Test Cases (TC)**  
-Detail concrete test implementations:
+Write TC specifications in the TEST CASES design section:
 
 ```cpp
+//======>BEGIN OF TEST CASES=======================================================================
 /**
- * [@AC-{n},US-{n}]
+ * [@AC-{n},US-{n}] Brief description
  *  TC-{n}:
  *    @[Name]: verifyBehavior_byCondition_expectResult
  *    @[Purpose]: Why this test matters
  *    @[Brief]: What the test does
- *    @[Steps]: (optional)
- *      1) Setup: ...
- *      2) Behavior: ...
- *      3) Verify: ...
- *      4) Cleanup: ...
  *    @[Expect]: How to verify success
  *    @[Notes]: Additional context
  */
+//======>END OF TEST CASES=========================================================================
 ```
 
 **Example (from IOC project)**:
 ```cpp
-[@AC-1,US-1]
+[@AC-1,US-1] Non-blocking behavior when queue is full
  TC-1:
    @[Name]: verifyNonBlockPost_byFullQueue_expectImmediateReturn
    @[Purpose]: Validate non-blocking semantics when queue is full
@@ -269,16 +266,36 @@ Follow the priority framework:
 - **P4 🎯 Addons** (Optional):
   - Demo/Example
 
-**Step 8: TDD Red→Green Cycle**  
+**Step 8: Write Test Implementation Code**  
+In the IMPLEMENTATION section, LLM generates TEST code from your TC specs:
 
-1. **Write test first** (it should FAIL) ← 🔴 RED
+```cpp
+//======BEGIN OF UNIT TESTING IMPLEMENTATION=======================================================
+/**
+ * TEST CASE TEMPLATE
+ *  @[Name]: verifyNonBlockPost_byFullQueue_expectImmediateReturn
+ *  @[Steps]:
+ *    1) 🔧 SETUP: Fill queue to capacity
+ *    2) 🎯 BEHAVIOR: Post event in async mode  
+ *    3) ✅ VERIFY: Check immediate return with error
+ *    4) 🧹 CLEANUP: Clear queue
+ */
+TEST(EventPosting, verifyNonBlockPost_byFullQueue_expectImmediateReturn) {
+    // LLM generates implementation based on TC spec from design section
+    // SETUP → BEHAVIOR → VERIFY → CLEANUP
+}
+```
+
+**Step 9: TDD Red→Green Cycle**  
+
+1. **Write/Generate test first** (it should FAIL) ← 🔴 RED
 2. **Run test**, confirm it's failing
-3. **Implement minimal code** to pass
+3. **Implement/Generate minimal production code** to pass
 4. **Run test**, confirm it's passing ← 🟢 GREEN
-5. **Refactor** both test and code
+5. **Refactor** both test and production code (human reviews LLM output)
 6. **Repeat** for next test
 
-**Step 9: Refactor & Organize**  
+**Step 10: Refactor & Organize**  
 - Extract common setup to fixtures
 - Move stable tests to category files
 - Update documentation
