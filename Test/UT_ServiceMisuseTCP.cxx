@@ -20,7 +20,7 @@
  * @category InValidFunc-Misuse-TCP (Wrong TCP Usage That Fails - Intentional Contract Violations)
  *
  * Part of Test Design Formula:
- *   Service's Functional Test = ValidFunc(Typical + Boundary) + InValidFunc(Misuse + Fault)
+ *   Service's Functional Test = ValidFunc(Typical + Edge) + InValidFunc(Misuse + Fault)
  *                                                                ^^^^^^^^^^
  *                                                          (Wrong TCP usage FAILS!)
  *
@@ -44,14 +44,14 @@
  *  - Protocol violations (wrong message framing, incomplete handshake)
  *
  * Test Philosophy - KEY DISTINCTION:
- *  - ValidFunc (Typical + Boundary): API WORKS correctly (proper TCP usage, edge cases OK)
+ *  - ValidFunc (Typical + Edge): API WORKS correctly (proper TCP usage, edge cases OK)
  *  - InValidFunc (Misuse): API usage FAILS by design (wrong TCP patterns trigger errors)
  *  - Focus: Verify robust TCP error handling, socket state integrity, leak prevention
  *  - Tests intentionally violate TCP usage contracts to confirm defensive programming
  *
  * Related Test Files:
  *  - UT_ServiceTypicalTCP.cxx: ValidFunc-Typical with TCP (common TCP scenarios)
- *  - UT_ServiceBoundaryTCP.cxx: ValidFunc-Boundary with TCP (TCP edge cases)
+ *  - UT_ServiceEdgeTCP.cxx: ValidFunc-Edge with TCP (TCP edge cases)
  *  - UT_ServiceMisuse.cxx: InValidFunc-Misuse with FIFO (general misuse patterns)
  *  - UT_ServiceFaultTCP.cxx: Fault-TCP (network failures, recovery)
  *
@@ -78,7 +78,7 @@
  * DESIGN PRINCIPLE: IMPROVE VALUE • AVOID LOSS • BALANCE SKILL vs COST
  *
  * PRIORITY FRAMEWORK:
- *   P1 🥇 FUNCTIONAL:     ValidFunc(Typical + Boundary) + InvalidFunc(Misuse + Fault)
+ *   P1 🥇 FUNCTIONAL:     ValidFunc(Typical + Edge) + InvalidFunc(Misuse + Fault)
  *                                                          ^^^^^^^^^^
  *                                                   (We are here - Misuse for TCP)
  *
@@ -649,7 +649,7 @@ TEST(UT_ServiceMisuseTCP, verifyPostEVT_afterTCPServiceOffline_expectNotExist) {
  *   🟢 GREEN/PASSED:      Test written and passing
  *
  * PRIORITY LEVELS:
- *   P1 🥇 FUNCTIONAL:     ValidFunc(Typical + Boundary) + InvalidFunc(Misuse + Fault)
+ *   P1 🥇 FUNCTIONAL:     ValidFunc(Typical + Edge) + InvalidFunc(Misuse + Fault)
  *                                                          ^^^^^^^^^^
  *                                                   (We are P1-Misuse for TCP)
  *

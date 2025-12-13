@@ -157,7 +157,7 @@ TEST(EventPosting, verifyNonBlockPost_byFullQueue_expectImmediateReturn) {
 **Step 1: Define Coverage Strategy**  
 Identify key dimensions:
 - Service Role × Client Role × Mode
-- Component State × Operation × Boundary
+- Component State × Operation × Edge
 - Concurrency × Resource Limits × Faults
 
 **Step 2: Freely Draft Ideas**  
@@ -275,7 +275,7 @@ Write TC specifications in the TEST CASES design section:
 Follow the priority framework:
 
 - **P1 🥇 Functional** (MUST COMPLETE):
-  - Typical → Boundary → Misuse → Fault
+  - Typical → Edge → Misuse → Fault
 - **P2 🥈 Design** (Important):
   - State → Capability → Concurrency
 - **P3 🥉 Quality** (Nice-to-have):
@@ -459,11 +459,11 @@ graph TD
         ValidFunc[ValidFunc]
         InvalidFunc[InvalidFunc]
         Typical[⭐ Typical]
-        Boundary[🔲 Boundary]
+        Edge[🔲 Edge]
         Misuse[🚫 Misuse]
         Fault[⚠️ Fault]
         ValidFunc --> Typical
-        ValidFunc --> Boundary
+        ValidFunc --> Edge
         InvalidFunc --> Misuse
         InvalidFunc --> Fault
     end
@@ -496,7 +496,7 @@ graph TD
 ```
 
 ```
-P1 🥇 FUNCTIONAL = ValidFunc(Typical + Boundary) + InvalidFunc(Misuse + Fault)
+P1 🥇 FUNCTIONAL = ValidFunc(Typical + Edge) + InvalidFunc(Misuse + Fault)
 P2 🥈 DESIGN = State → Capability → Concurrency
 P3 🥉 QUALITY = Performance → Robust → Compatibility → Configuration
 P4 🎯 ADDONS = Demo/Example
@@ -512,7 +512,7 @@ P4 🎯 ADDONS = Demo/Example
 - **General examples**: User registration, file save, API call success
 - **IOC examples**: Service registration, event flow, command execution
 
-**🔲 Boundary** (Edge cases & limits)
+**🔲 Edge** (Edge cases & limits)
 - **When**: Right after Typical
 - **What**: Min/max values, empty/null inputs, mode variations
 - **General examples**: Empty string, zero/negative numbers, maximum array size
@@ -683,8 +683,8 @@ stateDiagram-v2
 // P1 🥇 FUNCTIONAL TESTING
 //=================================================================================================
 //   🟢 [@AC-1,US-1] TC-1: verifyTypical_byBasicOp_expectSuccess
-//   🟢 [@AC-1,US-1] TC-2: verifyBoundary_byNullInput_expectError
-//   🔴 [@AC-2,US-1] TC-1: verifyBoundary_byMaxCapacity_expectProperHandling
+//   🟢 [@AC-1,US-1] TC-2: verifyEdge_byNullInput_expectError
+//   🔴 [@AC-2,US-1] TC-1: verifyEdge_byMaxCapacity_expectProperHandling
 //        - Status: Need to implement capacity API
 //   ⚪ [@AC-3,US-1] TC-1: verifyMisuse_byDoubleInit_expectError
 //   🚫 [@AC-4,US-2] TC-1: verifyFault_byNetworkFailure_expectRecovery
@@ -927,7 +927,7 @@ TEST(ServiceAPI, verifyServiceRegister_byValidName_expectSuccess) {
 
 ---
 
-### Pattern 2: Boundary Test with Error Handling
+### Pattern 2: Edge Test with Error Handling
 
 **Use when**: Testing edge cases that should fail gracefully
 
@@ -1084,7 +1084,7 @@ Looking for concrete CaTDD implementations? Check these IOC test files:
 - [UT_ConlesEventTypical.cxx](../Test/UT_ConlesEventTypical.cxx) - Basic event posting
 - [UT_ConlesEventState.cxx](../Test/UT_ConlesEventState.cxx) - State machine testing
 - [UT_CommandTypicalTCP.cxx](../Test/UT_CommandTypicalTCP.cxx) - Command execution
-- [UT_ConlesEventMayBlock.cxx](../Test/UT_ConlesEventMayBlock.cxx) - Boundary/blocking tests
+- [UT_ConlesEventMayBlock.cxx](../Test/UT_ConlesEventMayBlock.cxx) - Edge/blocking tests
 - [UT_ConlesEventMisuse.cxx](../Test/UT_ConlesEventMisuse.cxx) - Misuse/error handling
 
 ---
@@ -1123,7 +1123,7 @@ TEST(Category, verifyBehavior_byCondition_expectResult) {
 ### Priority Order
 
 ```
-P1: Typical → Boundary → Misuse → Fault
+P1: Typical → Edge → Misuse → Fault
 P2: State → Capability → Concurrency
 P3: Performance → Robust → Compatibility → Configuration
 P4: Demo/Example

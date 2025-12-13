@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// UT_DataBoundaryUS4AC1.cxx - DAT Boundary Testing: US-4 AC-1 Parameter Boundary Error Code Validation
+// UT_DataEdgeUS4AC1.cxx - DAT Edge Testing: US-4 AC-1 Parameter Edge Error Code Validation
 // 📝 Purpose: Test Cases for User Story 4, Acceptance Criteria 1 - Parameter boundary error code validation
 // 🔄 Focus: NULL pointers, invalid LinkID, malformed options → specific IOC_RESULT_* codes
 //    //@KeyVerifyPoint-1: NULL pDatDesc consistently returns IOC_RESULT_INVALID_PARAM with ValidLinkID scenarios
@@ -8,7 +8,7 @@
 //Coverage: [@US-4,AC-1] Parameter boundary error code validation (comprehensive boundary error testing)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include "UT_DataBoundaryUS4.h"
+#include "UT_DataEdgeUS4.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF US-4 AC-1 TEST IMPLEMENTATIONS===================================================
@@ -29,7 +29,7 @@
  * ║ @[Notes]: Validates AC-1 comprehensive parameter boundary error code coverage            ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
-TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byParameterBoundaries_expectSpecificErrorCodes) {
+TEST(UT_DataEdge, verifyDatErrorCodeCoverage_byParameterBoundaries_expectSpecificErrorCodes) {
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                🔧 SETUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
@@ -204,7 +204,7 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byParameterBoundaries_expectSpe
  * ║ @[Notes]: Validates real-world parameter validation consistency with isolated errors     ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
-TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byParameterConsistency_expectReproducibleErrorCodes) {
+TEST(UT_DataEdge, verifyDatErrorCodeCoverage_byParameterConsistency_expectReproducibleErrorCodes) {
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                🔧 SETUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘

@@ -43,7 +43,7 @@
  *
  *  不包括：
  *  - 典型使用场景（DataTypical 覆盖）
- *  - 边界条件测试（DataBoundary 覆盖）
+ *  - 边界条件测试（DataEdge 覆盖）
  *  - 系统容量测试（DataCapability 覆盖）
  *  - 性能优化场景
  *
@@ -78,7 +78,7 @@
  *
  * ❌ EXCLUDED FROM STATE TESTING:
  *    ✅ 典型数据传输流程（DataTypical覆盖）
- *    🔲 参数边界验证（DataBoundary覆盖）
+ *    🔲 参数边界验证（DataEdge覆盖）
  *    🚀 性能和容量测试（DataCapability覆盖）
  *    📊 长期稳定性测试
  *    🛠️ 协议特定实现细节

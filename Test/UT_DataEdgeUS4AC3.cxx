@@ -1,11 +1,11 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// UT_DataBoundaryUS4AC3.cxx - DAT Boundary Testing: US-4 AC-3 Timeout and Blocking Mode Boundary Error Code Validation
+// UT_DataEdgeUS4AC3.cxx - DAT Edge Testing: US-4 AC-3 Timeout and Blocking Mode Edge Error Code Validation
 // 📝 Purpose: Test Cases for User Story 4, Acceptance Criteria 3 - Timeout and blocking mode boundary error code
 // validation 🔄 Focus: Zero timeout, mode conflicts, extreme timeouts → IOC_RESULT_TIMEOUT, etc. 🎯 Coverage:
 // [@US-4,AC-3] Timeout and blocking mode boundary error code validation (comprehensive boundary error testing)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include "UT_DataBoundaryUS4.h"
+#include "UT_DataEdgeUS4.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF US-4 AC-3 TEST IMPLEMENTATIONS===================================================
@@ -26,7 +26,7 @@
  * @[Notes]: Validates AC-3 comprehensive timeout/mode boundary error code coverage
  * ===============================================================================
  */
-TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byTimeoutModeBoundaries_expectTimeoutErrorCodes) {
+TEST(UT_DataEdge, verifyDatErrorCodeCoverage_byTimeoutModeBoundaries_expectTimeoutErrorCodes) {
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                🔧 SETUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
@@ -231,7 +231,7 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byTimeoutModeBoundaries_expectT
  * ║ @[Notes]: Validates isolated timeout validation behavior (without LinkID interference)   ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
-TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byTimeoutModeConsistency_expectIsolatedTimeoutValidation) {
+TEST(UT_DataEdge, verifyDatErrorCodeCoverage_byTimeoutModeConsistency_expectIsolatedTimeoutValidation) {
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                🔧 SETUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘

@@ -1,55 +1,55 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// UT_DataBoundaryUS1.cxx - DAT Boundary Testing: US-1 Parameter Boundary Validation
+// UT_DataEdgeUS1.cxx - DAT Edge Testing: US-1 Parameter Edge Validation
 // 📝 Purpose: Test Cases for User Story 1 - DAT application developer parameter boundary testing
 // 🔄 Focus: IOC_sendDAT/IOC_recvDAT parameter validation, error handling, system stability
 // 🎯 Coverage: [@US-1] Parameter boundary validation (AC-1, AC-2, AC-3, AC-4)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include "UT_DataBoundary.h"
+#include "UT_DataEdge.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF US-1 TEST CASES==================================================================
 /**************************************************************************************************
- * @brief 【US-1 Test Cases】- Parameter Boundary Validation
+ * @brief 【US-1 Test Cases】- Parameter Edge Validation
  *
  * [@AC-1,US-1] Parameter boundary validation - Invalid inputs
  *  TC-1:
- *      @[Name]: verifyDatParameterBoundary_byInvalidInputs_expectGracefulErrorHandling
+ *      @[Name]: verifyDatParameterEdge_byInvalidInputs_expectGracefulErrorHandling
  *      @[Purpose]: Verify IOC_sendDAT/IOC_recvDAT handle invalid parameters gracefully
  *      @[Brief]: Test NULL pointers, invalid LinkIDs, malformed DatDesc, verify proper error codes
  *      @[Coverage]: NULL pDatDesc, invalid LinkID, malformed DatDesc, invalid IOC_Options
  *
  * [@AC-2,US-1] Parameter boundary validation - Edge case values
  *  TC-2:
- *      @[Name]: verifyDatParameterBoundary_byEdgeCaseValues_expectValidationSuccess
+ *      @[Name]: verifyDatParameterEdge_byEdgeCaseValues_expectValidationSuccess
  *      @[Purpose]: Verify boundary parameter values are validated correctly
  *      @[Brief]: Test edge case LinkIDs, extreme option values, verify acceptance/rejection
- *      @[Coverage]: Boundary LinkIDs, extreme data sizes, IOC_Options boundaries, mixed parameters
+ *      @[Coverage]: Edge LinkIDs, extreme data sizes, IOC_Options boundaries, mixed parameters
  *
  *-------------------------------------------------------------------------------------------------
  * TODO: [@AC-3,US-1] Parameter boundary validation - IOC_Options specific
  *  TC-3:
- *      @[Name]: verifyDatParameterBoundary_byIOCOptionsValidation_expectProperHandling
+ *      @[Name]: verifyDatParameterEdge_byIOCOptionsValidation_expectProperHandling
  *      @[Purpose]: Verify IOC_Options parameter combinations are validated correctly
  *      @[Brief]: Test malformed options, extreme timeout values, invalid option combinations
  *
  * TODO: [@AC-4,US-1] Parameter boundary validation - Mixed valid/invalid parameters
  *  TC-4:
- *      @[Name]: verifyDatParameterBoundary_byMixedParameters_expectConsistentValidation
+ *      @[Name]: verifyDatParameterEdge_byMixedParameters_expectConsistentValidation
  *      @[Purpose]: Verify parameter validation order and consistency
  *      @[Brief]: Test mixed valid/invalid parameters, validation order priority
  *
  *************************************************************************************************/
 //======>END OF US-1 TEST CASES====================================================================
 
-#include "UT_DataBoundary.h"
+#include "UT_DataEdge.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF US-1 TEST IMPLEMENTATIONS========================================================
 
 //======>BEGIN OF: [@AC-1,US-1] TC-1===============================================================
 /**
- * @[Name]: verifyDatParameterBoundary_byInvalidInputs_expectGracefulErrorHandling
+ * @[Name]: verifyDatParameterEdge_byInvalidInputs_expectGracefulErrorHandling
  * @[Steps]:
  *   1) Test IOC_sendDAT with invalid parameters AS BEHAVIOR.
  *      |-> Test NULL pDatDesc parameter
@@ -72,9 +72,9 @@
  * @[Expect]: All invalid parameter combinations rejected with proper error codes, no crashes, consistent system state.
  * @[Notes]: Critical for robust error handling - validates comprehensive parameter validation logic per AC-1,AC-3,AC-4.
  */
-TEST(UT_DataBoundary, verifyDatParameterBoundary_byInvalidInputs_expectGracefulErrorHandling) {
+TEST(UT_DataEdge, verifyDatParameterEdge_byInvalidInputs_expectGracefulErrorHandling) {
     //===SETUP===
-    printf("BEHAVIOR: verifyDatParameterBoundary_byInvalidInputs_expectGracefulErrorHandling\n");
+    printf("BEHAVIOR: verifyDatParameterEdge_byInvalidInputs_expectGracefulErrorHandling\n");
 
     //===BEHAVIOR: IOC_sendDAT Invalid Parameter Tests===
     printf("📋 Testing IOC_sendDAT invalid parameters...\n");
@@ -205,7 +205,7 @@ TEST(UT_DataBoundary, verifyDatParameterBoundary_byInvalidInputs_expectGracefulE
 
 //======>BEGIN OF: [@AC-2,US-1] TC-2===============================================================
 /**
- * @[Name]: verifyDatParameterBoundary_byEdgeCaseValues_expectValidationSuccess
+ * @[Name]: verifyDatParameterEdge_byEdgeCaseValues_expectValidationSuccess
  * @[Steps]:
  *   1) Test LinkID boundary values (valid/invalid edge cases) AS BEHAVIOR.
  *      |-> Test minimum/maximum theoretical LinkID values
@@ -231,11 +231,11 @@ TEST(UT_DataBoundary, verifyDatParameterBoundary_byInvalidInputs_expectGracefulE
  * IOC_RESULT_INVALID_PARAM, consistent validation behavior.
  * @[Notes]: Systematic boundary value testing per AC-2 - validates parameter validation logic at edge cases.
  */
-TEST(UT_DataBoundary, verifyDatParameterBoundary_byEdgeCaseValues_expectValidationSuccess) {
+TEST(UT_DataEdge, verifyDatParameterEdge_byEdgeCaseValues_expectValidationSuccess) {
     //===SETUP===
-    printf("BEHAVIOR: verifyDatParameterBoundary_byEdgeCaseValues_expectValidationSuccess\n");
+    printf("BEHAVIOR: verifyDatParameterEdge_byEdgeCaseValues_expectValidationSuccess\n");
 
-    //===BEHAVIOR: LinkID Boundary Value Testing===
+    //===BEHAVIOR: LinkID Edge Value Testing===
     printf("📋 Testing LinkID boundary values...\n");
 
     // Prepare valid DatDesc for testing LinkID boundaries
@@ -255,7 +255,7 @@ TEST(UT_DataBoundary, verifyDatParameterBoundary_byEdgeCaseValues_expectValidati
         << "Zero LinkID should be rejected with appropriate error code";
 
     // Test 1.3: Maximum possible LinkID values (test system bounds)
-    IOC_LinkID_T MaxBoundaryIDs[] = {
+    IOC_LinkID_T MaxEdgeIDs[] = {
         0x7FFFFFFF,  // Maximum positive 32-bit value
         0xFFFFFFFE,  // Near maximum unsigned value
         0x80000000,  // Sign bit boundary
@@ -263,17 +263,17 @@ TEST(UT_DataBoundary, verifyDatParameterBoundary_byEdgeCaseValues_expectValidati
         2,           // Just above minimum
     };
 
-    for (size_t i = 0; i < sizeof(MaxBoundaryIDs) / sizeof(MaxBoundaryIDs[0]); i++) {
-        Result = IOC_sendDAT(MaxBoundaryIDs[i], &ValidDatDesc, NULL);
+    for (size_t i = 0; i < sizeof(MaxEdgeIDs) / sizeof(MaxEdgeIDs[0]); i++) {
+        Result = IOC_sendDAT(MaxEdgeIDs[i], &ValidDatDesc, NULL);
         ASSERT_TRUE(Result == IOC_RESULT_NOT_EXIST_LINK || Result == IOC_RESULT_INVALID_PARAM)
-            << "Boundary LinkID " << MaxBoundaryIDs[i] << " should be handled gracefully";
+            << "Edge LinkID " << MaxEdgeIDs[i] << " should be handled gracefully";
 
         // Test should not crash - if it reaches here, validation worked
         printf("   ✓ LinkID boundary value 0x%016llX handled gracefully (result: %d)\n",
-               (unsigned long long)MaxBoundaryIDs[i], Result);
+               (unsigned long long)MaxEdgeIDs[i], Result);
     }
 
-    //===BEHAVIOR: DatDesc Field Boundary Testing===
+    //===BEHAVIOR: DatDesc Field Edge Testing===
     printf("📋 Testing DatDesc field boundary values...\n");
 
     // Test 2.1: Minimum data size (1 byte)
@@ -325,7 +325,7 @@ TEST(UT_DataBoundary, verifyDatParameterBoundary_byEdgeCaseValues_expectValidati
         << "Uninitialized DatDesc should be handled gracefully";
     printf("   ✓ Uninitialized DatDesc handled gracefully (result: %d)\n", Result);
 
-    //===BEHAVIOR: IOC_Options Boundary Testing===
+    //===BEHAVIOR: IOC_Options Edge Testing===
     printf("📋 Testing IOC_Options boundary values...\n");
 
     // Test 3.1: NULL options (should be valid)
@@ -346,7 +346,7 @@ TEST(UT_DataBoundary, verifyDatParameterBoundary_byEdgeCaseValues_expectValidati
         << "Invalid options pointer should be handled gracefully";
     printf("   ✓ Invalid options pointer handled gracefully (result: %d)\n", Result);
 
-    //===BEHAVIOR: Enhanced IOC_Options Boundary Testing (AC-3 coverage)===
+    //===BEHAVIOR: Enhanced IOC_Options Edge Testing (AC-3 coverage)===
     printf("📋 Testing enhanced IOC_Options boundary values...\n");
 
     // Test 3.4: Test with malformed IOC_Options structure
@@ -373,10 +373,10 @@ TEST(UT_DataBoundary, verifyDatParameterBoundary_byEdgeCaseValues_expectValidati
     IOC_DatDesc_T RecvDatDesc = {0};
     IOC_initDatDesc(&RecvDatDesc);
 
-    for (size_t i = 0; i < sizeof(MaxBoundaryIDs) / sizeof(MaxBoundaryIDs[0]); i++) {
-        Result = IOC_recvDAT(MaxBoundaryIDs[i], &RecvDatDesc, NULL);
+    for (size_t i = 0; i < sizeof(MaxEdgeIDs) / sizeof(MaxEdgeIDs[0]); i++) {
+        Result = IOC_recvDAT(MaxEdgeIDs[i], &RecvDatDesc, NULL);
         ASSERT_TRUE(Result == IOC_RESULT_NOT_EXIST_LINK || Result == IOC_RESULT_INVALID_PARAM)
-            << "IOC_recvDAT should handle boundary LinkIDs gracefully: " << MaxBoundaryIDs[i];
+            << "IOC_recvDAT should handle boundary LinkIDs gracefully: " << MaxEdgeIDs[i];
     }
 
     // Test 4.2: IOC_recvDAT with malformed DatDesc (enhanced testing)

@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// UT_DataBoundaryUS4.h - DAT Boundary Testing: US-4 Error Code Coverage Validation
+// UT_DataEdgeUS4.h - DAT Edge Testing: US-4 Error Code Coverage Validation
 // 📝 Purpose: Header file for User Story 4 - Quality assurance engineer error code boundary testing
 // 🔄 Focus: Comprehensive error code coverage, error consistency, boundary error path validation
 // 🎯 Coverage: [@US-4] Error code coverage validation (comprehensive boundary error testing)
@@ -53,7 +53,7 @@
  * ❌ EXCLUDED FROM US-4 ERROR CODE TESTING:
  *    ✅ Typical usage scenarios (covered by DataTypical)
  *    🚀 Performance testing and stress testing (covered by DataPerformance)
- *    🔄 Complex data transfer scenarios (covered by other DataBoundary US files)
+ *    🔄 Complex data transfer scenarios (covered by other DataEdge US files)
  *    🛠️ Recovery scenarios and retry logic
  *    📊 Long-term stability testing
  *
@@ -61,7 +61,7 @@
  *    📋 Complete error code path coverage and validation consistency
  *    🔧 Error code reproducibility across different system configurations
  *    ⚡ Error precedence order validation and system stability
- *    🛡️ Boundary error isolation and cross-mode consistency verification
+ *    🛡️ Edge error isolation and cross-mode consistency verification
  *************************************************************************************************/
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -135,31 +135,31 @@
  *
  * Test Cases are organized by Acceptance Criteria and implemented in separate files:
  *
- * 📂 UT_DataBoundaryUS4AC1.cxx - [@US-4,AC-1] Parameter boundary error code validation
+ * 📂 UT_DataEdgeUS4AC1.cxx - [@US-4,AC-1] Parameter boundary error code validation
  *    └── [@AC-1,US-4] TC-1: verifyDatErrorCodeCoverage_byParameterBoundaries_expectSpecificErrorCodes
  *    └── [@AC-1,US-4] TC-2: verifyDatErrorCodeCoverage_byParameterConsistency_expectReproducibleErrorCodes
  *    └── TODO: [@AC-1,US-4] IOC_Options boundary validation
  *    └── TODO: [@AC-1,US-4] Mixed valid/invalid parameter combinations
  *
- * 📂 UT_DataBoundaryUS4AC2.cxx - [@US-4,AC-2] Data size boundary error code validation
+ * 📂 UT_DataEdgeUS4AC2.cxx - [@US-4,AC-2] Data size boundary error code validation
  *    └── [@AC-2,US-4] TC-1: verifyDatErrorCodeCoverage_byDataSizeBoundaries_expectConsistentErrorReporting
  *    └── [@AC-2,US-4] TC-2: verifyDatErrorCodeCoverage_byDataSizeConsistency_expectIsolatedDataValidation
  *    └── TODO: [@AC-2,US-4] Maximum data size boundary validation
  *    └── TODO: [@AC-2,US-4] Oversized data boundary validation
  *
- * 📂 UT_DataBoundaryUS4AC3.cxx - [@US-4,AC-3] Timeout and blocking mode boundary error code validation
+ * 📂 UT_DataEdgeUS4AC3.cxx - [@US-4,AC-3] Timeout and blocking mode boundary error code validation
  *    └── [@AC-3,US-4] TC-1: verifyDatErrorCodeCoverage_byTimeoutModeBoundaries_expectTimeoutErrorCodes
  *    └── [@AC-3,US-4] TC-2: verifyDatErrorCodeCoverage_byTimeoutModeConsistency_expectIsolatedTimeoutValidation
  *    └── TODO: [@AC-3,US-4] Extreme timeout boundary validation
  *    └── TODO: [@AC-3,US-4] Mode conflict boundary validation
  *
- * 📂 UT_DataBoundaryUS4AC4.cxx - [@US-4,AC-4] Multiple error condition precedence validation
+ * 📂 UT_DataEdgeUS4AC4.cxx - [@US-4,AC-4] Multiple error condition precedence validation
  *    └── [@AC-4,US-4] TC-1: verifyDatErrorCodePrecedence_byMultipleErrorConditions_expectPriorityOrder
  *    └── [@AC-4,US-4] TC-2: verifyDatErrorCodePrecedence_byConsistencyValidation_expectReproducibleBehavior
  *    └── TODO: [@AC-4,US-4] Error precedence with ValidLinkID scenarios
  *    └── TODO: [@AC-4,US-4] Cross-mode error precedence validation
  *
- * 📂 UT_DataBoundaryUS4AC5.cxx - [@US-4,AC-5] Comprehensive error code coverage validation
+ * 📂 UT_DataEdgeUS4AC5.cxx - [@US-4,AC-5] Comprehensive error code coverage validation
  *    └── TODO: [@AC-5,US-4] TC-1: verifyDatErrorCodeCompleteness_byComprehensiveValidation_expectFullCoverage
  *    └── TODO: [@AC-5,US-4] Complete error path coverage validation
  *************************************************************************************************/
@@ -168,7 +168,7 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF SHARED TEST ENVIRONMENT SETUP===================================================
 
-#include "UT_DataBoundary.h"
+#include "UT_DataEdge.h"
 
 // US-4 specific data structures for error code validation testing
 typedef struct {
@@ -238,7 +238,7 @@ inline void US4_DocumentErrorPrecedence(const char* testName, const char* scenar
  * @param errorContext Description of when this error occurred
  * @return true if error code is expected for US-4 boundary testing
  */
-inline bool US4_IsExpectedBoundaryErrorCode(IOC_Result_T errorCode, const char* errorContext) {
+inline bool US4_IsExpectedEdgeErrorCode(IOC_Result_T errorCode, const char* errorContext) {
     // US-4 focuses on comprehensive boundary error coverage
     bool isExpected = (errorCode == IOC_RESULT_INVALID_PARAM) || (errorCode == IOC_RESULT_NOT_EXIST_LINK) ||
                       (errorCode == IOC_RESULT_ZERO_DATA) || (errorCode == IOC_RESULT_DATA_TOO_LARGE) ||
@@ -272,30 +272,30 @@ inline void US4_InitializeSharedTestData() {
 /**
  * @brief Hierarchical Include Structure for US-4 Test Files
  *
- * The UT_DataBoundaryUS4 test files follow a hierarchical include structure:
+ * The UT_DataEdgeUS4 test files follow a hierarchical include structure:
  *
- * ┌─── UT_DataBoundaryUS4ACn.cxx (AC-specific test implementations)
- * │    └── #include "UT_DataBoundaryUS4.h"
- * │        └── #include "UT_DataBoundary.h" (base boundary testing framework)
+ * ┌─── UT_DataEdgeUS4ACn.cxx (AC-specific test implementations)
+ * │    └── #include "UT_DataEdgeUS4.h"
+ * │        └── #include "UT_DataEdge.h" (base boundary testing framework)
  * │            └── System IOC headers, GoogleTest, etc.
  * │
  * ├─── Shared US-4 Utilities Available in All AC Files:
  * │    ├── US4_DocumentErrorPrecedence() - Document error precedence discoveries
- * │    ├── US4_IsExpectedBoundaryErrorCode() - Validate expected boundary error codes
+ * │    ├── US4_IsExpectedEdgeErrorCode() - Validate expected boundary error codes
  * │    ├── US4_InitializeSharedTestData() - Initialize shared test data
  * │    └── g_US4_SharedTestData - Global shared test data for error tracking
  * │
  * ├─── Benefits of This Structure:
  * │    ├── Reduced duplication: US-4 common code in one place
- * │    ├── Better organization: Clear hierarchy UT_DataBoundaryUS4ACn → US4 → DataBoundary
+ * │    ├── Better organization: Clear hierarchy UT_DataEdgeUS4ACn → US4 → DataEdge
  * │    ├── Cleaner dependencies: Each level builds on the previous
  * │    ├── Better maintainability: Changes to US-4 utilities affect all AC files
  * │    └── Shared state: Error tracking and validation across all AC test cases
  * │
  * └─── File Responsibilities:
- *      ├── UT_DataBoundary.h: Base boundary testing framework, common test utilities
- *      ├── UT_DataBoundaryUS4.h: US-4 specific types, utilities, shared test data
- *      └── UT_DataBoundaryUS4ACn.cxx: Individual acceptance criteria implementations
+ *      ├── UT_DataEdge.h: Base boundary testing framework, common test utilities
+ *      ├── UT_DataEdgeUS4.h: US-4 specific types, utilities, shared test data
+ *      └── UT_DataEdgeUS4ACn.cxx: Individual acceptance criteria implementations
  */
 
 //======>END OF HIERARCHICAL INCLUDE STRUCTURE DOCUMENTATION======================================

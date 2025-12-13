@@ -1,6 +1,6 @@
 /**
- * @file UT_ConlesEventUseBoundary.cxx
- * @note Use Boundary to verify API is used in Min/Max/Beyond conditions.
+ * @file UT_ConlesEventUseEdge.cxx
+ * @note Use Edge to verify API is used in Min/Max/Beyond conditions.
  *---------------------------------------------------------------------------------------------------------------------
  *===> Begin DesignOfUT from Acceptace Creteria(a.k.a AC) <===
  *  a) Min condition: verify subEVT, postEVT, unsubEVT success at Minimum operations.
@@ -46,7 +46,7 @@ static IOC_Result_T _Case01_CbProcEvt(IOC_EvtDesc_T *pEvtDesc, void *pCbPrivData
     return IOC_RESULT_SUCCESS;
 }
 
-TEST(ConlesEventUseBoundary, verifyPostProcEvtSuccess_by1xSubPostUnsubEvt) {
+TEST(ConlesEventUseEdge, verifyPostProcEvtSuccess_by1xSubPostUnsubEvt) {
     IOC_Result_T Result      = IOC_RESULT_BUG;
     IOC_SubEvtArgs_T SubArgs = {0};
 
@@ -100,7 +100,7 @@ static IOC_Result_T _Case02_CbProcEvt(IOC_EvtDesc_T *pEvtDesc, void *pCbPrivData
     return IOC_RESULT_SUCCESS;
 }
 
-TEST(ConlesEventUseBoundary, verifyForceProcEVT_willWaitForLastBlockedCbProcEvtReturning) {
+TEST(ConlesEventUseEdge, verifyForceProcEVT_willWaitForLastBlockedCbProcEvtReturning) {
     //===SETUP===
     _Case02_PrivData_T C02PrivData = {
         .Sleep99MsCnt  = 0,

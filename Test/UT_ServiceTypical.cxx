@@ -7,13 +7,13 @@
  * @category ValidFunc-Typical (Common Scenarios That Work - APIs Function Correctly)
  *
  * Part of Test Design Formula:
- *   Service's Functional Test = ValidFunc(Typical + Boundary) + InValidFunc(Misuse)
+ *   Service's Functional Test = ValidFunc(Typical + Edge) + InValidFunc(Misuse)
  *                                         ^^^^^^^^
  *                                    (Normal cases WORK!)
  *
  * ValidFunc = API WORKS from caller's viewpoint (successful operation)
  *  - Typical: Common scenarios in normal range - happy path success flows
- *  - Boundary: Edge cases (min/max, limits) but still work correctly
+ *  - Edge: Edge cases (min/max, limits) but still work correctly
  *
  * This file covers: Typical/classic usage scenarios with expected success
  *  - Single and multiple services with single/multiple clients
@@ -23,13 +23,13 @@
  *  - All operations complete successfully as designed
  *
  * Test Philosophy - KEY DISTINCTION:
- *  - ValidFunc (Typical + Boundary): API WORKS correctly (success or graceful error)
+ *  - ValidFunc (Typical + Edge): API WORKS correctly (success or graceful error)
  *  - InValidFunc (Misuse): API usage FAILS (wrong sequence, double calls, violations)
  *  - Focus: Verify common real-world scenarios execute successfully
  *  - All inputs are valid, all sequences are correct, all operations succeed
  *
  * Related Test Files:
- *  - UT_ServiceBoundary.cxx: ValidFunc-Boundary (edge cases that still work)
+ *  - UT_ServiceEdge.cxx: ValidFunc-Edge (edge cases that still work)
  *  - UT_ServiceMisuse.cxx: InValidFunc-Misuse (wrong usage that fails)
  *  - See: Test/UT_ServiceTestDesign.md for complete test taxonomy
  *

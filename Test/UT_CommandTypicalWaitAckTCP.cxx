@@ -75,7 +75,7 @@
  *   P3 🥉 QUALITY-ORIENTED: Test for quality attributes (Performance, Robust, etc.)
  *
  * DEFAULT TEST ORDER:
- *   P1: Typical → Boundary → Misuse → Fault
+ *   P1: Typical → Edge → Misuse → Fault
  *   P2: State → Capability → Concurrency
  *   P3: Performance → Robust → Compatibility → Configuration
  *
@@ -86,13 +86,13 @@
 /**
  * TEST CATEGORY SELECTION (from CaTDD Design Aspects):
  *   🥇 P1-FUNCTIONAL-Typical: US-1 Basic Polling, US-4 Symmetric Polling (MUST HAVE)
- *   🥇 P1-FUNCTIONAL-Boundary: US-3 Timeout Handling (HIGH PRIORITY)
+ *   🥇 P1-FUNCTIONAL-Edge: US-3 Timeout Handling (HIGH PRIORITY)
  *   🥈 P2-DESIGN-Performance: US-2 Delayed Ack Timing (KEY FOR ASYNC VALIDATION)
  *
  * RATIONALE:
  *   - Polling is core functionality → P1 Typical
  *   - Symmetric roles ensure architectural completeness → P1 Typical
- *   - Timeout prevents hangs → P1 Boundary (reliability critical)
+ *   - Timeout prevents hangs → P1 Edge (reliability critical)
  *   - Delayed ack validates async semantics → P2 (timing validation)
  *
  * USER STORIES:
@@ -247,12 +247,12 @@
 //        - Effort: 1 hour (leveraging existing TCP infrastructure)
 //
 //===================================================================================================
-// P1 🥇 FUNCTIONAL TESTING – ValidFunc (Boundary)
+// P1 🥇 FUNCTIONAL TESTING – ValidFunc (Edge)
 //===================================================================================================
 //
 //   🟢 [@AC-1,US-3] TC-1: verifyTcpServicePollingTimeout_byEmptyQueue_expectTimeoutHandling
 //        - Description: Validate IOC_waitCMD timeout behavior on TCP socket
-//        - Category: Boundary (ValidFunc)
+//        - Category: Edge (ValidFunc)
 //        - Status: PASSED/GREEN ✅ - Timeout mechanism working
 //        - Completed: 2025-11-23
 //        - Effort: 30 minutes
@@ -485,7 +485,7 @@ TEST(UT_CommandTypicalWaitAckTCP, verifyTcpServiceAsyncProcessing_byDelayedAck_e
 
 // [@AC-1,US-3] TC-1: verifyTcpServicePollingTimeout_byEmptyQueue_expectTimeoutHandling
 /**
- * @[Category]: P1-Boundary (ValidFunc)
+ * @[Category]: P1-Edge (ValidFunc)
  * @[Purpose]: Validate graceful timeout when no commands arrive within specified period
  * @[Brief]: Service polls with 100ms timeout → No data sent → Returns TIMEOUT
  * @[4-Phase Structure]:

@@ -27,13 +27,13 @@
  *   - [In scope]: Invalid parameter values
  *   - [In scope]: Illegal state transitions
  *   - [In scope]: Protocol mismatches
- *   - [Out of scope]: Valid boundary cases → see UT_CommandBoundaryTCP.cxx
+ *   - [Out of scope]: Valid boundary cases → see UT_CommandEdgeTCP.cxx
  *   - [Out of scope]: External failures → see UT_CommandFaultTCP.cxx
  *   - [Out of scope]: Typical scenarios → see UT_CommandTypicalTCP.cxx
  *
  * RELATIONSHIPS:
  *   - Extends: UT_CommandTypicalTCP.cxx (error handling for typical patterns)
- *   - Related: UT_CommandBoundaryTCP.cxx (misuse vs boundary distinction)
+ *   - Related: UT_CommandEdgeTCP.cxx (misuse vs boundary distinction)
  *   - Related: UT_CommandFaultTCP.cxx (misuse vs fault distinction)
  */
 //======>END OF OVERVIEW===========================================================================

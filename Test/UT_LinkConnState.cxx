@@ -198,7 +198,7 @@
  *      @[Status]: PLANNED - Validates L1/L2 independence
  *
  * ═════════════════════════════════════════════════════════════════════════════════════════════
- * 📋 [CATEGORY: Boundary] Edge Cases and API Validation
+ * 📋 [CATEGORY: Edge] Edge Cases and API Validation
  * ═════════════════════════════════════════════════════════════════════════════════════════════
  *
  * [@AC-1,US-2] Query with invalid LinkID
@@ -366,7 +366,7 @@ TEST(UT_LinkConnState_Typical, TC2_verifyConnState_duringStableConnection_expect
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// 🟢 GREEN PHASE: CAT-2 Boundary - Fast-Fail Validation
+// 🟢 GREEN PHASE: CAT-2 Edge - Fast-Fail Validation
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -375,7 +375,7 @@ TEST(UT_LinkConnState_Typical, TC2_verifyConnState_duringStableConnection_expect
  * @[Test]: verifyConnStateQuery_byInvalidLinkID_expectError
  * @[Purpose]: Fast-fail validation for invalid handle (Fast-Fail Six #4)
  */
-TEST(UT_LinkConnState_Boundary, TC1_verifyConnStateQuery_byInvalidLinkID_expectError) {
+TEST(UT_LinkConnState_Edge, TC1_verifyConnStateQuery_byInvalidLinkID_expectError) {
     //===BEHAVIOR: Query with invalid LinkID===
     IOC_LinkConnState_T connState;
     IOC_Result_T result = IOC_getLinkConnState(IOC_ID_INVALID, &connState);
@@ -390,7 +390,7 @@ TEST(UT_LinkConnState_Boundary, TC1_verifyConnStateQuery_byInvalidLinkID_expectE
  * @[Test]: verifyConnStateQuery_byNullPointer_expectError
  * @[Purpose]: Fast-fail validation for NULL pointer (Fast-Fail Six #1)
  */
-TEST(UT_LinkConnState_Boundary, TC2_verifyConnStateQuery_byNullPointer_expectError) {
+TEST(UT_LinkConnState_Edge, TC2_verifyConnStateQuery_byNullPointer_expectError) {
     //===SETUP: Create valid link===
     IOC_SrvID_T srvID = IOC_ID_INVALID;
     const uint16_t TEST_PORT = 23002;
@@ -400,7 +400,7 @@ TEST(UT_LinkConnState_Boundary, TC2_verifyConnStateQuery_byNullPointer_expectErr
     srvArgs.SrvURI.pProtocol = IOC_SRV_PROTO_TCP;
     srvArgs.SrvURI.pHost = IOC_SRV_HOST_LOCAL_PROCESS;
     srvArgs.SrvURI.Port = TEST_PORT;
-    srvArgs.SrvURI.pPath = "LinkConnState_TC2_Boundary";
+    srvArgs.SrvURI.pPath = "LinkConnState_TC2_Edge";
     srvArgs.UsageCapabilites = IOC_LinkUsageCmdExecutor;
     srvArgs.Flags = IOC_SRVFLAG_AUTO_ACCEPT;
 
@@ -413,7 +413,7 @@ TEST(UT_LinkConnState_Boundary, TC2_verifyConnStateQuery_byNullPointer_expectErr
     connArgs.SrvURI.pProtocol = IOC_SRV_PROTO_TCP;
     connArgs.SrvURI.pHost = IOC_SRV_HOST_LOCAL_PROCESS;
     connArgs.SrvURI.Port = TEST_PORT;
-    connArgs.SrvURI.pPath = "LinkConnState_TC2_Boundary";
+    connArgs.SrvURI.pPath = "LinkConnState_TC2_Edge";
     connArgs.Usage = IOC_LinkUsageCmdInitiator;
 
     result = IOC_connectService(&linkID, &connArgs, NULL);
@@ -436,7 +436,7 @@ TEST(UT_LinkConnState_Boundary, TC2_verifyConnStateQuery_byNullPointer_expectErr
  * @[Test]: verifyConnStateQuery_byNonExistentLink_expectError
  * @[Purpose]: Validate error when LinkID does not exist
  */
-TEST(UT_LinkConnState_Boundary, TC3_verifyConnStateQuery_byNonExistentLink_expectError) {
+TEST(UT_LinkConnState_Edge, TC3_verifyConnStateQuery_byNonExistentLink_expectError) {
     //===BEHAVIOR: Query with non-existent LinkID===
     IOC_LinkID_T nonExistentID = 999999;
     IOC_LinkConnState_T connState;
@@ -733,12 +733,12 @@ TEST(UT_LinkConnState_State, TC2_verifyConnState_afterServiceOffline_expectDisco
 //   🟢 GREEN/PASSED:      Test written and passing
 //
 // PRIORITY LEVELS:
-//   P1 🥇 FUNCTIONAL:     Typical + Boundary + Misuse
+//   P1 🥇 FUNCTIONAL:     Typical + Edge + Misuse
 //   P2 🥈 DESIGN:         State transitions
 //   P3 🥉 QUALITY:        Robust, Performance
 //
 //===================================================================================================
-// P1 🥇 FUNCTIONAL TESTING – ValidFunc (Typical + Boundary)
+// P1 🥇 FUNCTIONAL TESTING – ValidFunc (Typical + Edge)
 //===================================================================================================
 //
 //   🟢 [@AC-1,US-1] TC-1: verifyConnState_afterSuccessfulConnect_expectConnected
@@ -750,15 +750,15 @@ TEST(UT_LinkConnState_State, TC2_verifyConnState_afterServiceOffline_expectDisco
 //        - Status: IMPLEMENTED - Ready to test
 //
 //   🟢 [@AC-1,US-2] TC-1: verifyConnStateQuery_byInvalidLinkID_expectError
-//        - Category: Boundary (ValidFunc) - Fast-Fail Six #4
+//        - Category: Edge (ValidFunc) - Fast-Fail Six #4
 //        - Status: IMPLEMENTED - Ready to test
 //
 //   🟢 [@AC-1,US-2] TC-2: verifyConnStateQuery_byNullPointer_expectError
-//        - Category: Boundary (ValidFunc) - Fast-Fail Six #1
+//        - Category: Edge (ValidFunc) - Fast-Fail Six #1
 //        - Status: IMPLEMENTED - Ready to test
 //
 //   🟢 [@AC-1,US-2] TC-3: verifyConnStateQuery_byNonExistentLink_expectError
-//        - Category: Boundary (ValidFunc)
+//        - Category: Edge (ValidFunc)
 //        - Status: IMPLEMENTED - Ready to test
 //
 //===================================================================================================
@@ -797,16 +797,16 @@ TEST(UT_LinkConnState_State, TC2_verifyConnState_afterServiceOffline_expectDisco
 // 🟢 Test Results: All 9 tests PASSED (224ms)
 //   ✅ TC1: verifyConnState_afterSuccessfulConnect_expectConnected (51ms)
 //   ✅ TC2: verifyConnState_duringStableConnection_expectConsistentConnected (116ms)
-//   ✅ TC1_Boundary: verifyConnStateQuery_byInvalidLinkID_expectError (0ms)
-//   ✅ TC2_Boundary: verifyConnStateQuery_byNullPointer_expectError (0ms)
-//   ✅ TC3_Boundary: verifyConnStateQuery_byNonExistentLink_expectError (0ms)
+//   ✅ TC1_Edge: verifyConnStateQuery_byInvalidLinkID_expectError (0ms)
+//   ✅ TC2_Edge: verifyConnStateQuery_byNullPointer_expectError (0ms)
+//   ✅ TC3_Edge: verifyConnStateQuery_byNonExistentLink_expectError (0ms)
 //   ✅ TC1_Misuse: verifyConnStateQuery_afterCloseLink_expectError (0ms)
 //   ✅ TC2_Misuse: verifyConnect_byInvalidProtocol_expectError (0ms)
 //   ✅ TC1_State: verifyConnState_afterCloseLink_expectDisconnected (0ms)
 //   ✅ TC2_State: verifyConnState_afterServiceOffline_expectDisconnectedOrBroken (55ms)
 //
 // 🎉 MILESTONE: Phase 1.1 Connection State Testing COMPLETE
-//   - P1 ValidFunc tests (Typical + Boundary): 5/5 ✅
+//   - P1 ValidFunc tests (Typical + Edge): 5/5 ✅
 //   - P1 InvalidFunc tests (Misuse): 2/2 ✅
 //   - P2 State transition tests: 2/2 ✅
 //   - Combined with TCP-specific tests: 12/12 tests passing (100%)

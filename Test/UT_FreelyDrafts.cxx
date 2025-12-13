@@ -2,7 +2,7 @@
 // QUICK REFERENCE GUIDE - 快速参考指南
 // 📝 用途: 单元测试模板和草稿文件
 // 🔄 流程: User Story → Acceptance Criteria → Test Cases → Implementation
-// 📂 分类: FreelyDrafts, Typical, Demo, Boundary, State, Performance, Concurrency, Robust, Fault, Misuse
+// 📂 分类: FreelyDrafts, Typical, Demo, Edge, State, Performance, Concurrency, Robust, Fault, Misuse
 // 🚀 快速开始: 滚动到文件末尾的TODO部分，开始自由编写想法
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -27,7 +27,7 @@
  * 📋 TEST CASE DESIGN ASPECTS/CATEGORIES - 测试用例设计方面/分类
  *
  * 🎯 DESIGN PRINCIPLE: IMPROVE VALUE、AVOID LOST、BALANCE SKILL vs COST
- * 🔄 PRIORITY ORDER: Typical → Boundary → State → Fault → Performance → Concurrency → Others
+ * 🔄 PRIORITY ORDER: Typical → Edge → State → Fault → Performance → Concurrency → Others
  *
  * 🆓 FREELY DRAFTS (自由草稿):
  *    💭 Purpose: Capture initial ideas without constraints
@@ -140,7 +140,7 @@
  * DESIGN PRINCIPLES: Define clear coverage strategy and scope
  * EXAMPLES:
  *  - Service Role × Client Role × Mode combinations (like Producer/Consumer × Callback/Pull)
- *  - Component State × Operation × Boundary conditions
+ *  - Component State × Operation × Edge conditions
  *  - Multi-threading × Resource limits × Error scenarios
  *
  *  US-1: AS a [role/user type],
@@ -166,7 +166,7 @@
  * COVERAGE STRATEGY: Define systematic test coverage approach
  * EXAMPLES:
  *  - Matrix approach: Component A × Operation B × Condition C
- *  - Boundary coverage: Min/Max/Normal values × Success/Failure paths
+ *  - Edge coverage: Min/Max/Normal values × Success/Failure paths
  *  - State coverage: State transitions × External events × Error conditions
  *
  * TEMPLATE PATTERNS:
@@ -211,7 +211,7 @@
  *
  * ORGANIZATION STRATEGIES:
  *  - By Feature/Component: Group related functionality tests together
- *  - By Test Category: Typical → Boundary → State → Error → Performance
+ *  - By Test Category: Typical → Edge → State → Error → Performance
  *  - By Coverage Matrix: Systematic coverage of identified dimensions
  *  - By Priority: Critical functionality first, edge cases second
  *
@@ -384,8 +384,8 @@ TEST(UT_NameOfCategory, verifyBehaviorZ_byDoC_expectSomething) {
 // 🥈 MEDIUM PRIORITY - BOUNDARY CONDITIONS (Implement Second)
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
-// TODO: 🔴 [@AC-2,US-1] TC-1: verifyBoundaryCondition_byEdgeCase_expectProperHandling
-// Purpose: [Boundary condition validation]
+// TODO: 🔴 [@AC-2,US-1] TC-1: verifyEdgeCondition_byEdgeCase_expectProperHandling
+// Purpose: [Edge condition validation]
 // Implementation: [Brief implementation approach]
 // Status: IMPLEMENTED/RED - [Specific implementation details needed]
 

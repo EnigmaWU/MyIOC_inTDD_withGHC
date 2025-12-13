@@ -76,13 +76,13 @@
  * 📋 TEST CASE DESIGN ASPECTS/CATEGORIES
  *
  * PRIORITY FRAMEWORK (from CaTDD):
- *   P1 🥇 FUNCTIONAL:     TCP-specific error handling (Typical + Boundary + Misuse + Fault)
+ *   P1 🥇 FUNCTIONAL:     TCP-specific error handling (Typical + Edge + Misuse + Fault)
  *   P2 🥈 DESIGN-ORIENTED: TCP state transitions, connection loss scenarios
  *   P3 🥉 QUALITY-ORIENTED: TCP connection performance, robustness under load
  *
  * CONTEXT-SPECIFIC ADJUSTMENT:
  *   - TCP Reliability Critical → Promote Fault category to early P1
- *   - TCP Timing Sensitive → Add timing validation in P1 Boundary
+ *   - TCP Timing Sensitive → Add timing validation in P1 Edge
  *************************************************************************************************/
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -255,7 +255,7 @@
  *      @[Status]: PLANNED - Foundation test
  *
  * ═════════════════════════════════════════════════════════════════════════════════════════════
- * 📋 [CATEGORY: Boundary] TCP Error Mappings
+ * 📋 [CATEGORY: Edge] TCP Error Mappings
  * ═════════════════════════════════════════════════════════════════════════════════════════════
  *
  * [@AC-1,US-2] ECONNREFUSED when service offline
@@ -426,7 +426,7 @@ TEST(UT_LinkConnStateTCP_Typical, TC2_verifyTcpEstablished_afterHandshake_expect
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// 🔴 RED PHASE: CAT-1 Boundary - TCP Connection Refused
+// 🔴 RED PHASE: CAT-1 Edge - TCP Connection Refused
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -437,7 +437,7 @@ TEST(UT_LinkConnStateTCP_Typical, TC2_verifyTcpEstablished_afterHandshake_expect
  * @[TCP Detail]: TCP stack returns ECONNREFUSED immediately when no listener
  * @[Expected Result]: Test FAILS because API not implemented (RED phase)
  */
-TEST(UT_LinkConnStateTCP_Boundary, TC1_verifyTcpConnRefused_byOfflineService_expectConnectFailure) {
+TEST(UT_LinkConnStateTCP_Edge, TC1_verifyTcpConnRefused_byOfflineService_expectConnectFailure) {
     //===SETUP: NO service running - connection will fail===
     const uint16_t TEST_PORT = 23102;
 
@@ -478,7 +478,7 @@ TEST(UT_LinkConnStateTCP_Boundary, TC1_verifyTcpConnRefused_byOfflineService_exp
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// 🟢 GREEN PHASE: CAT-2 Boundary - TCP Error Scenarios
+// 🟢 GREEN PHASE: CAT-2 Edge - TCP Error Scenarios
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -499,7 +499,7 @@ TEST(UT_LinkConnStateTCP_Boundary, TC1_verifyTcpConnRefused_byOfflineService_exp
  *
  * @[Note]: This test validates proper error detection on write operations
  */
-TEST(UT_LinkConnStateTCP_Boundary, TC2_verifyTcpPipe_byWriteAfterPeerClose_expectBrokenState) {
+TEST(UT_LinkConnStateTCP_Edge, TC2_verifyTcpPipe_byWriteAfterPeerClose_expectBrokenState) {
     //===SETUP: Create service and establish connection===
     IOC_SrvID_T srvID = IOC_ID_INVALID;
     const uint16_t TEST_PORT = 23103;
@@ -792,7 +792,7 @@ TEST(UT_LinkConnStateTCP_Fault, TC2_verifyTcpFin_byGracefulClose_expectDisconnec
 //   P3 🥉 QUALITY:        TCP performance under load
 //
 //===================================================================================================
-// P1 🥇 FUNCTIONAL TESTING – ValidFunc (Typical + Boundary)
+// P1 🥇 FUNCTIONAL TESTING – ValidFunc (Typical + Edge)
 //===================================================================================================
 //
 //   🟢 [@AC-1,US-1] TC-1: verifyTcpHandshake_duringConnect_expectConnectingOrConnected
@@ -804,11 +804,11 @@ TEST(UT_LinkConnStateTCP_Fault, TC2_verifyTcpFin_byGracefulClose_expectDisconnec
 //        - Status: IMPLEMENTED & PASSED ✅
 //
 //   🟢 [@AC-1,US-2] TC-1: verifyTcpConnRefused_byOfflineService_expectConnectFailure
-//        - Category: Boundary (ValidFunc) - Fast-fail scenario
+//        - Category: Edge (ValidFunc) - Fast-fail scenario
 //        - Status: IMPLEMENTED & PASSED ✅
 //
 //   🟢 [@AC-1,US-5] TC-2: verifyTcpPipe_byWriteAfterPeerClose_expectBrokenState
-//        - Category: Boundary (ValidFunc) - Common error
+//        - Category: Edge (ValidFunc) - Common error
 //        - Status: IMPLEMENTED - Ready to test
 //
 //===================================================================================================
@@ -832,8 +832,8 @@ TEST(UT_LinkConnStateTCP_Fault, TC2_verifyTcpFin_byGracefulClose_expectDisconnec
 // 🟢 Test Results: All 6 tests PASSED (~1.4s)
 //   ✅ TC1_Typical: verifyTcpHandshake_duringConnect_expectConnectingOrConnected (0ms)
 //   ✅ TC2_Typical: verifyTcpEstablished_afterHandshake_expectConnected (52-56ms)
-//   ✅ TC1_Boundary: verifyTcpConnRefused_byOfflineService_expectConnectFailure (0ms)
-//   ✅ TC2_Boundary: verifyTcpPipe_byWriteAfterPeerClose_expectBrokenState (~1.2s with 100ms timeout)
+//   ✅ TC1_Edge: verifyTcpConnRefused_byOfflineService_expectConnectFailure (0ms)
+//   ✅ TC2_Edge: verifyTcpPipe_byWriteAfterPeerClose_expectBrokenState (~1.2s with 100ms timeout)
 //   ✅ TC1_Fault: verifyTcpReset_byAbruptPeerClose_expectBrokenState (~157ms)
 //   ✅ TC2_Fault: verifyTcpFin_byGracefulClose_expectDisconnectedState (1ms)
 //

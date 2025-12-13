@@ -256,7 +256,7 @@
 // WORKFLOW: ⚪ TODO → 🔴 RED → 🟢 GREEN
 //
 // PRIORITY LEVELS:
-//   P1 🥇 FUNCTIONAL:     ValidFunc (Typical + Boundary) + InvalidFunc (Misuse + Fault)
+//   P1 🥇 FUNCTIONAL:     ValidFunc (Typical + Edge) + InvalidFunc (Misuse + Fault)
 //   P2 🥈 DESIGN-ORIENTED: State, Capability, Concurrency
 //   P3 🥉 QUALITY-ORIENTED: Performance, Robust, Compatibility
 //

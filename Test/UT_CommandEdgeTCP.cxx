@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// Command Boundary TCP - P1 ValidFunc Boundary Testing
+// Command Edge TCP - P1 ValidFunc Edge Testing
 //
 // PURPOSE:
 //   Validate TCP command execution at boundary conditions and edge cases.
@@ -25,7 +25,7 @@
  *   [WHY] to ensure system handles edge cases correctly without failure
  *
  * SCOPE:
- *   - [In scope]: P1 ValidFunc Boundary tests (edge cases with VALID inputs)
+ *   - [In scope]: P1 ValidFunc Edge tests (edge cases with VALID inputs)
  *   - [In scope]: Timeout boundaries (zero, min, max values)
  *   - [In scope]: Payload size boundaries (empty, max size)
  *   - [In scope]: Connection limits (max concurrent connections)
@@ -44,9 +44,9 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF TEST DESIGN======================================================================
 /**
- * COVERAGE MATRIX (P1 ValidFunc Boundary):
+ * COVERAGE MATRIX (P1 ValidFunc Edge):
  * ┌─────────────────────────┬──────────────────────┬────────────────────────────────┬──────────────────┐
- * │ Boundary Type           │ Parameter            │ Range Extreme                  │ Flow Direction   │
+ * │ Edge Type           │ Parameter            │ Range Extreme                  │ Flow Direction   │
  * ├─────────────────────────┼──────────────────────┼────────────────────────────────┼──────────────────┤
  * │ Timeout                 │ TimeoutMs            │ 0, 1ms, MAX (60s)              │ Cli→Srv + Srv→Cli│
  * │ Payload Size            │ PayloadLen           │ 0 (empty), 64KB (max)          │ Cli→Srv + Srv→Cli│
@@ -63,7 +63,7 @@
  *
  * PORT ALLOCATION: Base 19080 (19080-19087 standard, 19088-19090 reversed flow)
  *
- * PRIORITY: P1 ValidFunc Boundary (must complete after P1 Typical)
+ * PRIORITY: P1 ValidFunc Edge (must complete after P1 Typical)
  *
  * STATUS:
  *   🟢 8 standard flow tests implemented
@@ -118,61 +118,61 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF TEST CASES========================================================================
 /**
- * [@AC-1,US-1] Timeout Boundary Handling
- *  🟢 TC-1: verifyTcpCommandTimeout_byBoundaryValues_expectCorrectBehavior
+ * [@AC-1,US-1] Timeout Edge Handling
+ *  🟢 TC-1: verifyTcpCommandTimeout_byEdgeValues_expectCorrectBehavior
  *      @[Purpose]: Validate timeout handling at boundary values (0ms, 1ms, max)
- *      @[Protocol]: tcp://localhost:19080/CmdBoundaryTCP_Timeout
+ *      @[Protocol]: tcp://localhost:19080/CmdEdgeTCP_Timeout
  *      @[Status]: 🟢 DONE - Implemented and verified
  *
- * [@AC-1,US-2] Empty Payload Boundary
+ * [@AC-1,US-2] Empty Payload Edge
  *  🟢 TC-1: verifyTcpCommandPayload_byEmptyPayload_expectSuccess
  *      @[Purpose]: Validate command execution with zero-length payload
- *      @[Protocol]: tcp://localhost:19081/CmdBoundaryTCP_EmptyPayload
+ *      @[Protocol]: tcp://localhost:19081/CmdEdgeTCP_EmptyPayload
  *      @[Status]: 🟢 DONE - Implemented and verified
  *
- * [@AC-2,US-2] Maximum Payload Boundary
+ * [@AC-2,US-2] Maximum Payload Edge
  *  🟢 TC-1: verifyTcpCommandPayload_byMaxPayload_expectSuccess
  *      @[Purpose]: Validate command execution with 64KB payload
- *      @[Protocol]: tcp://localhost:19082/CmdBoundaryTCP_MaxPayload
+ *      @[Protocol]: tcp://localhost:19082/CmdEdgeTCP_MaxPayload
  *      @[Status]: 🟢 DONE - Implemented and verified
  *
- * [@AC-1,US-3] Rapid Execution Boundary
+ * [@AC-1,US-3] Rapid Execution Edge
  *  🟢 TC-1: verifyTcpCommandRapidExecution_byBackToBackCommands_expectAllComplete
  *      @[Purpose]: Validate 100 commands executed back-to-back
- *      @[Protocol]: tcp://localhost:19083/CmdBoundaryTCP_Rapid
+ *      @[Protocol]: tcp://localhost:19083/CmdEdgeTCP_Rapid
  *      @[Status]: 🟢 DONE - Implemented and verified
  *
- * [@AC-2,US-3] Maximum Connections Boundary
+ * [@AC-2,US-3] Maximum Connections Edge
  *  🟢 TC-1: verifyTcpMaxConnections_byLimitedClients_expectAllAccepted
  *      @[Purpose]: Validate maximum concurrent connection limit
- *      @[Protocol]: tcp://localhost:19084/CmdBoundaryTCP_MaxConn
+ *      @[Protocol]: tcp://localhost:19084/CmdEdgeTCP_MaxConn
  *      @[Status]: 🟢 DONE - Implemented and verified
  *
  * [@AC-3,US-3] Port Number Boundaries
  *  🟢 TC-1: verifyTcpPortBinding_byLowPort_expectSuccess
  *      @[Purpose]: Validate binding to port 1024 (lowest non-privileged)
- *      @[Protocol]: tcp://localhost:1024/CmdBoundaryTCP_LowPort
+ *      @[Protocol]: tcp://localhost:1024/CmdEdgeTCP_LowPort
  *      @[Status]: 🟢 DONE - Implemented and verified
  *
  *  🟢 TC-2: verifyTcpPortBinding_byHighPort_expectSuccess
  *      @[Purpose]: Validate binding to port 65535 (highest valid)
- *      @[Protocol]: tcp://localhost:65535/CmdBoundaryTCP_HighPort
+ *      @[Protocol]: tcp://localhost:65535/CmdEdgeTCP_HighPort
  *      @[Status]: 🟢 DONE - Implemented and verified
  *
  * [@AC-3,US-3] Rapid Connection Cycles
  *  🟢 TC-1: verifyTcpRapidCycles_byConnectDisconnect_expectStability
  *      @[Purpose]: Validate 50 rapid connect-disconnect cycles
- *      @[Protocol]: tcp://localhost:19085/CmdBoundaryTCP_RapidCycles
+ *      @[Protocol]: tcp://localhost:19085/CmdEdgeTCP_RapidCycles
  *      @[Status]: 🟢 DONE - Implemented and verified
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * 📋 REVERSED FLOW VARIANTS (Service→Client command flow)
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  *
- * [@AC-1,US-1] Timeout Boundary - Reversed Flow
+ * [@AC-1,US-1] Timeout Edge - Reversed Flow
  *  🟢 TC-2: verifyTcpCommandTimeout_byReversedFlow_expectIdenticalBehavior
  *      @[Purpose]: Validate timeout boundaries work identically in reversed flow
- *      @[Protocol]: tcp://localhost:19088/CmdBoundaryTCP_TimeoutReversed
+ *      @[Protocol]: tcp://localhost:19088/CmdEdgeTCP_TimeoutReversed
  *      @[Roles]: Service=Initiator, Client=Executor
  *      @[Status]: 🟢 DONE - Implemented and verified
  *      @[Rationale]: Network round-trip may differ based on flow direction
@@ -180,7 +180,7 @@
  * [@AC-2,US-2] Max Payload - Reversed Flow
  *  🟢 TC-2: verifyTcpCommandPayload_byMaxPayloadReversedFlow_expectSuccess
  *      @[Purpose]: Validate 64KB payload works in reversed flow
- *      @[Protocol]: tcp://localhost:19089/CmdBoundaryTCP_MaxPayloadReversed
+ *      @[Protocol]: tcp://localhost:19089/CmdEdgeTCP_MaxPayloadReversed
  *      @[Roles]: Service=Initiator, Client=Executor
  *      @[Status]: 🟢 DONE - Implemented and verified
  *      @[Rationale]: Message framing/receiver thread behavior may differ
@@ -188,7 +188,7 @@
  * [@AC-1,US-3] Rapid Execution - Reversed Flow
  *  🟢 TC-2: verifyTcpCommandRapidExecution_byReversedFlow_expectAllComplete
  *      @[Purpose]: Validate 100 rapid commands work in reversed flow
- *      @[Protocol]: tcp://localhost:19090/CmdBoundaryTCP_RapidReversed
+ *      @[Protocol]: tcp://localhost:19090/CmdEdgeTCP_RapidReversed
  *      @[Roles]: Service=Initiator, Client=Executor
  *      @[Status]: 🟢 DONE - Implemented and verified
  *      @[Rationale]: Callback vs response handling may differ under load
@@ -212,7 +212,7 @@ typedef struct __CmdExecPriv {
 } __CmdExecPriv_T;
 
 // Command execution callback function (service-side CmdExecutor)
-static IOC_Result_T __CmdBoundary_ExecutorCb(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, void *pCbPriv) {
+static IOC_Result_T __CmdEdge_ExecutorCb(IOC_LinkID_T LinkID, IOC_CmdDesc_pT pCmdDesc, void *pCbPriv) {
     __CmdExecPriv_T *pPrivData = (__CmdExecPriv_T *)pCbPriv;
     if (!pPrivData || !pCmdDesc) return IOC_RESULT_INVALID_PARAM;
 
@@ -263,8 +263,8 @@ static IOC_Result_T __CmdBoundary_ExecutorCb(IOC_LinkID_T LinkID, IOC_CmdDesc_pT
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF TEST IMPLEMENTATION===============================================================
 
-// [@AC-1,US-1] TC-1: verifyTcpCommandTimeout_byBoundaryValues_expectCorrectBehavior
-TEST(UT_TcpCommandBoundary, verifyTcpCommandTimeout_byBoundaryValues_expectCorrectBehavior) {
+// [@AC-1,US-1] TC-1: verifyTcpCommandTimeout_byEdgeValues_expectCorrectBehavior
+TEST(UT_TcpCommandEdge, verifyTcpCommandTimeout_byEdgeValues_expectCorrectBehavior) {
     // ═══════════════════════════════════════════════════════════════════════════════════
     // ARRANGE: Setup TCP service with DELAY command support
     // ═══════════════════════════════════════════════════════════════════════════════════
@@ -273,11 +273,11 @@ TEST(UT_TcpCommandBoundary, verifyTcpCommandTimeout_byBoundaryValues_expectCorre
     __CmdExecPriv_T srvExecPriv = {};
 
     IOC_SrvURI_T srvURI = {
-        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdBoundaryTCP_Timeout"};
+        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdEdgeTCP_Timeout"};
 
     static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_DELAY, IOC_CMDID_TEST_PING};
     IOC_CmdUsageArgs_T cmdUsageArgs = {
-        .CbExecCmd_F = __CmdBoundary_ExecutorCb, .pCbPrivData = &srvExecPriv, .CmdNum = 2, .pCmdIDs = supportedCmdIDs};
+        .CbExecCmd_F = __CmdEdge_ExecutorCb, .pCbPrivData = &srvExecPriv, .CmdNum = 2, .pCmdIDs = supportedCmdIDs};
 
     IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
                              .Flags = IOC_SRVFLAG_NONE,
@@ -310,7 +310,7 @@ TEST(UT_TcpCommandBoundary, verifyTcpCommandTimeout_byBoundaryValues_expectCorre
         IOC_CmdDesc_T cmdDesc = {};
         cmdDesc.CmdID = IOC_CMDID_TEST_PING;
         cmdDesc.Status = IOC_CMD_STATUS_INITIALIZED;
-        cmdDesc.TimeoutMs = 0;  // Boundary: zero timeout
+        cmdDesc.TimeoutMs = 0;  // Edge: zero timeout
 
         ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_execCMD(cliLinkID, &cmdDesc, NULL));
         VERIFY_KEYPOINT_STREQ(static_cast<char *>(IOC_CmdDesc_getOutData(&cmdDesc)), "PONG",
@@ -323,7 +323,7 @@ TEST(UT_TcpCommandBoundary, verifyTcpCommandTimeout_byBoundaryValues_expectCorre
         IOC_CmdDesc_T cmdDesc = {};
         cmdDesc.CmdID = IOC_CMDID_TEST_PING;
         cmdDesc.Status = IOC_CMD_STATUS_INITIALIZED;
-        cmdDesc.TimeoutMs = 1;  // Boundary: 1ms timeout
+        cmdDesc.TimeoutMs = 1;  // Edge: 1ms timeout
 
         ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_execCMD(cliLinkID, &cmdDesc, NULL));
         VERIFY_KEYPOINT_STREQ(static_cast<char *>(IOC_CmdDesc_getOutData(&cmdDesc)), "PONG",
@@ -337,7 +337,7 @@ TEST(UT_TcpCommandBoundary, verifyTcpCommandTimeout_byBoundaryValues_expectCorre
         IOC_CmdDesc_T cmdDesc = {};
         cmdDesc.CmdID = IOC_CMDID_TEST_DELAY;
         cmdDesc.Status = IOC_CMD_STATUS_INITIALIZED;
-        cmdDesc.TimeoutMs = 60000;  // Boundary: 60 second timeout
+        cmdDesc.TimeoutMs = 60000;  // Edge: 60 second timeout
         IOC_CmdDesc_setInPayload(&cmdDesc, &delayMs, sizeof(delayMs));
 
         ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_execCMD(cliLinkID, &cmdDesc, NULL));
@@ -357,7 +357,7 @@ TEST(UT_TcpCommandBoundary, verifyTcpCommandTimeout_byBoundaryValues_expectCorre
 }
 
 // [@AC-1,US-2] TC-1: verifyTcpCommandPayload_byEmptyPayload_expectSuccess
-TEST(UT_TcpCommandBoundary, verifyTcpCommandPayload_byEmptyPayload_expectSuccess) {
+TEST(UT_TcpCommandEdge, verifyTcpCommandPayload_byEmptyPayload_expectSuccess) {
     // ═══════════════════════════════════════════════════════════════════════════════════
     // ARRANGE: Setup TCP service
     // ═══════════════════════════════════════════════════════════════════════════════════
@@ -368,11 +368,11 @@ TEST(UT_TcpCommandBoundary, verifyTcpCommandPayload_byEmptyPayload_expectSuccess
     IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_TCP,
                            .pHost = "localhost",
                            .Port = TEST_PORT,
-                           .pPath = "CmdBoundaryTCP_EmptyPayload"};
+                           .pPath = "CmdEdgeTCP_EmptyPayload"};
 
     static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_ECHO};
     IOC_CmdUsageArgs_T cmdUsageArgs = {
-        .CbExecCmd_F = __CmdBoundary_ExecutorCb, .pCbPrivData = &srvExecPriv, .CmdNum = 1, .pCmdIDs = supportedCmdIDs};
+        .CbExecCmd_F = __CmdEdge_ExecutorCb, .pCbPrivData = &srvExecPriv, .CmdNum = 1, .pCmdIDs = supportedCmdIDs};
 
     IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
                              .Flags = IOC_SRVFLAG_NONE,
@@ -425,7 +425,7 @@ TEST(UT_TcpCommandBoundary, verifyTcpCommandPayload_byEmptyPayload_expectSuccess
 }
 
 // [@AC-2,US-2] TC-1: verifyTcpCommandPayload_byMaxPayload_expectSuccess
-TEST(UT_TcpCommandBoundary, verifyTcpCommandPayload_byMaxPayload_expectSuccess) {
+TEST(UT_TcpCommandEdge, verifyTcpCommandPayload_byMaxPayload_expectSuccess) {
     // ═══════════════════════════════════════════════════════════════════════════════════
     // ARRANGE: Setup TCP service and large payload
     // ═══════════════════════════════════════════════════════════════════════════════════
@@ -435,11 +435,11 @@ TEST(UT_TcpCommandBoundary, verifyTcpCommandPayload_byMaxPayload_expectSuccess) 
     __CmdExecPriv_T srvExecPriv = {};
 
     IOC_SrvURI_T srvURI = {
-        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdBoundaryTCP_MaxPayload"};
+        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdEdgeTCP_MaxPayload"};
 
     static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_ECHO};
     IOC_CmdUsageArgs_T cmdUsageArgs = {
-        .CbExecCmd_F = __CmdBoundary_ExecutorCb, .pCbPrivData = &srvExecPriv, .CmdNum = 1, .pCmdIDs = supportedCmdIDs};
+        .CbExecCmd_F = __CmdEdge_ExecutorCb, .pCbPrivData = &srvExecPriv, .CmdNum = 1, .pCmdIDs = supportedCmdIDs};
 
     IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
                              .Flags = IOC_SRVFLAG_NONE,
@@ -511,21 +511,21 @@ TEST(UT_TcpCommandBoundary, verifyTcpCommandPayload_byMaxPayload_expectSuccess) 
 }
 
 // [@AC-1,US-3] TC-1: verifyTcpCommandRapidExecution_byBackToBackCommands_expectAllComplete
-TEST(UT_TcpCommandBoundary, verifyTcpCommandRapidExecution_byBackToBackCommands_expectAllComplete) {
+TEST(UT_TcpCommandEdge, verifyTcpCommandRapidExecution_byBackToBackCommands_expectAllComplete) {
     // ═══════════════════════════════════════════════════════════════════════════════════
     // ARRANGE: Setup TCP service
     // ═══════════════════════════════════════════════════════════════════════════════════
     constexpr uint16_t TEST_PORT = 19083;
-    constexpr int RAPID_CMD_COUNT = 100;  // Boundary: 100 back-to-back commands
+    constexpr int RAPID_CMD_COUNT = 100;  // Edge: 100 back-to-back commands
 
     __CmdExecPriv_T srvExecPriv = {};
 
     IOC_SrvURI_T srvURI = {
-        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdBoundaryTCP_Rapid"};
+        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdEdgeTCP_Rapid"};
 
     static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_PING};
     IOC_CmdUsageArgs_T cmdUsageArgs = {
-        .CbExecCmd_F = __CmdBoundary_ExecutorCb, .pCbPrivData = &srvExecPriv, .CmdNum = 1, .pCmdIDs = supportedCmdIDs};
+        .CbExecCmd_F = __CmdEdge_ExecutorCb, .pCbPrivData = &srvExecPriv, .CmdNum = 1, .pCmdIDs = supportedCmdIDs};
 
     IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
                              .Flags = IOC_SRVFLAG_NONE,
@@ -585,21 +585,21 @@ TEST(UT_TcpCommandBoundary, verifyTcpCommandRapidExecution_byBackToBackCommands_
 }
 
 // [@AC-2,US-3] TC-1: verifyTcpMaxConnections_byLimitedClients_expectAllAccepted
-TEST(UT_TcpCommandBoundary, verifyTcpMaxConnections_byLimitedClients_expectAllAccepted) {
+TEST(UT_TcpCommandEdge, verifyTcpMaxConnections_byLimitedClients_expectAllAccepted) {
     // ═══════════════════════════════════════════════════════════════════════════════════
     // ARRANGE: Setup TCP service and multiple clients
     // ═══════════════════════════════════════════════════════════════════════════════════
     constexpr uint16_t TEST_PORT = 19084;
-    constexpr int MAX_CLIENT_COUNT = 10;  // Boundary: test with 10 concurrent connections
+    constexpr int MAX_CLIENT_COUNT = 10;  // Edge: test with 10 concurrent connections
 
     __CmdExecPriv_T srvExecPriv = {};
 
     IOC_SrvURI_T srvURI = {
-        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdBoundaryTCP_MaxConn"};
+        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdEdgeTCP_MaxConn"};
 
     static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_PING};
     IOC_CmdUsageArgs_T cmdUsageArgs = {
-        .CbExecCmd_F = __CmdBoundary_ExecutorCb, .pCbPrivData = &srvExecPriv, .CmdNum = 1, .pCmdIDs = supportedCmdIDs};
+        .CbExecCmd_F = __CmdEdge_ExecutorCb, .pCbPrivData = &srvExecPriv, .CmdNum = 1, .pCmdIDs = supportedCmdIDs};
 
     IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
                              .Flags = IOC_SRVFLAG_NONE,
@@ -671,17 +671,17 @@ TEST(UT_TcpCommandBoundary, verifyTcpMaxConnections_byLimitedClients_expectAllAc
 }
 
 // [@AC-3,US-3] TC-1: verifyTcpPortBinding_byLowPort_expectSuccess
-TEST(UT_TcpCommandBoundary, verifyTcpPortBinding_byLowPort_expectSuccess) {
+TEST(UT_TcpCommandEdge, verifyTcpPortBinding_byLowPort_expectSuccess) {
     // ═══════════════════════════════════════════════════════════════════════════════════
     // ARRANGE: Setup TCP service on low port boundary (1024)
     // ═══════════════════════════════════════════════════════════════════════════════════
-    constexpr uint16_t TEST_PORT = 1024;  // Boundary: lowest non-privileged port
+    constexpr uint16_t TEST_PORT = 1024;  // Edge: lowest non-privileged port
 
     IOC_SrvURI_T srvURI = {
-        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdBoundaryTCP_LowPort"};
+        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdEdgeTCP_LowPort"};
 
     IOC_CmdUsageArgs_T cmdUsageArgs = {
-        .CbExecCmd_F = __CmdBoundary_ExecutorCb, .pCbPrivData = NULL, .CmdNum = 0, .pCmdIDs = NULL};
+        .CbExecCmd_F = __CmdEdge_ExecutorCb, .pCbPrivData = NULL, .CmdNum = 0, .pCmdIDs = NULL};
 
     IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
                              .Flags = IOC_SRVFLAG_NONE,
@@ -711,17 +711,17 @@ TEST(UT_TcpCommandBoundary, verifyTcpPortBinding_byLowPort_expectSuccess) {
 }
 
 // [@AC-3,US-3] TC-2: verifyTcpPortBinding_byHighPort_expectSuccess
-TEST(UT_TcpCommandBoundary, verifyTcpPortBinding_byHighPort_expectSuccess) {
+TEST(UT_TcpCommandEdge, verifyTcpPortBinding_byHighPort_expectSuccess) {
     // ═══════════════════════════════════════════════════════════════════════════════════
     // ARRANGE: Setup TCP service on high port boundary (65535)
     // ═══════════════════════════════════════════════════════════════════════════════════
-    constexpr uint16_t TEST_PORT = 65535;  // Boundary: highest valid port
+    constexpr uint16_t TEST_PORT = 65535;  // Edge: highest valid port
 
     IOC_SrvURI_T srvURI = {
-        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdBoundaryTCP_HighPort"};
+        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdEdgeTCP_HighPort"};
 
     IOC_CmdUsageArgs_T cmdUsageArgs = {
-        .CbExecCmd_F = __CmdBoundary_ExecutorCb, .pCbPrivData = NULL, .CmdNum = 0, .pCmdIDs = NULL};
+        .CbExecCmd_F = __CmdEdge_ExecutorCb, .pCbPrivData = NULL, .CmdNum = 0, .pCmdIDs = NULL};
 
     IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
                              .Flags = IOC_SRVFLAG_NONE,
@@ -750,18 +750,18 @@ TEST(UT_TcpCommandBoundary, verifyTcpPortBinding_byHighPort_expectSuccess) {
 }
 
 // [@AC-3,US-3] TC-3: verifyTcpRapidCycles_byConnectDisconnect_expectStability
-TEST(UT_TcpCommandBoundary, verifyTcpRapidCycles_byConnectDisconnect_expectStability) {
+TEST(UT_TcpCommandEdge, verifyTcpRapidCycles_byConnectDisconnect_expectStability) {
     // ═══════════════════════════════════════════════════════════════════════════════════
     // ARRANGE: Setup TCP service
     // ═══════════════════════════════════════════════════════════════════════════════════
     constexpr uint16_t TEST_PORT = 19085;
-    constexpr int RAPID_CYCLE_COUNT = 50;  // Boundary: 50 rapid connect/disconnect cycles
+    constexpr int RAPID_CYCLE_COUNT = 50;  // Edge: 50 rapid connect/disconnect cycles
 
     IOC_SrvURI_T srvURI = {
-        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdBoundaryTCP_RapidCycles"};
+        .pProtocol = IOC_SRV_PROTO_TCP, .pHost = "localhost", .Port = TEST_PORT, .pPath = "CmdEdgeTCP_RapidCycles"};
 
     IOC_CmdUsageArgs_T cmdUsageArgs = {
-        .CbExecCmd_F = __CmdBoundary_ExecutorCb, .pCbPrivData = NULL, .CmdNum = 0, .pCmdIDs = NULL};
+        .CbExecCmd_F = __CmdEdge_ExecutorCb, .pCbPrivData = NULL, .CmdNum = 0, .pCmdIDs = NULL};
 
     IOC_SrvArgs_T srvArgs = {.SrvURI = srvURI,
                              .Flags = IOC_SRVFLAG_NONE,
@@ -820,7 +820,7 @@ TEST(UT_TcpCommandBoundary, verifyTcpRapidCycles_byConnectDisconnect_expectStabi
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 // [@AC-1,US-1] TC-2: verifyTcpCommandTimeout_byReversedFlow_expectIdenticalBehavior
-TEST(UT_TcpCommandBoundary, verifyTcpCommandTimeout_byReversedFlow_expectIdenticalBehavior) {
+TEST(UT_TcpCommandEdge, verifyTcpCommandTimeout_byReversedFlow_expectIdenticalBehavior) {
     // ═══════════════════════════════════════════════════════════════════════════════════
     // ARRANGE: Setup reversed flow (Service=Initiator, Client=Executor)
     // ═══════════════════════════════════════════════════════════════════════════════════
@@ -831,12 +831,12 @@ TEST(UT_TcpCommandBoundary, verifyTcpCommandTimeout_byReversedFlow_expectIdentic
     IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_TCP,
                            .pHost = "localhost",
                            .Port = TEST_PORT,
-                           .pPath = "CmdBoundaryTCP_TimeoutReversed"};
+                           .pPath = "CmdEdgeTCP_TimeoutReversed"};
 
     // Client as Executor
     static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_DELAY, IOC_CMDID_TEST_PING};
     IOC_CmdUsageArgs_T cliCmdUsageArgs = {
-        .CbExecCmd_F = __CmdBoundary_ExecutorCb, .pCbPrivData = &cliExecPriv, .CmdNum = 2, .pCmdIDs = supportedCmdIDs};
+        .CbExecCmd_F = __CmdEdge_ExecutorCb, .pCbPrivData = &cliExecPriv, .CmdNum = 2, .pCmdIDs = supportedCmdIDs};
 
     // Service as Initiator
     IOC_SrvArgs_T srvArgs = {
@@ -919,7 +919,7 @@ TEST(UT_TcpCommandBoundary, verifyTcpCommandTimeout_byReversedFlow_expectIdentic
 }
 
 // [@AC-2,US-2] TC-2: verifyTcpCommandPayload_byMaxPayloadReversedFlow_expectSuccess
-TEST(UT_TcpCommandBoundary, verifyTcpCommandPayload_byMaxPayloadReversedFlow_expectSuccess) {
+TEST(UT_TcpCommandEdge, verifyTcpCommandPayload_byMaxPayloadReversedFlow_expectSuccess) {
     // ═══════════════════════════════════════════════════════════════════════════════════
     // ARRANGE: Setup reversed flow with max payload
     // ═══════════════════════════════════════════════════════════════════════════════════
@@ -931,11 +931,11 @@ TEST(UT_TcpCommandBoundary, verifyTcpCommandPayload_byMaxPayloadReversedFlow_exp
     IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_TCP,
                            .pHost = "localhost",
                            .Port = TEST_PORT,
-                           .pPath = "CmdBoundaryTCP_MaxPayloadReversed"};
+                           .pPath = "CmdEdgeTCP_MaxPayloadReversed"};
 
     static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_ECHO};
     IOC_CmdUsageArgs_T cliCmdUsageArgs = {
-        .CbExecCmd_F = __CmdBoundary_ExecutorCb, .pCbPrivData = &cliExecPriv, .CmdNum = 1, .pCmdIDs = supportedCmdIDs};
+        .CbExecCmd_F = __CmdEdge_ExecutorCb, .pCbPrivData = &cliExecPriv, .CmdNum = 1, .pCmdIDs = supportedCmdIDs};
 
     IOC_SrvArgs_T srvArgs = {
         .SrvURI = srvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageCmdInitiator, .UsageArgs = {}};
@@ -1006,7 +1006,7 @@ TEST(UT_TcpCommandBoundary, verifyTcpCommandPayload_byMaxPayloadReversedFlow_exp
 }
 
 // [@AC-1,US-3] TC-2: verifyTcpCommandRapidExecution_byReversedFlow_expectAllComplete
-TEST(UT_TcpCommandBoundary, verifyTcpCommandRapidExecution_byReversedFlow_expectAllComplete) {
+TEST(UT_TcpCommandEdge, verifyTcpCommandRapidExecution_byReversedFlow_expectAllComplete) {
     // ═══════════════════════════════════════════════════════════════════════════════════
     // ARRANGE: Setup reversed flow for rapid execution
     // ═══════════════════════════════════════════════════════════════════════════════════
@@ -1018,11 +1018,11 @@ TEST(UT_TcpCommandBoundary, verifyTcpCommandRapidExecution_byReversedFlow_expect
     IOC_SrvURI_T srvURI = {.pProtocol = IOC_SRV_PROTO_TCP,
                            .pHost = "localhost",
                            .Port = TEST_PORT,
-                           .pPath = "CmdBoundaryTCP_RapidReversed"};
+                           .pPath = "CmdEdgeTCP_RapidReversed"};
 
     static IOC_CmdID_T supportedCmdIDs[] = {IOC_CMDID_TEST_PING};
     IOC_CmdUsageArgs_T cliCmdUsageArgs = {
-        .CbExecCmd_F = __CmdBoundary_ExecutorCb, .pCbPrivData = &cliExecPriv, .CmdNum = 1, .pCmdIDs = supportedCmdIDs};
+        .CbExecCmd_F = __CmdEdge_ExecutorCb, .pCbPrivData = &cliExecPriv, .CmdNum = 1, .pCmdIDs = supportedCmdIDs};
 
     IOC_SrvArgs_T srvArgs = {
         .SrvURI = srvURI, .Flags = IOC_SRVFLAG_NONE, .UsageCapabilites = IOC_LinkUsageCmdInitiator, .UsageArgs = {}};
@@ -1091,7 +1091,7 @@ TEST(UT_TcpCommandBoundary, verifyTcpCommandRapidExecution_byReversedFlow_expect
  * 🟢 IMPLEMENTATION STATUS TRACKING
  *
  * P1 VALIDFUNC BOUNDARY TESTS (STANDARD FLOW: Client→Service):
- *   🟢 [@AC-1,US-1] TC-1: verifyTcpCommandTimeout_byBoundaryValues_expectCorrectBehavior
+ *   🟢 [@AC-1,US-1] TC-1: verifyTcpCommandTimeout_byEdgeValues_expectCorrectBehavior
  *   🟢 [@AC-1,US-2] TC-1: verifyTcpCommandPayload_byEmptyPayload_expectSuccess
  *   🟢 [@AC-2,US-2] TC-1: verifyTcpCommandPayload_byMaxPayload_expectSuccess
  *   🟢 [@AC-1,US-3] TC-1: verifyTcpCommandRapidExecution_byBackToBackCommands_expectAllComplete

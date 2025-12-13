@@ -7,7 +7,7 @@
  * @category ValidFunc-Typical-TCP (Common TCP Network Scenarios That Work - APIs Function Correctly)
  *
  * Part of Test Design Formula:
- *   Service's Functional Test = ValidFunc(Typical + Boundary) + InValidFunc(Misuse)
+ *   Service's Functional Test = ValidFunc(Typical + Edge) + InValidFunc(Misuse)
  *                                         ^^^^^^^^
  *                                    (Normal cases WORK!)
  *
@@ -24,7 +24,7 @@
  *  - All TCP operations complete successfully as designed
  *
  * Test Philosophy - KEY DISTINCTION:
- *  - ValidFunc (Typical + Boundary): API WORKS correctly (success or graceful error)
+ *  - ValidFunc (Typical + Edge): API WORKS correctly (success or graceful error)
  *  - InValidFunc (Misuse): API usage FAILS (wrong sequence, double calls, violations)
  *  - Focus: Verify common real-world TCP network scenarios execute successfully
  *  - All inputs are valid, all sequences are correct, all TCP operations succeed
@@ -38,7 +38,7 @@
  *
  * Related Test Files:
  *  - UT_ServiceTypical.cxx: ValidFunc-Typical with FIFO protocol (in-memory)
- *  - UT_ServiceBoundary.cxx: ValidFunc-Boundary (edge cases that still work)
+ *  - UT_ServiceEdge.cxx: ValidFunc-Edge (edge cases that still work)
  *  - UT_ServiceMisuse.cxx: InValidFunc-Misuse (wrong usage that fails)
  *  - See: Test/UT_ServiceTestDesign.md for complete test taxonomy
  *

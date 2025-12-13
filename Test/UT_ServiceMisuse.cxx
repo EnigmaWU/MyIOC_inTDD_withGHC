@@ -9,7 +9,7 @@
  * @category InValidFunc-Misuse (Wrong Usage That Fails - Intentional Contract Violations)
  *
  * Part of Test Design Formula:
- *   Service's Functional Test = ValidFunc(Typical + Boundary) + InValidFunc(Misuse)
+ *   Service's Functional Test = ValidFunc(Typical + Edge) + InValidFunc(Misuse)
  *                                                                ^^^^^^^^^^
  *                                                            (Wrong usage FAILS!)
  *
@@ -25,19 +25,19 @@
  *  - Fault injection: System resilience under resource exhaustion
  *
  * Test Philosophy - KEY DISTINCTION:
- *  - ValidFunc (Typical + Boundary): API WORKS correctly (proper usage, edge inputs OK)
+ *  - ValidFunc (Typical + Edge): API WORKS correctly (proper usage, edge inputs OK)
  *  - InValidFunc (Misuse): API usage FAILS by design (wrong patterns trigger errors)
  *  - Focus: Verify robust error handling, state integrity, resource leak prevention
  *  - Tests intentionally violate usage contracts to confirm defensive programming
  *
  * Related Test Files:
  *  - UT_ServiceTypical.cxx: ValidFunc-Typical (common scenarios that work)
- *  - UT_ServiceBoundary.cxx: ValidFunc-Boundary (edge cases that still work)
+ *  - UT_ServiceEdge.cxx: ValidFunc-Edge (edge cases that still work)
  *  - See: Test/UT_ServiceTestDesign.md for complete test taxonomy
  *
  *-------------------------------------------------------------------------------------------------
  *++Context
- *  Complements Typical and Boundary suites by validating defensive behaviors under misuse.
+ *  Complements Typical and Edge suites by validating defensive behaviors under misuse.
  *  All failures should be predictable, well-documented, and leave system in consistent state.
  *
  *  COVERAGE AREAS:
@@ -57,7 +57,7 @@
 //======>BEGIN OF UNIT TESTING DESIGN==============================================================
 /**
  * 📋 TEST CASE DESIGN ASPECTS/CATEGORIES
- *  Priority: Typical → Boundary → Misuse → Fault → Performance → Concurrency → Others
+ *  Priority: Typical → Edge → Misuse → Fault → Performance → Concurrency → Others
  *  Principle: Improve Value • Avoid Lost • Balance Skill vs Cost
  */
 /**
@@ -71,7 +71,7 @@
  *
  * Comparison with ValidFunc:
  * ┌──────────────────────────┬─────────────────────────────┬─────────────────────────────┐
- * │ Aspect                   │ ValidFunc-Boundary          │ InValidFunc-Misuse          │
+ * │ Aspect                   │ ValidFunc-Edge          │ InValidFunc-Misuse          │
  * ├──────────────────────────┼─────────────────────────────┼─────────────────────────────┤
  * │ Input                    │ Edge values (NULL, invalid) │ May be valid inputs         │
  * │ Usage Pattern            │ CORRECT sequence/logic      │ WRONG sequence/logic        │
@@ -624,14 +624,14 @@ TEST(UT_ServiceMisuse, verifyPostEVT_afterServiceOffline_expectLinkClosedOrNotEx
  *
  * Sequence Misuse:
  *  - [x] Accept before online, close twice, connect after offline (US-2 DONE ✅)
- *  - [ ] Post event before subscribe (NO_EVENT_CONSUMER - may be Boundary, not Misuse)
+ *  - [ ] Post event before subscribe (NO_EVENT_CONSUMER - may be Edge, not Misuse)
  *  - [ ] Operations during service transition states (online→offline race conditions)
  *
  * Capability Misuse:
  *  - [x] Manual accept on AUTO_ACCEPT (US-4 DONE ✅)
  *  - [x] Incompatible usage types (Producer+Producer) (US-5 DONE ✅)
  *  - [ ] Cmd/Dat mismatches (CmdInitiator+DatSender combinations)
- *  - [ ] Broadcast on non-broadcast service (may be Boundary, not Misuse)
+ *  - [ ] Broadcast on non-broadcast service (may be Edge, not Misuse)
  *
  * State Misuse:
  *  - [x] Operations on closed links (US-6 DONE ✅)

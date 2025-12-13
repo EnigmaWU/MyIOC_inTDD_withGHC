@@ -102,7 +102,7 @@
  *
  * ORGANIZATION STRATEGIES:
  *  - By Feature/Component: Service as CmdExecutor vs CmdInitiator patterns
- *  - By Test Category: Typical → Boundary → State → Error → Performance
+ *  - By Test Category: Typical → Edge → State → Error → Performance
  *  - By Coverage Matrix: Systematic coverage of command execution flows
  *  - By Priority: Basic P2P commands first, complex orchestration second
  *
@@ -1058,8 +1058,8 @@ TEST(UT_ConetCommandTypical, verifyServiceAsCmdInitiator_byResultAggregation_exp
  *    - Service→all connected clients command distribution
  *    - Command result aggregation from multiple clients
  *
- * 4. UT_CommandBoundary.cxx:
- *    - Boundary conditions: maximum payload sizes, timeout edge cases
+ * 4. UT_CommandEdge.cxx:
+ *    - Edge conditions: maximum payload sizes, timeout edge cases
  *    - Error scenarios: command not supported, executor busy, timeout
  *    - Resource limits: maximum concurrent commands, memory constraints
  *

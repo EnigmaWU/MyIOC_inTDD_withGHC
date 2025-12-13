@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// UT_DataBoundaryUS4AC5.cxx - DAT Boundary Testing: US-4 AC-5 Comprehensive Error Code Coverage Validation
+// UT_DataEdgeUS4AC5.cxx - DAT Edge Testing: US-4 AC-5 Comprehensive Error Code Coverage Validation
 // 📝 Purpose: Test Cases for User Story 4, Acceptance Criteria 5 - Comprehensive error code coverage validation
 // 🔄 Focus: Complete error path coverage, documentation compliance, systematic error code validation
 // 🎯 Coverage: [@US-4,AC-5] Comprehensive error code coverage validation (complete boundary error testing)
@@ -11,7 +11,7 @@
 #include <thread>
 #include <vector>
 
-#include "UT_DataBoundaryUS4.h"
+#include "UT_DataEdgeUS4.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF US-4 AC-5 COMPREHENSIVE ERROR CODE COVERAGE IMPLEMENTATION===================
@@ -25,7 +25,7 @@
  * ║ @[Coverage]: Complete IOC_DatAPI.h error code coverage validation                        ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
-TEST(UT_DataBoundary, verifyDatErrorCodeCompleteness_byComprehensiveValidation_expectFullCoverage) {
+TEST(UT_DataEdge, verifyDatErrorCodeCompleteness_byComprehensiveValidation_expectFullCoverage) {
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                    🎯 PHASE 1: ERROR CODE INVENTORY DOCUMENTATION                     │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
@@ -560,7 +560,7 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCompleteness_byComprehensiveValidation_e
  * ║ @[Coverage]: Cross-AC error validation, undocumented error detection, path coverage     ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
-TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byCompletePathAnalysis_expectNoGaps) {
+TEST(UT_DataEdge, verifyDatErrorCodeCoverage_byCompletePathAnalysis_expectNoGaps) {
     printf("🎯 COMPLETE ERROR PATH COVERAGE ANALYSIS\n");
     printf("   📋 Validating cross-AC error consistency and complete path coverage\n");
     printf("   🔍 Detecting undocumented errors and verifying error path reachability\n");

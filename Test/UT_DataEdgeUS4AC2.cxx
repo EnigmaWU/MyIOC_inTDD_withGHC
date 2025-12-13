@@ -1,11 +1,11 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// UT_DataBoundaryUS4AC2.cxx - DAT Boundary Testing: US-4 AC-2 Data Size Boundary Error Code Validation
+// UT_DataEdgeUS4AC2.cxx - DAT Edge Testing: US-4 AC-2 Data Size Edge Error Code Validation
 // 📝 Purpose: Test Cases for User Story 4, Acceptance Criteria 2 - Data size boundary error code validation
 // 🔄 Focus: Zero-size, oversized data → IOC_RESULT_DATA_TOO_LARGE, memory protection
 // 🎯 Coverage: [@US-4,AC-2] Data size boundary error code validation (comprehensive boundary error testing)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include "UT_DataBoundaryUS4.h"
+#include "UT_DataEdgeUS4.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF US-4 AC-2 TEST IMPLEMENTATIONS===================================================
@@ -26,7 +26,7 @@
  * ║ @[Notes]: Validates AC-2 comprehensive data size boundary error code coverage            ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
-TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byDataSizeBoundaries_expectConsistentErrorReporting) {
+TEST(UT_DataEdge, verifyDatErrorCodeCoverage_byDataSizeBoundaries_expectConsistentErrorReporting) {
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                🔧 SETUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
@@ -206,7 +206,7 @@ TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byDataSizeBoundaries_expectCons
  * ║ @[Notes]: Validates isolated data size validation behavior (without LinkID interference) ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
-TEST(UT_DataBoundary, verifyDatErrorCodeCoverage_byDataSizeConsistency_expectIsolatedDataValidation) {
+TEST(UT_DataEdge, verifyDatErrorCodeCoverage_byDataSizeConsistency_expectIsolatedDataValidation) {
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                🔧 SETUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘

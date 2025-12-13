@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// UT_DataBoundaryUS3.cxx - DAT Boundary Testing: US-3 Timeout and Blocking Mode Boundaries
+// UT_DataEdgeUS3.cxx - DAT Edge Testing: US-3 Timeout and Blocking Mode Boundaries
 // 📝 Purpose: Test Cases for User Story 3 - Real-time application developer timeout boundary testing
 // 🔄 Focus: DAT timeout boundaries, blocking/non-blocking mode transitions, deterministic behavior
 // 🎯 Coverage: [@US-3] Timeout and blocking mode boundaries (AC-1, AC-2, AC-3)
@@ -12,13 +12,13 @@
  *
  * [@AC-1,US-3] Timeout boundary validation
  *  TC-1:
- *      @[Name]: verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateReturn
+ *      @[Name]: verifyDatTimeoutEdge_byZeroTimeout_expectImmediateReturn
  *      @[Purpose]: Verify zero timeout behavior
  *      @[Brief]: Configure zero timeout, verify immediate return without blocking
  *      @[Coverage]: Zero timeout configuration, immediate return behavior, no blocking verification
  *
  *  TC-2:
- *      @[Name]: verifyDatTimeoutBoundary_byPrecisionTesting_expectAccurateTiming
+ *      @[Name]: verifyDatTimeoutEdge_byPrecisionTesting_expectAccurateTiming
  *      @[Purpose]: Verify timeout precision and accuracy
  *      @[Brief]: Test timeout accuracy within acceptable ranges
  *      @[Coverage]: Timeout precision, timing accuracy, timeout variance measurement
@@ -28,13 +28,13 @@
  *-------------------------------------------------------------------------------------------------
  * [@AC-2,US-3] Blocking mode boundaries
  *  TC-1:
- *      @[Name]: verifyDatBlockingModeBoundary_byModeTransitions_expectConsistentBehavior
+ *      @[Name]: verifyDatBlockingModeEdge_byModeTransitions_expectConsistentBehavior
  *      @[Purpose]: Verify blocking/non-blocking mode transitions
  *      @[Brief]: Switch between blocking modes, verify each mode behaves correctly
  *      @[Coverage]: Blocking ↔ non-blocking transitions, mode consistency, data preservation
  *
  *  TC-2:
- *      @[Name]: verifyDatBlockingModeBoundary_byStateConsistency_expectNoDataLoss
+ *      @[Name]: verifyDatBlockingModeEdge_byStateConsistency_expectNoDataLoss
  *      @[Purpose]: Verify state consistency during mode transitions
  *      @[Brief]: Ensure no data loss during blocking mode changes
  *      @[Coverage]: State preservation, data queue integrity, mode transition safety
@@ -44,7 +44,7 @@
  *-------------------------------------------------------------------------------------------------
  * [@AC-3,US-3] Extreme timeout boundaries - Edge cases
  *  TC-1:
- *      @[Name]: verifyDatTimeoutBoundary_byExtremeValues_expectProperHandling
+ *      @[Name]: verifyDatTimeoutEdge_byExtremeValues_expectProperHandling
  *      @[Purpose]: Verify extreme timeout value handling
  *      @[Brief]: Test very small and very large timeout values, verify proper handling
  *      @[Coverage]: Microsecond timeouts, maximum timeout values, timeout accuracy
@@ -59,14 +59,14 @@
 
 #include <cmath>
 
-#include "UT_DataBoundary.h"
+#include "UT_DataEdge.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF US-3 TEST IMPLEMENTATIONS========================================================
 
 //======>BEGIN OF: [@AC-1,US-3] TC-1===============================================================
 /**
- * @[Name]: verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateReturn
+ * @[Name]: verifyDatTimeoutEdge_byZeroTimeout_expectImmediateReturn
  * @[Steps]:
  *   1) Setup IOC services and establish DAT link AS SETUP
  *      |-> Create DatSender and DatReceiver services
@@ -90,7 +90,7 @@
  * @[Expect]: Zero timeout operations return immediately with proper result codes, no blocking behavior.
  * @[Notes]: Critical for real-time applications - validates AC-1 zero timeout boundary requirements.
  */
-TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateReturn) {
+TEST(UT_DataEdge, verifyDatTimeoutEdge_byZeroTimeout_expectImmediateReturn) {
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                🔧 SETUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
@@ -104,7 +104,7 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
     const int CONSISTENCY_TEST_CALLS = 5;
 
     // Initialize test data structures
-    __DatBoundaryPrivData_T DatReceiverPrivData = {0};
+    __DatEdgePrivData_T DatReceiverPrivData = {0};
     DatReceiverPrivData.ClientIndex = 1;
 
     IOC_SrvID_T DatReceiverSrvID = IOC_ID_INVALID;
@@ -122,7 +122,7 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
     };
 
     IOC_DatUsageArgs_T DatReceiverUsageArgs = {
-        .CbRecvDat_F = __CbRecvDat_Boundary_F,
+        .CbRecvDat_F = __CbRecvDat_Edge_F,
         .pCbPrivData = &DatReceiverPrivData,
     };
 
@@ -466,7 +466,7 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
 
 //======>BEGIN OF: [@AC-2,US-3] TC-1===============================================================
 /**
- * @[Name]: verifyDatBlockingModeBoundary_byModeTransitions_expectConsistentBehavior
+ * @[Name]: verifyDatBlockingModeEdge_byModeTransitions_expectConsistentBehavior
  * @[Steps]:
  *   1) Setup IOC services and establish DAT link AS SETUP
  *      |-> Create DatSender and DatReceiver services
@@ -487,7 +487,7 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
  *      |-> Alternately receive with different reception modes (callback/polling)
  *      |-> Verify data integrity preserved across mode changes
  *      |-> Test rapid mode switching under load
- *   5) Verify Mode Boundary Consistency AS VERIFY
+ *   5) Verify Mode Edge Consistency AS VERIFY
  *      |-> Verify each mode behaves predictably and consistently
  *      |-> Verify no data loss during mode transitions
  *      |-> Verify timing boundaries respected for each mode
@@ -497,7 +497,7 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateRetu
  * @[Notes]: Validates AC-2 mode transition requirements - critical for applications switching between blocking
  * strategies.
  */
-TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byModeTransitions_expectConsistentBehavior) {
+TEST(UT_DataEdge, verifyDatBlockingModeEdge_byModeTransitions_expectConsistentBehavior) {
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                🔧 SETUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
@@ -512,7 +512,7 @@ TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byModeTransitions_expectCons
     const int STRESS_TEST_OPERATIONS = 10;
 
     // Initialize test data structures
-    __DatBoundaryPrivData_T DatReceiverPrivData = {0};
+    __DatEdgePrivData_T DatReceiverPrivData = {0};
     DatReceiverPrivData.ClientIndex = 2;
 
     IOC_SrvID_T DatReceiverSrvID = IOC_ID_INVALID;
@@ -530,7 +530,7 @@ TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byModeTransitions_expectCons
     };
 
     IOC_DatUsageArgs_T DatReceiverUsageArgs = {
-        .CbRecvDat_F = __CbRecvDat_Boundary_F,
+        .CbRecvDat_F = __CbRecvDat_Edge_F,
         .pCbPrivData = &DatReceiverPrivData,
     };
 
@@ -986,7 +986,7 @@ TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byModeTransitions_expectCons
 
 //======>BEGIN OF: [@AC-3,US-3] TC-1===============================================================
 /**
- * @[Name]: verifyDatTimeoutBoundary_byExtremeValues_expectProperHandling
+ * @[Name]: verifyDatTimeoutEdge_byExtremeValues_expectProperHandling
  * @[Steps]:
  *   1) Setup IOC services and establish DAT link AS SETUP
  *      |-> Create DatSender and DatReceiver services
@@ -1002,7 +1002,7 @@ TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byModeTransitions_expectCons
  *      |-> Test timeout values approaching system limits
  *      |-> Verify system handles large values without overflow
  *      |-> Test timeout accuracy for large values (seconds to minutes range)
- *   4) Test Extreme Boundary Edge Cases AS BEHAVIOR
+ *   4) Test Extreme Edge Edge Cases AS BEHAVIOR
  *      |-> Test IOC_TIMEOUT_MAX exactly
  *      |-> Test IOC_TIMEOUT_MAX + 1 (overflow boundary)
  *      |-> Test maximum safe values for different data types
@@ -1016,7 +1016,7 @@ TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byModeTransitions_expectCons
  * @[Expect]: All extreme timeout values handled properly with appropriate results and timing accuracy.
  * @[Notes]: Validates AC-3 extreme value handling - critical for robust timeout boundary validation.
  */
-TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byExtremeValues_expectProperHandling) {
+TEST(UT_DataEdge, verifyDatTimeoutEdge_byExtremeValues_expectProperHandling) {
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                🔧 SETUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
@@ -1058,7 +1058,7 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byExtremeValues_expectProperHandl
     const int EXTREME_VALUE_TEST_ITERATIONS = 2;       // Reduced for large timeout testing
 
     // Initialize test data structures
-    __DatBoundaryPrivData_T DatReceiverPrivData = {0};
+    __DatEdgePrivData_T DatReceiverPrivData = {0};
     DatReceiverPrivData.ClientIndex = 3;  // Unique index for extreme value test
 
     IOC_SrvID_T DatReceiverSrvID = IOC_ID_INVALID;
@@ -1076,7 +1076,7 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byExtremeValues_expectProperHandl
     };
 
     IOC_DatUsageArgs_T DatReceiverUsageArgs = {
-        .CbRecvDat_F = __CbRecvDat_Boundary_F,
+        .CbRecvDat_F = __CbRecvDat_Edge_F,
         .pCbPrivData = &DatReceiverPrivData,
     };
 
@@ -1296,17 +1296,17 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byExtremeValues_expectProperHandl
         printf("   ✓ Large timeout %lu μs accepted and processed correctly\n", timeoutUs);
     }
 
-    // === Test 3: Extreme Boundary Edge Cases ===
-    printf("📋 Test 3: Extreme Boundary Edge Cases...\n");
+    // === Test 3: Extreme Edge Edge Cases ===
+    printf("📋 Test 3: Extreme Edge Edge Cases...\n");
 
     for (ULONG_T boundaryTimeout : BOUNDARY_EDGE_TIMEOUTS_US) {
         printf("🧪 Testing boundary timeout value: %lu μs\n", boundaryTimeout);
 
-        IOC_Option_defineTimeout(BoundaryTimeoutOption, boundaryTimeout);
+        IOC_Option_defineTimeout(EdgeTimeoutOption, boundaryTimeout);
 
-        // Test 3a: Boundary value handling in sendDAT
+        // Test 3a: Edge value handling in sendDAT
         auto boundaryStart = std::chrono::high_resolution_clock::now();
-        Result = IOC_sendDAT(DatSenderLinkID, &TestDatDesc, &BoundaryTimeoutOption);
+        Result = IOC_sendDAT(DatSenderLinkID, &TestDatDesc, &EdgeTimeoutOption);
         auto boundaryEnd = std::chrono::high_resolution_clock::now();
 
         auto boundaryDuration = std::chrono::duration_cast<std::chrono::microseconds>(boundaryEnd - boundaryStart);
@@ -1315,7 +1315,7 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byExtremeValues_expectProperHandl
 
         // PRIMARY TDD REQUIREMENT: All boundary values must be handled appropriately
         ASSERT_LT(boundaryDuration.count(), MAX_EXTREME_EXECUTION_TIME_US)
-            << "Boundary timeout processing must complete within time limit";
+            << "Edge timeout processing must complete within time limit";
 
         // Special validation for specific boundary values
         if (boundaryTimeout == IOC_TIMEOUT_NONBLOCK) {
@@ -1338,7 +1338,7 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byExtremeValues_expectProperHandl
                 << "IOC_TIMEOUT_INFINITE should be accepted by system";
         }
 
-        printf("   ✓ Boundary timeout %lu μs handled correctly\n", boundaryTimeout);
+        printf("   ✓ Edge timeout %lu μs handled correctly\n", boundaryTimeout);
     }
 
     // === Test 4: Extreme Value Consistency Verification ===
@@ -1387,7 +1387,7 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byExtremeValues_expectProperHandl
     printf("   📊 Test Coverage Summary:\n");
     printf("   ✅ Microsecond timeouts: %zu values tested\n", MICROSECOND_TIMEOUTS_US.size());
     printf("   ✅ Large timeouts: %zu values tested\n", LARGE_TIMEOUTS_US.size());
-    printf("   ✅ Boundary timeouts: %zu values tested\n", BOUNDARY_EDGE_TIMEOUTS_US.size());
+    printf("   ✅ Edge timeouts: %zu values tested\n", BOUNDARY_EDGE_TIMEOUTS_US.size());
     printf("   ✅ Stability cycles: 3 cycles completed\n");
 
     // Verify no system degradation
@@ -1413,7 +1413,7 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byExtremeValues_expectProperHandl
     printf("✅ All extreme timeout values processed correctly\n");
     printf("✅ Microsecond precision timeouts handled appropriately\n");
     printf("✅ Large timeout values accepted without system issues\n");
-    printf("✅ Boundary edge cases handled with proper result codes\n");
+    printf("✅ Edge edge cases handled with proper result codes\n");
     printf("✅ System stability maintained throughout extreme value testing\n");
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
@@ -1445,7 +1445,7 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byExtremeValues_expectProperHandl
 
 //======>BEGIN OF: [@AC-1,US-3] TC-2===============================================================
 /**
- * @[Name]: verifyDatTimeoutBoundary_byPrecisionTesting_expectAccurateTiming
+ * @[Name]: verifyDatTimeoutEdge_byPrecisionTesting_expectAccurateTiming
  * @[Steps]:
  *   1) Setup IOC services for bidirectional testing AS SETUP
  *      |-> Create sender and receiver services for both directions
@@ -1468,7 +1468,7 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byExtremeValues_expectProperHandl
  * @[Notes]: Validates AC-1 timeout precision requirements for both directions - critical for time-critical
  * applications.
  */
-TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byPrecisionTesting_expectAccurateTiming) {
+TEST(UT_DataEdge, verifyDatTimeoutEdge_byPrecisionTesting_expectAccurateTiming) {
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                🔧 SETUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
@@ -1503,7 +1503,7 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byPrecisionTesting_expectAccurate
     };
 
     // Initialize test data structures
-    __DatBoundaryPrivData_T DatReceiverPrivData = {0};
+    __DatEdgePrivData_T DatReceiverPrivData = {0};
     DatReceiverPrivData.ClientIndex = 4;  // Unique index for precision test
 
     IOC_SrvID_T DatReceiverSrvID = IOC_ID_INVALID;
@@ -1961,7 +1961,7 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byPrecisionTesting_expectAccurate
 
 //======>BEGIN OF: [@AC-2,US-3] TC-2===============================================================
 /**
- * @[Name]: verifyDatBlockingModeBoundary_byStateConsistency_expectNoDataLoss
+ * @[Name]: verifyDatBlockingModeEdge_byStateConsistency_expectNoDataLoss
  * @[Steps]:
  *   1) Setup IOC services with enhanced state tracking AS SETUP
  *      |-> Create DatSender and DatReceiver services with state tracking callbacks
@@ -1997,7 +1997,7 @@ TEST(UT_DataBoundary, verifyDatTimeoutBoundary_byPrecisionTesting_expectAccurate
  * @[Expect]: All blocking mode transitions preserve data integrity with zero data loss and consistent state.
  * @[Notes]: Critical for AC-2 state consistency - validates that mode changes are safe during active data flow.
  */
-TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byStateConsistency_expectNoDataLoss) {
+TEST(UT_DataEdge, verifyDatBlockingModeEdge_byStateConsistency_expectNoDataLoss) {
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                🔧 SETUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
@@ -2016,7 +2016,7 @@ TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byStateConsistency_expectNoD
     const auto MAX_TRANSITION_TIME_MS = 50;   // Max time allowed for mode transitions
 
     // Enhanced private data structure for comprehensive state tracking
-    __DatBoundaryPrivData_T DatReceiverPrivData = {0};
+    __DatEdgePrivData_T DatReceiverPrivData = {0};
     DatReceiverPrivData.ClientIndex = 5;  // Unique index for state consistency test
 
     // Additional tracking variables for state consistency verification
@@ -2042,7 +2042,7 @@ TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byStateConsistency_expectNoD
     };
 
     IOC_DatUsageArgs_T DatReceiverUsageArgs = {
-        .CbRecvDat_F = __CbRecvDat_Boundary_F,  // Use standard callback for data tracking
+        .CbRecvDat_F = __CbRecvDat_Edge_F,  // Use standard callback for data tracking
         .pCbPrivData = &DatReceiverPrivData,
     };
 
@@ -2416,8 +2416,8 @@ TEST(UT_DataBoundary, verifyDatBlockingModeBoundary_byStateConsistency_expectNoD
 
 // ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
 // ║                              PRECISION TIMEOUT TEST CASE DESIGN                                                ║
-// ║                   verifyDatTimeoutBoundary_byPrecisionTesting_expectAccurateTiming                             ║
+// ║                   verifyDatTimeoutEdge_byPrecisionTesting_expectAccurateTiming                             ║
 // ║                                                                                                                 ║
-// ║  📋 DESIGN DOCUMENTATION MOVED TO: UT_DataBoundaryUS3.md                                                      ║
+// ║  📋 DESIGN DOCUMENTATION MOVED TO: UT_DataEdgeUS3.md                                                      ║
 // ║  This file contains the implementation. See the markdown file for detailed design documentation.               ║
 // ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════════╝

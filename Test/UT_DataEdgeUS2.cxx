@@ -1,26 +1,26 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// UT_DataBoundaryUS2.cxx - DAT Boundary Testing: US-2 Data Size Boundary Validation
+// UT_DataEdgeUS2.cxx - DAT Edge Testing: US-2 Data Size Edge Validation
 // 📝 Purpose: Test Cases for User Story 2 - System integrator data size boundary testing
 // 🔄 Focus: Zero-size data, maximum data size, oversized data handling, data integrity
 // 🎯 Coverage: [@US-2] Data size boundary validation (AC-1, AC-2, AC-3)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include "UT_DataBoundary.h"
+#include "UT_DataEdge.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF US-2 TEST CASES==================================================================
 /**************************************************************************************************
- * @brief 【US-2 Test Cases】- Data Size Boundary Validation
+ * @brief 【US-2 Test Cases】- Data Size Edge Validation
  *
  * [@AC-1,US-2] Data size boundary validation - Zero size data
  *  TC-1:
- *      @[Name]: verifyDatDataSizeBoundary_byZeroSizeData_expectConsistentBehavior
+ *      @[Name]: verifyDatDataSizeEdge_byZeroSizeData_expectConsistentBehavior
  *      @[Purpose]: Verify zero-size data transmission behavior
  *      @[Brief]: Send 0-byte data, verify transmission and reception behavior
  *      @[Coverage]: Valid pointer + zero size, NULL pointer + zero size, embedded zero size
  *
  *  TC-2:
- *      @[Name]: verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobustHandling
+ *      @[Name]: verifyDatDataSizeEdge_byZeroSizeEdgeCases_expectRobustHandling
  *      @[Purpose]: Verify zero-size data edge cases and mixed scenarios
  *      @[Brief]: Test zero-size data with various options, timeouts, and mixed with normal data transmission
  *      @[Coverage]: Zero-size with IOC_Options, mixed with normal data, concurrent transmissions
@@ -28,7 +28,7 @@
  *-------------------------------------------------------------------------------------------------
  * TODO: [@AC-2,US-2] Data size boundary validation - Maximum size
  *  TC-3:
- *      @[Name]: verifyDatDataSizeBoundary_byMaximumAllowedSize_expectSuccessfulTransmission
+ *      @[Name]: verifyDatDataSizeEdge_byMaximumAllowedSize_expectSuccessfulTransmission
  *      @[Purpose]: Verify maximum allowed data size transmission
  *      @[Brief]: Send data at maximum size limit, verify successful transmission and integrity
  *      @[Coverage]: Maximum size data, data integrity verification, performance boundaries
@@ -36,7 +36,7 @@
  *-------------------------------------------------------------------------------------------------
  * TODO: [@AC-3,US-2] Data size boundary validation - Oversized data
  *  TC-4:
- *      @[Name]: verifyDatDataSizeBoundary_byOversizedData_expectDataTooLargeError
+ *      @[Name]: verifyDatDataSizeEdge_byOversizedData_expectDataTooLargeError
  *      @[Purpose]: Verify oversized data rejection
  *      @[Brief]: Attempt to send data exceeding limits, verify IOC_RESULT_DATA_TOO_LARGE
  *      @[Coverage]: Oversized data rejection, system stability with large data, memory protection
@@ -44,7 +44,7 @@
  *-------------------------------------------------------------------------------------------------
  * TODO: [@AC-1,US-2] Data size boundary validation - Minimum size
  *  TC-5:
- *      @[Name]: verifyDatDataSizeBoundary_byMinimumDataSize_expectSuccessfulTransmission
+ *      @[Name]: verifyDatDataSizeEdge_byMinimumDataSize_expectSuccessfulTransmission
  *      @[Purpose]: Verify minimum valid data size (1 byte) transmission
  *      @[Brief]: Send 1-byte data, verify transmission and reception behavior
  *      @[Coverage]: 1-byte data transmission, small data handling, boundary between zero and minimum
@@ -52,14 +52,14 @@
  *************************************************************************************************/
 //======>END OF US-2 TEST CASES====================================================================
 
-#include "UT_DataBoundary.h"
+#include "UT_DataEdge.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF US-2 TEST IMPLEMENTATIONS========================================================
 
 //======>BEGIN OF: [@AC-1,US-2] TC-1===============================================================
 /**
- * @[Name]: verifyDatDataSizeBoundary_byZeroSizeData_expectConsistentBehavior
+ * @[Name]: verifyDatDataSizeEdge_byZeroSizeData_expectConsistentBehavior
  * @[Steps]:
  *   1) Establish DatReceiver service and DatSender connection AS SETUP.
  *      |-> DatReceiver online service with callback registration
@@ -88,12 +88,12 @@
  * @[Notes]: Critical boundary test per AC-1@US-2 - validates system behavior with empty data payload, ensuring
  * no crashes and consistent handling across different zero-size data configurations.
  */
-TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeData_expectConsistentBehavior) {
+TEST(UT_DataEdge, verifyDatDataSizeEdge_byZeroSizeData_expectConsistentBehavior) {
     //===SETUP===
-    printf("BEHAVIOR: verifyDatDataSizeBoundary_byZeroSizeData_expectConsistentBehavior\n");
+    printf("BEHAVIOR: verifyDatDataSizeEdge_byZeroSizeData_expectConsistentBehavior\n");
 
     // Initialize test data structures
-    __DatBoundaryPrivData_T DatReceiverPrivData = {0};
+    __DatEdgePrivData_T DatReceiverPrivData = {0};
     DatReceiverPrivData.ClientIndex = 1;
 
     IOC_SrvID_T DatReceiverSrvID = IOC_ID_INVALID;
@@ -108,12 +108,12 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeData_expectConsistentB
     IOC_SrvURI_T DatReceiverSrvURI = {
         .pProtocol = IOC_SRV_PROTO_FIFO,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = "DatBoundaryReceiver",
+        .pPath = "DatEdgeReceiver",
     };
 
     // Configure DAT receiver arguments with boundary callback
     IOC_DatUsageArgs_T DatReceiverUsageArgs = {
-        .CbRecvDat_F = __CbRecvDat_Boundary_F,
+        .CbRecvDat_F = __CbRecvDat_Edge_F,
         .pCbPrivData = &DatReceiverPrivData,
     };
 
@@ -218,7 +218,7 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeData_expectConsistentB
     }
     printf("   ✓ Consistency verified across multiple zero-size calls\n");
 
-    //===BEHAVIOR: Additional Boundary Scenarios===
+    //===BEHAVIOR: Additional Edge Scenarios===
     printf("📋 Testing additional boundary scenarios...\n");
 
     // Test 5: Service as DatSender (reversed role) - zero-size data from service to client
@@ -229,7 +229,7 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeData_expectConsistentB
     IOC_LinkID_T DatSenderServiceLinkID = IOC_ID_INVALID;
     IOC_LinkID_T DatReceiverClientLinkID = IOC_ID_INVALID;
 
-    __DatBoundaryPrivData_T DatReceiverClientPrivData = {0};
+    __DatEdgePrivData_T DatReceiverClientPrivData = {0};
     DatReceiverClientPrivData.ClientIndex = 2;
 
     IOC_SrvURI_T DatSenderSrvURI = {
@@ -250,7 +250,7 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeData_expectConsistentB
 
     // DatReceiver as client with callback
     IOC_DatUsageArgs_T DatReceiverClientUsageArgs = {
-        .CbRecvDat_F = __CbRecvDat_Boundary_F,
+        .CbRecvDat_F = __CbRecvDat_Edge_F,
         .pCbPrivData = &DatReceiverClientPrivData,
     };
 
@@ -501,7 +501,7 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeData_expectConsistentB
 
 //======>BEGIN OF: [@AC-1,US-2] TC-2===============================================================
 /**
- * @[Name]: verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobustHandling
+ * @[Name]: verifyDatDataSizeEdge_byZeroSizeEdgeCases_expectRobustHandling
  * @[Steps]:
  *   1) Establish DatReceiver service and DatSender connection AS SETUP.
  *      |-> DatReceiver online service with callback registration
@@ -535,12 +535,12 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeData_expectConsistentB
  * @[Notes]: Comprehensive edge case testing per AC-1@US-2 - validates zero-size data robustness under
  * complex scenarios including mixed transmissions, various options, and system stress conditions.
  */
-TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobustHandling) {
+TEST(UT_DataEdge, verifyDatDataSizeEdge_byZeroSizeEdgeCases_expectRobustHandling) {
     //===SETUP===
-    printf("BEHAVIOR: verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobustHandling\n");
+    printf("BEHAVIOR: verifyDatDataSizeEdge_byZeroSizeEdgeCases_expectRobustHandling\n");
 
     // Initialize test data structures
-    __DatBoundaryPrivData_T DatReceiverPrivData = {0};
+    __DatEdgePrivData_T DatReceiverPrivData = {0};
     DatReceiverPrivData.ClientIndex = 10;
 
     IOC_SrvID_T DatReceiverSrvID = IOC_ID_INVALID;
@@ -558,7 +558,7 @@ TEST(UT_DataBoundary, verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobust
     };
 
     IOC_DatUsageArgs_T DatReceiverUsageArgs = {
-        .CbRecvDat_F = __CbRecvDat_Boundary_F,
+        .CbRecvDat_F = __CbRecvDat_Edge_F,
         .pCbPrivData = &DatReceiverPrivData,
     };
 

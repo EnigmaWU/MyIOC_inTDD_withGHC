@@ -1302,7 +1302,7 @@ IOC_LinkID_T getOrCreateConnection(ConnectionPool_T *pool,
 For comprehensive examples and validation patterns, refer to these test files:
 
 - **UT_ServiceTypical.cxx**: Basic service lifecycle and connection patterns
-- **UT_ServiceBoundary.cxx**: Edge cases and boundary conditions
+- **UT_ServiceEdge.cxx**: Edge cases and edge conditions
 - **UT_ServiceMisuse.cxx**: Error handling and invalid usage scenarios
 - **UT_ServiceBroadcastEvent.cxx**: Broadcast event patterns
 - **UT_ServiceState.cxx**: Service and link state management

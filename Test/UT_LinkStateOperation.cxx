@@ -77,7 +77,7 @@
  * 📋 TEST CASE DESIGN ASPECTS/CATEGORIES
  *
  * PRIORITY FRAMEWORK (from CaTDD):
- *   P1 🥇 FUNCTIONAL:     Ready/Busy state verification (Typical + Boundary)
+ *   P1 🥇 FUNCTIONAL:     Ready/Busy state verification (Typical + Edge)
  *   P2 🥈 DESIGN-ORIENTED: State transitions, mode comparison
  *   P3 🥉 QUALITY-ORIENTED: Concurrent operations, performance
  *
@@ -405,13 +405,13 @@
  *   🚫 BLOCKED:      Cannot proceed due to dependency
  *
  * PRIORITY LEVELS:
- *   P1 🥇 FUNCTIONAL:     ValidFunc (Typical+Boundary) + InvalidFunc (Misuse+Fault)
+ *   P1 🥇 FUNCTIONAL:     ValidFunc (Typical+Edge) + InvalidFunc (Misuse+Fault)
  *   P2 🥈 DESIGN-ORIENTED: State, Capability, Concurrency
  *   P3 🥉 QUALITY-ORIENTED: Performance, Robust, Compatibility
  *   P4 🎯 ADDONS:          Demo, Examples
  *
  *===================================================================================================
- * P1 🥇 FUNCTIONAL TESTING - ValidFunc (Typical + Boundary)
+ * P1 🥇 FUNCTIONAL TESTING - ValidFunc (Typical + Edge)
  *===================================================================================================
  *
  * [CAT-1: Ready State - Typical]
@@ -425,14 +425,14 @@
  *  🟢 TC-3: verifyLinkState_betweenOperations_expectReady
  *       Status: PASSED ✅ - Ready state restored after operation complete
  *
- * [CAT-1: Ready State - Boundary]
- *  ⚪ TC-1B: verifyBoundary_byMaxConcurrentLinks_expectReady
+ * [CAT-1: Ready State - Edge]
+ *  ⚪ TC-1B: verifyEdge_byMaxConcurrentLinks_expectReady
  *       Estimated: 1 hour
  *
- *  ⚪ TC-2B: verifyBoundary_byQueueFull_expectConlesReady
+ *  ⚪ TC-2B: verifyEdge_byQueueFull_expectConlesReady
  *       Estimated: 30 min
  *
- *  ⚪ TC-3B: verifyBoundary_byOperationTimeout_expectReadyRecovery
+ *  ⚪ TC-3B: verifyEdge_byOperationTimeout_expectReadyRecovery
  *       Estimated: 1 hour
  *
  *===================================================================================================
@@ -518,7 +518,7 @@
  * 🚪 GATE P3: Production ready
  *
  * PROGRESS SUMMARY:
- *   P1: 3/12 GREEN (25%) - Typical tests complete, need Boundary+Misuse+Fault
+ *   P1: 3/12 GREEN (25%) - Typical tests complete, need Edge+Misuse+Fault
  *   P2: 6/9 GREEN (67%) - EVT+CMD+DAT+Transitions verified
  *   P3: 3/3 GREEN (100%) - State transitions validated
  *   Total: 12/12 GREEN (100%) ✅ PHASE 1.2 COMPLETE
@@ -526,7 +526,7 @@
  * NEXT ACTIONS:
  *   1. ✅ DONE: Implement TC-2, TC-3 (P1 Typical complete)
  *   2. ✅ DONE: Implement TC-4 through TC-12 (P2+P3 complete)
- *   3. TODO: Complete P1 Boundary tests (TC-1B, TC-2B, TC-3B)
+ *   3. TODO: Complete P1 Edge tests (TC-1B, TC-2B, TC-3B)
  *   4. TODO: Complete P1 Misuse/Fault tests (required for P1 gate)
  *   5. NEXT PHASE: Phase 1.3 - 3-Level State Correlation
  *

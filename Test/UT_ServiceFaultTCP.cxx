@@ -20,7 +20,7 @@
  * @category InValidFunc-Fault-TCP (TCP Network Failures & Error Recovery - External Faults)
  *
  * Part of Test Design Formula:
- *   Service's Functional Test = ValidFunc(Typical + Boundary) + InValidFunc(Misuse + Fault)
+ *   Service's Functional Test = ValidFunc(Typical + Edge) + InValidFunc(Misuse + Fault)
  *                                                                             ^^^^^
  *                                                                   (TCP network FAULTS!)
  *
@@ -53,7 +53,7 @@
  *
  * Related Test Files:
  *  - UT_ServiceTypicalTCP.cxx: ValidFunc-Typical with TCP (normal network scenarios)
- *  - UT_ServiceBoundaryTCP.cxx: ValidFunc-Boundary with TCP (edge cases)
+ *  - UT_ServiceEdgeTCP.cxx: ValidFunc-Edge with TCP (edge cases)
  *  - UT_ServiceMisuseTCP.cxx: InValidFunc-Misuse with TCP (wrong usage)
  *  - UT_ServiceFault.cxx: InValidFunc-Fault with FIFO (general fault patterns)
  *
@@ -90,7 +90,7 @@
  * DESIGN PRINCIPLE: IMPROVE VALUE • AVOID LOSS • BALANCE SKILL vs COST
  *
  * PRIORITY FRAMEWORK:
- *   P1 🥇 FUNCTIONAL:     ValidFunc(Typical + Boundary) + InvalidFunc(Misuse + Fault)
+ *   P1 🥇 FUNCTIONAL:     ValidFunc(Typical + Edge) + InvalidFunc(Misuse + Fault)
  *                                                                       ^^^^^
  *                                                            (We are here - Fault for TCP)
  *
@@ -802,7 +802,7 @@ TEST(UT_ServiceFaultTCP, verifyLinkHealth_byAppPingPong_expectFasterDeadDetectio
  *   🟢 GREEN/PASSED:      Test written and passing
  *
  * PRIORITY LEVELS:
- *   P1 🥇 FUNCTIONAL:     ValidFunc(Typical + Boundary) + InvalidFunc(Misuse + Fault)
+ *   P1 🥇 FUNCTIONAL:     ValidFunc(Typical + Edge) + InvalidFunc(Misuse + Fault)
  *                                                                       ^^^^^
  *                                                             (We are P1-Fault for TCP)
  *

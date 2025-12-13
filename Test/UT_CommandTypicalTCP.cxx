@@ -34,7 +34,7 @@
  *   - [In scope]: TYPICAL TCP command execution patterns (P1 ValidFunc Typical only)
  *   - [In scope]: Core command patterns: CmdExecutor, CmdInitiator, multi-client
  *   - [In scope]: Protocol abstraction validation (TCP vs FIFO identical behavior)
- *   - [Out of scope]: Boundary conditions → see UT_CommandBoundaryTCP.cxx
+ *   - [Out of scope]: Edge conditions → see UT_CommandEdgeTCP.cxx
  *   - [Out of scope]: API misuse patterns → see UT_CommandMisuseTCP.cxx
  *   - [Out of scope]: Fault scenarios → see UT_CommandFaultTCP.cxx
  *   - [Out of scope]: Broadcast commands → see UT_ServiceBroadcast.cxx
@@ -62,7 +62,7 @@
  *   - Depends on: TCP protocol layer implementation (_IOC_SrvProtoTCP.c)
  *   - Related tests: UT_CommandTypical.cxx (FIFO-based reference patterns)
  *   - Related tests: UT_CommandTypicalAutoAccept.cxx (auto-accept extension patterns)
- *   - Extended by: UT_CommandBoundaryTCP.cxx (P1 Boundary tests)
+ *   - Extended by: UT_CommandEdgeTCP.cxx (P1 Edge tests)
  *   - Extended by: UT_CommandMisuseTCP.cxx (P1 Misuse/InvalidFunc tests)
  *   - Extended by: UT_CommandFaultTCP.cxx (P1 Fault/InvalidFunc tests)
  *   - Production code: Source/_IOC_SrvProtoTCP.c, Source/IOC_Command.c
@@ -82,7 +82,7 @@
  *   P3 🥉 QUALITY-ORIENTED: Test for quality attributes (Performance, Robust, etc.)
  *
  * DEFAULT TEST ORDER:
- *   P1: Typical → Boundary → Misuse → Fault
+ *   P1: Typical → Edge → Misuse → Fault
  *   P2: State → Capability → Concurrency
  *   P3: Performance → Robust → Compatibility → Configuration
  *   P4: Demo/Example
@@ -129,7 +129,7 @@
  *  - P3 Compatibility: TCP vs FIFO protocol abstraction validation
  *
  * ⚠️  REORGANIZED: Non-Typical tests moved to dedicated files per CaTDD priority framework:
- *  - P1 Boundary tests → UT_CommandBoundaryTCP.cxx (timeout constraints, payload limits)
+ *  - P1 Edge tests → UT_CommandEdgeTCP.cxx (timeout constraints, payload limits)
  *  - P1 Misuse tests → UT_CommandMisuseTCP.cxx (null pointers, invalid IDs, state violations)
  *  - P1 Fault tests → UT_CommandFaultTCP.cxx (connection failures, timeouts, resource exhaustion)
  *
@@ -839,15 +839,15 @@ TEST(UT_TcpCommandTypical, verifyTcpServiceAsCmdExecutor_byMultipleClients_expec
 }
 
 // ===========================================================================================
-// \u26a0\ufe0f  MOVED TO UT_CommandBoundaryTCP.cxx
+// \u26a0\ufe0f  MOVED TO UT_CommandEdgeTCP.cxx
 // ===========================================================================================
 // [@AC-4,US-1] TC-1: verifyTcpServiceAsCmdExecutor_byTimeoutConstraints_expectProperTiming
 //
-// This test has been MOVED to UT_CommandBoundaryTCP.cxx as it tests P1 Boundary conditions.
-// The test is now named: verifyTcpCommandTimeout_byBoundaryValues_expectCorrectBehavior
+// This test has been MOVED to UT_CommandEdgeTCP.cxx as it tests P1 Edge conditions.
+// The test is now named: verifyTcpCommandTimeout_byEdgeValues_expectCorrectBehavior
 //
 // Rationale: Per CaTDD methodology, boundary tests belong in dedicated boundary test files.
-// See UT_CommandBoundaryTCP.cxx for the complete implementation.
+// See UT_CommandEdgeTCP.cxx for the complete implementation.
 // ===========================================================================================
 
 // [@AC-1,US-2] TC-1: verifyTcpServiceAsCmdInitiator_bySingleClient_expectClientExecution
@@ -1429,7 +1429,7 @@ TEST(UT_TcpCommandTypical, verifyProtocolUri_byDifferentProtocols_expectOnlyUriD
 //   4. Mark status as you go: ⚪ TODO → 🔴 RED → 🟢 GREEN.
 //
 //===================================================================================================
-// P1 🥇 FUNCTIONAL TESTING – ValidFunc (Typical + Boundary)
+// P1 🥇 FUNCTIONAL TESTING – ValidFunc (Typical + Edge)
 //===================================================================================================
 //
 // [@US-1] TCP Service as CmdExecutor - ValidFunc/Typical
@@ -1462,11 +1462,11 @@ TEST(UT_TcpCommandTypical, verifyProtocolUri_byDifferentProtocols_expectOnlyUriD
 //        - Dependencies: TC-1 passing, concurrent testing setup
 //        - Notes: TCP protocol naturally supports multi-client via thread-per-connection model.
 //
-// [@US-1] TCP Service as CmdExecutor - ValidFunc/Boundary
+// [@US-1] TCP Service as CmdExecutor - ValidFunc/Edge
 //
 //   🟢 [@AC-4,US-1] TC-1: verifyTcpServiceAsCmdExecutor_byTimeoutConstraints_expectProperTiming
 //        - Description: TCP command timeout validation
-//        - Category: Boundary (ValidFunc)
+//        - Category: Edge (ValidFunc)
 //        - Protocol: tcp://localhost:18083/CmdTypicalTCP_Timeout
 //        - Status: 🟢 GREEN - Test passing
 //        - Actual effort: 1 hour
@@ -1520,11 +1520,11 @@ TEST(UT_TcpCommandTypical, verifyProtocolUri_byDifferentProtocols_expectOnlyUriD
 //        - Notes: Verified timeout behavior with simulated network delay (including protocol overhead).
 //
 // 🚪 GATE P1: All P1 tests must be GREEN before proceeding to P2.
-//   ✅ All ValidFunc tests GREEN (Typical + Boundary)
+//   ✅ All ValidFunc tests GREEN (Typical + Edge)
 //   ✅ All InvalidFunc tests GREEN (Fault)
 //   ✅ TCP protocol layer stable
 //   ✅ No critical network-related bugs
-//   📊 P1 COMPLETE: 7/7 tests GREEN (5 Typical + 1 Boundary + 2 Fault) ✅✅✅✅✅✅✅
+//   📊 P1 COMPLETE: 7/7 tests GREEN (5 Typical + 1 Edge + 2 Fault) ✅✅✅✅✅✅✅
 //
 //===================================================================================================
 // P2 🥈 DESIGN-ORIENTED TESTING – State, Concurrency
@@ -1581,7 +1581,7 @@ TEST(UT_TcpCommandTypical, verifyProtocolUri_byDifferentProtocols_expectOnlyUriD
 //
 //   ⚠️  REORGANIZED PER CaTDD METHODOLOGY (2025-01-23):
 //   - This file now contains ONLY P1 ValidFunc Typical + P2 State + P3 Compatibility tests
-//   - Boundary tests → UT_CommandBoundaryTCP.cxx (1 test moved + 10 new)
+//   - Edge tests → UT_CommandEdgeTCP.cxx (1 test moved + 10 new)
 //   - Misuse tests → UT_CommandMisuseTCP.cxx (0 moved + 18 new designed)
 //   - Fault tests → UT_CommandFaultTCP.cxx (2 tests moved + 7 new designed)
 //
@@ -1602,13 +1602,13 @@ TEST(UT_TcpCommandTypical, verifyProtocolUri_byDifferentProtocols_expectOnlyUriD
 //       [@AC-2,US-4] Protocol URI as only difference
 //
 //   MOVED TO OTHER FILES:
-//     ✅ [@AC-4,US-1] Timeout constraints → UT_CommandBoundaryTCP.cxx (P1 Boundary)
+//     ✅ [@AC-4,US-1] Timeout constraints → UT_CommandEdgeTCP.cxx (P1 Edge)
 //     ✅ [@AC-2,US-3] Connection failure → UT_CommandFaultTCP.cxx (P1 Fault)
 //     ✅ [@AC-3,US-3] Network timeout → UT_CommandFaultTCP.cxx (P1 Fault)
 //
 //   RELATED TEST FILES (Complete TCP Command Testing Suite):
 //     - UT_CommandTypicalTCP.cxx (THIS FILE): P1 Typical + P2 State + P3 Compatibility (8 tests)
-//     - UT_CommandBoundaryTCP.cxx: P1 Boundary (11 tests designed, 1 implemented)
+//     - UT_CommandEdgeTCP.cxx: P1 Edge (11 tests designed, 1 implemented)
 //     - UT_CommandMisuseTCP.cxx: P1 Misuse/InvalidFunc (18 tests designed)
 //     - UT_CommandFaultTCP.cxx: P1 Fault/InvalidFunc (9 tests designed, 2 implemented)
 //     TOTAL TCP TEST SUITE: 46 tests designed, 11 currently implemented
@@ -1622,7 +1622,7 @@ TEST(UT_TcpCommandTypical, verifyProtocolUri_byDifferentProtocols_expectOnlyUriD
 //     - All critical Typical command patterns validated
 //     - TCP protocol layer thoroughly tested
 //     - Test suite reorganized per CaTDD priority framework
-//     - Clear separation: Typical vs Boundary vs Misuse vs Fault
+//     - Clear separation: Typical vs Edge vs Misuse vs Fault
 //     - No known blockers
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////

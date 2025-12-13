@@ -1,19 +1,19 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF OVERVIEW OF THIS UNIT TESTING FILE===============================================
 /**
- * @brief ValidFunc-Boundary Tests: Verify boundary/edge conditions that still WORK correctly.
+ * @brief ValidFunc-Edge Tests: Verify boundary/edge conditions that still WORK correctly.
  *
  *-------------------------------------------------------------------------------------------------
- * @category ValidFunc-Boundary (Edge Cases That Still Work - APIs Function Correctly)
+ * @category ValidFunc-Edge (Edge Cases That Still Work - APIs Function Correctly)
  *
  * Part of Test Design Formula:
- *   Service's Functional Test = ValidFunc(Typical + Boundary) + InValidFunc(Misuse)
+ *   Service's Functional Test = ValidFunc(Typical + Edge) + InValidFunc(Misuse)
  *                                                  ^^^^^^^^
  *                                          (Edges but WORKS!)
  *
  * ValidFunc = API WORKS from caller's viewpoint (successful operation or graceful rejection)
  *  - Typical: Common scenarios in normal range
- *  - Boundary: Edge cases (min/max args, limits, empty buffers) but API still behaves correctly
+ *  - Edge: Edge cases (min/max args, limits, empty buffers) but API still behaves correctly
  *
  * This file covers: Edge/boundary conditions where APIs function as designed
  *  - Min/max parameter values (NULL pointers, zero buffers, invalid IDs)
@@ -23,7 +23,7 @@
  *  - APIs return appropriate error codes and maintain system integrity
  *
  * Test Philosophy - KEY DISTINCTION:
- *  - ValidFunc (Typical + Boundary): API WORKS correctly (returns expected result/error)
+ *  - ValidFunc (Typical + Edge): API WORKS correctly (returns expected result/error)
  *  - InValidFunc (Misuse): API usage FAILS (wrong sequence, double calls, state violations)
  *  - Focus: Verify APIs handle edge inputs gracefully and return correct diagnostic codes
  *  - All tests here: Single operations, correct sequence, proper usage - just edge inputs
@@ -45,30 +45,30 @@
 //======>BEGIN OF UNIT TESTING DESIGN==============================================================
 /**
  * 📋 TEST CASE DESIGN ASPECTS/CATEGORIES
- *  Priority: Typical → Boundary → State → Fault → Performance → Concurrency → Others
+ *  Priority: Typical → Edge → State → Fault → Performance → Concurrency → Others
  *  Principle: Improve Value • Avoid Lost • Balance Skill vs Cost
  *
  *  Extended taxonomy (adopt as needed):
- *   - FreelyDrafts • Typical • Demo • Boundary • State • Performance • Concurrency
+ *   - FreelyDrafts • Typical • Demo • Edge • State • Performance • Concurrency
  *   - Capability/Capacity • Robust • Fault • Misuse • Compatibility • Configuration • Others
- *   - Note: Start with Typical → Boundary, then grow coverage deliberately.
+ *   - Note: Start with Typical → Edge, then grow coverage deliberately.
  */
 /**
- * US-1 (ValidFunc-Boundary): As a service developer, I want APIs to handle edge inputs gracefully,
+ * US-1 (ValidFunc-Edge): As a service developer, I want APIs to handle edge inputs gracefully,
  *  so that boundary conditions are caught early with clear diagnostic codes (APIs still WORK correctly).
  *
  *  AC-1: GIVEN null/invalid params, WHEN calling Service APIs, THEN return INVALID_PARAM (API works, rejects
  * gracefully). AC-2: GIVEN not-exist resource (service/link), WHEN operating on it, THEN return NOT_EXIST_* (API works,
  * proper diagnostic).
  *
- * US-2 (ValidFunc-Boundary): As a service developer, I want APIs to return explicit codes for capability limits,
+ * US-2 (ValidFunc-Edge): As a service developer, I want APIs to return explicit codes for capability limits,
  *  so users understand edge cases like missing flags or buffer constraints (APIs still WORK correctly).
  *
  *  AC-1: GIVEN service without BROADCAST flag, WHEN calling broadcastEVT, THEN return NOT_SUPPORT_BROADCAST_EVENT (API
  * works). AC-2: GIVEN small buffer for service link inspection, WHEN links exceed capacity, THEN return
  * BUFFER_TOO_SMALL with partial results (API works, graceful degradation).
  *
- * US-3 (ValidFunc-Boundary): As a service developer, I want to be notified when edge conditions occur,
+ * US-3 (ValidFunc-Edge): As a service developer, I want to be notified when edge conditions occur,
  *  so I can handle cases like no event consumers (APIs still WORK correctly with proper notifications).
  *
  *  AC-1: GIVEN a link with no event subscriptions, WHEN posting an event, THEN return NO_EVENT_CONSUMER (API works).
@@ -85,7 +85,7 @@
 /**
  * COVERAGE STRATEGY (choose axes):
  *  - Service Role × Client Role × Mode
- *  - Component State × Operation × Boundary
+ *  - Component State × Operation × Edge
  *  - Concurrency × Resource limits × Faults
  *
  * TEMPLATE PATTERN (coverage matrix skeleton):
@@ -98,7 +98,7 @@
 
 /**
  * TEST CASES — ORGANIZATION & STATUS
- *  - By Category: Typical → Boundary → State → Error → Performance
+ *  - By Category: Typical → Edge → State → Error → Performance
  *  - By Priority: Critical first
  *  STATUS LEGEND: ⚪ Planned/TODO, 🔴 Implemented/RED, 🟢 Passed/GREEN, ⚠️ Issues
  *
@@ -145,9 +145,9 @@
  *   3) ✅ Assert return is IOC_RESULT_INVALID_PARAM
  * @[Expect]: No assertion; explicit invalid-parameter return code
  * @[Status]: PASSED/GREEN ✅
- * @[Notes]: Boundary path; logging is allowed, assertion removed in service code
+ * @[Notes]: Edge path; logging is allowed, assertion removed in service code
  */
-TEST(UT_ServiceBoundary, verifyOnlineService_byNullSrvID_expectInvalidParam) {
+TEST(UT_ServiceEdge, verifyOnlineService_byNullSrvID_expectInvalidParam) {
     // US-1/AC-1
     // GIVEN: null output parameter pSrvID
     // WHEN: calling IOC_onlineService(nullptr, &args)
@@ -177,7 +177,7 @@ TEST(UT_ServiceBoundary, verifyOnlineService_byNullSrvID_expectInvalidParam) {
  * @[Status]: PASSED/GREEN ✅
  * @[Notes]: Complements null pSrvID boundary
  */
-TEST(UT_ServiceBoundary, verifyOnlineService_byInvalidSrvArgs_expectInvalidParam) {
+TEST(UT_ServiceEdge, verifyOnlineService_byInvalidSrvArgs_expectInvalidParam) {
     // US-1/AC-1
     // GIVEN: invalid service args (no usage capabilities)
     // WHEN: calling IOC_onlineService(&srvID, &badArgs)
@@ -208,7 +208,7 @@ TEST(UT_ServiceBoundary, verifyOnlineService_byInvalidSrvArgs_expectInvalidParam
  * @[Status]: PASSED/GREEN ✅
  * @[Notes]: Keeps API contract consistent across getters
  */
-TEST(UT_ServiceBoundary, verifyGetServiceLinkIDs_byNullParams_expectInvalidParam) {
+TEST(UT_ServiceEdge, verifyGetServiceLinkIDs_byNullParams_expectInvalidParam) {
     // US-1/AC-1
     // GIVEN: null output buffers for LinkIDs and count
     // WHEN: calling IOC_getServiceLinkIDs(anySrv, nullptr, 0, nullptr)
@@ -237,7 +237,7 @@ TEST(UT_ServiceBoundary, verifyGetServiceLinkIDs_byNullParams_expectInvalidParam
  * @[Status]: PASSED/GREEN ✅
  * @[Notes]: Negative path for service discovery
  */
-TEST(UT_ServiceBoundary, verifyConnectService_byNotExistService_expectNotExistService) {
+TEST(UT_ServiceEdge, verifyConnectService_byNotExistService_expectNotExistService) {
     // US-1/AC-2
     // GIVEN: a SrvURI that does not correspond to any onlined service
     // WHEN: calling IOC_connectService(&linkID, &conn, nullptr)
@@ -267,7 +267,7 @@ TEST(UT_ServiceBoundary, verifyConnectService_byNotExistService_expectNotExistSe
  * @[Status]: PASSED/GREEN ✅
  * @[Notes]: Relies on __IOC_getSrvObjBySrvID to return NULL for bad IDs
  */
-TEST(UT_ServiceBoundary, verifyAcceptClient_byInvalidSrvID_expectNotExistService) {
+TEST(UT_ServiceEdge, verifyAcceptClient_byInvalidSrvID_expectNotExistService) {
     // US-1/AC-2
     // GIVEN: an invalid service ID
     // WHEN: calling IOC_acceptClient(badSrv, &linkID, nullptr)
@@ -296,7 +296,7 @@ TEST(UT_ServiceBoundary, verifyAcceptClient_byInvalidSrvID_expectNotExistService
  * @[Status]: PASSED/GREEN ✅
  * @[Notes]: Uses safer LinkID validation in helper
  */
-TEST(UT_ServiceBoundary, verifyCloseLink_byInvalidLink_expectNotExistLink) {
+TEST(UT_ServiceEdge, verifyCloseLink_byInvalidLink_expectNotExistLink) {
     // US-1/AC-2
     // GIVEN: a non-existent LinkID
     // WHEN: calling IOC_closeLink(0xDEADBEEF)
@@ -321,7 +321,7 @@ TEST(UT_ServiceBoundary, verifyCloseLink_byInvalidLink_expectNotExistLink) {
  * @[Status]: PASSED/GREEN ✅
  * @[Notes]: Matches connect/accept negative paths
  */
-TEST(UT_ServiceBoundary, verifyOfflineService_byInvalidSrvID_expectNotExistService) {
+TEST(UT_ServiceEdge, verifyOfflineService_byInvalidSrvID_expectNotExistService) {
     // US-1/AC-2
     // GIVEN: an invalid service ID
     // WHEN: calling IOC_offlineService(0xBEEF)
@@ -347,7 +347,7 @@ TEST(UT_ServiceBoundary, verifyOfflineService_byInvalidSrvID_expectNotExistServi
  * @[Status]: PASSED/GREEN ✅
  * @[Notes]: Cleans up by IOC_offlineService(srvID)
  */
-TEST(UT_ServiceBoundary, verifyBroadcastEVT_withoutFlag_expectNotSupportBroadcastEvent) {
+TEST(UT_ServiceEdge, verifyBroadcastEVT_withoutFlag_expectNotSupportBroadcastEvent) {
     // US-2/AC-1
     // GIVEN: a service onlined without IOC_SRVFLAG_BROADCAST_EVENT
     // WHEN: calling IOC_broadcastEVT(srvID, &evt, nullptr)
@@ -392,7 +392,7 @@ TEST(UT_ServiceBoundary, verifyBroadcastEVT_withoutFlag_expectNotSupportBroadcas
  * @[Expect]: IOC_RESULT_BUFFER_TOO_SMALL and partial results.
  * @[Status]: PASSED/GREEN ✅
  */
-TEST(UT_ServiceBoundary, verifyGetServiceLinkIDs_bySmallBuffer_expectBufferTooSmall) {
+TEST(UT_ServiceEdge, verifyGetServiceLinkIDs_bySmallBuffer_expectBufferTooSmall) {
     // US-2/AC-2
     // GIVEN: a service with more client links than the provided buffer size
     // WHEN: calling IOC_getServiceLinkIDs with a small buffer
@@ -459,7 +459,7 @@ TEST(UT_ServiceBoundary, verifyGetServiceLinkIDs_bySmallBuffer_expectBufferTooSm
  * @[Expect]: IOC_RESULT_NO_EVENT_CONSUMER because the client never subscribed.
  * @[Status]: PASSED/GREEN ✅
  */
-TEST(UT_ServiceBoundary, verifyPostEVT_byNoSubscriber_expectNoEventConsumer) {
+TEST(UT_ServiceEdge, verifyPostEVT_byNoSubscriber_expectNoEventConsumer) {
     // GIVEN: a producer-consumer link is established, but the consumer has not subscribed to any events
     // WHEN: the producer posts an event
     // THEN: the call returns IOC_RESULT_NO_EVENT_CONSUMER
@@ -516,7 +516,7 @@ TEST(UT_ServiceBoundary, verifyPostEVT_byNoSubscriber_expectNoEventConsumer) {
  * @[Expect]: Non-blocking mode returns IOC_RESULT_NO_EVENT_PENDING; finite timeout returns IOC_RESULT_TIMEOUT.
  * @[Status]: PASSED/GREEN ✅
  */
-TEST(UT_ServiceBoundary, verifyTimeoutSemantics_byZeroVsNonBlock_expectDistinctResults) {
+TEST(UT_ServiceEdge, verifyTimeoutSemantics_byZeroVsNonBlock_expectDistinctResults) {
     // GIVEN: a link with an active subscription but no pending events
     // WHEN: pulling events with a zero timeout or non-block flag
     // THEN: the call should return immediately with IOC_RESULT_NO_MORE_EVENT

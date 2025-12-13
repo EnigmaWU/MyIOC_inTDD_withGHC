@@ -9,7 +9,7 @@
  * @category ValidFunc-State (Service Lifecycle - APIs WORK across states)
  *
  * Part of Test Design Formula:
- *   Service's Functional Test = ValidFunc(Typical + Boundary + State) + InValidFunc(Misuse)
+ *   Service's Functional Test = ValidFunc(Typical + Edge + State) + InValidFunc(Misuse)
  *                                                              ^^^^^
  *                                                         (State transitions WORK!)
  *
@@ -29,14 +29,14 @@
  *
  * Test Philosophy - KEY DISTINCTION:
  *  - ValidFunc-Typical: Common scenarios that work (happy paths)
- *  - ValidFunc-Boundary: Edge cases that still work (limits, edge inputs)
+ *  - ValidFunc-Edge: Edge cases that still work (limits, edge inputs)
  *  - ValidFunc-State: State transitions that work (lifecycle correctness) ← THIS FILE
  *  - InValidFunc-Misuse: Wrong usage patterns that fail (contract violations)
  *  - Focus: Verify state machine correctness, lifecycle integrity, daemon management
  *
  * Related Test Files:
  *  - UT_ServiceTypical.cxx: ValidFunc-Typical (common working scenarios)
- *  - UT_ServiceBoundary.cxx: ValidFunc-Boundary (edge cases that work)
+ *  - UT_ServiceEdge.cxx: ValidFunc-Edge (edge cases that work)
  *  - UT_ServiceMisuse.cxx: InValidFunc-Misuse (wrong patterns that fail)
  *  - UT_CommandStateUS*.cxx: Link CMD substate tests
  *  - UT_DataStateUS*.cxx: Link DAT substate tests
@@ -44,7 +44,7 @@
  *
  *-------------------------------------------------------------------------------------------------
  *++Context
- *  Complements Typical/Boundary/Misuse suites by validating service lifecycle state correctness.
+ *  Complements Typical/Edge/Misuse suites by validating service lifecycle state correctness.
  *  Unlike Link state tests (CommandState, DataState), this focuses on Service-level lifecycle.
  *
  *  SERVICE STATE MODEL (Implicit - no explicit enum):
@@ -78,7 +78,7 @@
 //======>BEGIN OF UNIT TESTING DESIGN==============================================================
 /**
  * 📋 TEST CASE DESIGN ASPECTS/CATEGORIES
- *  Priority: Typical → Boundary → State → Misuse → Fault → Performance → Concurrency → Others
+ *  Priority: Typical → Edge → State → Misuse → Fault → Performance → Concurrency → Others
  *  Principle: Improve Value • Avoid Lost • Balance Skill vs Cost
  */
 /**
@@ -93,7 +93,7 @@
  *
  * Comparison with other categories:
  * ┌──────────────────────────┬─────────────────────────────┬─────────────────────────────┐
- * │ Aspect                   │ ValidFunc-Typical/Boundary  │ ValidFunc-State             │
+ * │ Aspect                   │ ValidFunc-Typical/Edge  │ ValidFunc-State             │
  * ├──────────────────────────┼─────────────────────────────┼─────────────────────────────┤
  * │ Focus                    │ Functionality works         │ State transitions work      │
  * │ Example                  │ onlineService succeeds      │ NOT_EXIST→ONLINE verified   │
@@ -1359,7 +1359,7 @@ TEST(UT_ServiceState, verifyGetServiceLinkIDs_withSufficientBuffer_expectAllLink
  *
  * 4. **Related Test Files to Create/Update**:
  *    - UT_ServiceTypical.cxx: ValidFunc-Typical (common working scenarios)
- *    - UT_ServiceBoundary.cxx: ValidFunc-Boundary (edge cases that work)
+ *    - UT_ServiceEdge.cxx: ValidFunc-Edge (edge cases that work)
  *    - Create UT_ServiceFault.cxx: Fault injection testing (malloc failures, etc.)
  *    - Create UT_ServiceConcurrency.cxx: Multi-threaded service operations
  */

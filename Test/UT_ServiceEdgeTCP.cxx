@@ -1,7 +1,7 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// CaTDD Implementation: UT_ServiceBoundaryTCP.cxx
+// CaTDD Implementation: UT_ServiceEdgeTCP.cxx
 //
-// CATEGORY: ValidFunc-Boundary-TCP (Edge Cases Over TCP That Still Work)
+// CATEGORY: ValidFunc-Edge-TCP (Edge Cases Over TCP That Still Work)
 // STATUS: 🔴 SKELETON - Tests designed but not implemented
 // DEPENDS ON: _IOC_SrvProtoTCP.c implementation
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -14,19 +14,19 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF OVERVIEW OF THIS UNIT TESTING FILE===============================================
 /**
- * @brief ValidFunc-Boundary-TCP Tests: Verify TCP boundary/edge conditions that still WORK correctly.
+ * @brief ValidFunc-Edge-TCP Tests: Verify TCP boundary/edge conditions that still WORK correctly.
  *
  *-------------------------------------------------------------------------------------------------
- * @category ValidFunc-Boundary-TCP (TCP Edge Cases That Work - APIs Function Correctly at Boundaries)
+ * @category ValidFunc-Edge-TCP (TCP Edge Cases That Work - APIs Function Correctly at Boundaries)
  *
  * Part of Test Design Formula:
- *   Service's Functional Test = ValidFunc(Typical + Boundary) + InValidFunc(Misuse + Fault)
+ *   Service's Functional Test = ValidFunc(Typical + Edge) + InValidFunc(Misuse + Fault)
  *                                                  ^^^^^^^^
  *                                          (TCP Edges but WORKS!)
  *
  * ValidFunc = API WORKS from caller's viewpoint (successful operation or graceful rejection)
  *  - Typical: Common TCP scenarios in normal range (see UT_ServiceTypicalTCP.cxx)
- *  - Boundary: TCP-specific edge cases (port limits, connection limits, timeout boundaries)
+ *  - Edge: TCP-specific edge cases (port limits, connection limits, timeout boundaries)
  *
  * This file covers: TCP-specific boundary conditions where APIs function as designed
  *  - Port boundaries (port 1-65535, ephemeral ports, privileged ports <1024)
@@ -36,7 +36,7 @@
  *  - Network-specific edge cases (localhost vs 0.0.0.0, IPv4/IPv6)
  *  - APIs return appropriate error codes and maintain system integrity
  *
- * TCP Protocol Differences from FIFO (Boundary Aspects):
+ * TCP Protocol Differences from FIFO (Edge Aspects):
  *  - Port range validation (1-65535), port binding conflicts
  *  - Network timeout boundaries (must account for RTT, packet loss)
  *  - Connection queue limits (listen backlog, SYN queue)
@@ -46,14 +46,14 @@
  *  - TCP keep-alive and connection health checks
  *
  * Test Philosophy - KEY DISTINCTION:
- *  - ValidFunc (Typical + Boundary): API WORKS correctly (returns expected result/error)
+ *  - ValidFunc (Typical + Edge): API WORKS correctly (returns expected result/error)
  *  - InValidFunc (Misuse): API usage FAILS (wrong sequence, double calls)
  *  - Focus: Verify TCP APIs handle network edge cases gracefully with clear diagnostics
  *  - All tests here: Correct usage patterns, just testing TCP-specific boundaries
  *
  * Related Test Files:
  *  - UT_ServiceTypicalTCP.cxx: ValidFunc-Typical with TCP (common scenarios)
- *  - UT_ServiceBoundary.cxx: ValidFunc-Boundary with FIFO (general edge cases)
+ *  - UT_ServiceEdge.cxx: ValidFunc-Edge with FIFO (general edge cases)
  *  - UT_ServiceMisuseTCP.cxx: InValidFunc-Misuse with TCP (wrong usage)
  *  - UT_ServiceFaultTCP.cxx: Fault-TCP (network failures, recovery)
  *
@@ -80,13 +80,13 @@
  * DESIGN PRINCIPLE: IMPROVE VALUE • AVOID LOSS • BALANCE SKILL vs COST
  *
  * PRIORITY FRAMEWORK:
- *   P1 🥇 FUNCTIONAL:     ValidFunc(Typical + Boundary) + InvalidFunc(Misuse + Fault)
+ *   P1 🥇 FUNCTIONAL:     ValidFunc(Typical + Edge) + InvalidFunc(Misuse + Fault)
  *                                            ^^^^^^^^
- *                                     (We are here - Boundary for TCP)
+ *                                     (We are here - Edge for TCP)
  *
- * COVERAGE STRATEGY: TCP-Specific Boundary Dimensions
+ * COVERAGE STRATEGY: TCP-Specific Edge Dimensions
  * ┌──────────────────────┬──────────────────────┬──────────────────────┬────────────────────────┐
- * │ Resource Type        │ Boundary Condition   │ Operation            │ Expected Behavior      │
+ * │ Resource Type        │ Edge Condition   │ Operation            │ Expected Behavior      │
  * ├──────────────────────┼──────────────────────┼──────────────────────┼────────────────────────┤
  * │ Port Number          │ Min (1), Max (65535) │ Online service       │ SUCCESS at valid range │
  * │ Port Number          │ Invalid (0, -1, >max)│ Online service       │ INVALID_PARAM          │
@@ -495,7 +495,7 @@
  *      🎯 BEHAVIOR: Call IOC_postEVT on link
  *      ✅ VERIFY: Returns IOC_RESULT_NO_EVENT_CONSUMER, TCP link remains healthy
  *      🧹 CLEANUP: Close link, offline service
- *  @[Status]: ⚪ TODO - Matches FIFO behavior (see UT_ServiceBoundary)
+ *  @[Status]: ⚪ TODO - Matches FIFO behavior (see UT_ServiceEdge)
  *
  * ========================================
  * PRIVILEGED PORT HANDLING (US-7)
@@ -553,7 +553,7 @@
 // Each test marked with ⚪ TODO until TCP protocol is implemented in _IOC_SrvProtoTCP.c
 
 //=== PORT BOUNDARIES ===
-TEST(UT_ServiceBoundaryTCP, verifyTCPService_byMinPort1_expectSuccess) {
+TEST(UT_ServiceEdgeTCP, verifyTCPService_byMinPort1_expectSuccess) {
     GTEST_SKIP() << "⚠️ TCP protocol not yet implemented - requires _IOC_SrvProtoTCP.c";
     // SETUP: May need elevated privileges
     // BEHAVIOR: Online service on port 1, connect client
@@ -561,7 +561,7 @@ TEST(UT_ServiceBoundaryTCP, verifyTCPService_byMinPort1_expectSuccess) {
     // CLEANUP: Close link, offline service
 }
 
-TEST(UT_ServiceBoundaryTCP, verifyTCPService_byMaxPort65535_expectSuccess) {
+TEST(UT_ServiceEdgeTCP, verifyTCPService_byMaxPort65535_expectSuccess) {
     GTEST_SKIP() << "⚠️ TCP protocol not yet implemented - requires _IOC_SrvProtoTCP.c";
     // SETUP: Use port 65535 (ephemeral range)
     // BEHAVIOR: Online service, connect client
@@ -569,7 +569,7 @@ TEST(UT_ServiceBoundaryTCP, verifyTCPService_byMaxPort65535_expectSuccess) {
     // CLEANUP: Standard cleanup
 }
 
-TEST(UT_ServiceBoundaryTCP, verifyTCPService_byPort0_expectInvalidParam) {
+TEST(UT_ServiceEdgeTCP, verifyTCPService_byPort0_expectInvalidParam) {
     GTEST_SKIP() << "⚠️ TCP protocol not yet implemented - requires _IOC_SrvProtoTCP.c";
     // SETUP: URI with port = 0
     // BEHAVIOR: Call IOC_onlineService
@@ -577,7 +577,7 @@ TEST(UT_ServiceBoundaryTCP, verifyTCPService_byPort0_expectInvalidParam) {
     // CLEANUP: None needed
 }
 
-TEST(UT_ServiceBoundaryTCP, verifyTCPService_byPort65536_expectInvalidParam) {
+TEST(UT_ServiceEdgeTCP, verifyTCPService_byPort65536_expectInvalidParam) {
     GTEST_SKIP() << "⚠️ TCP protocol not yet implemented - requires _IOC_SrvProtoTCP.c";
     // SETUP: URI with port = 65536 (exceeds uint16)
     // BEHAVIOR: Call IOC_onlineService
@@ -585,7 +585,7 @@ TEST(UT_ServiceBoundaryTCP, verifyTCPService_byPort65536_expectInvalidParam) {
     // CLEANUP: None needed
 }
 
-TEST(UT_ServiceBoundaryTCP, verifyTCPService_byPrivilegedPort80_expectPermissionOrSuccess) {
+TEST(UT_ServiceEdgeTCP, verifyTCPService_byPrivilegedPort80_expectPermissionOrSuccess) {
     GTEST_SKIP() << "⚠️ TCP protocol not yet implemented - Platform-dependent test";
     // SETUP: Detect if root, prepare port 80
     // BEHAVIOR: Call IOC_onlineService
@@ -594,7 +594,7 @@ TEST(UT_ServiceBoundaryTCP, verifyTCPService_byPrivilegedPort80_expectPermission
 }
 
 //=== ACCEPT TIMEOUT BOUNDARIES ===
-TEST(UT_ServiceBoundaryTCP, verifyAcceptClient_byTimeout100ms_expectTimeout) {
+TEST(UT_ServiceEdgeTCP, verifyAcceptClient_byTimeout100ms_expectTimeout) {
     GTEST_SKIP() << "⚠️ TCP protocol not yet implemented - requires _IOC_SrvProtoTCP.c";
     // SETUP: Online service, no clients connecting
     // BEHAVIOR: acceptClient with 100ms timeout
@@ -602,7 +602,7 @@ TEST(UT_ServiceBoundaryTCP, verifyAcceptClient_byTimeout100ms_expectTimeout) {
     // CLEANUP: Offline service
 }
 
-TEST(UT_ServiceBoundaryTCP, verifyAcceptClient_byZeroTimeout_expectImmediateTimeout) {
+TEST(UT_ServiceEdgeTCP, verifyAcceptClient_byZeroTimeout_expectImmediateTimeout) {
     GTEST_SKIP() << "⚠️ TCP protocol not yet implemented - requires _IOC_SrvProtoTCP.c";
     // SETUP: Online service, no pending clients
     // BEHAVIOR: acceptClient with timeout=0
@@ -610,7 +610,7 @@ TEST(UT_ServiceBoundaryTCP, verifyAcceptClient_byZeroTimeout_expectImmediateTime
     // CLEANUP: Offline service
 }
 
-TEST(UT_ServiceBoundaryTCP, verifyAcceptClient_byZeroTimeoutWithPendingClient_expectImmediateSuccess) {
+TEST(UT_ServiceEdgeTCP, verifyAcceptClient_byZeroTimeoutWithPendingClient_expectImmediateSuccess) {
     GTEST_SKIP() << "⚠️ TCP protocol not yet implemented - requires _IOC_SrvProtoTCP.c";
     // SETUP: Online service, start client connection in thread
     // BEHAVIOR: acceptClient(timeout=0) after client in queue
@@ -619,7 +619,7 @@ TEST(UT_ServiceBoundaryTCP, verifyAcceptClient_byZeroTimeoutWithPendingClient_ex
 }
 
 //=== CONNECTION TIMEOUT BOUNDARIES ===
-TEST(UT_ServiceBoundaryTCP, verifyConnectService_byZeroTimeout_expectImmediateResult) {
+TEST(UT_ServiceEdgeTCP, verifyConnectService_byZeroTimeout_expectImmediateResult) {
     GTEST_SKIP() << "⚠️ TCP protocol not yet implemented - requires _IOC_SrvProtoTCP.c";
     // SETUP: Online service
     // BEHAVIOR: Connect with timeout=0
@@ -627,7 +627,7 @@ TEST(UT_ServiceBoundaryTCP, verifyConnectService_byZeroTimeout_expectImmediateRe
     // CLEANUP: Close if connected
 }
 
-TEST(UT_ServiceBoundaryTCP, verifyConnectService_byTimeout100msToNonExist_expectTimeout) {
+TEST(UT_ServiceEdgeTCP, verifyConnectService_byTimeout100msToNonExist_expectTimeout) {
     GTEST_SKIP() << "⚠️ TCP protocol not yet implemented - requires _IOC_SrvProtoTCP.c";
     // SETUP: Choose unused port (18888)
     // BEHAVIOR: Connect with 100ms timeout
@@ -635,7 +635,7 @@ TEST(UT_ServiceBoundaryTCP, verifyConnectService_byTimeout100msToNonExist_expect
     // CLEANUP: None needed
 }
 
-TEST(UT_ServiceBoundaryTCP, verifyConnectService_bySufficientTimeout_expectSuccess) {
+TEST(UT_ServiceEdgeTCP, verifyConnectService_bySufficientTimeout_expectSuccess) {
     GTEST_SKIP() << "⚠️ TCP protocol not yet implemented - requires _IOC_SrvProtoTCP.c";
     // SETUP: Online service, prepare 2000ms timeout
     // BEHAVIOR: Connect + accept
@@ -644,7 +644,7 @@ TEST(UT_ServiceBoundaryTCP, verifyConnectService_bySufficientTimeout_expectSucce
 }
 
 //=== BUFFER SIZE BOUNDARIES ===
-TEST(UT_ServiceBoundaryTCP, verifyDataTransfer_by1BytePayload_expectSuccess) {
+TEST(UT_ServiceEdgeTCP, verifyDataTransfer_by1BytePayload_expectSuccess) {
     GTEST_SKIP() << "⚠️ TCP protocol not yet implemented - requires _IOC_SrvProtoTCP.c";
     // SETUP: Establish TCP link
     // BEHAVIOR: Send 1 byte, receive 1 byte
@@ -652,7 +652,7 @@ TEST(UT_ServiceBoundaryTCP, verifyDataTransfer_by1BytePayload_expectSuccess) {
     // CLEANUP: Close link
 }
 
-TEST(UT_ServiceBoundaryTCP, verifyDataTransfer_by1MBPayload_expectChunkedSuccess) {
+TEST(UT_ServiceEdgeTCP, verifyDataTransfer_by1MBPayload_expectChunkedSuccess) {
     GTEST_SKIP() << "⚠️ TCP protocol not yet implemented - requires _IOC_SrvProtoTCP.c";
     // SETUP: Establish link, allocate 1MB buffer
     // BEHAVIOR: Send 1MB data, receive in chunks
@@ -660,7 +660,7 @@ TEST(UT_ServiceBoundaryTCP, verifyDataTransfer_by1MBPayload_expectChunkedSuccess
     // CLEANUP: Free buffers, close link
 }
 
-TEST(UT_ServiceBoundaryTCP, verifyDataTransfer_bySlowReceiverFastSender_expectFlowControl) {
+TEST(UT_ServiceEdgeTCP, verifyDataTransfer_bySlowReceiverFastSender_expectFlowControl) {
     GTEST_SKIP() << "⚠️ TCP protocol not yet implemented - requires _IOC_SrvProtoTCP.c";
     // SETUP: Link with small receiver buffer
     // BEHAVIOR: Send 100KB fast, receive slow
@@ -669,7 +669,7 @@ TEST(UT_ServiceBoundaryTCP, verifyDataTransfer_bySlowReceiverFastSender_expectFl
 }
 
 //=== CONNECTION QUEUE BOUNDARIES ===
-TEST(UT_ServiceBoundaryTCP, verifyAcceptClient_byMultipleSimultaneousConnect_expectAllQueued) {
+TEST(UT_ServiceEdgeTCP, verifyAcceptClient_byMultipleSimultaneousConnect_expectAllQueued) {
     GTEST_SKIP() << "⚠️ TCP protocol not yet implemented - requires _IOC_SrvProtoTCP.c";
     // SETUP: Online service, prepare 5 client threads
     // BEHAVIOR: 5 clients connect simultaneously, accept 5 times
@@ -677,7 +677,7 @@ TEST(UT_ServiceBoundaryTCP, verifyAcceptClient_byMultipleSimultaneousConnect_exp
     // CLEANUP: Close all links, offline service
 }
 
-TEST(UT_ServiceBoundaryTCP, verifyAcceptClient_byBacklogFull_expectGracefulHandling) {
+TEST(UT_ServiceEdgeTCP, verifyAcceptClient_byBacklogFull_expectGracefulHandling) {
     GTEST_SKIP() << "⚠️ TCP protocol not yet implemented - requires _IOC_SrvProtoTCP.c";
     // SETUP: Online with small backlog (2), prepare 5 clients
     // BEHAVIOR: Connect 5 rapidly, accept slowly
@@ -686,7 +686,7 @@ TEST(UT_ServiceBoundaryTCP, verifyAcceptClient_byBacklogFull_expectGracefulHandl
 }
 
 //=== EVENT POSTING WITHOUT SUBSCRIBERS ===
-TEST(UT_ServiceBoundaryTCP, verifyPostEVT_byNoSubscriber_expectNoEventConsumer) {
+TEST(UT_ServiceEdgeTCP, verifyPostEVT_byNoSubscriber_expectNoEventConsumer) {
     GTEST_SKIP() << "⚠️ TCP protocol not yet implemented - requires _IOC_SrvProtoTCP.c";
     // SETUP: Establish TCP link, no IOC_subEVT called
     // BEHAVIOR: Call IOC_postEVT
@@ -695,7 +695,7 @@ TEST(UT_ServiceBoundaryTCP, verifyPostEVT_byNoSubscriber_expectNoEventConsumer) 
 }
 
 //=== PRIVILEGED PORT HANDLING ===
-TEST(UT_ServiceBoundaryTCP, verifyTCPService_byNonRootOnPort80_expectPermissionDenied) {
+TEST(UT_ServiceEdgeTCP, verifyTCPService_byNonRootOnPort80_expectPermissionDenied) {
     GTEST_SKIP() << "⚠️ TCP protocol not yet implemented - Platform-specific test";
     // SETUP: Skip if root, prepare port 80
     // BEHAVIOR: Online service
@@ -704,7 +704,7 @@ TEST(UT_ServiceBoundaryTCP, verifyTCPService_byNonRootOnPort80_expectPermissionD
 }
 
 //=== NETWORK INTERFACE BINDING ===
-TEST(UT_ServiceBoundaryTCP, verifyTCPService_byLocalhostBinding_expectLoopbackOnly) {
+TEST(UT_ServiceEdgeTCP, verifyTCPService_byLocalhostBinding_expectLoopbackOnly) {
     GTEST_SKIP() << "⚠️ TCP protocol not yet implemented - requires _IOC_SrvProtoTCP.c";
     // SETUP: Online with host="localhost", port 8103
     // BEHAVIOR: Connect from localhost
@@ -712,7 +712,7 @@ TEST(UT_ServiceBoundaryTCP, verifyTCPService_byLocalhostBinding_expectLoopbackOn
     // CLEANUP: Close link, offline service
 }
 
-TEST(UT_ServiceBoundaryTCP, verifyTCPService_byINADDR_ANYBinding_expectAllInterfaces) {
+TEST(UT_ServiceEdgeTCP, verifyTCPService_byINADDR_ANYBinding_expectAllInterfaces) {
     GTEST_SKIP() << "⚠️ TCP protocol not yet implemented - requires _IOC_SrvProtoTCP.c";
     // SETUP: Online with host="0.0.0.0", port 8104
     // BEHAVIOR: Connect from localhost
@@ -731,14 +731,14 @@ TEST(UT_ServiceBoundaryTCP, verifyTCPService_byINADDR_ANYBinding_expectAllInterf
  *   🟢 GREEN/PASSED:      Test written and passing
  *
  * PRIORITY LEVELS:
- *   P1 🥇 FUNCTIONAL:     ValidFunc(Typical + Boundary) + InvalidFunc(Misuse + Fault)
+ *   P1 🥇 FUNCTIONAL:     ValidFunc(Typical + Edge) + InvalidFunc(Misuse + Fault)
  *                                            ^^^^^^^^
- *                                   (We are P1-Boundary for TCP)
+ *                                   (We are P1-Edge for TCP)
  *
  * DEPENDENCY: ALL tests depend on Source/_IOC_SrvProtoTCP.c implementation
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * P1 🥇 FUNCTIONAL TESTING – ValidFunc-Boundary-TCP (20 tests planned)
+ * P1 🥇 FUNCTIONAL TESTING – ValidFunc-Edge-TCP (20 tests planned)
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  *
  * PORT BOUNDARIES (5 tests) - US-1
@@ -798,4 +798,4 @@ TEST(UT_ServiceBoundaryTCP, verifyTCPService_byINADDR_ANYBinding_expectAllInterf
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>END OF TODO/IMPLEMENTATION TRACKING SECTION===============================================
 
-// END OF UT_ServiceBoundaryTCP.cxx
+// END OF UT_ServiceEdgeTCP.cxx

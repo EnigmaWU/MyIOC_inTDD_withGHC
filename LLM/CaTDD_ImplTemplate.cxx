@@ -74,14 +74,14 @@
  *   P4 🎯 ADDONS:          Optional (Demo, Examples)
  *
  * DEFAULT TEST ORDER:
- *   P1: Typical → Boundary → Misuse → Fault
+ *   P1: Typical → Edge → Misuse → Fault
  *   P2: State → Capability → Concurrency
  *   P3: Performance → Robust → Compatibility → Configuration
  *   P4: Demo/Example
  *
  * CONTEXT-SPECIFIC ADJUSTMENTS:
  *   - New Public API: Complete P1 thoroughly before P2
- *   - Stateful/FSM: Promote State to early P2 (after Typical+Boundary)
+ *   - Stateful/FSM: Promote State to early P2 (after Typical+Edge)
  *   - High Reliability: Promote Fault & Robust
  *   - Performance SLOs: Promote Performance to P2 level
  *   - Highly Concurrent: Promote Concurrency to first in P2
@@ -100,7 +100,7 @@
  *      - Purpose: Verify main usage scenarios.
  *      - Examples: Basic registration, standard event flow, normal command execution.
  *
- *   🔲 BOUNDARY: Edge cases, limits, and mode variations. (HIGH PRIORITY)
+ *   🔲 EDGE: Edge cases, limits, and mode variations. (HIGH PRIORITY)
  *      - Purpose: Test parameter limits and edge values.
  *      - Examples: Min/max values, null/empty inputs, Block/NonBlock/Timeout modes.
  *
@@ -172,7 +172,7 @@
  *
  * COVERAGE STRATEGY (choose dimensions that fit your component):
  *   Option A: Service Role × Client Role × Mode
- *   Option B: Component State × Operation × Boundary
+ *   Option B: Component State × Operation × Edge
  *   Option C: Concurrency × Resource Limits × Error Scenarios
  *   Custom:   [Your Dimension 1] × [Your Dimension 2] × [Your Dimension 3]
  *
@@ -231,7 +231,7 @@
  *   - Each AC should be independently verifiable
  *   - Use precise, unambiguous language
  *   - Include both success and failure scenarios
- *   - Consider boundary conditions explicitly
+ *   - Consider edge conditions explicitly
  *
  * TEMPLATE:
  *
@@ -296,7 +296,7 @@
  *
  * ORGANIZATION STRATEGIES:
  *  ✅ By Feature/Component: Group related functionality tests together
- *  ✅ By Test Category: Typical → Boundary → State → Error → Performance
+ *  ✅ By Test Category: Typical → Edge → State → Error → Performance
  *  ✅ By Coverage Matrix: Systematic coverage of identified dimensions
  *  ✅ By Priority: Critical functionality first, edge cases second
  *
@@ -363,7 +363,7 @@
  *      @[Status]: IMPLEMENTED/RED - Need to implement CALC command handler
  *
  * ═════════════════════════════════════════════════════════════════════════════════════════════
- * 📋 [CATEGORY: Boundary] Edge Cases and Limits
+ * 📋 [CATEGORY: Edge] Edge Cases and Limits
  * ═════════════════════════════════════════════════════════════════════════════════════════════
  *
  * [@AC-2,US-1] Non-blocking behavior under load
@@ -470,7 +470,7 @@ TEST_F(UT_NameofCategoryFixture, verifyBehaviorX_byDoA_expectSomething) {
 //   5. Mark status as you go: ⚪ TODO → 🔴 RED → 🟢 GREEN.
 //
 //===================================================================================================
-// P1 🥇 FUNCTIONAL TESTING – ValidFunc (Typical + Boundary)
+// P1 🥇 FUNCTIONAL TESTING – ValidFunc (Typical + Edge)
 //===================================================================================================
 //
 //   ⚪ [@AC-1,US-1] TC-1: verifyTypical_byBasicOperation_expectSuccess
@@ -478,9 +478,9 @@ TEST_F(UT_NameofCategoryFixture, verifyBehaviorX_byDoA_expectSomething) {
 //        - Category: Typical (ValidFunc)
 //        - Estimated effort: 1-2 hours
 //
-//   ⚪ [@AC-2,US-1] TC-1: verifyBoundary_byNullInput_expectInvalidParamError
+//   ⚪ [@AC-2,US-1] TC-1: verifyEdge_byNullInput_expectInvalidParamError
 //        - Description: Fast-fail validation for null pointer (Fast-Fail Six #1).
-//        - Category: Boundary (ValidFunc)
+//        - Category: Edge (ValidFunc)
 //        - Estimated effort: 30 min
 //
 //===================================================================================================

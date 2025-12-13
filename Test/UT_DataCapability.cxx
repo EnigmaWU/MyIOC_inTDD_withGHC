@@ -13,7 +13,7 @@
  * 📋 DAT SYSTEM CAPABILITY TEST FOCUS
  *
  * 🎯 DESIGN PRINCIPLE: Validate DAT-related constraints in system capability description returned by
- *IOC_getCapability() 🔄 PRIORITY: Capability query → Basic transmission → Boundary testing → Error handling
+ *IOC_getCapability() 🔄 PRIORITY: Capability query → Basic transmission → Edge testing → Error handling
  *
  * ⭐ CAPABILITY (Capability verification):
  *    💭 Purpose: Test system capability boundaries defined by IOC_ConetModeDataCapability_T
@@ -120,7 +120,7 @@
  *
  * [@AC-1,US-3] DAT behavior at capability boundaries
  *  TC-1:
- *      @[Name]: verifyDatBoundaryBehavior_byConnectionLimits_expectGracefulHandling
+ *      @[Name]: verifyDatEdgeBehavior_byConnectionLimits_expectGracefulHandling
  *      @[Purpose]: Verify DAT behavior when connection limits are reached
  *      @[Brief]: Test system behavior at MaxSrvNum/MaxCliNum boundaries
  *
@@ -146,7 +146,7 @@
  *   - verifyConetModeDataCapability_byInvalidInputs_expectGracefulHandling
  *   - verifyConetModeDataCapability_bySystemStateIndependence_expectConsistentBehavior
  *   - verifyDatTransmission_byWithinMaxDataQueueSize_expectReliableBehavior
- *   - verifyDatBoundaryBehavior_byConnectionLimits_expectGracefulHandling
+ *   - verifyDatEdgeBehavior_byConnectionLimits_expectGracefulHandling
  *
  **************************************************************************************************/
 
@@ -531,7 +531,7 @@ TEST(UT_DataCapability, verifyDatTransmission_byWithinMaxDataQueueSize_expectRel
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF: [@AC-1,US-3] TC-1===============================================================
 /**
- * @[Name]: verifyDatBoundaryBehavior_byConnectionLimits_expectGracefulHandling
+ * @[Name]: verifyDatEdgeBehavior_byConnectionLimits_expectGracefulHandling
  * @[Steps]:
  *   1) Query system capabilities for connection limits AS SETUP
  *   2) Create services/clients up to MaxSrvNum/MaxCliNum limits AS BEHAVIOR
@@ -540,9 +540,9 @@ TEST(UT_DataCapability, verifyDatTransmission_byWithinMaxDataQueueSize_expectRel
  * @[Expect]: System handles connection limits gracefully with appropriate error codes
  * @[Notes]: Verify AC-1@US-3 - TC-1: Graceful handling at connection count boundaries
  */
-TEST(UT_DataCapability, verifyDatBoundaryBehavior_byConnectionLimits_expectGracefulHandling) {
+TEST(UT_DataCapability, verifyDatEdgeBehavior_byConnectionLimits_expectGracefulHandling) {
     //===SETUP===
-    printf("BEHAVIOR: verifyDatBoundaryBehavior_byConnectionLimits_expectGracefulHandling\n");
+    printf("BEHAVIOR: verifyDatEdgeBehavior_byConnectionLimits_expectGracefulHandling\n");
 
     // Query system capabilities for connection limits
     IOC_CapabilityDescription_T CapDesc;
@@ -573,7 +573,7 @@ TEST(UT_DataCapability, verifyDatBoundaryBehavior_byConnectionLimits_expectGrace
 
     for (int srvIdx = 0; srvIdx <= MaxSrvNum; srvIdx++) {
         char SrvPath[64];
-        snprintf(SrvPath, sizeof(SrvPath), "BoundaryTest_Srv_%d", srvIdx);
+        snprintf(SrvPath, sizeof(SrvPath), "EdgeTest_Srv_%d", srvIdx);
 
         IOC_SrvURI_T SrvURI = {
             .pProtocol = IOC_SRV_PROTO_FIFO,
@@ -650,7 +650,7 @@ TEST(UT_DataCapability, verifyDatBoundaryBehavior_byConnectionLimits_expectGrace
             IOC_ConnArgs_T ConnArgs = {
                 .SrvURI = OnlinedServices[0] == TestSrvID ? IOC_SrvURI_T{.pProtocol = IOC_SRV_PROTO_FIFO,
                                                                          .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-                                                                         .pPath = "BoundaryTest_Srv_0"}
+                                                                         .pPath = "EdgeTest_Srv_0"}
                                                           : IOC_SrvURI_T{},
                 .Usage = IOC_LinkUsageDatReceiver,  // Client acts as DatReceiver
                 .UsageArgs = {.pDat = &DatUsageArgs},
@@ -706,7 +706,7 @@ TEST(UT_DataCapability, verifyDatBoundaryBehavior_byConnectionLimits_expectGrace
 
         if (!ServerLinkIDs.empty()) {
             // Send small test data to verify connections work at boundary
-            const char *TestData = "Boundary test data";
+            const char *TestData = "Edge test data";
             size_t TestDataSize = strlen(TestData) + 1;
 
             // Send data from first server to all connected clients
@@ -747,7 +747,7 @@ TEST(UT_DataCapability, verifyDatBoundaryBehavior_byConnectionLimits_expectGrace
             IOC_ConnArgs_T RecoveryConnArgs = {
                 .SrvURI = {.pProtocol = IOC_SRV_PROTO_FIFO,
                            .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-                           .pPath = "BoundaryTest_Srv_0"},
+                           .pPath = "EdgeTest_Srv_0"},
                 .Usage = IOC_LinkUsageDatReceiver,
                 .UsageArgs = {.pDat = &RecoveryDatUsageArgs},
             };

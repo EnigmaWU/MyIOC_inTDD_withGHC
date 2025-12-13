@@ -32,7 +32,7 @@
 /**
  * Design focus:
  *  - Typical flag usage: verify keep-alive behavior vs default auto-close behavior
- *  - Boundary conditions: service offline scenarios with and without the flag
+ *  - Edge conditions: service offline scenarios with and without the flag
  *  - State management: link preservation and manual cleanup workflows
  *  - Resource control: application-driven cleanup after service shutdown
  */

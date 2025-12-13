@@ -1,16 +1,16 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// UT_DataBoundaryUS5.cxx - DAT Boundary Testing: US-5 Stream Granularity Boundary Validation
+// UT_DataEdgeUS5.cxx - DAT Edge Testing: US-5 Stream Granularity Edge Validation
 // 📝 Purpose: Test Cases for User Story 5 - Stream processing developer granularity boundary testing
 // 🔄 Focus: DAT stream behavior with different send/receive granularities (byte-by-byte vs block-by-block)
 // 🎯 Coverage: [@US-5] Stream granularity boundary validation (AC-1, AC-2, AC-3)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include "UT_DataBoundary.h"
+#include "UT_DataEdge.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF US-5 TEST CASES==================================================================
 /**************************************************************************************************
- * @brief 【US-5 Test Cases】- Stream Granularity Boundary Validation
+ * @brief 【US-5 Test Cases】- Stream Granularity Edge Validation
  *
  * [@AC-1,US-5] Stream granularity validation - Byte-by-byte send, block receive
  *  TC-1:
@@ -48,7 +48,7 @@
  *************************************************************************************************/
 //======>END OF US-5 TEST CASES====================================================================
 
-#include "UT_DataBoundary.h"
+#include "UT_DataEdge.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF US-5 TEST IMPLEMENTATIONS========================================================
@@ -65,7 +65,7 @@
  * @[Expect]: Byte-by-byte transmission successfully reconstructed into blocks with data integrity preserved.
  * @[Notes]: Tests fundamental DAT STREAM behavior - granularity independence.
  */
-TEST(UT_DataBoundary, verifyDatStreamGranularity_byByteToBlockPattern_expectDataIntegrity) {
+TEST(UT_DataEdge, verifyDatStreamGranularity_byByteToBlockPattern_expectDataIntegrity) {
     printf("\n📋 [@AC-1,US-5] TC-1: DAT Stream Granularity - Byte-to-Block Pattern\n");
 
     //===SETUP===
@@ -74,7 +74,7 @@ TEST(UT_DataBoundary, verifyDatStreamGranularity_byByteToBlockPattern_expectData
     IOC_LinkID_T DatSenderLinkID = IOC_ID_INVALID;
     IOC_LinkID_T DatReceiverLinkID = IOC_ID_INVALID;
 
-    __DatBoundaryPrivData_T DatReceiverPrivData = {0};
+    __DatEdgePrivData_T DatReceiverPrivData = {0};
     DatReceiverPrivData.ClientIndex = 1;
     DatReceiverPrivData.ReceivedContentWritePos = 0;
 
@@ -88,7 +88,7 @@ TEST(UT_DataBoundary, verifyDatStreamGranularity_byByteToBlockPattern_expectData
     };
 
     IOC_DatUsageArgs_T DatReceiverUsageArgs = {
-        .CbRecvDat_F = __CbRecvDat_Boundary_F,
+        .CbRecvDat_F = __CbRecvDat_Edge_F,
         .pCbPrivData = &DatReceiverPrivData,
     };
 
@@ -201,7 +201,7 @@ TEST(UT_DataBoundary, verifyDatStreamGranularity_byByteToBlockPattern_expectData
  * @[Expect]: TDD expectation - rapid sends should accumulate and be batched while receiver is busy.
  * @[Notes]: Tests the specific question: "May I receive 1024 bytes once each 10ms?" - slow receiver batching pattern.
  */
-TEST(UT_DataBoundary, verifyDatStreamGranularity_byBurstThenPausePattern_expectBatchingBehavior) {
+TEST(UT_DataEdge, verifyDatStreamGranularity_byBurstThenPausePattern_expectBatchingBehavior) {
     printf("\n📋 [@AC-1,US-5] TC-2: DAT Stream Granularity - Burst-Then-Pause Pattern\n");
 
     //===SETUP===
@@ -210,7 +210,7 @@ TEST(UT_DataBoundary, verifyDatStreamGranularity_byBurstThenPausePattern_expectB
     IOC_LinkID_T DatSenderLinkID = IOC_ID_INVALID;
     IOC_LinkID_T DatReceiverLinkID = IOC_ID_INVALID;
 
-    __DatBoundaryPrivData_T DatReceiverPrivData = {0};
+    __DatEdgePrivData_T DatReceiverPrivData = {0};
     DatReceiverPrivData.ClientIndex = 2;
     DatReceiverPrivData.ReceivedContentWritePos = 0;
     DatReceiverPrivData.FirstCallbackRecorded = false;
@@ -421,7 +421,7 @@ TEST(UT_DataBoundary, verifyDatStreamGranularity_byBurstThenPausePattern_expectB
  *           This test will FAIL until IOC implements timing-aware batching capability.
  *           RED → GREEN → REFACTOR: Test drives implementation of enhanced IOC batching.
  */
-TEST(UT_DataBoundary, verifyDatStreamGranularity_bySlowSendSlowReceive_expectInterleavedBatching) {
+TEST(UT_DataEdge, verifyDatStreamGranularity_bySlowSendSlowReceive_expectInterleavedBatching) {
     printf("\n📋 [@AC-1,US-5] TC-2B: DAT Stream Granularity - Slow Send + Slow Receive Pattern\n");
 
     //===SETUP===
@@ -430,7 +430,7 @@ TEST(UT_DataBoundary, verifyDatStreamGranularity_bySlowSendSlowReceive_expectInt
     IOC_LinkID_T DatSenderLinkID = IOC_ID_INVALID;
     IOC_LinkID_T DatReceiverLinkID = IOC_ID_INVALID;
 
-    __DatBoundaryPrivData_T DatReceiverPrivData = {0};
+    __DatEdgePrivData_T DatReceiverPrivData = {0};
     DatReceiverPrivData.ClientIndex = 4;  // New client ID
     DatReceiverPrivData.ReceivedContentWritePos = 0;
     DatReceiverPrivData.FirstCallbackRecorded = false;
@@ -654,7 +654,7 @@ TEST(UT_DataBoundary, verifyDatStreamGranularity_bySlowSendSlowReceive_expectInt
  * @[Expect]: Large block transmission successfully fragmented and received in smaller pieces.
  * @[Notes]: Tests DAT STREAM fragmentation capability - receiver granularity control.
  */
-TEST(UT_DataBoundary, verifyDatStreamGranularity_byBlockToBytePattern_expectFragmentationSupport) {
+TEST(UT_DataEdge, verifyDatStreamGranularity_byBlockToBytePattern_expectFragmentationSupport) {
     printf("\n📋 [@AC-2,US-5] TC-1: DAT Stream Granularity - Block-to-Byte Pattern\n");
 
     //===SETUP===
@@ -809,7 +809,7 @@ TEST(UT_DataBoundary, verifyDatStreamGranularity_byBlockToBytePattern_expectFrag
  * @[Expect]: Variable granularity patterns maintain stream consistency and data integrity.
  * @[Notes]: Tests DAT STREAM adaptability - real-world mixed granularity scenarios.
  */
-TEST(UT_DataBoundary, verifyDatStreamGranularity_byVariablePatterns_expectConsistentBehavior) {
+TEST(UT_DataEdge, verifyDatStreamGranularity_byVariablePatterns_expectConsistentBehavior) {
     printf("\n📋 [@AC-3,US-5] TC-1: DAT Stream Granularity - Variable Patterns\n");
 
     //===SETUP===
@@ -818,7 +818,7 @@ TEST(UT_DataBoundary, verifyDatStreamGranularity_byVariablePatterns_expectConsis
     IOC_LinkID_T DatSenderLinkID = IOC_ID_INVALID;
     IOC_LinkID_T DatReceiverLinkID = IOC_ID_INVALID;
 
-    __DatBoundaryPrivData_T DatReceiverPrivData = {0};
+    __DatEdgePrivData_T DatReceiverPrivData = {0};
     DatReceiverPrivData.ClientIndex = 3;
     DatReceiverPrivData.ReceivedContentWritePos = 0;
 
@@ -832,7 +832,7 @@ TEST(UT_DataBoundary, verifyDatStreamGranularity_byVariablePatterns_expectConsis
     };
 
     IOC_DatUsageArgs_T DatReceiverUsageArgs = {
-        .CbRecvDat_F = __CbRecvDat_Boundary_F,
+        .CbRecvDat_F = __CbRecvDat_Edge_F,
         .pCbPrivData = &DatReceiverPrivData,
     };
 

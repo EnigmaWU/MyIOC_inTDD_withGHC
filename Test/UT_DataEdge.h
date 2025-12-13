@@ -2,8 +2,8 @@
 // QUICK REFERENCE GUIDE
 // 📝 Purpose: DAT (Data Transfer) boundary testing unit test framework
 // 🔄 Process: User Story → Acceptance Criteria → Test Cases → Implementation
-// 📂 Category: DataBoundary - Focus on DAT data transfer boundary conditions and limit parameter testing
-// 🎯 Focus: Boundary values, null values, timeouts, blocking/non-blocking modes, data size limits and other edge cases
+// 📂 Category: DataEdge - Focus on DAT data transfer boundary conditions and limit parameter testing
+// 🎯 Focus: Edge values, null values, timeouts, blocking/non-blocking modes, data size limits and other edge cases
 // Reference Unit Testing Templates in UT_FreelyDrafts.cxx when needed.
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -26,7 +26,7 @@
  *  Test file scope differentiation:
  *  - DataTypical: validates typical usage scenarios and common data types
  *  - DataCapability: validates system capability limits and capacity testing
- *  - DataBoundary: validates boundary conditions, exceptional inputs and error handling
+ *  - DataEdge: validates boundary conditions, exceptional inputs and error handling
  *  - DataState: validates connection and state boundary behaviors
  *  - DataPerformance: validates performance characteristics and optimization scenarios
  *
@@ -246,26 +246,26 @@
  *
  * Test Cases are organized by User Story and implemented in separate files:
  *
- * 📂 UT_DataBoundaryUS1.cxx - [@US-1] Parameter boundary validation
- *    └── [@AC-1,US-1] TC-1: verifyDatParameterBoundary_byInvalidInputs_expectGracefulErrorHandling
- *    └── [@AC-2,US-1] TC-2: verifyDatParameterBoundary_byEdgeCaseValues_expectValidationSuccess
+ * 📂 UT_DataEdgeUS1.cxx - [@US-1] Parameter boundary validation
+ *    └── [@AC-1,US-1] TC-1: verifyDatParameterEdge_byInvalidInputs_expectGracefulErrorHandling
+ *    └── [@AC-2,US-1] TC-2: verifyDatParameterEdge_byEdgeCaseValues_expectValidationSuccess
  *    └── TODO: [@AC-3,US-1] IOC_Options boundary validation
  *    └── TODO: [@AC-4,US-1] Mixed valid/invalid parameter combinations
  *
- * 📂 UT_DataBoundaryUS2.cxx - [@US-2] Data size boundary validation
- *    └── [@AC-1,US-2] TC-1: verifyDatDataSizeBoundary_byZeroSizeData_expectConsistentBehavior
- *    └── [@AC-1,US-2] TC-2: verifyDatDataSizeBoundary_byZeroSizeEdgeCases_expectRobustHandling
+ * 📂 UT_DataEdgeUS2.cxx - [@US-2] Data size boundary validation
+ *    └── [@AC-1,US-2] TC-1: verifyDatDataSizeEdge_byZeroSizeData_expectConsistentBehavior
+ *    └── [@AC-1,US-2] TC-2: verifyDatDataSizeEdge_byZeroSizeEdgeCases_expectRobustHandling
  *    └── TODO: [@AC-2,US-2] Maximum data size boundary validation
  *    └── TODO: [@AC-3,US-2] Oversized data boundary validation
  *
- * 📂 UT_DataBoundaryUS3.cxx - [@US-3] Timeout and blocking mode boundaries
- *    └── [@AC-1,US-3] TC-1: verifyDatTimeoutBoundary_byZeroTimeout_expectImmediateReturn
- *    └── [@AC-2,US-3] TC-1: verifyDatBlockingModeBoundary_byModeTransitions_expectConsistentBehavior
- *    └── [@AC-3,US-3] TC-1: verifyDatTimeoutBoundary_byExtremeValues_expectProperHandling
- *    └── [@AC-1,US-3] TC-2: verifyDatTimeoutBoundary_byPrecisionTesting_expectAccurateTiming
- *    └── [@AC-2,US-3] TC-2: verifyDatBlockingModeBoundary_byStateConsistency_expectNoDataLoss
+ * 📂 UT_DataEdgeUS3.cxx - [@US-3] Timeout and blocking mode boundaries
+ *    └── [@AC-1,US-3] TC-1: verifyDatTimeoutEdge_byZeroTimeout_expectImmediateReturn
+ *    └── [@AC-2,US-3] TC-1: verifyDatBlockingModeEdge_byModeTransitions_expectConsistentBehavior
+ *    └── [@AC-3,US-3] TC-1: verifyDatTimeoutEdge_byExtremeValues_expectProperHandling
+ *    └── [@AC-1,US-3] TC-2: verifyDatTimeoutEdge_byPrecisionTesting_expectAccurateTiming
+ *    └── [@AC-2,US-3] TC-2: verifyDatBlockingModeEdge_byStateConsistency_expectNoDataLoss
  *
- * 📂 UT_DataBoundaryUS4.cxx - [@US-4] Error code coverage validation
+ * 📂 UT_DataEdgeUS4.cxx - [@US-4] Error code coverage validation
  *    └── [@AC-1,US-4] TC-1: verifyDatErrorCodeCoverage_byParameterBoundaries_expectSpecificErrorCodes
  *    └── [@AC-2,US-4] TC-2: verifyDatErrorCodeCoverage_byDataSizeConsistency_expectIsolatedDataValidation
  *    └── [@AC-3,US-4] TC-3: verifyDatErrorCodeCoverage_byTimeoutModeBoundaries_expectTimeoutErrorCodes
@@ -278,7 +278,7 @@
  *    📋 NOTE: sendDAT and recvDAT have different validation precedence orders
  *    🔍 IMPLICATION: Error precedence behavior is operation-specific and LinkID-dependent
  *
- * 📂 UT_DataBoundaryUS5.cxx - [@US-5] Stream granularity boundary validation
+ * 📂 UT_DataEdgeUS5.cxx - [@US-5] Stream granularity boundary validation
  *    └── [@AC-1,US-5] TC-1: verifyDatStreamGranularity_byByteToBlockPattern_expectDataIntegrity
  *    └── [@AC-1,US-5] TC-2: verifyDatStreamGranularity_byBurstThenPausePattern_expectBatchingBehavior
  *    └── [@AC-2,US-5] TC-1: verifyDatStreamGranularity_byBlockToBytePattern_expectFragmentationSupport
@@ -304,7 +304,7 @@ typedef struct {
     char ReceivedContent[2048];       // Buffer for data verification (increased for granularity tests)
     ULONG_T ReceivedContentWritePos;  // Current write position in ReceivedContent buffer
 
-    // Boundary-specific tracking
+    // Edge-specific tracking
     bool ZeroSizeDataReceived;
     bool MaxSizeDataReceived;
     bool ErrorOccurred;
@@ -329,11 +329,11 @@ typedef struct {
     int SlowReceiverPauseMs;   // Pause duration in milliseconds for first callback
     bool FirstCallbackPaused;  // Track if first callback has been paused
     bool AlwaysSlowMode;       // Always apply slow delay (for slow send/slow receive tests)
-} __DatBoundaryPrivData_T;
+} __DatEdgePrivData_T;
 
 // Callback function for DAT boundary testing
-static IOC_Result_T __CbRecvDat_Boundary_F(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, void *pCbPriv) {
-    __DatBoundaryPrivData_T *pPrivData = (__DatBoundaryPrivData_T *)pCbPriv;
+static IOC_Result_T __CbRecvDat_Edge_F(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, void *pCbPriv) {
+    __DatEdgePrivData_T *pPrivData = (__DatEdgePrivData_T *)pCbPriv;
 
     // Extract data from DatDesc
     void *pData;
@@ -379,7 +379,7 @@ static IOC_Result_T __CbRecvDat_Boundary_F(IOC_LinkID_T LinkID, IOC_DatDesc_pT p
         pPrivData->ReceivedContentWritePos += DataLen;
     }
 
-    // printf("DAT Boundary Callback: Client[%d], received %lu bytes, total: %lu bytes\n", pPrivData->ClientIndex,
+    // printf("DAT Edge Callback: Client[%d], received %lu bytes, total: %lu bytes\n", pPrivData->ClientIndex,
     // DataLen,
     //        pPrivData->TotalReceivedSize);
     return IOC_RESULT_SUCCESS;
@@ -387,7 +387,7 @@ static IOC_Result_T __CbRecvDat_Boundary_F(IOC_LinkID_T LinkID, IOC_DatDesc_pT p
 
 // Special callback function for slow receiver batching testing
 static IOC_Result_T __CbRecvDat_SlowReceiver_F(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, void *pCbPriv) {
-    __DatBoundaryPrivData_T *pPrivData = (__DatBoundaryPrivData_T *)pCbPriv;
+    __DatEdgePrivData_T *pPrivData = (__DatEdgePrivData_T *)pCbPriv;
 
     // Extract data from DatDesc
     void *pData;

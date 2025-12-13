@@ -22,7 +22,7 @@
  * DESIGN PRINCIPLES: 定义清晰的覆盖策略和范围
  * EXAMPLES:
  *  - Service Role × Client Role × Mode combinations (Producer/Consumer × Callback/Pull)
- *  - Component State × Operation × Boundary conditions  
+ *  - Component State × Operation × Edge conditions  
  *  - Multi-threading × Resource limits × Error scenarios
  */
 ```
@@ -150,7 +150,7 @@ TEST(UT_FreelyDrafts, myQuickIdea) {
 
 ## 📋 测试分类完整指南
 
-> 🔄 **优先级排序**: Typical → Boundary → Misuse → State → Fault → Performance → Concurrency → Others
+> 🔄 **优先级排序**: Typical → Edge → Misuse → State → Fault → Performance → Concurrency → Others
 
 ### 🏅 第一优先级（必须覆盖）
 
@@ -158,7 +158,7 @@ TEST(UT_FreelyDrafts, myQuickIdea) {
 |-------------------|-------------|--------------------------------|-------------------------------|-------------------------|
 | **🆓 FreelyDrafts** | 自由想法记录 | 快速头脑风暴，创意思考          | 任何直觉测试想法，"假如"场景    | 早期探索，新功能分析     |
 | **⭐ Typical**      | 典型用例验证 | 核心功能，标准工作流            | IOC服务注册/查找，事件订阅/发布，auto-accept行为 | 第一优先级，基础行为验证 |
-| **🔲 Boundary**     | 边界条件测试 | 最小/最大值，空值输入，溢出条件 | 零超时，最大字符串长度，空指针  | 高优先级，典型用例之后   |
+| **🔲 Edge**     | 边界条件测试 | 最小/最大值，空值输入，溢出条件 | 零超时，最大字符串长度，空指针  | 高优先级，典型用例之后   |
 | **🚫 Misuse**       | 误用检测     | API误用，错误调用序列           | 错误参数顺序，非法状态转换      | API鲁棒性，用户错误预防  |
 
 ### 🥈 第二优先级（重要组件）
@@ -202,7 +202,7 @@ TEST(UT_FreelyDrafts, myQuickIdea) {
 ### 🎯 分类选择策略
 
 ```text
-简单系统: Typical + Boundary + Misuse
+简单系统: Typical + Edge + Misuse
 中等系统: + State + Capability  
 复杂系统: + Performance + Concurrency + Robust
 关键系统: + Fault + Demo/Example + Compatibility
@@ -210,7 +210,7 @@ TEST(UT_FreelyDrafts, myQuickIdea) {
 
 ### 📊 测试覆盖度建议
 
-- **🥇 必须覆盖** (100%): Typical + Boundary + Misuse
+- **🥇 必须覆盖** (100%): Typical + Edge + Misuse
 - **🥈 高度覆盖** (80%): State + Fault  
 - **🥉 适度覆盖** (60%): Performance + Capability
 - **🏅 选择覆盖** (40%): Concurrency + Robust
@@ -255,7 +255,7 @@ FreelyDrafts → 想法收集
     ↓
 Typical → 基础功能验证
     ↓
-Boundary → 边界条件验证
+Edge → 边界条件验证
     ↓
 Specialized → 专门测试文件 (State/Performance/Concurrency等)
 ```
@@ -321,7 +321,7 @@ TEST(UT_IOC_Example, verifyConsumerService_byClientPost_expectServicePull) {
 
 ```text
 Layer 1: 🟢 核心功能 (Typical)
-Layer 2: 🟢 边界条件 (Boundary)  
+Layer 2: 🟢 边界条件 (Edge)  
 Layer 3: 🔴 高级场景 (State/Performance)
 Layer 4: 🔴 特殊场景 (Fault/Concurrency)
 ```

@@ -41,7 +41,7 @@
  *  - 手动连接接受测试（已在UT_DataTypical.cxx中覆盖）
  *  - 复杂的状态管理（属于UT_DataState范畴）
  *  - 性能优化场景（属于UT_DataPerformance范畴）
- *  - 错误处理和边界条件（属于UT_DataBoundary范畴）
+ *  - 错误处理和边界条件（属于UT_DataEdge范畴）
  *
  *  参考文档：
  *  - IOC_SrvTypes.h::IOC_SRVFLAG_AUTO_ACCEPT定义
@@ -67,7 +67,7 @@
  *
  * ❌ NON-TYPICAL AUTO-ACCEPT SCENARIOS EXCLUDED (排除的非典型场景):
  *    🔧 手动连接管理（已在UT_DataTypical.cxx覆盖）
- *    🚫 错误处理和异常场景（属于UT_DataBoundary范畴）
+ *    🚫 错误处理和异常场景（属于UT_DataEdge范畴）
  *    ⚡ 性能优化和压力测试（属于UT_DataPerformance范畴）
  *    🔄 复杂状态管理（属于UT_DataState范畴）
  *    🚫 轮询模式（AUTO_ACCEPT要求回调模式）

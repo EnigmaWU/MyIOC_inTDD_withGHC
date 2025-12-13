@@ -64,7 +64,7 @@
  *   - [In scope]: Resource exhaustion (port conflicts, connection limits exceeded)
  *   - [In scope]: External failures (service offline, host unreachable)
  *   - [In scope]: Error recovery and graceful degradation
- *   - [Out of scope]: Valid inputs at boundaries (see UT_CommandBoundaryTCP.cxx)
+ *   - [Out of scope]: Valid inputs at boundaries (see UT_CommandEdgeTCP.cxx)
  *   - [Out of scope]: API misuse (see UT_CommandMisuseTCP.cxx)
  *   - [Out of scope]: Correct operation (see UT_CommandTypicalTCP.cxx)
  *
@@ -84,7 +84,7 @@
  *
  * RELATIONSHIPS:
  *   - Complements: UT_CommandTypicalTCP.cxx (correct operation)
- *   - Complements: UT_CommandBoundaryTCP.cxx (boundary conditions)
+ *   - Complements: UT_CommandEdgeTCP.cxx (boundary conditions)
  *   - Complements: UT_CommandMisuseTCP.cxx (API misuse)
  *   - Depends on: IOC Command API error handling, TCP protocol resilience
  *   - Production code: Source/_IOC_SrvProtoTCP.c, Source/IOC_Command.c
@@ -99,7 +99,7 @@
  * DESIGN PRINCIPLE: IMPROVE VALUE • AVOID LOSS • BALANCE SKILL vs COST
  *
  * PRIORITY FRAMEWORK:
- *   P1 🥇 FUNCTIONAL:     ValidFunc(Typical + Boundary) + InvalidFunc(Misuse + Fault)
+ *   P1 🥇 FUNCTIONAL:     ValidFunc(Typical + Edge) + InvalidFunc(Misuse + Fault)
  *   P2 🥈 DESIGN-ORIENTED: State, Capability, Concurrency
  *   P3 🥉 QUALITY-ORIENTED: Performance, Robust, Compatibility, Configuration
  *
@@ -199,7 +199,7 @@
  * STATUS TRACKING: ⚪ = Planned/TODO，🔴 = Implemented/RED, 🟢 = Passed/GREEN
  *
  * PORT ALLOCATION STRATEGY:
- *  - Base port: 21080 (different from Typical, Boundary, Misuse to avoid conflicts)
+ *  - Base port: 21080 (different from Typical, Edge, Misuse to avoid conflicts)
  *  - Range: 21080-21099 for fault tests
  *
  */

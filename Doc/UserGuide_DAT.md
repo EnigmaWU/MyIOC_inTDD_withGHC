@@ -383,11 +383,11 @@ static IOC_Result_T TypicalClientRecvCallback(IOC_LinkID_T LinkID,
 }
 ```
 
-### Example 3: Boundary Condition Testing (from UT_DataBoundary.cxx)
+### Example 3: Edge Condition Testing (from UT_DataEdge.cxx)
 
 ```c
 // Test maximum data size transmission
-TEST(UT_DataBoundary, verifyDatTransmission_byMaxDataSize_expectSuccess) {
+TEST(UT_DataEdge, verifyDatTransmission_byMaxDataSize_expectSuccess) {
     // Query system capabilities for max data size
     IOC_ConetModeDataCapability_T DataCap = {0};
     ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_getCapability(NULL, NULL, &DataCap, NULL));
@@ -615,7 +615,7 @@ if (result == IOC_RESULT_DATA_TOO_LARGE) {
 For comprehensive examples and validation patterns, refer to these test files:
 
 - **UT_DataTypical.cxx**: Basic usage patterns and typical scenarios
-- **UT_DataBoundary.cxx**: Boundary conditions and error handling
+- **UT_DataEdge.cxx**: Edge conditions and error handling
 - **UT_DataCapability.cxx**: System capability limits and constraints
 - **UT_DataPerformance.cxx**: Performance characteristics and optimization
 - **UT_DataState.cxx**: Connection and state management

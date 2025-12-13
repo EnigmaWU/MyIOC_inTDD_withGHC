@@ -1,6 +1,6 @@
-# UT_DataBoundaryUS3 Test Design Documentation
+# UT_DataEdgeUS3 Test Design Documentation
 
-## Test Case: verifyDatTimeoutBoundary_byPrecisionTesting_expectAccurateTiming
+## Test Case: verifyDatTimeoutEdge_byPrecisionTesting_expectAccurateTiming
 
 ### 🎯 PURPOSE
 Verify that IOC DAT timeout operations exhibit precise and accurate timing behavior across various timeout values, ensuring the timeout mechanism is reliable for time-critical applications.

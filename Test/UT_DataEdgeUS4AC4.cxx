@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// UT_DataBoundaryUS4AC4.cxx - DAT Boundary Testing: US-4 AC-4 Multiple Error Condition Precedence Validation
+// UT_DataEdgeUS4AC4.cxx - DAT Edge Testing: US-4 AC-4 Multiple Error Condition Precedence Validation
 // 📝 Purpose: Test Cases for User Story 4, Acceptance Criteria 4 - Multiple error condition precedence validation
 // 🔄 Focus: LinkID > DatDescParams > Options (logical resource-first validation precedence)
 // 🎯 Coverage: [@US-4,AC-4] Multiple error condition precedence validation (comprehensive boundary error testing)
@@ -9,7 +9,7 @@
 #include <thread>
 #include <vector>
 
-#include "UT_DataBoundaryUS4.h"
+#include "UT_DataEdgeUS4.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF US-4 SHARED DATA IMPLEMENTATION=================================================
@@ -41,7 +41,7 @@ __DatErrorCodeSharedTestData_T g_US4_SharedTestData = {.TestConfigs = {},
  * ║ @[Expected]: All error combinations should follow the improved precedence order          ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
-TEST(UT_DataBoundary, verifyDatErrorCodePrecedence_byImprovedOrder_expectLogicalValidation) {
+TEST(UT_DataEdge, verifyDatErrorCodePrecedence_byImprovedOrder_expectLogicalValidation) {
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                🔧 SETUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
@@ -191,7 +191,7 @@ TEST(UT_DataBoundary, verifyDatErrorCodePrecedence_byImprovedOrder_expectLogical
  * ║ @[Purpose]: Validate that IMPROVED precedence is consistent across sendDAT/recvDAT      ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
-TEST(UT_DataBoundary, verifyDatErrorCodePrecedence_byImprovedConsistency_expectUniformBehavior) {
+TEST(UT_DataEdge, verifyDatErrorCodePrecedence_byImprovedConsistency_expectUniformBehavior) {
     printf("🎯 TESTING IMPROVED CROSS-OPERATION CONSISTENCY\n");
     printf("   📋 sendDAT and recvDAT should have IDENTICAL precedence behavior\n");
 
@@ -264,7 +264,7 @@ TEST(UT_DataBoundary, verifyDatErrorCodePrecedence_byImprovedConsistency_expectU
  * ║ @[Purpose]: Validate that precedence is independent of specific LinkID values           ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
-TEST(UT_DataBoundary, verifyDatErrorCodePrecedence_byImprovedIndependence_expectUniformLinkIDBehavior) {
+TEST(UT_DataEdge, verifyDatErrorCodePrecedence_byImprovedIndependence_expectUniformLinkIDBehavior) {
     printf("🎯 TESTING IMPROVED LinkID VALUE INDEPENDENCE\n");
     printf("   📋 Precedence should be consistent across ALL invalid LinkID values\n");
 
@@ -339,7 +339,7 @@ TEST(UT_DataBoundary, verifyDatErrorCodePrecedence_byImprovedIndependence_expect
  * @[Coverage]: Service vs Client roles, Callback vs Poll modes, DatDesc vs Options precedence ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
-TEST(UT_DataBoundary, verifyDatErrorCodePrecedence_byValidLinkIDMatrix_expectIsolatedValidation) {
+TEST(UT_DataEdge, verifyDatErrorCodePrecedence_byValidLinkIDMatrix_expectIsolatedValidation) {
     // ┌──────────────────────────────────────────────────────────────────────────────────────┐
     // │                                🔧 SETUP PHASE                                        │
     // └──────────────────────────────────────────────────────────────────────────────────────┘
@@ -666,7 +666,7 @@ TEST(UT_DataBoundary, verifyDatErrorCodePrecedence_byValidLinkIDMatrix_expectIso
  * ║ @[Coverage]: Complete LinkID × DatDesc × Options precedence validation matrix            ║
  * ╚══════════════════════════════════════════════════════════════════════════════════════════╝
  */
-TEST(UT_DataBoundary, verifyDatErrorCodePrecedence_byCompletePrecedenceMatrix_expectFullCoverage) {
+TEST(UT_DataEdge, verifyDatErrorCodePrecedence_byCompletePrecedenceMatrix_expectFullCoverage) {
     printf("🎯 COMPREHENSIVE PRECEDENCE MATRIX VALIDATION\n");
     printf("   📋 Testing ALL error precedence combinations systematically\n");
     printf("   📋 Matrix: LinkID × DatDesc × Options = Complete precedence coverage\n");

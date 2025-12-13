@@ -68,7 +68,7 @@
  *   P3 🥉 QUALITY-ORIENTED: Test for quality attributes (Performance, Robust, etc.)
  *
  * DEFAULT TEST ORDER:
- *   P1: Typical → Boundary → Misuse → Fault
+ *   P1: Typical → Edge → Misuse → Fault
  *   P2: State → Capability → Concurrency
  *   P3: Performance → Robust → Compatibility
  *
