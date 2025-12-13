@@ -1,0 +1,931 @@
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// UT_ConlesEventRobustness.cxx - ConlesMode Event Robustness Testing
+//
+// PURPOSE:
+//   Test robustness and stress scenarios for ConlesMode event system under adverse conditions.
+//   Validates behavior when system is pushed to limits: slow consumers, queue overflow,
+//   cascading events, and sync mode restrictions.
+//
+// CATDD METHODOLOGY:
+//   This file follows Comment-alive Test-Driven Development (CaTDD):
+//   - Phase 2: DESIGN (this document) - Comprehensive test design in comments
+//   - Phase 3: IMPLEMENTATION - TDD Red→Green cycle (not yet started)
+//   - Phase 4: FINALIZATION - Refactor and document
+//
+// PRIORITY CLASSIFICATION:
+//   P3: Quality-Oriented → Robust (stress testing, stability)
+//   PROMOTED TO P2 LEVEL due to high risk score:
+//     - Impact: 3 (data loss, system hang)
+//     - Likelihood: 2 (occurs under load)
+//     - Uncertainty: 2 (complex async interactions)
+//     - Score: 12 → Move up from default position
+//
+// RELATIONSHIP WITH OTHER TEST FILES:
+//   - UT_ConlesEventTypical.cxx: Basic happy paths (FOUNDATION - COMPLETED)
+//   - UT_ConlesEventState.cxx: State transitions and blocking (FOUNDATION - COMPLETED)
+//   - UT_ConlesEventTimeout.cxx: Timeout handling (FOUNDATION - COMPLETED)
+//   - UT_ConlesEventMisuse.cxx: Error handling (FOUNDATION - COMPLETED)
+//   - THIS FILE: Stress, limits, and recovery scenarios
+//
+// REFERENCE:
+//   - README_Specification.md "IF...THEN..." requirements #3, #6, #8-11
+//   - Doc/UserGuide_EVT.md "Event Queue Management"
+//   - CaTDD methodology: LLM/CaTDD_DesignPrompt.md
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+#include "_UT_IOC_Common.h"
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF OVERVIEW OF THIS UNIT TESTING FILE===============================================
+/**
+ * @brief
+ *   [WHAT] This file verifies ConlesMode event system robustness under stress conditions
+ *   [WHERE] in the IOC Event subsystem for connectionless mode
+ *   [WHY] to ensure system remains stable and predictable under adverse conditions
+ *
+ * SCOPE:
+ *   - In scope:
+ *     • Queue overflow and backpressure behavior
+ *     • Slow consumer blocking fast producer scenarios
+ *     • Cascading event storms (events posted in callbacks)
+ *     • Sync mode restrictions during callback execution
+ *     • Multi-thread stress with concurrent subscribe/unsubscribe
+ *     • Resource exhaustion and recovery
+ *     • Performance degradation under load
+ *   - Out of scope:
+ *     • Basic functionality (see UT_ConlesEventTypical.cxx)
+ *     • State machine correctness (see UT_ConlesEventState.cxx)
+ *     • Timeout behavior (see UT_ConlesEventTimeout.cxx)
+ *     • API misuse (see UT_ConlesEventMisuse.cxx)
+ *
+ * KEY CONCEPTS:
+ *   - Robustness: System continues functioning correctly under stress
+ *   - Backpressure: Flow control mechanism when consumer slower than producer
+ *   - Cascading Events: Events triggering more events (amplification risk)
+ *   - Sync Mode Restriction: Prevent deadlock by forbidding sync posts in callbacks
+ *   - Graceful Degradation: System slows but doesn't crash under overload
+ *
+ * RELATIONSHIPS:
+ *   - Depends on: IOC_Event.c (_IOC_ConlesEvent.c), _IOC_EvtDescQueue.c
+ *   - Related tests: UT_ConlesEventState.cxx (blocking behavior foundation)
+ *   - Production code: Source/_IOC_ConlesEvent.c (queue management, threading)
+ *   - Specification: README_Specification.md #3, #6, #8-11
+ */
+//======>END OF OVERVIEW OF THIS UNIT TESTING FILE=================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF UNIT TESTING DESIGN==============================================================
+
+/**************************************************************************************************
+ * 📋 COVERAGE STRATEGY - CaTDD Dimension Analysis
+ *
+ * DIMENSION 1: Load Pattern (Producer Speed vs Consumer Speed)
+ *   - FastProducer_SlowConsumer: Producer posts faster than consumer processes
+ *   - FastProducer_FastConsumer: Both sides fast (normal operation)
+ *   - BurstProducer: Sudden spike in event rate
+ *   - CascadingProducer: Events triggering more events (amplification)
+ *
+ * DIMENSION 2: Queue State (Event Queue Fullness)
+ *   - Empty: No events pending
+ *   - Partial: Some events queued
+ *   - Full: Queue at capacity
+ *   - Overflow: Attempt to exceed capacity
+ *
+ * DIMENSION 3: Blocking Mode (IOC_OPTID_* flags)
+ *   - AsyncNonBlock: Default fire-and-forget (IOC_OPTID_ASYNC_MODE + NonBlock)
+ *   - AsyncMayBlock: Async with blocking allowed
+ *   - SyncMode: Synchronous event processing (IOC_OPTID_SYNC_MODE)
+ *   - TimeoutMode: With timeout specified (IOC_OPTID_TIMEOUT)
+ *
+ * COVERAGE MATRIX:
+ * ┌──────────────────────────┬─────────────────┬──────────────────┬─────────────────────────────┐
+ * │ Load Pattern             │ Queue State     │ Blocking Mode    │ Key Scenarios               │
+ * ├──────────────────────────┼─────────────────┼──────────────────┼─────────────────────────────┤
+ * │ FastProducer_SlowConsumer│ Partial→Full    │ AsyncMayBlock    │ US-1: Backpressure behavior │
+ * │ FastProducer_SlowConsumer│ Full→Overflow   │ AsyncNonBlock    │ US-2: Queue overflow errors │
+ * │ FastProducer_SlowConsumer│ Full            │ TimeoutMode      │ US-2: Timeout on full queue │
+ * │ CascadingProducer        │ Partial→Full    │ AsyncNonBlock    │ US-3: Event storm detection │
+ * │ CascadingProducer        │ Full→Overflow   │ AsyncMayBlock    │ US-3: Storm backpressure    │
+ * │ Any (during callback)    │ Any             │ SyncMode         │ US-4: Sync mode forbidden   │
+ * │ MultiThread_SubUnsub     │ Partial         │ Any              │ US-5: Thread safety stress  │
+ * │ BurstProducer            │ Empty→Full→Empty│ AsyncMayBlock    │ US-5: Recovery after burst  │
+ * └──────────────────────────┴─────────────────┴──────────────────┴─────────────────────────────┘
+ *
+ * PRIORITY FRAMEWORK (CaTDD):
+ *   P1 🥇 FUNCTIONAL:     (Not applicable - robustness is P3)
+ *   P2 🥈 DESIGN-ORIENTED: Thread safety, capacity limits
+ *   P3 🥉 QUALITY-ORIENTED: Stress, recovery, graceful degradation ← THIS FILE
+ *
+ * CONTEXT-SPECIFIC ADJUSTMENT:
+ *   - Event system is reliability-critical → Promote Robust from P3 to P2 level
+ *   - Risk score 12 (Impact=3, Likelihood=2, Uncertainty=2) → High priority
+ *   - Test these scenarios BEFORE releasing event system to production
+ *************************************************************************************************/
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF USER STORY=======================================================================
+
+/**************************************************************************************************
+ * US-1: As an event producer posting events rapidly,
+ *       I want the system to apply backpressure when consumers are slow,
+ *       So that my application continues functioning without data loss or hangs.
+ *
+ * BUSINESS VALUE:
+ *   - Prevents unbounded memory growth from queue overflow
+ *   - Maintains system stability under variable load
+ *   - Enables graceful degradation instead of catastrophic failure
+ *
+ * PRIORITY: 🥈 HIGH (P2 level) - Critical for production reliability
+ *
+ * SOURCE: README_Specification.md #6, #8
+ *   #6: IF ObjB's CbProcEvt takes 999ms, THEN postEVT behavior with Sync/MayBlock/Timeout
+ *   #8: IF too many events posted, THEN postEVT blocked/TOO_MANY_EVENTS/TIMEOUT
+ *
+ * ACCEPTANCE CRITERIA:
+ *
+ * [@US-1]
+ * AC-1: GIVEN a fast producer posting events every 1ms,
+ *       AND a slow consumer processing each event in 100ms,
+ *       WHEN producer posts with MayBlock option,
+ *       THEN postEVT blocks when queue is full and returns after space available.
+ *
+ * [@US-1]
+ * AC-2: GIVEN a fast producer posting events continuously,
+ *       AND a slow consumer cannot keep up,
+ *       WHEN producer posts with NonBlock option,
+ *       THEN postEVT returns TOO_MANY_QUEUING_EVTDESC when queue is full.
+ *
+ * [@US-1]
+ * AC-3: GIVEN queue is full with pending events,
+ *       AND producer posts with Timeout option (500ms),
+ *       WHEN consumer does not process events within timeout,
+ *       THEN postEVT returns IOC_RESULT_TIMEOUT after 500ms ±50ms.
+ *
+ * [@US-1]
+ * AC-4: GIVEN backpressure was applied (queue full),
+ *       WHEN consumer catches up and queue has space,
+ *       THEN subsequent postEVT calls succeed without delay.
+ *************************************************************************************************/
+
+/**************************************************************************************************
+ * US-2: As an event consumer with processing callbacks,
+ *       I want the system to prevent cascading event storms,
+ *       So that a single event doesn't trigger exponential event amplification.
+ *
+ * BUSINESS VALUE:
+ *   - Prevents system overload from recursive event posting
+ *   - Protects against accidental or malicious event loops
+ *   - Maintains predictable event processing latency
+ *
+ * PRIORITY: 🥈 HIGH (P2 level) - Prevents catastrophic cascading failures
+ *
+ * SOURCE: README_Specification.md #9
+ *   #9: IF ObjB's CbProcEvt posts 2+ events to ObjC/x2/x4,
+ *       THEN ObjA gets TOO_MANY_QUEUING_EVTDESC or blocks
+ *
+ * ACCEPTANCE CRITERIA:
+ *
+ * [@US-2]
+ * AC-1: GIVEN consumer A triggers consumer B which triggers consumer C (chain depth 3),
+ *       AND each callback posts 1 event to next consumer,
+ *       WHEN producer posts initial event,
+ *       THEN all 3 levels process successfully without queue overflow.
+ *
+ * [@US-2]
+ * AC-2: GIVEN consumer callback posts 2 events which each post 2 more (2^N amplification),
+ *       WHEN event depth reaches queue capacity,
+ *       THEN postEVT returns TOO_MANY_QUEUING_EVTDESC at appropriate depth.
+ *
+ * [@US-2]
+ * AC-3: GIVEN cascading event chain with MayBlock option,
+ *       WHEN queue approaches full,
+ *       THEN inner postEVT blocks until outer callbacks complete.
+ *
+ * [@US-2]
+ * AC-4: GIVEN event storm has filled queue,
+ *       WHEN storm subsides and queue drains,
+ *       THEN system recovers and accepts new events normally.
+ *************************************************************************************************/
+
+/**************************************************************************************************
+ * US-3: As a developer implementing event callbacks,
+ *       I want synchronous event posting forbidden during callback execution,
+ *       So that my system avoids deadlocks and maintains deterministic behavior.
+ *
+ * BUSINESS VALUE:
+ *   - Prevents deadlock scenarios in event-driven architectures
+ *   - Enforces clear async boundaries in system design
+ *   - Makes event flow reasoning easier for developers
+ *
+ * PRIORITY: 🥇 CRITICAL (P1 level) - Prevents deadlock (safety issue)
+ *
+ * SOURCE: README_Specification.md #10
+ *   #10: IF ObjA is cbProcEvting, THEN postEVT in SyncMode returns FORBIDDEN
+ *
+ * ACCEPTANCE CRITERIA:
+ *
+ * [@US-3]
+ * AC-1: GIVEN consumer callback is executing (CbProcEvt_F called),
+ *       WHEN callback attempts to post event with SYNC_MODE option,
+ *       THEN postEVT returns IOC_RESULT_FORBIDDEN immediately.
+ *
+ * [@US-3]
+ * AC-2: GIVEN consumer callback attempts nested sync post,
+ *       WHEN using AsyncMode (default) instead,
+ *       THEN postEVT succeeds and queues event normally.
+ *
+ * [@US-3]
+ * AC-3: GIVEN callback has completed and returned,
+ *       WHEN subsequent postEVT uses SYNC_MODE from different context,
+ *       THEN postEVT succeeds (restriction only applies during callback).
+ *************************************************************************************************/
+
+/**************************************************************************************************
+ * US-4: As a system architect building multi-threaded applications,
+ *       I want event subscription/unsubscription to be thread-safe under stress,
+ *       So that concurrent operations don't corrupt internal state.
+ *
+ * BUSINESS VALUE:
+ *   - Enables safe multi-threaded event-driven architectures
+ *   - Prevents race conditions during dynamic subscription changes
+ *   - Supports high-performance concurrent event processing
+ *
+ * PRIORITY: 🥈 HIGH (P2 level) - Essential for multi-threaded apps
+ *
+ * SOURCE: README_Specification.md #3
+ *   #3: Repeat subscribe/unsubscribe, multiply threads, expect robustness
+ *
+ * ACCEPTANCE CRITERIA:
+ *
+ * [@US-4]
+ * AC-1: GIVEN 10 threads each doing 1000 subscribe/unsubscribe cycles,
+ *       WHEN all threads run concurrently,
+ *       THEN all operations complete successfully without corruption.
+ *
+ * [@US-4]
+ * AC-2: GIVEN multiple threads subscribing to same event ID,
+ *       WHEN one thread unsubscribes while others post events,
+ *       THEN operations remain consistent and no callbacks lost.
+ *
+ * [@US-4]
+ * AC-3: GIVEN event callbacks executing in multiple threads,
+ *       WHEN new subscribers register during callback execution,
+ *       THEN state remains consistent and new subscribers activated next cycle.
+ *
+ * [@US-4]
+ * AC-4: GIVEN high-frequency subscribe/unsubscribe pattern,
+ *       WHEN running for sustained period (30 seconds),
+ *       THEN no memory leaks, crashes, or performance degradation observed.
+ *************************************************************************************************/
+
+/**************************************************************************************************
+ * US-5: As a system operator monitoring event system health,
+ *       I want the system to recover gracefully after overload,
+ *       So that temporary spikes don't cause permanent system instability.
+ *
+ * BUSINESS VALUE:
+ *   - Supports elastic scalability during traffic bursts
+ *   - Reduces operational intervention for transient issues
+ *   - Improves overall system availability and resilience
+ *
+ * PRIORITY: 🥉 MEDIUM (P3 level) - Quality of service improvement
+ *
+ * SOURCE: README_Specification.md #8, #11 (forceProcEVT behavior)
+ *
+ * ACCEPTANCE CRITERIA:
+ *
+ * [@US-5]
+ * AC-1: GIVEN system experiences burst (1000 events in 100ms),
+ *       WHEN burst completes and queue drains,
+ *       THEN subsequent event processing returns to normal latency.
+ *
+ * [@US-5]
+ * AC-2: GIVEN queue was full and producers blocked,
+ *       WHEN consumers catch up and free queue space,
+ *       THEN blocked producers resume posting immediately.
+ *
+ * [@US-5]
+ * AC-3: GIVEN system under sustained high load,
+ *       WHEN forceProcEVT called to drain queue,
+ *       THEN all queued events process and system returns to Ready state.
+ *************************************************************************************************/
+
+//======>END OF USER STORY==========================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF ACCEPTANCE CRITERIA==============================================================
+
+// See inline AC definitions under each User Story above.
+// Format: [@US-N] AC-M: GIVEN [context], WHEN [action], THEN [result]
+
+//======>END OF ACCEPTANCE CRITERIA================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF TEST CASE DESIGN=================================================================
+
+/**************************************************************************************************
+ * TEST CASE SPECIFICATIONS
+ *
+ * Following CaTDD naming: verifyBehavior_byCondition_expectResult
+ * Following 4-phase structure: SETUP → BEHAVIOR → VERIFY → CLEANUP
+ * Target: ≤3 key assertions per test
+ *************************************************************************************************/
+
+// =================================================================================================
+// US-1: Backpressure and Queue Overflow Management
+// =================================================================================================
+
+/**
+ * [@AC-1,US-1]
+ * TC-1:
+ *   @[Name]: verifyBackpressure_bySlowConsumer_expectPostBlocks
+ *   @[Purpose]: Verify MayBlock option blocks when queue full with slow consumer
+ *   @[Steps]:
+ *     SETUP:
+ *       1) Subscribe consumer with 100ms processing delay per event
+ *       2) Configure queue capacity (query IOC_getCapability)
+ *     BEHAVIOR:
+ *       3) Producer posts events every 1ms with MayBlock option
+ *       4) Continue until queue full (producer should block)
+ *       5) Measure time blocked
+ *     VERIFY:
+ *       6) Verify postEVT blocks for >50ms (queue processing time)
+ *       7) Verify no events lost (all posted events eventually received)
+ *       8) Verify no TOO_MANY_QUEUING_EVTDESC errors
+ *     CLEANUP:
+ *       9) Unsubscribe, drain remaining events
+ *   @[Expect]:
+ *     - postEVT blocks when queue full
+ *     - postEVT resumes when space available
+ *     - All events delivered successfully
+ *   @[Notes]:
+ *     - Related to UT_ConlesEventState.cxx blocking behavior tests
+ *     - Uses IOC_OPTID_ASYNC_MODE with default MayBlock
+ */
+
+/**
+ * [@AC-2,US-1]
+ * TC-2:
+ *   @[Name]: verifyQueueOverflow_byFastProducer_expectErrorReturned
+ *   @[Purpose]: Verify NonBlock option returns error when queue full
+ *   @[Steps]:
+ *     SETUP:
+ *       1) Subscribe consumer with 200ms processing delay (very slow)
+ *       2) Determine queue capacity
+ *     BEHAVIOR:
+ *       3) Producer posts events rapidly with NonBlock option
+ *       4) Continue posting beyond queue capacity
+ *     VERIFY:
+ *       5) Verify first N posts succeed (N = queue capacity)
+ *       6) Verify subsequent posts return TOO_MANY_QUEUING_EVTDESC
+ *       7) Verify error count matches expected overflow attempts
+ *     CLEANUP:
+ *       8) Unsubscribe after queue drains
+ *   @[Expect]:
+ *     - postEVT returns immediately (no blocking)
+ *     - Error code TOO_MANY_QUEUING_EVTDESC when queue full
+ *     - Producer informed of queue state
+ *   @[Notes]:
+ *     - Tests NonBlock behavior under stress
+ *     - Complements TC-1 (different blocking mode)
+ */
+
+/**
+ * [@AC-3,US-1]
+ * TC-3:
+ *   @[Name]: verifyTimeout_byFullQueue_expectTimeoutReturned
+ *   @[Purpose]: Verify Timeout option returns error after specified duration
+ *   @[Steps]:
+ *     SETUP:
+ *       1) Subscribe consumer with 1000ms processing delay (extremely slow)
+ *       2) Fill queue to capacity
+ *     BEHAVIOR:
+ *       3) Producer posts event with 500ms timeout option
+ *       4) Measure actual wait time
+ *     VERIFY:
+ *       5) Verify postEVT returns IOC_RESULT_TIMEOUT
+ *       6) Verify timeout duration 500ms ±50ms (10% tolerance)
+ *       7) Verify event NOT delivered to consumer
+ *     CLEANUP:
+ *       8) Unsubscribe, clear queue
+ *   @[Expect]:
+ *     - Timeout honored within tolerance
+ *     - Clear error indication to producer
+ *     - Event discarded after timeout
+ *   @[Notes]:
+ *     - Similar to UT_ConlesEventTimeout.cxx but under full queue stress
+ *     - Uses IOC_OPTID_TIMEOUT option
+ */
+
+/**
+ * [@AC-4,US-1]
+ * TC-4:
+ *   @[Name]: verifyRecovery_afterBackpressure_expectNormalFlow
+ *   @[Purpose]: Verify system returns to normal after backpressure resolves
+ *   @[Steps]:
+ *     SETUP:
+ *       1) Subscribe consumer with variable processing delay
+ *       2) Fill queue to trigger backpressure
+ *     BEHAVIOR:
+ *       3) Measure postEVT latency while queue full (should be high)
+ *       4) Switch consumer to fast processing (10ms delay)
+ *       5) Wait for queue to drain
+ *       6) Measure postEVT latency after recovery
+ *     VERIFY:
+ *       7) Verify latency during backpressure >100ms
+ *       8) Verify latency after recovery <5ms
+ *       9) Verify all subsequent posts succeed immediately
+ *     CLEANUP:
+ *       10) Unsubscribe
+ *   @[Expect]:
+ *     - Performance recovers after queue drains
+ *     - No permanent degradation
+ *     - System usable after stress period
+ *   @[Notes]:
+ *     - Tests graceful degradation and recovery
+ *     - Important for production resilience
+ */
+
+// =================================================================================================
+// US-2: Cascading Event Storm Prevention
+// =================================================================================================
+
+/**
+ * [@AC-1,US-2]
+ * TC-5:
+ *   @[Name]: verifyCascading_byLinearChain_expectAllDelivered
+ *   @[Purpose]: Verify simple cascading chain (A→B→C) works correctly
+ *   @[Steps]:
+ *     SETUP:
+ *       1) Setup 3 consumers: A, B, C
+ *       2) A's callback posts event to B
+ *       3) B's callback posts event to C
+ *       4) C's callback increments counter
+ *     BEHAVIOR:
+ *       5) Post initial event to A
+ *       6) Wait for cascade to complete (forceProcEVT)
+ *     VERIFY:
+ *       7) Verify A callback executed once
+ *       8) Verify B callback executed once
+ *       9) Verify C counter incremented once
+ *     CLEANUP:
+ *       10) Unsubscribe all consumers
+ *   @[Expect]:
+ *     - Linear cascade (depth 3) succeeds
+ *     - Each level processes exactly once
+ *     - No queue overflow
+ *   @[Notes]:
+ *     - Baseline for cascade behavior
+ *     - Foundation for exponential cascade tests
+ */
+
+/**
+ * [@AC-2,US-2]
+ * TC-6:
+ *   @[Name]: verifyCascading_byExponentialAmplification_expectLimited
+ *   @[Purpose]: Verify exponential cascade (2^N) detects overflow
+ *   @[Steps]:
+ *     SETUP:
+ *       1) Setup consumer that posts 2 events per callback
+ *       2) Those 2 events trigger 2 more each (4 total)
+ *       3) Continue pattern (2, 4, 8, 16, 32, ...)
+ *       4) Track depth and error counts
+ *     BEHAVIOR:
+ *       5) Post initial event to start cascade
+ *       6) Monitor for TOO_MANY_QUEUING_EVTDESC errors
+ *     VERIFY:
+ *       7) Verify cascade stops at queue capacity depth
+ *       8) Verify TOO_MANY_QUEUING_EVTDESC returned at overflow
+ *       9) Verify system remains stable (no crash)
+ *     CLEANUP:
+ *       10) Force drain queue, unsubscribe
+ *   @[Expect]:
+ *     - Exponential amplification detected
+ *     - Overflow protection triggered
+ *     - System doesn't hang or crash
+ *   @[Notes]:
+ *     - Critical safety test
+ *     - Simulates runaway event loops
+ */
+
+/**
+ * [@AC-3,US-2]
+ * TC-7:
+ *   @[Name]: verifyCascading_byMayBlockOption_expectGracefulBackpressure
+ *   @[Purpose]: Verify cascading with MayBlock applies backpressure correctly
+ *   @[Steps]:
+ *     SETUP:
+ *       1) Setup cascade chain with MayBlock option
+ *       2) Each level posts event to next with delay
+ *     BEHAVIOR:
+ *       3) Initiate cascade that would overflow queue
+ *       4) Monitor blocking behavior at each level
+ *     VERIFY:
+ *       5) Verify inner posts block when queue full
+ *       6) Verify cascade completes eventually (no deadlock)
+ *       7) Verify all events processed in correct order
+ *     CLEANUP:
+ *       8) Unsubscribe all levels
+ *   @[Expect]:
+ *     - Backpressure propagates up cascade chain
+ *     - No deadlock despite nested blocking
+ *     - Eventual completion with all events delivered
+ *   @[Notes]:
+ *     - Tests complex interaction of cascade + blocking
+ *     - Verifies no deadlock scenarios
+ */
+
+/**
+ * [@AC-4,US-2]
+ * TC-8:
+ *   @[Name]: verifyRecovery_afterEventStorm_expectNormalOperation
+ *   @[Purpose]: Verify system recovers after cascading overflow
+ *   @[Steps]:
+ *     SETUP:
+ *       1) Trigger event storm that fills queue
+ *       2) Allow queue to drain completely
+ *     BEHAVIOR:
+ *       3) Post normal events after storm subsides
+ *       4) Measure processing latency
+ *     VERIFY:
+ *       5) Verify post-storm events process normally
+ *       6) Verify latency returns to baseline
+ *       7) Verify no lingering effects from overflow
+ *     CLEANUP:
+ *       8) Unsubscribe all consumers
+ *   @[Expect]:
+ *     - Full recovery after storm
+ *     - No permanent state corruption
+ *     - System operational after stress
+ *   @[Notes]:
+ *     - Validates resilience after worst-case scenario
+ */
+
+// =================================================================================================
+// US-3: Sync Mode Deadlock Prevention
+// =================================================================================================
+
+/**
+ * [@AC-1,US-3]
+ * TC-9:
+ *   @[Name]: verifySyncMode_duringCallback_expectForbidden
+ *   @[Purpose]: Verify SYNC_MODE forbidden when called from callback
+ *   @[Steps]:
+ *     SETUP:
+ *       1) Subscribe consumer A
+ *       2) Consumer A callback attempts postEVT with SYNC_MODE
+ *     BEHAVIOR:
+ *       3) Post event to trigger consumer A callback
+ *       4) Callback attempts sync post
+ *       5) Capture return code
+ *     VERIFY:
+ *       6) Verify postEVT returns IOC_RESULT_FORBIDDEN
+ *       7) Verify error returned immediately (no hang)
+ *       8) Verify outer event completes successfully
+ *     CLEANUP:
+ *       9) Unsubscribe consumer A
+ *   @[Expect]:
+ *     - FORBIDDEN error code returned
+ *     - No system hang or deadlock
+ *     - Clear error indication to developer
+ *   @[Notes]:
+ *     - Critical deadlock prevention mechanism
+ *     - Specification requirement #10
+ */
+
+/**
+ * [@AC-2,US-3]
+ * TC-10:
+ *   @[Name]: verifyAsyncMode_duringCallback_expectSuccess
+ *   @[Purpose]: Verify AsyncMode (default) works during callback
+ *   @[Steps]:
+ *     SETUP:
+ *       1) Subscribe consumers A and B
+ *       2) Consumer A callback posts AsyncMode event to B
+ *     BEHAVIOR:
+ *       3) Post event to trigger A
+ *       4) A's callback posts to B (async)
+ *       5) Wait for B to receive event
+ *     VERIFY:
+ *       6) Verify A's async post succeeds
+ *       7) Verify B receives event
+ *       8) Verify no deadlock or errors
+ *     CLEANUP:
+ *       9) Unsubscribe A and B
+ *   @[Expect]:
+ *     - AsyncMode allowed in callbacks
+ *     - Event chain completes successfully
+ *     - No restrictions on async posts
+ *   @[Notes]:
+ *     - Validates alternative to sync mode
+ *     - Shows correct usage pattern
+ */
+
+/**
+ * [@AC-3,US-3]
+ * TC-11:
+ *   @[Name]: verifySyncMode_afterCallback_expectSuccess
+ *   @[Purpose]: Verify SYNC_MODE allowed outside callback context
+ *   @[Steps]:
+ *     SETUP:
+ *       1) Subscribe consumer A
+ *       2) Setup flag to detect callback completion
+ *     BEHAVIOR:
+ *       3) Post event to trigger callback
+ *       4) Wait for callback completion
+ *       5) Post another event with SYNC_MODE (outside callback)
+ *     VERIFY:
+ *       6) Verify sync post succeeds after callback done
+ *       7) Verify both events processed correctly
+ *       8) Verify correct order maintained
+ *     CLEANUP:
+ *       9) Unsubscribe consumer A
+ *   @[Expect]:
+ *     - SYNC_MODE works normally outside callbacks
+ *     - Restriction is context-specific
+ *     - No false positives (over-restrictive)
+ *   @[Notes]:
+ *     - Verifies restriction is precise, not overly broad
+ */
+
+// =================================================================================================
+// US-4: Multi-thread Stress Testing
+// =================================================================================================
+
+/**
+ * [@AC-1,US-4]
+ * TC-12:
+ *   @[Name]: verifyMultiThread_bySubUnsubStress_expectNoCorruption
+ *   @[Purpose]: Verify thread-safe subscribe/unsubscribe under stress
+ *   @[Steps]:
+ *     SETUP:
+ *       1) Create 10 threads
+ *       2) Each thread performs 1000 subscribe/unsubscribe cycles
+ *     BEHAVIOR:
+ *       3) Launch all threads simultaneously
+ *       4) Each thread: subscribe → wait 1ms → unsubscribe → repeat
+ *       5) Join all threads
+ *     VERIFY:
+ *       6) Verify all threads complete successfully
+ *       7) Verify no assertion failures or crashes
+ *       8) Verify final state clean (no leaked subscriptions)
+ *     CLEANUP:
+ *       9) Verify all resources released
+ *   @[Expect]:
+ *     - 10,000 total operations complete
+ *     - No race conditions detected
+ *     - Clean final state
+ *   @[Notes]:
+ *     - Specification requirement #3
+ *     - Similar to UT_ConlesEventState Case02 but more intensive
+ */
+
+/**
+ * [@AC-2,US-4]
+ * TC-13:
+ *   @[Name]: verifyMultiThread_bySubscribeWhilePosting_expectConsistent
+ *   @[Purpose]: Verify consistency when subscribing during active posting
+ *   @[Steps]:
+ *     SETUP:
+ *       1) Thread 1: Posts events continuously
+ *       2) Thread 2-5: Subscribe/unsubscribe repeatedly
+ *     BEHAVIOR:
+ *       3) Run threads concurrently for 10 seconds
+ *       4) Track events received per thread
+ *     VERIFY:
+ *       5) Verify no events lost to active subscribers
+ *       6) Verify no crashes or deadlocks
+ *       7) Verify subscription state consistent
+ *     CLEANUP:
+ *       8) Stop all threads, unsubscribe all
+ *   @[Expect]:
+ *     - Active subscribers receive events
+ *     - Subscription changes don't corrupt state
+ *     - No deadlocks or livelocks
+ *   @[Notes]:
+ *     - Tests real-world concurrent usage pattern
+ */
+
+/**
+ * [@AC-3,US-4]
+ * TC-14:
+ *   @[Name]: verifyMultiThread_byNewSubscriberDuringCallback_expectActivatedNext
+ *   @[Purpose]: Verify new subscribers added during callback activated correctly
+ *   @[Steps]:
+ *     SETUP:
+ *       1) Subscribe consumer A
+ *       2) A's callback subscribes consumer B
+ *       3) Post second event (should reach both A and B)
+ *     BEHAVIOR:
+ *       4) Post first event (triggers A, A subscribes B)
+ *       5) Post second event
+ *     VERIFY:
+ *       6) Verify A receives both events
+ *       7) Verify B receives only second event (subscribed after first)
+ *       8) Verify timing: B activated in next cycle
+ *     CLEANUP:
+ *       9) Unsubscribe A and B
+ *   @[Expect]:
+ *     - Dynamic subscription works correctly
+ *     - New subscriber activated next cycle (not mid-processing)
+ *     - Consistent state throughout
+ *   @[Notes]:
+ *     - Tests subscription timing semantics
+ */
+
+/**
+ * [@AC-4,US-4]
+ * TC-15:
+ *   @[Name]: verifyMultiThread_bySustainedStress_expectNoLeaksOrDegradation
+ *   @[Purpose]: Verify long-running multi-thread stress causes no leaks
+ *   @[Steps]:
+ *     SETUP:
+ *       1) Setup 5 threads doing subscribe/post/unsubscribe cycles
+ *       2) Monitor memory usage baseline
+ *     BEHAVIOR:
+ *       3) Run threads for 30 seconds continuously
+ *       4) Measure memory usage every 5 seconds
+ *       5) Measure event processing latency throughout
+ *     VERIFY:
+ *       6) Verify memory stable (no leaks, <5% growth)
+ *       7) Verify latency stable (no degradation, <10% variance)
+ *       8) Verify no crashes or errors
+ *     CLEANUP:
+ *       9) Stop threads, verify clean shutdown
+ *   @[Expect]:
+ *     - Stable memory usage
+ *     - Consistent performance
+ *     - No resource leaks
+ *   @[Notes]:
+ *     - Long-running soak test
+ *     - May require AddressSanitizer for leak detection
+ */
+
+// =================================================================================================
+// US-5: Recovery and Graceful Degradation
+// =================================================================================================
+
+/**
+ * [@AC-1,US-5]
+ * TC-16:
+ *   @[Name]: verifyRecovery_afterBurst_expectNormalLatency
+ *   @[Purpose]: Verify system recovers after burst traffic
+ *   @[Steps]:
+ *     SETUP:
+ *       1) Subscribe fast consumer (10ms processing)
+ *       2) Measure baseline latency
+ *     BEHAVIOR:
+ *       3) Post 1000 events rapidly (burst)
+ *       4) Wait for queue to drain
+ *       5) Post normal events and measure latency
+ *     VERIFY:
+ *       6) Verify burst queued successfully
+ *       7) Verify post-burst latency returns to baseline ±10%
+ *       8) Verify no events lost during burst
+ *     CLEANUP:
+ *       9) Unsubscribe consumer
+ *   @[Expect]:
+ *     - Burst handled without loss
+ *     - Performance recovers fully
+ *     - No permanent impact
+ *   @[Notes]:
+ *     - Tests elastic scalability
+ */
+
+/**
+ * [@AC-2,US-5]
+ * TC-17:
+ *   @[Name]: verifyRecovery_afterBlockedProducers_expectImmediateResume
+ *   @[Purpose]: Verify blocked producers resume immediately when queue frees
+ *   @[Steps]:
+ *     SETUP:
+ *       1) Subscribe slow consumer (1000ms per event)
+ *       2) Fill queue to capacity
+ *     BEHAVIOR:
+ *       3) Launch producer thread posting with MayBlock (will block)
+ *       4) Switch consumer to fast mode (10ms per event)
+ *       5) Measure time until producer resumes
+ *     VERIFY:
+ *       6) Verify producer blocks initially
+ *       7) Verify producer resumes within 100ms after queue space available
+ *       8) Verify no spurious delays
+ *     CLEANUP:
+ *       9) Stop threads, unsubscribe
+ *   @[Expect]:
+ *     - Immediate resume (no polling delay)
+ *     - Efficient wakeup mechanism
+ *     - Producers not starved
+ *   @[Notes]:
+ *     - Tests condition variable wakeup efficiency
+ */
+
+/**
+ * [@AC-3,US-5]
+ * TC-18:
+ *   @[Name]: verifyForceProcEVT_underHighLoad_expectAllProcessed
+ *   @[Purpose]: Verify forceProcEVT drains queue under sustained load
+ *   @[Steps]:
+ *     SETUP:
+ *       1) Subscribe consumer with 50ms processing delay
+ *       2) Post 500 events continuously (sustained load)
+ *     BEHAVIOR:
+ *       3) Call IOC_forceProcEVT()
+ *       4) Monitor queue until empty
+ *     VERIFY:
+ *       5) Verify all 500 events processed
+ *       6) Verify forceProcEVT blocks until queue empty
+ *       7) Verify LinkState returns to Ready after drain
+ *     CLEANUP:
+ *       8) Unsubscribe consumer
+ *   @[Expect]:
+ *     - Complete queue drain
+ *     - forceProcEVT blocks until done
+ *     - Clean state after drain
+ *   @[Notes]:
+ *     - Specification requirement #11
+ *     - Tests operator intervention tool
+ */
+
+//======>END OF TEST CASE DESIGN===================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF TODO/IMPLEMENTATION TRACKING SECTION=============================================
+// 🔴 IMPLEMENTATION STATUS TRACKING - Organized by Priority and Category
+//
+// STATUS LEGEND:
+//   ⚪ TODO/PLANNED:      Designed but not implemented
+//   🔴 RED/IMPLEMENTED:   Test written and failing (need prod code)
+//   🟢 GREEN/PASSED:      Test written and passing
+//   ⚠️  ISSUES:           Known problem needing attention
+//
+// PRIORITY LEVELS:
+//   🥇 HIGH:    Must-have for production (US-1, US-3)
+//   🥈 MEDIUM:  Important for quality (US-2, US-4)
+//   🥉 LOW:     Nice-to-have (US-5)
+//
+//=================================================================================================
+// 🥇 HIGH PRIORITY – Critical Robustness (US-1: Backpressure, US-3: Deadlock Prevention)
+//=================================================================================================
+//   ⚪ [@AC-1,US-1] TC-1: verifyBackpressure_bySlowConsumer_expectPostBlocks
+//   ⚪ [@AC-2,US-1] TC-2: verifyQueueOverflow_byFastProducer_expectErrorReturned
+//   ⚪ [@AC-3,US-1] TC-3: verifyTimeout_byFullQueue_expectTimeoutReturned
+//   ⚪ [@AC-4,US-1] TC-4: verifyRecovery_afterBackpressure_expectNormalFlow
+//   ⚪ [@AC-1,US-3] TC-9: verifySyncMode_duringCallback_expectForbidden – CRITICAL: deadlock prevention
+//   ⚪ [@AC-2,US-3] TC-10: verifyAsyncMode_duringCallback_expectSuccess
+//   ⚪ [@AC-3,US-3] TC-11: verifySyncMode_afterCallback_expectSuccess
+//
+//=================================================================================================
+// 🥈 MEDIUM PRIORITY – Event Storm & Concurrency (US-2, US-4)
+//=================================================================================================
+//   ⚪ [@AC-1,US-2] TC-5: verifyCascading_byLinearChain_expectAllDelivered
+//   ⚪ [@AC-2,US-2] TC-6: verifyCascading_byExponentialAmplification_expectLimited
+//   ⚪ [@AC-3,US-2] TC-7: verifyCascading_byMayBlockOption_expectGracefulBackpressure
+//   ⚪ [@AC-4,US-2] TC-8: verifyRecovery_afterEventStorm_expectNormalOperation
+//   ⚪ [@AC-1,US-4] TC-12: verifyMultiThread_bySubUnsubStress_expectNoCorruption
+//   ⚪ [@AC-2,US-4] TC-13: verifyMultiThread_bySubscribeWhilePosting_expectConsistent
+//   ⚪ [@AC-3,US-4] TC-14: verifyMultiThread_byNewSubscriberDuringCallback_expectActivatedNext
+//   ⚪ [@AC-4,US-4] TC-15: verifyMultiThread_bySustainedStress_expectNoLeaksOrDegradation – LONG-RUNNING
+//
+//=================================================================================================
+// 🥉 LOW PRIORITY – Recovery & Operations (US-5)
+//=================================================================================================
+//   ⚪ [@AC-1,US-5] TC-16: verifyRecovery_afterBurst_expectNormalLatency
+//   ⚪ [@AC-2,US-5] TC-17: verifyRecovery_afterBlockedProducers_expectImmediateResume
+//   ⚪ [@AC-3,US-5] TC-18: verifyForceProcEVT_underHighLoad_expectAllProcessed
+//
+//=================================================================================================
+// 📊 SUMMARY
+//=================================================================================================
+//   Total Test Cases: 18
+//   By Priority: 🥇 HIGH=7, 🥈 MEDIUM=8, 🥉 LOW=3
+//   By User Story: US-1=4, US-2=4, US-3=3, US-4=4, US-5=3
+//   Implementation Status: All ⚪ TODO/PLANNED (design phase complete)
+//
+//   NEXT STEPS (CaTDD Phase 3):
+//     1. Human approval of design (Checkpoint 2)
+//     2. Begin TDD Red→Green cycle with TC-9 (highest priority, deadlock prevention)
+//     3. Implement Fast-Fail Six tests first (if applicable)
+//     4. Progress through P1 HIGH priority tests
+//     5. Gate check before proceeding to P2 MEDIUM tests
+//
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>END OF TODO/IMPLEMENTATION TRACKING SECTION===============================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF TEST IMPLEMENTATION==============================================================
+//
+// 🚧 IMPLEMENTATION PHASE NOT STARTED
+//
+// Following CaTDD Phase 3 workflow:
+//   - Write test first (RED)
+//   - Implement minimal production code (GREEN)
+//   - Refactor both test and production code
+//   - Update TODO section status after each test
+//
+// Implementation will begin after human approval at Checkpoint 2.
+//
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>END OF TEST IMPLEMENTATION================================================================
+
+// NOTE: Actual test implementations will be added here during Phase 3 (TDD Red→Green cycle)
+// following the test case specifications defined above.
