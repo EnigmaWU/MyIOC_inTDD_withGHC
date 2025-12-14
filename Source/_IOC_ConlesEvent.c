@@ -774,17 +774,22 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
 
     //-------------------------------------------------------------------------------------------------------------------
     if (IsAsyncMode) {
-        // 1) enqueueSuccess_ifHasSpaceInEvtDescQueue
-        Result = _IOC_EvtDescQueue_enqueueElementLast(&pLinkObj->EvtDescQueue, pEvtDesc);
-        if (Result == IOC_RESULT_SUCCESS) {
-            atomic_fetch_add(&pLinkObj->QueuedEvtNum, 1);
-            __IOC_ClsEvt_wakeupLinkObjThread(pLinkObj);
+        // FIX: Skip fast-path for timeout mode - timeout behavior must be honored
+        IOC_BoolResult_T IsTimeoutMode = IOC_Option_isTimeoutMode(pOption);
 
-            // _IOC_LogDebug("[ConlesEvent::ASync]: AutoLinkID(%llu) postEvtDesc(%s) success", LinkID,
-            //               IOC_EvtDesc_printDetail(pEvtDesc, NULL, 0));
-            Result = IOC_RESULT_SUCCESS;  // Path@A->[1]
-            //_IOC_LogNotTested();
-            goto _returnResult;
+        // 1) enqueueSuccess_ifHasSpaceInEvtDescQueue (fast path - only for non-timeout modes)
+        if (IsTimeoutMode == IOC_RESULT_NO) {
+            Result = _IOC_EvtDescQueue_enqueueElementLast(&pLinkObj->EvtDescQueue, pEvtDesc);
+            if (Result == IOC_RESULT_SUCCESS) {
+                atomic_fetch_add(&pLinkObj->QueuedEvtNum, 1);
+                __IOC_ClsEvt_wakeupLinkObjThread(pLinkObj);
+
+                // _IOC_LogDebug("[ConlesEvent::ASync]: AutoLinkID(%llu) postEvtDesc(%s) success", LinkID,
+                //               IOC_EvtDesc_printDetail(pEvtDesc, NULL, 0));
+                Result = IOC_RESULT_SUCCESS;  // Path@A->[1]
+                //_IOC_LogNotTested();
+                goto _returnResult;
+            }
         }
 
         // 2.1) NonBlock_returnImmediately
@@ -801,10 +806,11 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
             ULONG_T TimeoutUS = IOC_Option_getTimeoutUS(pOption);
 
             Result = __IOC_postEVT_inConlesModeAsyncTimed(pLinkObj, pEvtDesc, TimeoutUS);  // Path@A->[2]
-            _IOC_LogAssert(Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC || Result == IOC_RESULT_SUCCESS);
+            _IOC_LogAssert(Result == IOC_RESULT_TIMEOUT ||
+                           Result == IOC_RESULT_SUCCESS);  // FIX: Accept TIMEOUT as valid result
 
-            if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
-                _IOC_LogDebug("[ConlesEvent::ASync::Timeout]: AutoLinkID(%llu) postEvtDesc(%s) failed", LinkID,
+            if (Result == IOC_RESULT_TIMEOUT) {
+                _IOC_LogDebug("[ConlesEvent::ASync::Timeout]: AutoLinkID(%llu) postEvtDesc(%s) timed out", LinkID,
                               IOC_EvtDesc_printDetail(pEvtDesc, NULL, 0));
             }
 
@@ -925,7 +931,7 @@ static IOC_Result_T __IOC_postEVT_inConlesModeAsyncTimed(
 
         ULONG_T ElapsedUS = IOC_deltaTimeSpecInUS(&TS_Begin, &TS_End);
         if (ElapsedUS >= TimeoutUS) {
-            Result = IOC_RESULT_TOO_MANY_QUEUING_EVTDESC;
+            Result = IOC_RESULT_TIMEOUT;  // FIX: Return proper timeout error code per spec
             //_IOC_LogNotTested();
             break;
         }
