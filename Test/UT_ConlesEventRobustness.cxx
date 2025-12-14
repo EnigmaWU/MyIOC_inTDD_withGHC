@@ -925,6 +925,131 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 // =================================================================================================
+// =================================================================================================
+// US-1: Backpressure and Queue Overflow Management (HIGH PRIORITY)
+// =================================================================================================
+
+/**
+ * [@AC-1,US-1] TC-1: verifyBackpressure_bySlowConsumer_expectPostBlocks
+ *
+ * PURPOSE: Verify MayBlock option blocks producer when queue fills due to slow consumer.
+ *          This validates backpressure mechanism for flow control.
+ *
+ * SPECIFICATION: README_Specification.md #8
+ *   "IF too many events posted, THEN postEVT behavior depends on option (blocked/error/timeout)"
+ *
+ * PRIORITY: 🥇 HIGH - Critical for production stability under load
+ */
+
+namespace {
+struct Tc1Context {
+    std::atomic<uint32_t> EventsReceived{0};
+    std::atomic<bool> ConsumerReady{false};
+    static constexpr uint32_t ProcessingDelayMs = 100;  // Slow consumer: 100ms per event
+};
+
+// Slow consumer callback - simulates heavy processing
+IOC_Result_T tc1CbProcEvtSlowConsumer(const IOC_EvtDesc_pT pEvtDesc, void* pCbPrivData) {
+    (void)pEvtDesc;
+    auto* pCtx = static_cast<Tc1Context*>(pCbPrivData);
+
+    pCtx->EventsReceived.fetch_add(1);
+
+    // Simulate slow processing
+    std::this_thread::sleep_for(std::chrono::milliseconds(Tc1Context::ProcessingDelayMs));
+
+    return IOC_RESULT_SUCCESS;
+}
+}  // namespace
+
+/**
+ * @[Name]: verifyBackpressure_bySlowConsumer_expectPostBlocks
+ * @[Purpose]: Validate MayBlock backpressure mechanism when consumer is slower than producer.
+ *             Ensures producer blocks when queue full and resumes when space available.
+ * @[Steps]:
+ *    1) 🔧 SETUP: Subscribe slow consumer (100ms processing delay per event)
+ *    2) 🎯 BEHAVIOR: Producer posts events rapidly (every 1ms) with MayBlock option
+ *    3) ✅ VERIFY: Producer blocks when queue full, all events eventually delivered
+ *    4) 🧹 CLEANUP: Unsubscribe consumer
+ * @[Expect]: Producer experiences blocking (>50ms delay on some posts), but all events
+ *            are successfully delivered without TOO_MANY_QUEUING_EVTDESC errors.
+ * @[Notes]: Tests AsyncMode with default MayBlock behavior. Producer should adapt to
+ *           consumer speed through backpressure, not drop events.
+ */
+TEST(UTConlesEventRobustnessBackpressure, verifyBackpressure_bySlowConsumer_expectPostBlocks) {
+    //===SETUP===
+    Tc1Context Ctx;
+
+    // Subscribe slow consumer
+    IOC_EvtID_T EvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
+    IOC_SubEvtArgs_T SubArgs = {
+        .CbProcEvt_F = tc1CbProcEvtSlowConsumer,
+        .pCbPrivData = &Ctx,
+        .EvtNum = IOC_calcArrayElmtCnt(EvtIDs),
+        .pEvtIDs = EvtIDs,
+    };
+
+    IOC_Result_T Result = IOC_subEVT_inConlesMode(&SubArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Setup: Subscribe should succeed";
+
+    Ctx.ConsumerReady.store(true);
+
+    //===BEHAVIOR===
+    // Producer posts events rapidly with MayBlock option (default AsyncMode)
+    // Queue capacity is 64, need more events to trigger backpressure
+    constexpr uint32_t TotalEvents = 100;
+    uint32_t BlockedCount = 0;
+
+    IOC_Option_defineASyncMayBlock(MayBlockOption);
+
+    for (uint32_t i = 0; i < TotalEvents; i++) {
+        IOC_EvtDesc_T EvtDesc = {
+            .EvtID = IOC_EVTID_TEST_KEEPALIVE,
+        };
+
+        auto StartTime = std::chrono::steady_clock::now();
+        Result = IOC_postEVT_inConlesMode(&EvtDesc, &MayBlockOption);
+        auto EndTime = std::chrono::steady_clock::now();
+
+        auto DurationMs = std::chrono::duration_cast<std::chrono::milliseconds>(EndTime - StartTime).count();
+
+        // If post took > 50ms, it likely blocked due to queue backpressure
+        if (DurationMs > 50) {
+            BlockedCount++;
+        }
+
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Behavior: Post " << i << " should succeed (may block)";
+
+        // Producer tries to post every 1ms (much faster than 100ms consumer)
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    // Wait for all events to be processed
+    IOC_forceProcEVT();
+    std::this_thread::sleep_for(std::chrono::milliseconds(TotalEvents * Tc1Context::ProcessingDelayMs + 500));
+
+    //===VERIFY===
+    // Key Verification Point 1: Producer experienced blocking (backpressure applied)
+    VERIFY_KEYPOINT_GT(BlockedCount, static_cast<uint32_t>(0),
+                       "Producer MUST experience blocking when queue fills (backpressure mechanism)");
+
+    // Key Verification Point 2: All events delivered (no drops despite backpressure)
+    VERIFY_KEYPOINT_EQ(Ctx.EventsReceived.load(), TotalEvents,
+                       "All events MUST be delivered eventually (backpressure preserves data)");
+
+    // Key Verification Point 3: No overflow errors (MayBlock prevents TOO_MANY_QUEUING_EVTDESC)
+    // This is implicitly verified by all posts returning SUCCESS above
+
+    //===CLEANUP===
+    IOC_UnsubEvtArgs_T UnsubArgs = {
+        .CbProcEvt_F = tc1CbProcEvtSlowConsumer,
+        .pCbPrivData = &Ctx,
+    };
+
+    Result = IOC_unsubEVT_inConlesMode(&UnsubArgs);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result) << "Cleanup: Unsubscribe should succeed";
+}
+
 // US-3: Sync Mode Deadlock Prevention (CRITICAL - Highest Priority)
 // =================================================================================================
 
