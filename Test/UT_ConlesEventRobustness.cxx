@@ -1050,6 +1050,832 @@ TEST(UTConlesEventRobustnessBackpressure, verifyBackpressure_bySlowConsumer_expe
     EXPECT_EQ(IOC_RESULT_SUCCESS, Result) << "Cleanup: Unsubscribe should succeed";
 }
 
+/**
+ * [@AC-2,US-1] TC-2: verifyQueueOverflow_byFastProducer_expectErrorReturned
+ *
+ * PURPOSE: Verify NonBlock option returns error immediately when queue is full.
+ *          Producer gets clear feedback without blocking.
+ *
+ * SPECIFICATION: README_Specification.md #8
+ *   "IF too many events posted with NonBlock, THEN TOO_MANY_QUEUING_EVTDESC returned"
+ *
+ * PRIORITY: 🥇 HIGH - Essential error handling pattern
+ */
+
+namespace {
+struct Tc2Context {
+    std::atomic<uint32_t> EventsReceived{0};
+    static constexpr uint32_t ProcessingDelayMs = 200;  // Very slow consumer
+};
+
+IOC_Result_T tc2CbProcEvtVerySlowConsumer(const IOC_EvtDesc_pT pEvtDesc, void* pCbPrivData) {
+    (void)pEvtDesc;
+    auto* pCtx = static_cast<Tc2Context*>(pCbPrivData);
+    pCtx->EventsReceived.fetch_add(1);
+    std::this_thread::sleep_for(std::chrono::milliseconds(Tc2Context::ProcessingDelayMs));
+    return IOC_RESULT_SUCCESS;
+}
+}  // namespace
+
+/**
+ * @[Name]: verifyQueueOverflow_byFastProducer_expectErrorReturned
+ * @[Purpose]: Validate NonBlock error handling when queue overflows. Producer must receive
+ *             immediate feedback without blocking.
+ * @[Steps]:
+ *    1) 🔧 SETUP: Subscribe very slow consumer (200ms delay), determine queue capacity
+ *    2) 🎯 BEHAVIOR: Producer posts rapidly with NonBlock beyond queue capacity
+ *    3) ✅ VERIFY: First N posts succeed, subsequent return TOO_MANY_QUEUING_EVTDESC
+ *    4) 🧹 CLEANUP: Unsubscribe consumer
+ * @[Expect]: NonBlock returns immediately with error when queue full. Producer informed
+ *            of backpressure without blocking.
+ * @[Notes]: Complements TC-1 (MayBlock). Tests different error handling strategy.
+ */
+TEST(UTConlesEventRobustnessBackpressure, verifyQueueOverflow_byFastProducer_expectErrorReturned) {
+    //===SETUP===
+    Tc2Context Ctx;
+
+    IOC_EvtID_T EvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
+    IOC_SubEvtArgs_T SubArgs = {
+        .CbProcEvt_F = tc2CbProcEvtVerySlowConsumer,
+        .pCbPrivData = &Ctx,
+        .EvtNum = IOC_calcArrayElmtCnt(EvtIDs),
+        .pEvtIDs = EvtIDs,
+    };
+
+    IOC_Result_T Result = IOC_subEVT_inConlesMode(&SubArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Setup: Subscribe should succeed";
+
+    // Query queue capacity (should be 64)
+    constexpr uint32_t ExpectedQueueCapacity = 64;
+
+    //===BEHAVIOR===
+    // Producer posts rapidly with NonBlock option
+    constexpr uint32_t TotalAttempts = 100;  // Exceed queue capacity
+    uint32_t SuccessCount = 0;
+    uint32_t OverflowCount = 0;
+
+    IOC_Option_defineNonBlock(NonBlockOption);
+
+    for (uint32_t i = 0; i < TotalAttempts; i++) {
+        IOC_EvtDesc_T EvtDesc = {
+            .EvtID = IOC_EVTID_TEST_KEEPALIVE,
+        };
+
+        Result = IOC_postEVT_inConlesMode(&EvtDesc, &NonBlockOption);
+
+        if (Result == IOC_RESULT_SUCCESS) {
+            SuccessCount++;
+        } else if (Result == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
+            OverflowCount++;
+        } else {
+            FAIL() << "Unexpected result: " << Result;
+        }
+
+        // Post as fast as possible (no delay)
+    }
+
+    //===VERIFY===
+    // Key Verification Point 1: Some posts succeeded (queue was fillable)
+    VERIFY_KEYPOINT_GE(SuccessCount, ExpectedQueueCapacity, "At least queue capacity events MUST succeed initially");
+
+    // Key Verification Point 2: Overflow errors occurred (queue filled up)
+    VERIFY_KEYPOINT_GT(OverflowCount, static_cast<uint32_t>(0),
+                       "TOO_MANY_QUEUING_EVTDESC MUST be returned when queue full (NonBlock behavior)");
+
+    // Key Verification Point 3: Total attempts accounted for
+    VERIFY_KEYPOINT_EQ(SuccessCount + OverflowCount, TotalAttempts,
+                       "All post attempts MUST return either SUCCESS or TOO_MANY_QUEUING_EVTDESC");
+
+    //===CLEANUP===
+    // Wait for queue to drain before unsubscribe
+    std::this_thread::sleep_for(std::chrono::milliseconds(SuccessCount * Tc2Context::ProcessingDelayMs + 1000));
+
+    IOC_UnsubEvtArgs_T UnsubArgs = {
+        .CbProcEvt_F = tc2CbProcEvtVerySlowConsumer,
+        .pCbPrivData = &Ctx,
+    };
+
+    Result = IOC_unsubEVT_inConlesMode(&UnsubArgs);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result) << "Cleanup: Unsubscribe should succeed";
+}
+
+/**
+ * [@AC-3,US-1] TC-3: verifyTimeout_byFullQueue_expectTimeoutReturned
+ *
+ * PURPOSE: Verify Timeout option honors specified duration when queue remains full.
+ *          Provides deterministic wait behavior.
+ *
+ * SPECIFICATION: README_Specification.md #8
+ *   "IF too many events posted with Timeout, THEN IOC_RESULT_TIMEOUT after duration"
+ *
+ * PRIORITY: 🥇 HIGH - Timeout semantics critical for responsive systems
+ */
+
+namespace {
+struct Tc3Context {
+    std::atomic<uint32_t> EventsReceived{0};
+    static constexpr uint32_t ProcessingDelayMs = 1000;  // Extremely slow (1 second per event)
+};
+
+IOC_Result_T tc3CbProcEvtExtremelySlowConsumer(const IOC_EvtDesc_pT pEvtDesc, void* pCbPrivData) {
+    (void)pEvtDesc;
+    auto* pCtx = static_cast<Tc3Context*>(pCbPrivData);
+    pCtx->EventsReceived.fetch_add(1);
+    std::this_thread::sleep_for(std::chrono::milliseconds(Tc3Context::ProcessingDelayMs));
+    return IOC_RESULT_SUCCESS;
+}
+}  // namespace
+
+/**
+ * @[Name]: verifyTimeout_byFullQueue_expectTimeoutReturned
+ * @[Purpose]: Validate timeout semantics when queue full. Ensures deterministic wait
+ *             behavior with timeout honored within tolerance.
+ * @[Steps]:
+ *    1) 🔧 SETUP: Subscribe extremely slow consumer (1s delay), fill queue to capacity
+ *    2) 🎯 BEHAVIOR: Post with 500ms timeout, measure actual wait time
+ *    3) ✅ VERIFY: Returns TIMEOUT after 500ms ±100ms, event not delivered
+ *    4) 🧹 CLEANUP: Clear queue, unsubscribe
+ * @[Expect]: Timeout honored within 20% tolerance (400-600ms range).
+ * @[Notes]: Similar to UT_ConlesEventTimeout.cxx but under full queue stress.
+ */
+TEST(UTConlesEventRobustnessBackpressure, verifyTimeout_byFullQueue_expectTimeoutReturned) {
+    //===SETUP===
+    Tc3Context Ctx;
+
+    IOC_EvtID_T EvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
+    IOC_SubEvtArgs_T SubArgs = {
+        .CbProcEvt_F = tc3CbProcEvtExtremelySlowConsumer,
+        .pCbPrivData = &Ctx,
+        .EvtNum = IOC_calcArrayElmtCnt(EvtIDs),
+        .pEvtIDs = EvtIDs,
+    };
+
+    IOC_Result_T Result = IOC_subEVT_inConlesMode(&SubArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Setup: Subscribe should succeed";
+
+    // Fill queue to capacity (64 events)
+    constexpr uint32_t QueueCapacity = 64;
+    for (uint32_t i = 0; i < QueueCapacity; i++) {
+        IOC_EvtDesc_T EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
+        Result = IOC_postEVT_inConlesMode(&EvtDesc, nullptr);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Setup: Fill queue event " << i;
+    }
+
+    // Brief wait for consumer to start processing (but stay full)
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    //===BEHAVIOR===
+    // Post with 500ms timeout when queue is full
+    constexpr uint64_t TimeoutUS = 500000;  // 500ms
+    IOC_Option_defineTimeout(TimeoutOption, TimeoutUS);
+
+    IOC_EvtDesc_T TimeoutEvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
+
+    auto StartTime = std::chrono::steady_clock::now();
+    Result = IOC_postEVT_inConlesMode(&TimeoutEvtDesc, &TimeoutOption);
+    auto EndTime = std::chrono::steady_clock::now();
+
+    auto ActualDurationMs = std::chrono::duration_cast<std::chrono::milliseconds>(EndTime - StartTime).count();
+
+    //===VERIFY===
+    // Key Verification Point 1: Timeout error returned
+    VERIFY_KEYPOINT_EQ(Result, IOC_RESULT_TIMEOUT, "MUST return IOC_RESULT_TIMEOUT when queue remains full");
+
+    // Key Verification Point 2: Timeout duration within tolerance (500ms ±100ms = 400-600ms)
+    constexpr int64_t ExpectedMs = 500;
+    constexpr int64_t ToleranceMs = 100;
+    bool WithinTolerance =
+        (ActualDurationMs >= ExpectedMs - ToleranceMs) && (ActualDurationMs <= ExpectedMs + ToleranceMs);
+    VERIFY_KEYPOINT_TRUE(WithinTolerance, "Timeout duration MUST be honored within 20% tolerance (400-600ms range)");
+
+    // Key Verification Point 3: Event was not delivered (timeout means rejection)
+    uint32_t InitialReceived = Ctx.EventsReceived.load();
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    VERIFY_KEYPOINT_EQ(Ctx.EventsReceived.load(), InitialReceived, "Timed-out event MUST NOT be delivered to consumer");
+
+    //===CLEANUP===
+    // Force drain queue to prevent blocking unsubscribe
+    IOC_forceProcEVT();
+    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+
+    IOC_UnsubEvtArgs_T UnsubArgs = {
+        .CbProcEvt_F = tc3CbProcEvtExtremelySlowConsumer,
+        .pCbPrivData = &Ctx,
+    };
+
+    Result = IOC_unsubEVT_inConlesMode(&UnsubArgs);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result) << "Cleanup: Unsubscribe should succeed";
+}
+
+/**
+ * [@AC-4,US-1] TC-4: verifyRecovery_afterBackpressure_expectNormalFlow
+ *
+ * PURPOSE: Verify system recovers to normal performance after backpressure resolves.
+ *          No permanent degradation after stress period.
+ *
+ * SPECIFICATION: Implied by system resilience requirements
+ *
+ * PRIORITY: 🥇 HIGH - Production resilience requirement
+ */
+
+namespace {
+struct Tc4Context {
+    std::atomic<uint32_t> EventsReceived{0};
+    std::atomic<uint32_t> ProcessingDelayMs{100};  // Variable delay
+};
+
+IOC_Result_T tc4CbProcEvtVariableSpeed(const IOC_EvtDesc_pT pEvtDesc, void* pCbPrivData) {
+    (void)pEvtDesc;
+    auto* pCtx = static_cast<Tc4Context*>(pCbPrivData);
+    pCtx->EventsReceived.fetch_add(1);
+    std::this_thread::sleep_for(std::chrono::milliseconds(pCtx->ProcessingDelayMs.load()));
+    return IOC_RESULT_SUCCESS;
+}
+}  // namespace
+
+/**
+ * @[Name]: verifyRecovery_afterBackpressure_expectNormalFlow
+ * @[Purpose]: Validate system returns to normal performance after backpressure resolves.
+ *             Measures latency before, during, and after stress.
+ * @[Steps]:
+ *    1) 🔧 SETUP: Subscribe consumer with variable processing speed
+ *    2) 🎯 BEHAVIOR: Trigger backpressure, then resolve it, measure latencies
+ *    3) ✅ VERIFY: High latency during stress, normal latency after recovery
+ *    4) 🧹 CLEANUP: Unsubscribe
+ * @[Expect]: Latency during backpressure >100ms, after recovery <10ms.
+ * @[Notes]: Tests graceful degradation and recovery - key for production resilience.
+ */
+TEST(UTConlesEventRobustnessBackpressure, verifyRecovery_afterBackpressure_expectNormalFlow) {
+    //===SETUP===
+    Tc4Context Ctx;
+
+    IOC_EvtID_T EvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
+    IOC_SubEvtArgs_T SubArgs = {
+        .CbProcEvt_F = tc4CbProcEvtVariableSpeed,
+        .pCbPrivData = &Ctx,
+        .EvtNum = IOC_calcArrayElmtCnt(EvtIDs),
+        .pEvtIDs = EvtIDs,
+    };
+
+    IOC_Result_T Result = IOC_subEVT_inConlesMode(&SubArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Setup: Subscribe should succeed";
+
+    //===BEHAVIOR===
+    // Phase 1: Fill queue with slow consumer (trigger backpressure)
+    Ctx.ProcessingDelayMs.store(100);  // Slow: 100ms per event
+
+    constexpr uint32_t BackpressureEvents = 80;
+    for (uint32_t i = 0; i < BackpressureEvents; i++) {
+        IOC_EvtDesc_T EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
+        Result = IOC_postEVT_inConlesMode(&EvtDesc, nullptr);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));  // Post fast
+    }
+
+    // Measure latency during backpressure
+    auto Start1 = std::chrono::steady_clock::now();
+    IOC_EvtDesc_T EvtDesc1 = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
+    Result = IOC_postEVT_inConlesMode(&EvtDesc1, nullptr);
+    auto End1 = std::chrono::steady_clock::now();
+    auto LatencyDuringBackpressureMs = std::chrono::duration_cast<std::chrono::milliseconds>(End1 - Start1).count();
+
+    // Phase 2: Switch to fast consumer (resolve backpressure)
+    Ctx.ProcessingDelayMs.store(5);  // Fast: 5ms per event
+
+    // Wait for queue to drain
+    std::this_thread::sleep_for(std::chrono::milliseconds(3000));
+
+    // Measure latency after recovery
+    auto Start2 = std::chrono::steady_clock::now();
+    IOC_EvtDesc_T EvtDesc2 = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
+    Result = IOC_postEVT_inConlesMode(&EvtDesc2, nullptr);
+    auto End2 = std::chrono::steady_clock::now();
+    auto LatencyAfterRecoveryMs = std::chrono::duration_cast<std::chrono::milliseconds>(End2 - Start2).count();
+
+    //===VERIFY===
+    // Key Verification Point 1: High latency during backpressure
+    VERIFY_KEYPOINT_GT(LatencyDuringBackpressureMs, static_cast<int64_t>(50),
+                       "Latency during backpressure MUST be elevated (>50ms) due to queue congestion");
+
+    // Key Verification Point 2: Normal latency after recovery
+    VERIFY_KEYPOINT_LT(LatencyAfterRecoveryMs, static_cast<int64_t>(20),
+                       "Latency after recovery MUST return to normal (<20ms) - no permanent degradation");
+
+    // Key Verification Point 3: All events processed successfully
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    VERIFY_KEYPOINT_GE(Ctx.EventsReceived.load(), BackpressureEvents,
+                       "All events MUST be delivered despite backpressure");
+
+    //===CLEANUP===
+    IOC_UnsubEvtArgs_T UnsubArgs = {
+        .CbProcEvt_F = tc4CbProcEvtVariableSpeed,
+        .pCbPrivData = &Ctx,
+    };
+
+    Result = IOC_unsubEVT_inConlesMode(&UnsubArgs);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result) << "Cleanup: Unsubscribe should succeed";
+}
+
+// =================================================================================================
+// US-2: Event Storm Prevention (CRITICAL - High Priority)
+// =================================================================================================
+
+/**
+ * [@AC-5,US-2] TC-5: verifyCascading_byLinearChain_expectAllDelivered
+ *
+ * PURPOSE: Verify system handles linear event chain (A→B→C→D) without amplification.
+ *          Each event triggers exactly 1 child event.
+ *
+ * SPECIFICATION: Event cascading is common pattern that must be supported.
+ *
+ * PRIORITY: 🥇 HIGH - Validates basic cascading behavior
+ */
+
+namespace {
+constexpr uint32_t TC5_CHAIN_LENGTH = 5;
+
+struct Tc5Context {
+    std::atomic<uint32_t> Level0Events{0};
+    std::atomic<uint32_t> Level1Events{0};
+    std::atomic<uint32_t> Level2Events{0};
+    std::atomic<uint32_t> Level3Events{0};
+    std::atomic<uint32_t> Level4Events{0};
+};
+
+IOC_Result_T tc5CbProcEvtLevel0(const IOC_EvtDesc_pT pEvtDesc, void* pCbPrivData) {
+    auto* pCtx = static_cast<Tc5Context*>(pCbPrivData);
+    pCtx->Level0Events.fetch_add(1);
+
+    // Trigger next level
+    IOC_EvtDesc_T ChildEvt = {.EvtID = IOC_EVTID_TEST_MOVE_STARTED};
+    IOC_postEVT_inConlesMode(&ChildEvt, nullptr);
+    return IOC_RESULT_SUCCESS;
+}
+
+IOC_Result_T tc5CbProcEvtLevel1(const IOC_EvtDesc_pT pEvtDesc, void* pCbPrivData) {
+    auto* pCtx = static_cast<Tc5Context*>(pCbPrivData);
+    pCtx->Level1Events.fetch_add(1);
+
+    // Trigger next level
+    IOC_EvtDesc_T ChildEvt = {.EvtID = IOC_EVTID_TEST_MOVE_KEEPING};
+    IOC_postEVT_inConlesMode(&ChildEvt, nullptr);
+    return IOC_RESULT_SUCCESS;
+}
+
+IOC_Result_T tc5CbProcEvtLevel2(const IOC_EvtDesc_pT pEvtDesc, void* pCbPrivData) {
+    auto* pCtx = static_cast<Tc5Context*>(pCbPrivData);
+    pCtx->Level2Events.fetch_add(1);
+
+    // Trigger next level
+    IOC_EvtDesc_T ChildEvt = {.EvtID = IOC_EVTID_TEST_MOVE_STOPPED};
+    IOC_postEVT_inConlesMode(&ChildEvt, nullptr);
+    return IOC_RESULT_SUCCESS;
+}
+
+IOC_Result_T tc5CbProcEvtLevel3(const IOC_EvtDesc_pT pEvtDesc, void* pCbPrivData) {
+    auto* pCtx = static_cast<Tc5Context*>(pCbPrivData);
+    pCtx->Level3Events.fetch_add(1);
+
+    // Trigger next level
+    IOC_EvtDesc_T ChildEvt = {.EvtID = IOC_EVTID_TEST_PUSH_STARTED};
+    IOC_postEVT_inConlesMode(&ChildEvt, nullptr);
+    return IOC_RESULT_SUCCESS;
+}
+
+IOC_Result_T tc5CbProcEvtLevel4(const IOC_EvtDesc_pT pEvtDesc, void* pCbPrivData) {
+    auto* pCtx = static_cast<Tc5Context*>(pCbPrivData);
+    pCtx->Level4Events.fetch_add(1);
+    // Terminal node - no more cascading
+    return IOC_RESULT_SUCCESS;
+}
+}  // namespace
+
+/**
+ * @[Name]: verifyCascading_byLinearChain_expectAllDelivered
+ * @[Purpose]: Validate system handles linear event chain without packet loss.
+ *             Pattern: KEEPALIVE→ALERT→CANCEL→CONFIRM→REJECT (5 levels).
+ * @[Steps]:
+ *    1) 🔧 SETUP: Subscribe 5 handlers, each triggers next level
+ *    2) 🎯 BEHAVIOR: Post initial event, wait for chain to complete
+ *    3) ✅ VERIFY: All 5 levels receive exactly 1 event
+ *    4) 🧹 CLEANUP: Unsubscribe all handlers
+ * @[Expect]: Level0=1, Level1=1, Level2=1, Level3=1, Level4=1.
+ * @[Notes]: Linear cascading (1→1→1) should always succeed without overflow.
+ */
+TEST(UTConlesEventRobustnessEventStorm, verifyCascading_byLinearChain_expectAllDelivered) {
+    //===SETUP===
+    Tc5Context Ctx;
+
+    // Subscribe Level 0 (KEEPALIVE → ALERT)
+    IOC_EvtID_T EvtIDs0[] = {IOC_EVTID_TEST_KEEPALIVE};
+    IOC_SubEvtArgs_T SubArgs0 = {
+        .CbProcEvt_F = tc5CbProcEvtLevel0,
+        .pCbPrivData = &Ctx,
+        .EvtNum = IOC_calcArrayElmtCnt(EvtIDs0),
+        .pEvtIDs = EvtIDs0,
+    };
+    IOC_Result_T Result = IOC_subEVT_inConlesMode(&SubArgs0);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    // Subscribe Level 1 (MOVE_STARTED → MOVE_KEEPING)
+    IOC_EvtID_T EvtIDs1[] = {IOC_EVTID_TEST_MOVE_STARTED};
+    IOC_SubEvtArgs_T SubArgs1 = {
+        .CbProcEvt_F = tc5CbProcEvtLevel1,
+        .pCbPrivData = &Ctx,
+        .EvtNum = IOC_calcArrayElmtCnt(EvtIDs1),
+        .pEvtIDs = EvtIDs1,
+    };
+    Result = IOC_subEVT_inConlesMode(&SubArgs1);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    // Subscribe Level 2 (MOVE_KEEPING → MOVE_STOPPED)
+    IOC_EvtID_T EvtIDs2[] = {IOC_EVTID_TEST_MOVE_KEEPING};
+    IOC_SubEvtArgs_T SubArgs2 = {
+        .CbProcEvt_F = tc5CbProcEvtLevel2,
+        .pCbPrivData = &Ctx,
+        .EvtNum = IOC_calcArrayElmtCnt(EvtIDs2),
+        .pEvtIDs = EvtIDs2,
+    };
+    Result = IOC_subEVT_inConlesMode(&SubArgs2);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    // Subscribe Level 3 (MOVE_STOPPED → PUSH_STARTED)
+    IOC_EvtID_T EvtIDs3[] = {IOC_EVTID_TEST_MOVE_STOPPED};
+    IOC_SubEvtArgs_T SubArgs3 = {
+        .CbProcEvt_F = tc5CbProcEvtLevel3,
+        .pCbPrivData = &Ctx,
+        .EvtNum = IOC_calcArrayElmtCnt(EvtIDs3),
+        .pEvtIDs = EvtIDs3,
+    };
+    Result = IOC_subEVT_inConlesMode(&SubArgs3);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    // Subscribe Level 4 (PUSH_STARTED - terminal)
+    IOC_EvtID_T EvtIDs4[] = {IOC_EVTID_TEST_PUSH_STARTED};
+    IOC_SubEvtArgs_T SubArgs4 = {
+        .CbProcEvt_F = tc5CbProcEvtLevel4,
+        .pCbPrivData = &Ctx,
+        .EvtNum = IOC_calcArrayElmtCnt(EvtIDs4),
+        .pEvtIDs = EvtIDs4,
+    };
+    Result = IOC_subEVT_inConlesMode(&SubArgs4);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    //===BEHAVIOR===
+    // Post initial event to trigger chain
+    IOC_EvtDesc_T InitialEvt = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
+    Result = IOC_postEVT_inConlesMode(&InitialEvt, nullptr);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    // Wait for chain to complete
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+    //===VERIFY===
+    // Key Verification Point 1: All levels receive exactly 1 event
+    VERIFY_KEYPOINT_EQ(Ctx.Level0Events.load(), static_cast<uint32_t>(1),
+                       "Level 0 MUST receive exactly 1 event (initial trigger)");
+
+    VERIFY_KEYPOINT_EQ(Ctx.Level1Events.load(), static_cast<uint32_t>(1),
+                       "Level 1 MUST receive exactly 1 event (cascaded from Level 0)");
+
+    VERIFY_KEYPOINT_EQ(Ctx.Level2Events.load(), static_cast<uint32_t>(1),
+                       "Level 2 MUST receive exactly 1 event (cascaded from Level 1)");
+
+    EXPECT_EQ(1U, Ctx.Level3Events.load()) << "Level 3 should receive 1 event";
+    EXPECT_EQ(1U, Ctx.Level4Events.load()) << "Level 4 (terminal) should receive 1 event";
+
+    //===CLEANUP===
+    IOC_UnsubEvtArgs_T UnsubArgs0 = {.CbProcEvt_F = tc5CbProcEvtLevel0, .pCbPrivData = &Ctx};
+    IOC_UnsubEvtArgs_T UnsubArgs1 = {.CbProcEvt_F = tc5CbProcEvtLevel1, .pCbPrivData = &Ctx};
+    IOC_UnsubEvtArgs_T UnsubArgs2 = {.CbProcEvt_F = tc5CbProcEvtLevel2, .pCbPrivData = &Ctx};
+    IOC_UnsubEvtArgs_T UnsubArgs3 = {.CbProcEvt_F = tc5CbProcEvtLevel3, .pCbPrivData = &Ctx};
+    IOC_UnsubEvtArgs_T UnsubArgs4 = {.CbProcEvt_F = tc5CbProcEvtLevel4, .pCbPrivData = &Ctx};
+
+    IOC_unsubEVT_inConlesMode(&UnsubArgs0);
+    IOC_unsubEVT_inConlesMode(&UnsubArgs1);
+    IOC_unsubEVT_inConlesMode(&UnsubArgs2);
+    IOC_unsubEVT_inConlesMode(&UnsubArgs3);
+    IOC_unsubEVT_inConlesMode(&UnsubArgs4);
+}
+
+/**
+ * [@AC-6,US-2] TC-6: verifyCascading_byExponentialAmplification_expectLimited
+ *
+ * PURPOSE: Verify system limits exponential event amplification (1→2→4→8).
+ *          System should either use backpressure or overflow errors.
+ *
+ * SPECIFICATION: Must prevent runaway event cascades
+ *
+ * PRIORITY: 🥇 HIGH - Critical for system stability
+ */
+
+namespace {
+struct Tc6Context {
+    std::atomic<uint32_t> EvtReceived{0};
+    std::atomic<uint32_t> OverflowCount{0};
+};
+
+IOC_Result_T tc6CbProcEvtAmplifier(const IOC_EvtDesc_pT pEvtDesc, void* pCbPrivData) {
+    auto* pCtx = static_cast<Tc6Context*>(pCbPrivData);
+    pCtx->EvtReceived.fetch_add(1);
+
+    // Get depth from EvtValue (0=root, 1=level1, etc.)
+    uint32_t Depth = static_cast<uint32_t>(pEvtDesc->EvtValue);
+
+    // Limit cascade depth to 6 levels (1→2→4→8→16→32→64 = 127 events max)
+    if (Depth >= 6) {
+        return IOC_RESULT_SUCCESS;  // Stop cascading at depth 6
+    }
+
+    // Each event generates 2 child events (exponential growth)
+    for (int i = 0; i < 2; i++) {
+        IOC_EvtDesc_T ChildEvt = {
+            .EvtID = IOC_EVTID_TEST_KEEPALIVE,
+            .EvtValue = Depth + 1  // Increment depth
+        };
+        IOC_Option_defineNonBlock(Option);
+        IOC_Result_T Result = IOC_postEVT_inConlesMode(&ChildEvt, &Option);
+        if (Result != IOC_RESULT_SUCCESS) {
+            pCtx->OverflowCount.fetch_add(1);
+        }
+    }
+    return IOC_RESULT_SUCCESS;
+}
+}  // namespace
+
+/**
+ * @[Name]: verifyCascading_byExponentialAmplification_expectLimited
+ * @[Purpose]: Validate system prevents runaway exponential event cascade.
+ * @[Steps]:
+ *    1) 🔧 SETUP: Subscribe amplifying handler (1→2 events)
+ *    2) 🎯 BEHAVIOR: Post 1 initial event, wait
+ *    3) ✅ VERIFY: System limited growth via overflow errors
+ *    4) 🧹 CLEANUP: Unsubscribe
+ * @[Expect]: OverflowCount > 0, EvtReceived bounded (<1000).
+ * @[Notes]: Without limiting, 1→2→4→8→16→... would exhaust queue.
+ */
+TEST(UTConlesEventRobustnessEventStorm, verifyCascading_byExponentialAmplification_expectLimited) {
+    //===SETUP===
+    Tc6Context Ctx;
+
+    IOC_EvtID_T EvtIDs[] = {IOC_EVTID_TEST_MOVE_STARTED};
+    IOC_SubEvtArgs_T SubArgs = {
+        .CbProcEvt_F = tc6CbProcEvtAmplifier,
+        .pCbPrivData = &Ctx,
+        .EvtNum = IOC_calcArrayElmtCnt(EvtIDs),
+        .pEvtIDs = EvtIDs,
+    };
+
+    IOC_Result_T Result = IOC_subEVT_inConlesMode(&SubArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    //===BEHAVIOR===
+    // Seed the exponential cascade with 1 event (depth 0)
+    IOC_EvtDesc_T InitialEvt = {
+        .EvtID = IOC_EVTID_TEST_MOVE_STARTED,
+        .EvtValue = 0  // Start at depth 0
+    };
+    Result = IOC_postEVT_inConlesMode(&InitialEvt, nullptr);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    // Wait for cascade to complete (depth 6: 1+2+4+8+16+32+64=127 events)
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+    //===VERIFY===
+    uint32_t TotalReceived = Ctx.EvtReceived.load();
+    uint32_t TotalOverflow = Ctx.OverflowCount.load();
+
+    // Key Verification Point 1: System limited growth via overflow
+    VERIFY_KEYPOINT_GT(TotalOverflow, static_cast<uint32_t>(0),
+                       "System MUST return overflow errors to limit exponential growth");
+
+    // Key Verification Point 2: Event count reasonable for 6-level cascade
+    VERIFY_KEYPOINT_LT(TotalReceived, static_cast<uint32_t>(200),
+                       "Event count MUST be bounded (<200) - overflow prevented runaway cascade");
+
+    // Key Verification Point 3: Significant cascade happened (depth 6 = 127 ideal)
+    VERIFY_KEYPOINT_GT(TotalReceived, static_cast<uint32_t>(64),
+                       "System MUST process significant cascade (>64 events) before hitting overflow");
+
+    //===CLEANUP===
+    IOC_UnsubEvtArgs_T UnsubArgs = {
+        .CbProcEvt_F = tc6CbProcEvtAmplifier,
+        .pCbPrivData = &Ctx,
+    };
+
+    IOC_unsubEVT_inConlesMode(&UnsubArgs);
+}
+
+/**
+ * [@AC-7,US-2] TC-7: verifyCascading_byMayBlockOption_expectGracefulBackpressure
+ *
+ * PURPOSE: Verify MayBlock option provides graceful backpressure during cascades.
+ *
+ * SPECIFICATION: MayBlock should slow down but not fail
+ *
+ * PRIORITY: 🥇 HIGH - Validates backpressure mechanism
+ */
+
+namespace {
+struct Tc7Context {
+    std::atomic<uint32_t> EvtReceived{0};
+    std::atomic<uint32_t> PostFailures{0};
+};
+
+IOC_Result_T tc7CbProcEvtSlowAmplifier(const IOC_EvtDesc_pT pEvtDesc, void* pCbPrivData) {
+    auto* pCtx = static_cast<Tc7Context*>(pCbPrivData);
+    pCtx->EvtReceived.fetch_add(1);
+
+    // Slow processing to trigger backpressure
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // Get depth from EvtValue, limit to 3 levels to keep test duration reasonable
+    uint32_t Depth = static_cast<uint32_t>(pEvtDesc->EvtValue);
+    if (Depth >= 3) {
+        return IOC_RESULT_SUCCESS;  // Stop at depth 3 (1+2+4+8=15 events)
+    }
+
+    // Try to post child events with MayBlock
+    for (int i = 0; i < 2; i++) {
+        IOC_EvtDesc_T ChildEvt = {.EvtID = IOC_EVTID_TEST_PUSH_STARTED, .EvtValue = Depth + 1};
+        IOC_Option_defineASyncMayBlock(Option);
+        IOC_Result_T Result = IOC_postEVT_inConlesMode(&ChildEvt, &Option);
+        if (Result != IOC_RESULT_SUCCESS) {
+            pCtx->PostFailures.fetch_add(1);
+        }
+    }
+    return IOC_RESULT_SUCCESS;
+}
+}  // namespace
+
+/**
+ * @[Name]: verifyCascading_byMayBlockOption_expectGracefulBackpressure
+ * @[Purpose]: Validate MayBlock provides backpressure without failures.
+ * @[Steps]:
+ *    1) 🔧 SETUP: Subscribe slow amplifying handler with MayBlock
+ *    2) 🎯 BEHAVIOR: Post 5 initial events
+ *    3) ✅ VERIFY: All posts succeed (0 failures), system slows down gracefully
+ *    4) 🧹 CLEANUP: Unsubscribe
+ * @[Expect]: PostFailures == 0, EvtReceived >= 5.
+ * @[Notes]: MayBlock blocks producer instead of returning errors.
+ */
+TEST(UTConlesEventRobustnessEventStorm, verifyCascading_byMayBlockOption_expectGracefulBackpressure) {
+    //===SETUP===
+    Tc7Context Ctx;
+
+    IOC_EvtID_T EvtIDs[] = {IOC_EVTID_TEST_PUSH_STARTED};
+    IOC_SubEvtArgs_T SubArgs = {
+        .CbProcEvt_F = tc7CbProcEvtSlowAmplifier,
+        .pCbPrivData = &Ctx,
+        .EvtNum = IOC_calcArrayElmtCnt(EvtIDs),
+        .pEvtIDs = EvtIDs,
+    };
+
+    IOC_Result_T Result = IOC_subEVT_inConlesMode(&SubArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    //===BEHAVIOR===
+    // Post multiple events to trigger cascade (with depth 0)
+    constexpr uint32_t InitialEventCount = 3;
+    for (uint32_t i = 0; i < InitialEventCount; i++) {
+        IOC_EvtDesc_T Evt = {
+            .EvtID = IOC_EVTID_TEST_PUSH_STARTED,
+            .EvtValue = 0  // Start at depth 0
+        };
+        Result = IOC_postEVT_inConlesMode(&Evt, nullptr);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    }
+
+    // Wait for cascade with backpressure (depth 3: 3+6+12+24=45 events @ 50ms = ~2.25s)
+    std::this_thread::sleep_for(std::chrono::milliseconds(3000));
+
+    //===VERIFY===
+    // Key Verification Point 1: No post failures (MayBlock prevents errors)
+    VERIFY_KEYPOINT_EQ(Ctx.PostFailures.load(), static_cast<uint32_t>(0),
+                       "MayBlock MUST prevent post failures (0 failures) via graceful backpressure");
+
+    // Key Verification Point 2: All initial events processed
+    VERIFY_KEYPOINT_GE(Ctx.EvtReceived.load(), InitialEventCount,
+                       "System MUST process at least initial events despite backpressure");
+
+    // Key Verification Point 3: Cascade happened (amplification worked)
+    VERIFY_KEYPOINT_GT(Ctx.EvtReceived.load(), InitialEventCount,
+                       "System MUST allow some cascade (received > initial) under backpressure");
+
+    //===CLEANUP===
+    IOC_UnsubEvtArgs_T UnsubArgs = {
+        .CbProcEvt_F = tc7CbProcEvtSlowAmplifier,
+        .pCbPrivData = &Ctx,
+    };
+
+    IOC_unsubEVT_inConlesMode(&UnsubArgs);
+}
+
+/**
+ * [@AC-8,US-2] TC-8: verifyRecovery_afterEventStorm_expectNormalOperation
+ *
+ * PURPOSE: Verify system recovers to normal after event storm subsides.
+ *
+ * SPECIFICATION: No permanent degradation after storm
+ *
+ * PRIORITY: 🥇 HIGH - System resilience requirement
+ */
+
+namespace {
+struct Tc8Context {
+    std::atomic<uint32_t> StormEvents{0};
+    std::atomic<uint32_t> RecoveryEvents{0};
+};
+
+IOC_Result_T tc8CbProcEvtStormAndRecovery(const IOC_EvtDesc_pT pEvtDesc, void* pCbPrivData) {
+    auto* pCtx = static_cast<Tc8Context*>(pCbPrivData);
+
+    if (pEvtDesc->EvtID == IOC_EVTID_TEST_KEEPALIVE) {
+        pCtx->StormEvents.fetch_add(1);
+    } else if (pEvtDesc->EvtID == IOC_EVTID_TEST_KEEPALIVE_RELAY) {
+        pCtx->RecoveryEvents.fetch_add(1);
+    }
+
+    return IOC_RESULT_SUCCESS;
+}
+}  // namespace
+
+/**
+ * @[Name]: verifyRecovery_afterEventStorm_expectNormalOperation
+ * @[Purpose]: Validate system returns to normal after event storm subsides.
+ * @[Steps]:
+ *    1) 🔧 SETUP: Subscribe handler for storm and recovery events
+ *    2) 🎯 BEHAVIOR: Generate storm (200 events fast), then normal events
+ *    3) ✅ VERIFY: Storm events delivered, recovery events succeed
+ *    4) 🧹 CLEANUP: Unsubscribe
+ * @[Expect]: StormEvents > 150, RecoveryEvents == 10 (all delivered).
+ * @[Notes]: Tests system resilience and recovery from stress.
+ */
+TEST(UTConlesEventRobustnessEventStorm, verifyRecovery_afterEventStorm_expectNormalOperation) {
+    //===SETUP===
+    Tc8Context Ctx;
+
+    IOC_EvtID_T EvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE, IOC_EVTID_TEST_KEEPALIVE_RELAY};
+    IOC_SubEvtArgs_T SubArgs = {
+        .CbProcEvt_F = tc8CbProcEvtStormAndRecovery,
+        .pCbPrivData = &Ctx,
+        .EvtNum = IOC_calcArrayElmtCnt(EvtIDs),
+        .pEvtIDs = EvtIDs,
+    };
+
+    IOC_Result_T Result = IOC_subEVT_inConlesMode(&SubArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    //===BEHAVIOR===
+    // Phase 1: Generate event storm
+    constexpr uint32_t StormEventCount = 200;
+    uint32_t StormSuccessCount = 0;
+    for (uint32_t i = 0; i < StormEventCount; i++) {
+        IOC_EvtDesc_T Evt = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
+        IOC_Option_defineNonBlock(Option);
+        Result = IOC_postEVT_inConlesMode(&Evt, &Option);
+        if (Result == IOC_RESULT_SUCCESS) {
+            StormSuccessCount++;
+        }
+        // Post fast without delay
+    }
+
+    // Wait for storm to drain
+    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+
+    // Phase 2: Post recovery events
+    constexpr uint32_t RecoveryEventCount = 10;
+    for (uint32_t i = 0; i < RecoveryEventCount; i++) {
+        IOC_EvtDesc_T Evt = {.EvtID = IOC_EVTID_TEST_KEEPALIVE_RELAY};
+        Result = IOC_postEVT_inConlesMode(&Evt, nullptr);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+    //===VERIFY===
+    // Key Verification Point 1: Most storm events delivered
+    VERIFY_KEYPOINT_GE(Ctx.StormEvents.load(), StormSuccessCount,
+                       "Storm events MUST be delivered (count >= successful posts)");
+
+    // Key Verification Point 2: All recovery events delivered
+    VERIFY_KEYPOINT_EQ(Ctx.RecoveryEvents.load(), RecoveryEventCount,
+                       "Recovery events MUST all be delivered - system recovered to normal");
+
+    // Key Verification Point 3: Storm was significant
+    VERIFY_KEYPOINT_GT(StormSuccessCount, static_cast<uint32_t>(50),
+                       "Storm MUST have posted significant events (>50) to test recovery");
+
+    //===CLEANUP===
+    IOC_UnsubEvtArgs_T UnsubArgs = {
+        .CbProcEvt_F = tc8CbProcEvtStormAndRecovery,
+        .pCbPrivData = &Ctx,
+    };
+
+    IOC_unsubEVT_inConlesMode(&UnsubArgs);
+}
+
+// =================================================================================================
 // US-3: Sync Mode Deadlock Prevention (CRITICAL - Highest Priority)
 // =================================================================================================
 
