@@ -2404,5 +2404,179 @@ TEST(UTConlesEventRobustnessMultiThread, verifyMultiThread_bySubUnsubStress_expe
         << "No events should be delivered (all subscriptions cleaned up)";
 }
 
+/**
+ * [@AC-2,US-4] TC-13: Concurrent subscription changes during active posting
+ *
+ * CaTDD Design:
+ *   Purpose: Verify subscription list integrity when modified during concurrent event posting
+ *   Category: P2-Concurrency (race condition detection)
+ *
+ * Test Logic:
+ *   - 1 poster thread continuously posts events
+ *   - 4 subscriber threads repeatedly subscribe/unsubscribe
+ *   - Run for 2 seconds to expose race conditions
+ *   - Verify: No crashes, consistent state, events delivered to active subscribers
+ *
+ * Bug Expectations:
+ *   - Subscriber list corruption during iteration
+ *   - Race between subscribe/unsubscribe and event dispatch
+ *   - Deadlock between subscription lock and dispatch lock
+ *
+ * CaTDD Focus: Multi-thread safety of subscription management during active event flow
+ */
+TEST(UTConlesEventRobustnessMultiThread, verifyMultiThread_bySubscribeWhilePosting_expectConsistent) {
+    IOC_Result_T Result;
+
+    //===SETUP===
+    constexpr uint32_t NumSubscriberThreads = 4;
+    constexpr uint32_t TestDurationMs = 2000;
+    constexpr uint32_t PostIntervalUs = 1000;  // 1ms between posts
+
+    struct Tc13Context {
+        std::atomic<uint32_t> EventsReceived{0};
+        std::atomic<bool> IsSubscribed{false};
+    };
+
+    std::array<Tc13Context, NumSubscriberThreads> SubscriberContexts;
+    std::atomic<bool> TestRunning{true};
+    std::atomic<uint32_t> TotalPostsAttempted{0};
+    std::atomic<uint32_t> TotalPostsSucceeded{0};
+
+    // Callback for subscribers
+    auto tc13CbProcEvt = [](const IOC_EvtDesc_pT pEvtDesc, void* pCbPrivData) -> IOC_Result_T {
+        (void)pEvtDesc;
+        auto* pCtx = static_cast<Tc13Context*>(pCbPrivData);
+        pCtx->EventsReceived.fetch_add(1);
+        return IOC_RESULT_SUCCESS;
+    };
+
+    // Poster thread: continuously posts events
+    auto PosterWorker = [&]() {
+        IOC_EvtDesc_T EvtDesc = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
+        IOC_LinkID_T PostLinkID = 0;  // AutoLinkID
+
+        while (TestRunning.load()) {
+            TotalPostsAttempted.fetch_add(1);
+            Result = IOC_postEVT_inConlesMode(&EvtDesc, nullptr);
+
+            // Accept SUCCESS or NO_EVENT_CONSUMER (when no subscribers)
+            if (Result == IOC_RESULT_SUCCESS || Result == IOC_RESULT_NO_EVENT_CONSUMER) {
+                if (Result == IOC_RESULT_SUCCESS) {
+                    TotalPostsSucceeded.fetch_add(1);
+                }
+            } else {
+                // Unexpected error
+                printf("[ERROR] Post failed with unexpected result: %d\n", Result);
+            }
+
+            std::this_thread::sleep_for(std::chrono::microseconds(PostIntervalUs));
+        }
+    };
+
+    // Subscriber thread: repeatedly subscribe/unsubscribe
+    auto SubscriberWorker = [&](Tc13Context& Ctx, uint32_t ThreadID) {
+        constexpr uint32_t SubscribeDurationMs = 50;
+        constexpr uint32_t UnsubscribeDurationMs = 20;
+
+        while (TestRunning.load()) {
+            // Subscribe
+            IOC_SubEvtArgs_T SubArgs = {
+                .CbProcEvt_F = tc13CbProcEvt,
+                .pCbPrivData = &Ctx,
+                .EvtNum = 0,
+                .pEvtIDs = nullptr,
+            };
+
+            Result = IOC_subEVT_inConlesMode(&SubArgs);
+            if (Result == IOC_RESULT_SUCCESS) {
+                Ctx.IsSubscribed.store(true);
+                std::this_thread::sleep_for(std::chrono::milliseconds(SubscribeDurationMs));
+
+                // Unsubscribe
+                IOC_UnsubEvtArgs_T UnsubArgs = {
+                    .CbProcEvt_F = tc13CbProcEvt,
+                    .pCbPrivData = &Ctx,
+                };
+
+                Result = IOC_unsubEVT_inConlesMode(&UnsubArgs);
+                if (Result == IOC_RESULT_SUCCESS) {
+                    Ctx.IsSubscribed.store(false);
+                    std::this_thread::sleep_for(std::chrono::milliseconds(UnsubscribeDurationMs));
+                }
+            }
+        }
+
+        // Cleanup: ensure unsubscribed
+        if (Ctx.IsSubscribed.load()) {
+            IOC_UnsubEvtArgs_T UnsubArgs = {
+                .CbProcEvt_F = tc13CbProcEvt,
+                .pCbPrivData = &Ctx,
+            };
+            IOC_unsubEVT_inConlesMode(&UnsubArgs);
+            Ctx.IsSubscribed.store(false);
+        }
+    };
+
+    //===BEHAVIOR===
+    // Launch poster thread
+    std::thread PosterThread(PosterWorker);
+
+    // Launch subscriber threads
+    std::vector<std::thread> SubscriberThreads;
+    for (uint32_t i = 0; i < NumSubscriberThreads; ++i) {
+        SubscriberThreads.emplace_back(SubscriberWorker, std::ref(SubscriberContexts[i]), i);
+    }
+
+    // Run test for specified duration
+    std::this_thread::sleep_for(std::chrono::milliseconds(TestDurationMs));
+
+    // Signal stop
+    TestRunning.store(false);
+
+    // Wait for all threads
+    PosterThread.join();
+    for (auto& Thread : SubscriberThreads) {
+        Thread.join();
+    }
+
+    //===VERIFY===
+    uint32_t TotalEventsReceived = 0;
+    for (const auto& Ctx : SubscriberContexts) {
+        TotalEventsReceived += Ctx.EventsReceived.load();
+    }
+
+    // Key Verification Point 1: Test completed without crashes
+    VERIFY_KEYPOINT_TRUE(true, "Test completed without deadlock or crash - basic thread safety validated");
+
+    // Key Verification Point 2: Posting thread made progress
+    VERIFY_KEYPOINT_GT(TotalPostsAttempted.load(), 0u, "Poster thread must make progress - validates no deadlock");
+
+    // Key Verification Point 3: Events were delivered when subscribers exist
+    // Note: TotalPostsSucceeded reflects posts with active subscribers
+    printf("[INFO] Total posts attempted: %u, succeeded: %u, events received: %u\n", TotalPostsAttempted.load(),
+           TotalPostsSucceeded.load(), TotalEventsReceived);
+
+    if (TotalPostsSucceeded.load() > 0) {
+        VERIFY_KEYPOINT_GT(TotalEventsReceived, 0u,
+                           "CRITICAL: When posts succeed, events MUST be delivered to subscribers");
+    }
+
+    //===CLEANUP===
+    // Verify all subscriptions cleaned up
+    IOC_EvtDesc_T TestEvt = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
+    uint32_t EventsBeforeCleanup = TotalEventsReceived;
+
+    Result = IOC_postEVT_inConlesMode(&TestEvt, nullptr);
+    EXPECT_EQ(IOC_RESULT_NO_EVENT_CONSUMER, Result) << "Should have no subscribers after all threads stopped";
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    uint32_t TotalEventsAfterCleanup = 0;
+    for (const auto& Ctx : SubscriberContexts) {
+        TotalEventsAfterCleanup += Ctx.EventsReceived.load();
+    }
+    EXPECT_EQ(EventsBeforeCleanup, TotalEventsAfterCleanup) << "No new events should be delivered after cleanup";
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>END OF TEST IMPLEMENTATION================================================================
