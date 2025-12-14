@@ -2276,4 +2276,133 @@ TEST(UTConlesEventRobustnessSyncRestriction, verifySyncModeAfterCallback_expectS
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+// US-4: Multi-thread Concurrency Tests
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+struct Tc12Context {
+    std::atomic<uint32_t> SuccessfulSubscribes{0};
+    std::atomic<uint32_t> SuccessfulUnsubscribes{0};
+    std::atomic<uint32_t> FailedOperations{0};
+    std::atomic<uint32_t> EventsReceived{0};
+    std::atomic<bool> TestRunning{true};
+};
+
+IOC_Result_T tc12CbProcEvtMinimal(const IOC_EvtDesc_pT pEvtDesc, void* pCbPrivData) {
+    (void)pEvtDesc;
+    auto* pCtx = static_cast<Tc12Context*>(pCbPrivData);
+    pCtx->EventsReceived.fetch_add(1);
+    return IOC_RESULT_SUCCESS;
+}
+}  // namespace
+
+/**
+ * [@AC-1,US-4] TC-12: Multi-thread subscribe/unsubscribe stress
+ * CaTDD Focus: Expose thread-safety bugs in subscription management
+ */
+TEST(UTConlesEventRobustnessMultiThread, verifyMultiThread_bySubUnsubStress_expectNoCorruption) {
+    IOC_Result_T Result;
+
+    //===SETUP===
+    constexpr uint32_t NumThreads = 10;
+    constexpr uint32_t CyclesPerThread = 1000;
+    constexpr uint32_t TotalExpectedOps = NumThreads * CyclesPerThread;
+
+    std::array<Tc12Context, NumThreads> Contexts;  // Each thread gets unique context for unique subscriber identity
+
+    // Lambda for each thread's subscribe/unsubscribe stress loop
+    auto StressWorker = [](Tc12Context& Ctx, uint32_t ThreadID) {
+        for (uint32_t i = 0; i < CyclesPerThread; ++i) {
+            // Subscribe
+            IOC_SubEvtArgs_T SubArgs = {
+                .CbProcEvt_F = tc12CbProcEvtMinimal,
+                .pCbPrivData = &Ctx,
+                .EvtNum = 0,  // Accept all events
+                .pEvtIDs = nullptr,
+            };
+
+            IOC_Result_T SubResult = IOC_subEVT_inConlesMode(&SubArgs);
+            if (SubResult == IOC_RESULT_SUCCESS) {
+                Ctx.SuccessfulSubscribes.fetch_add(1);
+            } else {
+                Ctx.FailedOperations.fetch_add(1);
+                continue;  // Skip unsubscribe if subscribe failed
+            }
+
+            // Brief delay to increase chance of race conditions
+            std::this_thread::sleep_for(std::chrono::microseconds(10));
+
+            // Unsubscribe
+            IOC_UnsubEvtArgs_T UnsubArgs = {
+                .CbProcEvt_F = tc12CbProcEvtMinimal,
+                .pCbPrivData = &Ctx,
+            };
+
+            IOC_Result_T UnsubResult = IOC_unsubEVT_inConlesMode(&UnsubArgs);
+            if (UnsubResult == IOC_RESULT_SUCCESS) {
+                Ctx.SuccessfulUnsubscribes.fetch_add(1);
+            } else {
+                Ctx.FailedOperations.fetch_add(1);
+            }
+        }
+    };
+
+    //===BEHAVIOR===
+    // Launch all threads simultaneously, each with unique context
+    std::vector<std::thread> Threads;
+    Threads.reserve(NumThreads);
+
+    for (uint32_t i = 0; i < NumThreads; ++i) {
+        Threads.emplace_back(StressWorker, std::ref(Contexts[i]), i);
+    }
+
+    // Wait for all threads to complete
+    for (auto& Thread : Threads) {
+        Thread.join();
+    }
+
+    //===VERIFY===
+    // Aggregate counters from all thread-specific contexts
+    uint32_t TotalSuccessfulSubs = 0;
+    uint32_t TotalSuccessfulUnsubs = 0;
+    uint32_t TotalFailedOps = 0;
+    for (const auto& Ctx : Contexts) {
+        TotalSuccessfulSubs += Ctx.SuccessfulSubscribes.load();
+        TotalSuccessfulUnsubs += Ctx.SuccessfulUnsubscribes.load();
+        TotalFailedOps += Ctx.FailedOperations.load();
+    }
+
+    // Key Verification Point 1: No failures (each thread has unique subscriber identity)
+    VERIFY_KEYPOINT_EQ(TotalFailedOps, 0u, "CRITICAL: With unique contexts, all operations MUST succeed");
+
+    // Key Verification Point 2: All subscribes successful
+    VERIFY_KEYPOINT_EQ(TotalSuccessfulSubs, TotalExpectedOps, "All threads MUST complete their subscribe operations");
+
+    // Key Verification Point 3: Subscribe/Unsubscribe balance
+    VERIFY_KEYPOINT_EQ(TotalSuccessfulUnsubs, TotalExpectedOps,
+                       "Subscribe and Unsubscribe counts MUST match - no leaked subscriptions");
+
+    //===CLEANUP===
+    // Verify clean final state (no active subscriptions)
+    // Post a test event - should not be received by anyone since all unsubscribed
+    IOC_EvtDesc_T TestEvt = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
+    uint32_t TotalEventsBeforeCleanup = 0;
+    for (const auto& Ctx : Contexts) {
+        TotalEventsBeforeCleanup += Ctx.EventsReceived.load();
+    }
+
+    Result = IOC_postEVT_inConlesMode(&TestEvt, nullptr);
+    EXPECT_EQ(IOC_RESULT_NO_EVENT_CONSUMER, Result) << "Should have no event consumers after all unsubscribed";
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    uint32_t TotalEventsAfterCleanup = 0;
+    for (const auto& Ctx : Contexts) {
+        TotalEventsAfterCleanup += Ctx.EventsReceived.load();
+    }
+    EXPECT_EQ(TotalEventsBeforeCleanup, TotalEventsAfterCleanup)
+        << "No events should be delivered (all subscriptions cleaned up)";
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>END OF TEST IMPLEMENTATION================================================================
