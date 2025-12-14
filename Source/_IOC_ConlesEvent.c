@@ -361,25 +361,62 @@ static IOC_BoolResult_T __IOC_ClsEvt_isEmptySuberList(_ClsEvtSuberList_pT pEvtSu
 
 static void __IOC_ClsEvt_callbackProcEvtOverSuberList(_ClsEvtLinkObj_pT pEvtLinkObj, IOC_EvtDesc_pT pEvtDesc) {
     _ClsEvtSuberList_pT pSuberList = &pEvtLinkObj->EvtSuberList;
+
+    // BUG FIX: Copy subscriber info while holding lock, then release before callbacks
+    // This prevents deadlock when callbacks try to subscribe/unsubscribe
+    typedef struct {
+        IOC_CbProcEvt_F CbProcEvt_F;
+        void *pCbPrivData;
+        bool IsMatched;
+    } _ActiveCallback_T;
+
+    _ActiveCallback_T ActiveCallbacks[_CONLES_EVENT_MAX_SUBSCRIBER] = {0};
+    ULONG_T ActiveCount = 0;
+
+    // Phase 1: Collect matching subscribers while holding lock
     pthread_mutex_lock(&pSuberList->Mutex);
 
     for (ULONG_T i = 0; i < _CONLES_EVENT_MAX_SUBSCRIBER; i++) {
         _ClsEvtSuber_T *pSuber = &pSuberList->Subers[i];
 
         if (pSuber->State == Subed) {
-            for (ULONG_T j = 0; j < pSuber->Args.EvtNum; j++) {
-                if (pEvtDesc->EvtID == pSuber->Args.pEvtIDs[j]) {
-                    __IOC_ClsEvt_transferLinkObjStateByBehavior(pEvtLinkObj, Behavior_enterCbProcEvt);
-                    // FIXME: IF ANY CbProcEvt_F STUCK, IT WILL BLOCK THE WHOLE THREAD, SO WE NEED TO HANDLE THIS CASE.
-                    // TODO: INSTALL A TIMER TO CATCH TIMEOUT, AND OUTPUT LOG TO INDICATE WHICH CbProcEvt_F STUCK.
-                    pSuber->Args.CbProcEvt_F(pEvtDesc, pSuber->Args.pCbPrivData);
-                    __IOC_ClsEvt_transferLinkObjStateByBehavior(pEvtLinkObj, Behavior_leaveCbProcEvt);
+            bool IsMatched = false;
+
+            // Check if this subscriber wants this event
+            if (pSuber->Args.EvtNum == 0) {
+                // EvtNum == 0 means subscribe to all events
+                IsMatched = true;
+            } else {
+                // Check specific event IDs
+                for (ULONG_T j = 0; j < pSuber->Args.EvtNum; j++) {
+                    if (pEvtDesc->EvtID == pSuber->Args.pEvtIDs[j]) {
+                        IsMatched = true;
+                        break;
+                    }
                 }
+            }
+
+            if (IsMatched) {
+                ActiveCallbacks[ActiveCount].CbProcEvt_F = pSuber->Args.CbProcEvt_F;
+                ActiveCallbacks[ActiveCount].pCbPrivData = pSuber->Args.pCbPrivData;
+                ActiveCallbacks[ActiveCount].IsMatched = true;
+                ActiveCount++;
             }
         }
     }
 
     pthread_mutex_unlock(&pSuberList->Mutex);
+
+    // Phase 2: Invoke callbacks WITHOUT holding lock - prevents deadlock!
+    // NOTE: We do NOT transition link state here because:
+    //   1. Multiple callbacks may execute concurrently
+    //   2. Callbacks may call IOC_subEVT/IOC_unsubEVT which require Ready state
+    //   3. Link state tracks posting/subscription ops, not callback execution
+    for (ULONG_T i = 0; i < ActiveCount; i++) {
+        // FIXED: Callback now invoked WITHOUT holding pSuberList->Mutex
+        // This allows callbacks to safely call IOC_subEVT/IOC_unsubEVT without deadlock
+        ActiveCallbacks[i].CbProcEvt_F(pEvtDesc, ActiveCallbacks[i].pCbPrivData);
+    }
 }
 
 //===> END IMPLEMENT FOR ClsEvtSuberList
