@@ -870,9 +870,9 @@
 //   ⚪ [@AC-2,US-1] TC-2: verifyQueueOverflow_byFastProducer_expectErrorReturned
 //   ⚪ [@AC-3,US-1] TC-3: verifyTimeout_byFullQueue_expectTimeoutReturned
 //   ⚪ [@AC-4,US-1] TC-4: verifyRecovery_afterBackpressure_expectNormalFlow
-//   � [@AC-1,US-3] TC-9: verifySyncMode_duringCallback_expectForbidden – CRITICAL: deadlock prevention [GREEN ✓]
-//   ⚪ [@AC-2,US-3] TC-10: verifyAsyncMode_duringCallback_expectSuccess
-//   ⚪ [@AC-3,US-3] TC-11: verifySyncMode_afterCallback_expectSuccess
+//   🟢 [@AC-1,US-3] TC-9: verifySyncModeDuringCallback_expectForbidden – ✅ GREEN (deadlock prevented)
+//   🟢 [@AC-2,US-3] TC-10: verifyAsyncModeDuringCallback_expectSuccess – ✅ GREEN (proves restriction precise)
+//   🟢 [@AC-3,US-3] TC-11: verifySyncModeAfterCallback_expectSuccess – ✅ GREEN (restriction scoped)
 //
 //=================================================================================================
 // 🥈 MEDIUM PRIORITY – Event Storm & Concurrency (US-2, US-4)
@@ -1035,6 +1035,238 @@ TEST(UTConlesEventRobustnessSyncRestriction, verifySyncModeDuringCallback_expect
     //===CLEANUP===
     IOC_UnsubEvtArgs_T UnsubArgs = {
         .CbProcEvt_F = tc9CbProcEvtAttemptSyncPost,
+        .pCbPrivData = &Ctx,
+    };
+
+    Result = IOC_unsubEVT_inConlesMode(&UnsubArgs);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result) << "Cleanup: Unsubscribe should succeed";
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// TC-10: Verify ASYNC_MODE works during callback (prove restriction is only for SYNC_MODE)
+//
+// RATIONALE: TC-9 forbids SYNC_MODE during callbacks to prevent deadlock. TC-10 verifies that
+//            ASYNC_MODE still works, proving the restriction is precise and not overly broad.
+//
+// ACCEPTANCE CRITERIA [@AC-2,US-3]:
+//   GIVEN a callback is executing,
+//    WHEN attempting to post event with ASYNC_MODE (NonBlock),
+//    THEN post succeeds without blocking,
+//     AND event is queued for later processing,
+//     AND no deadlock or restriction occurs.
+//
+// PRIORITY: 🥇 HIGH - Ensures the deadlock fix doesn't break valid async patterns
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+// US-3: Deadlock Prevention (cont'd)
+namespace {
+struct Tc10Context {
+    std::atomic<bool> CallbackExecuted{false};
+    std::atomic<IOC_Result_T> AsyncPostResult{IOC_RESULT_BUG};
+    std::atomic<bool> AsyncPostAttempted{false};
+};
+
+// Callback that attempts to post event with ASYNC_MODE (NonBlock)
+IOC_Result_T tc10CbProcEvtAttemptAsyncPost(const IOC_EvtDesc_pT pEvtDesc, void* pCbPrivData) {
+    (void)pEvtDesc;  // Unused parameter
+    auto* pCtx = static_cast<Tc10Context*>(pCbPrivData);
+
+    pCtx->CallbackExecuted.store(true);
+
+    // BEHAVIOR: Attempt to post event with ASYNC_MODE + NonBlock while inside callback
+    IOC_EvtDesc_T InnerEvtDesc = {
+        .EvtID = IOC_EVTID_TEST_KEEPALIVE,  // Different event to avoid confusion
+    };
+
+    // Use NonBlock option (implies ASYNC_MODE)
+    IOC_Option_defineNonBlock(AsyncNonBlockOption);
+
+    pCtx->AsyncPostAttempted.store(true);
+    IOC_Result_T Result = IOC_postEVT_inConlesMode(&InnerEvtDesc, &AsyncNonBlockOption);
+    pCtx->AsyncPostResult.store(Result);
+
+    return IOC_RESULT_SUCCESS;  // Outer callback succeeds
+}
+}  // namespace
+
+/**
+ * @[Name]: verifyAsyncModeDuringCallback_expectSuccess
+ * @[Purpose]: Prove that ASYNC_MODE posting is allowed during callbacks, demonstrating that
+ *             the SYNC_MODE restriction (TC-9) is precise and doesn't block valid patterns.
+ * @[Steps]:
+ *    1) 🔧 SETUP: Subscribe callback that attempts async post internally
+ *    2) 🎯 BEHAVIOR: Post event to trigger callback, which attempts ASYNC_MODE post inside
+ *    3) ✅ VERIFY: Callback executed, async post attempted, and SUCCEEDED (no restriction)
+ *    4) 🧹 CLEANUP: Unsubscribe callback
+ * @[Expect]: Async post inside callback returns IOC_RESULT_SUCCESS or TOO_MANY_QUEUING_EVTDESC
+ *            (if queue full), proving ASYNC_MODE works during callbacks.
+ * @[Notes]: This test validates that TC-9's deadlock prevention doesn't over-restrict.
+ *           ASYNC_MODE is safe because it doesn't wait for event processing.
+ *           Related: TC-9 (forbids SYNC), TC-11 (SYNC works after callback).
+ */
+TEST(UTConlesEventRobustnessSyncRestriction, verifyAsyncModeDuringCallback_expectSuccess) {
+    //===SETUP===
+    Tc10Context Ctx;
+
+    // Subscribe consumer with callback that attempts async post
+    IOC_EvtID_T EvtIDs[] = {IOC_EVTID_TEST_SLEEP_9MS};
+    IOC_SubEvtArgs_T SubArgs = {
+        .CbProcEvt_F = tc10CbProcEvtAttemptAsyncPost,
+        .pCbPrivData = &Ctx,
+        .EvtNum = IOC_calcArrayElmtCnt(EvtIDs),
+        .pEvtIDs = EvtIDs,
+    };
+
+    IOC_Result_T Result = IOC_subEVT_inConlesMode(&SubArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Setup: Subscribe should succeed";
+
+    //===BEHAVIOR===
+    // Post event to trigger callback (which will attempt async post internally)
+    IOC_EvtDesc_T TriggerEvtDesc = {
+        .EvtID = IOC_EVTID_TEST_SLEEP_9MS,
+    };
+
+    Result = IOC_postEVT_inConlesMode(&TriggerEvtDesc, nullptr);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Behavior: Initial post should succeed";
+
+    // Force immediate processing to ensure callback executes
+    IOC_forceProcEVT();
+
+    // Brief wait to ensure callback completes
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    //===VERIFY===
+    // Key Verification Point 1: Callback executed
+    VERIFY_KEYPOINT_TRUE(Ctx.CallbackExecuted.load(), "Callback must execute to test async posting scenario");
+
+    // Key Verification Point 2: Async post was attempted inside callback
+    VERIFY_KEYPOINT_TRUE(Ctx.AsyncPostAttempted.load(), "Async post must be attempted inside callback");
+
+    // Key Verification Point 3: Async post SUCCEEDED (no restriction for ASYNC_MODE)
+    // Note: Could be SUCCESS or TOO_MANY_QUEUING_EVTDESC if queue full, both are valid
+    IOC_Result_T ActualResult = Ctx.AsyncPostResult.load();
+    bool IsValidResult = (ActualResult == IOC_RESULT_SUCCESS || ActualResult == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC);
+    VERIFY_KEYPOINT_TRUE(IsValidResult,
+                         "ASYNC_MODE during callback MUST succeed (no restriction) - proves TC-9 is precise");
+
+    //===CLEANUP===
+    IOC_UnsubEvtArgs_T UnsubArgs = {
+        .CbProcEvt_F = tc10CbProcEvtAttemptAsyncPost,
+        .pCbPrivData = &Ctx,
+    };
+
+    Result = IOC_unsubEVT_inConlesMode(&UnsubArgs);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result) << "Cleanup: Unsubscribe should succeed";
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// TC-11: Verify SYNC_MODE works AFTER callback completes (restriction is scoped to callback duration)
+//
+// RATIONALE: TC-9 forbids SYNC_MODE during callbacks. TC-11 verifies that once the callback
+//            completes, SYNC_MODE posting works normally, proving the restriction is properly scoped.
+//
+// ACCEPTANCE CRITERIA [@AC-3,US-3]:
+//   GIVEN a callback has completed execution,
+//    WHEN attempting to post event with SYNC_MODE from outside callback context,
+//    THEN post succeeds normally,
+//     AND event is processed immediately,
+//     AND no restriction error occurs.
+//
+// PRIORITY: 🥇 HIGH - Ensures the deadlock fix is properly scoped and doesn't leak
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+// US-3: Deadlock Prevention (cont'd)
+namespace {
+struct Tc11Context {
+    std::atomic<bool> CallbackExecuted{false};
+    std::atomic<bool> SyncPostAfterCallback{false};
+    std::atomic<IOC_Result_T> SyncPostResult{IOC_RESULT_BUG};
+};
+
+// Simple callback that just marks execution
+IOC_Result_T tc11CbProcEvtSimple(const IOC_EvtDesc_pT pEvtDesc, void* pCbPrivData) {
+    (void)pEvtDesc;  // Unused parameter
+    auto* pCtx = static_cast<Tc11Context*>(pCbPrivData);
+    pCtx->CallbackExecuted.store(true);
+    return IOC_RESULT_SUCCESS;
+}
+}  // namespace
+
+/**
+ * @[Name]: verifySyncModeAfterCallback_expectSuccess
+ * @[Purpose]: Prove that SYNC_MODE restriction is scoped to callback execution only.
+ *             Once callback completes, SYNC_MODE works normally, demonstrating proper
+ *             state management and preventing false positives.
+ * @[Steps]:
+ *    1) 🔧 SETUP: Subscribe simple callback that just marks execution
+ *    2) 🎯 BEHAVIOR: Post event to trigger callback, wait for completion, then attempt SYNC post
+ *    3) ✅ VERIFY: Callback executed, SYNC post after callback SUCCEEDED (no restriction)
+ *    4) 🧹 CLEANUP: Unsubscribe callback
+ * @[Expect]: Sync post AFTER callback completes returns IOC_RESULT_SUCCESS, proving
+ *            the restriction only applies during callback execution.
+ * @[Notes]: This test validates that the deadlock prevention check correctly detects when
+ *           we're NOT in a callback anymore. State management must be precise.
+ *           Related: TC-9 (forbids SYNC during), TC-10 (allows ASYNC during).
+ */
+TEST(UTConlesEventRobustnessSyncRestriction, verifySyncModeAfterCallback_expectSuccess) {
+    //===SETUP===
+    Tc11Context Ctx;
+
+    // Subscribe simple callback
+    IOC_EvtID_T EvtIDs[] = {IOC_EVTID_TEST_SLEEP_9MS};
+    IOC_SubEvtArgs_T SubArgs = {
+        .CbProcEvt_F = tc11CbProcEvtSimple,
+        .pCbPrivData = &Ctx,
+        .EvtNum = IOC_calcArrayElmtCnt(EvtIDs),
+        .pEvtIDs = EvtIDs,
+    };
+
+    IOC_Result_T Result = IOC_subEVT_inConlesMode(&SubArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Setup: Subscribe should succeed";
+
+    //===BEHAVIOR===
+    // Post event to trigger callback
+    IOC_EvtDesc_T TriggerEvtDesc = {
+        .EvtID = IOC_EVTID_TEST_SLEEP_9MS,
+    };
+
+    Result = IOC_postEVT_inConlesMode(&TriggerEvtDesc, nullptr);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Behavior: Initial post should succeed";
+
+    // Force immediate processing to ensure callback executes
+    IOC_forceProcEVT();
+
+    // Wait for callback to complete
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // Verify callback completed
+    ASSERT_TRUE(Ctx.CallbackExecuted.load()) << "Callback should have executed before sync post";
+
+    // Now attempt SYNC_MODE post AFTER callback has completed
+    IOC_EvtDesc_T SyncEvtDesc = {
+        .EvtID = IOC_EVTID_TEST_KEEPALIVE,
+    };
+
+    IOC_Option_defineSyncMode(SyncOption);
+
+    Ctx.SyncPostAfterCallback.store(true);
+    Result = IOC_postEVT_inConlesMode(&SyncEvtDesc, &SyncOption);
+    Ctx.SyncPostResult.store(Result);
+
+    //===VERIFY===
+    // Key Verification Point 1: Callback executed before sync post
+    VERIFY_KEYPOINT_TRUE(Ctx.CallbackExecuted.load(), "Callback must complete before testing post-callback sync post");
+
+    // Key Verification Point 2: Sync post was attempted after callback
+    VERIFY_KEYPOINT_TRUE(Ctx.SyncPostAfterCallback.load(), "Sync post must be attempted after callback completes");
+
+    // Key Verification Point 3: Sync post SUCCEEDED (no restriction outside callback)
+    VERIFY_KEYPOINT_EQ(Ctx.SyncPostResult.load(), IOC_RESULT_SUCCESS,
+                       "SYNC_MODE after callback MUST succeed - restriction is scoped to callback duration only");
+
+    //===CLEANUP===
+    IOC_UnsubEvtArgs_T UnsubArgs = {
+        .CbProcEvt_F = tc11CbProcEvtSimple,
         .pCbPrivData = &Ctx,
     };
 
