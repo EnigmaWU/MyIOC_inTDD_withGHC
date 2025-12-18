@@ -2025,11 +2025,9 @@ TEST(UTConlesEventRobustnessSyncRestriction, verifySyncModeDuringCallback_expect
     VERIFY_KEYPOINT_TRUE(Ctx.SyncPostAttempted.load(),
                          "Sync post must be attempted inside callback to test restriction");
 
-    // Key Verification Point 3: NOT_SUPPORT result returned (CRITICAL - deadlock prevention)
-    // NOTE: Using IOC_RESULT_NOT_SUPPORT temporarily until IOC_RESULT_FORBIDDEN is implemented
-    VERIFY_KEYPOINT_EQ(Ctx.SyncPostResult.load(), IOC_RESULT_NOT_SUPPORT,
-                       "CRITICAL: SYNC_MODE during callback MUST return NOT_SUPPORT to prevent deadlock "
-                       "(TODO: change to IOC_RESULT_FORBIDDEN once implemented)");
+    // Key Verification Point 3: FORBIDDEN result returned (CRITICAL - deadlock prevention)
+    VERIFY_KEYPOINT_EQ(Ctx.SyncPostResult.load(), IOC_RESULT_FORBIDDEN,
+                       "CRITICAL: SYNC_MODE during callback MUST return FORBIDDEN to prevent deadlock");
 
     //===CLEANUP===
     IOC_UnsubEvtArgs_T UnsubArgs = {

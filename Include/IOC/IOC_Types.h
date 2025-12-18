@@ -79,6 +79,7 @@ typedef enum {
     IOC_RESULT_NOT_SUPPORT_MANUAL_ACCEPT = -523,  // 🐛 TDD FIX: Added for UT_ServiceMisuse US-4/AC-1
 
     IOC_RESULT_BUG = -999,
+    IOC_RESULT_FORBIDDEN = -1000,
 } IOC_Result_T;
 
 const char *IOC_getResultStr(IOC_Result_T Result);

@@ -190,8 +190,10 @@ static void __IOC_ClsEvt_transferLinkObjStateByBehavior(_ClsEvtLinkObj_pT pLinkO
         case Behavior_enterSubEvt: {
             if (MainState == IOC_LinkStateReady) {
                 pLinkObj->State.Main = IOC_LinkStateBusySubEvt;
+            } else if (MainState == IOC_LinkStateBusyCbProcEvt) {
+                // Allow subbing during callback, keep BusyCbProcEvt state for deadlock detection
             } else {
-                _IOC_LogBug("Invalid State(Main=%d) to enterSubEvt, MUST in State(Main=%d)", MainState,
+                _IOC_LogBug("Invalid State(Main=%d) to enterSubEvt, MUST in State(Main=%d) or BusyCbProcEvt", MainState,
                             IOC_LinkStateReady);
             }
         } break;
@@ -199,8 +201,10 @@ static void __IOC_ClsEvt_transferLinkObjStateByBehavior(_ClsEvtLinkObj_pT pLinkO
         case Behavior_leaveSubEvt: {
             if (MainState == IOC_LinkStateBusySubEvt) {
                 pLinkObj->State.Main = IOC_LinkStateReady;
+            } else if (MainState == IOC_LinkStateBusyCbProcEvt) {
+                // Stay in BusyCbProcEvt
             } else {
-                _IOC_LogBug("Invalid State(Main=%d) to leaveSubEvt, MUST in State(Main=%d)", MainState,
+                _IOC_LogBug("Invalid State(Main=%d) to leaveSubEvt, MUST in State(Main=%d) or BusyCbProcEvt", MainState,
                             IOC_LinkStateBusySubEvt);
             }
         } break;
@@ -208,18 +212,22 @@ static void __IOC_ClsEvt_transferLinkObjStateByBehavior(_ClsEvtLinkObj_pT pLinkO
         case Behavior_enterUnsubEvt: {
             if (MainState == IOC_LinkStateReady) {
                 pLinkObj->State.Main = IOC_LinkStateBusyUnsubEvt;
+            } else if (MainState == IOC_LinkStateBusyCbProcEvt) {
+                // Allow unsubbing during callback, keep BusyCbProcEvt state
             } else {
-                _IOC_LogBug("Invalid State(Main=%d) to enterUnsubEvt, MUST in State(Main=%d)", MainState,
-                            IOC_LinkStateReady);
+                _IOC_LogBug("Invalid State(Main=%d) to enterUnsubEvt, MUST in State(Main=%d) or BusyCbProcEvt",
+                            MainState, IOC_LinkStateReady);
             }
         } break;
 
         case Behavior_leaveUnsubEvt: {
             if (MainState == IOC_LinkStateBusyUnsubEvt) {
                 pLinkObj->State.Main = IOC_LinkStateReady;
+            } else if (MainState == IOC_LinkStateBusyCbProcEvt) {
+                // Stay in BusyCbProcEvt
             } else {
-                _IOC_LogBug("Invalid State(Main=%d) to leaveUnsubEvt, MUST in State(Main=%d)", MainState,
-                            IOC_LinkStateBusyUnsubEvt);
+                _IOC_LogBug("Invalid State(Main=%d) to leaveUnsubEvt, MUST in State(Main=%d) or BusyCbProcEvt",
+                            MainState, IOC_LinkStateBusyUnsubEvt);
             }
         } break;
 
@@ -408,15 +416,17 @@ static void __IOC_ClsEvt_callbackProcEvtOverSuberList(_ClsEvtLinkObj_pT pEvtLink
     pthread_mutex_unlock(&pSuberList->Mutex);
 
     // Phase 2: Invoke callbacks WITHOUT holding lock - prevents deadlock!
-    // NOTE: We do NOT transition link state here because:
-    //   1. Multiple callbacks may execute concurrently
-    //   2. Callbacks may call IOC_subEVT/IOC_unsubEVT which require Ready state
-    //   3. Link state tracks posting/subscription ops, not callback execution
+    // RESTORED: Transition link state to BusyCbProcEvt to enable deadlock detection
+    // for SYNC_MODE posts inside callbacks (TC-9).
+    __IOC_ClsEvt_transferLinkObjStateByBehavior(pEvtLinkObj, Behavior_enterCbProcEvt);
+
     for (ULONG_T i = 0; i < ActiveCount; i++) {
         // FIXED: Callback now invoked WITHOUT holding pSuberList->Mutex
         // This allows callbacks to safely call IOC_subEVT/IOC_unsubEVT without deadlock
         ActiveCallbacks[i].CbProcEvt_F(pEvtDesc, ActiveCallbacks[i].pCbPrivData);
     }
+
+    __IOC_ClsEvt_transferLinkObjStateByBehavior(pEvtLinkObj, Behavior_leaveCbProcEvt);
 }
 
 //===> END IMPLEMENT FOR ClsEvtSuberList
@@ -797,7 +807,7 @@ IOC_Result_T _IOC_postEVT_inConlesMode(
     if (!IsAsyncMode && pLinkObj->State.Main == IOC_LinkStateBusyCbProcEvt) {
         _IOC_LogError("[ConlesEvent]: SYNC_MODE forbidden during callback (LinkState=%d) to prevent deadlock",
                       pLinkObj->State.Main);
-        Result = IOC_RESULT_NOT_SUPPORT;  // TODO: Change to IOC_RESULT_FORBIDDEN when added to IOC_Types.h
+        Result = IOC_RESULT_FORBIDDEN;
         goto _returnResult;
     }
 
