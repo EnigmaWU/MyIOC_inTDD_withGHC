@@ -2901,5 +2901,172 @@ TEST(UTConlesEventRobustnessMultiThread, verifyMultiThread_bySustainedStress_exp
     IOC_unsubEVT_inConlesMode(&FinalUnsub);
 }
 
+/**
+ * TC-16: verifyRecovery_afterBurst_expectNormalLatency
+ */
+TEST(UTConlesEventRobustnessMultiThread, verifyRecovery_afterBurst_expectNormalLatency) {
+    struct LatencyCtx {
+        std::atomic<uint32_t> Count{0};
+        std::chrono::steady_clock::time_point StartTime;
+        std::chrono::steady_clock::time_point EndTime;
+        std::atomic<bool> Received{false};
+    } LCtx;
+
+    auto cb = [](const IOC_EvtDesc_pT pEvtDesc, void* pCbPrivData) -> IOC_Result_T {
+        auto* p = static_cast<LatencyCtx*>(pCbPrivData);
+        if (pEvtDesc->EvtID == 999) {
+            p->EndTime = std::chrono::steady_clock::now();
+            p->Received.store(true);
+        }
+        p->Count.fetch_add(1);
+        return IOC_RESULT_SUCCESS;
+    };
+
+    IOC_EvtID_T EvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE, 999};
+    IOC_SubEvtArgs_T SubArgs = {
+        .CbProcEvt_F = cb,
+        .pCbPrivData = &LCtx,
+        .EvtNum = 2,
+        .pEvtIDs = EvtIDs,
+    };
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_subEVT_inConlesMode(&SubArgs));
+
+    // 1. Send Burst
+    constexpr int BurstSize = 500;
+    for (int i = 0; i < BurstSize; ++i) {
+        IOC_EvtDesc_T Evt = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
+        IOC_postEVT_inConlesMode(&Evt, NULL);
+    }
+
+    // 2. Wait for drain (approximate)
+    while (LCtx.Count.load() < BurstSize) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    // 3. Measure Latency
+    LCtx.StartTime = std::chrono::steady_clock::now();
+    IOC_EvtDesc_T ProbeEvt = {.EvtID = 999};
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_postEVT_inConlesMode(&ProbeEvt, NULL));
+
+    // Wait for probe
+    for (int i = 0; i < 100 && !LCtx.Received.load(); ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    ASSERT_TRUE(LCtx.Received.load());
+    auto Latency = std::chrono::duration_cast<std::chrono::microseconds>(LCtx.EndTime - LCtx.StartTime).count();
+    std::cout << "[INFO] Post-burst Latency: " << Latency << " us" << std::endl;
+
+    EXPECT_LT(Latency, 50000);  // Should be < 50ms
+
+    IOC_UnsubEvtArgs_T UnsubArgs = {.CbProcEvt_F = cb, .pCbPrivData = &LCtx};
+    IOC_unsubEVT_inConlesMode(&UnsubArgs);
+}
+
+/**
+ * TC-18: verifyStability_withMaxSubscribers
+ */
+TEST(UTConlesEventRobustnessMultiThread, verifyStability_withMaxSubscribers) {
+    constexpr int MaxSub = 16;
+    struct DummyCtx {
+        int id;
+    } Contexts[MaxSub + 1];
+    auto dummyCb = [](const IOC_EvtDesc_pT, void*) -> IOC_Result_T { return IOC_RESULT_SUCCESS; };
+
+    // 1. Fill up
+    for (int i = 0; i < MaxSub; ++i) {
+        IOC_EvtID_T eid = 1000 + i;
+        IOC_SubEvtArgs_T SArgs = {
+            .CbProcEvt_F = dummyCb,
+            .pCbPrivData = &Contexts[i],
+            .EvtNum = 1,
+            .pEvtIDs = &eid,
+        };
+        EXPECT_EQ(IOC_RESULT_SUCCESS, IOC_subEVT_inConlesMode(&SArgs)) << "Failed at index " << i;
+    }
+
+    // 2. Attempt 17th
+    IOC_EvtID_T eid17 = 2000;
+    IOC_SubEvtArgs_T SArgs17 = {
+        .CbProcEvt_F = dummyCb,
+        .pCbPrivData = &Contexts[MaxSub],
+        .EvtNum = 1,
+        .pEvtIDs = &eid17,
+    };
+    EXPECT_EQ(IOC_RESULT_TOO_MANY_EVENT_CONSUMER, IOC_subEVT_inConlesMode(&SArgs17));
+
+    // 3. Unsubscribe one and retry
+    IOC_UnsubEvtArgs_T UArgs = {.CbProcEvt_F = dummyCb, .pCbPrivData = &Contexts[0]};
+    EXPECT_EQ(IOC_RESULT_SUCCESS, IOC_unsubEVT_inConlesMode(&UArgs));
+    EXPECT_EQ(IOC_RESULT_SUCCESS, IOC_subEVT_inConlesMode(&SArgs17));
+
+    // Cleanup
+    for (int i = 1; i < MaxSub; ++i) {
+        IOC_UnsubEvtArgs_T UA = {.CbProcEvt_F = dummyCb, .pCbPrivData = &Contexts[i]};
+        IOC_unsubEVT_inConlesMode(&UA);
+    }
+    IOC_UnsubEvtArgs_T UA17 = {.CbProcEvt_F = dummyCb, .pCbPrivData = &Contexts[MaxSub]};
+    IOC_unsubEVT_inConlesMode(&UA17);
+}
+
+/**
+ * TC-19: verifyQueueDrain_afterUnsubscribe
+ */
+TEST(UTConlesEventRobustnessMultiThread, verifyQueueDrain_afterUnsubscribe) {
+    struct DrainCtx {
+        std::atomic<uint32_t> Count{0};
+        std::atomic<bool> Unsubscribed{false};
+    } DCtx;
+
+    auto cb = [](const IOC_EvtDesc_pT, void* pCbPrivData) -> IOC_Result_T {
+        auto* p = static_cast<DrainCtx*>(pCbPrivData);
+        p->Count.fetch_add(1);
+        return IOC_RESULT_SUCCESS;
+    };
+
+    IOC_EvtID_T eid = 555;
+    IOC_SubEvtArgs_T SArgs = {
+        .CbProcEvt_F = cb,
+        .pCbPrivData = &DCtx,
+        .EvtNum = 1,
+        .pEvtIDs = &eid,
+    };
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_subEVT_inConlesMode(&SArgs));
+
+    // 1. Post many events
+    constexpr int NumEvents = 100;
+    for (int i = 0; i < NumEvents; ++i) {
+        IOC_EvtDesc_T Evt = {.EvtID = eid};
+        IOC_postEVT_inConlesMode(&Evt, NULL);
+    }
+
+    // 2. Unsubscribe immediately
+    IOC_UnsubEvtArgs_T UArgs = {.CbProcEvt_F = cb, .pCbPrivData = &DCtx};
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_unsubEVT_inConlesMode(&UArgs));
+    DCtx.Unsubscribed.store(true);
+
+    uint32_t CountAtUnsub = DCtx.Count.load();
+    std::cout << "[INFO] Count at Unsubscribe: " << CountAtUnsub << std::endl;
+
+    // 3. Wait for queue to drain (state becomes Ready)
+    bool drained = false;
+    for (int i = 0; i < 100; ++i) {
+        IOC_LinkState_T state;
+        IOC_getLinkState(IOC_CONLES_MODE_AUTO_LINK_ID, &state, NULL);
+        if (state == IOC_LinkStateReady) {
+            drained = true;
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    EXPECT_TRUE(drained) << "Queue should drain even after unsubscribe";
+
+    // 4. Verify no more callbacks received after some time
+    uint32_t FinalCount = DCtx.Count.load();
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    EXPECT_EQ(FinalCount, DCtx.Count.load()) << "No more callbacks should be received after unsubscribe";
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>END OF TEST IMPLEMENTATION================================================================
