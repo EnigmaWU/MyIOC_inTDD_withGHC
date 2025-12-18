@@ -866,10 +866,10 @@
 //=================================================================================================
 // 🥇 HIGH PRIORITY – Critical Robustness (US-1: Backpressure, US-3: Deadlock Prevention)
 //=================================================================================================
-//   ⚪ [@AC-1,US-1] TC-1: verifyBackpressure_bySlowConsumer_expectPostBlocks
-//   ⚪ [@AC-2,US-1] TC-2: verifyQueueOverflow_byFastProducer_expectErrorReturned
-//   ⚪ [@AC-3,US-1] TC-3: verifyTimeout_byFullQueue_expectTimeoutReturned
-//   ⚪ [@AC-4,US-1] TC-4: verifyRecovery_afterBackpressure_expectNormalFlow
+//   🟢 [@AC-1,US-1] TC-1: verifyBackpressure_bySlowConsumer_expectPostBlocks – ✅ GREEN
+//   🟢 [@AC-2,US-1] TC-2: verifyQueueOverflow_byFastProducer_expectErrorReturned – ✅ GREEN
+//   🟢 [@AC-3,US-1] TC-3: verifyTimeout_byFullQueue_expectTimeoutReturned – ✅ GREEN (4 bugs fixed)
+//   🟢 [@AC-4,US-1] TC-4: verifyRecovery_afterBackpressure_expectNormalFlow – ✅ GREEN
 //   🟢 [@AC-1,US-3] TC-9: verifySyncModeDuringCallback_expectForbidden – ✅ GREEN (deadlock prevented)
 //   🟢 [@AC-2,US-3] TC-10: verifyAsyncModeDuringCallback_expectSuccess – ✅ GREEN (proves restriction precise)
 //   🟢 [@AC-3,US-3] TC-11: verifySyncModeAfterCallback_expectSuccess – ✅ GREEN (restriction scoped)
@@ -877,13 +877,13 @@
 //=================================================================================================
 // 🥈 MEDIUM PRIORITY – Event Storm & Concurrency (US-2, US-4)
 //=================================================================================================
-//   ⚪ [@AC-1,US-2] TC-5: verifyCascading_byLinearChain_expectAllDelivered
-//   ⚪ [@AC-2,US-2] TC-6: verifyCascading_byExponentialAmplification_expectLimited
-//   ⚪ [@AC-3,US-2] TC-7: verifyCascading_byMayBlockOption_expectGracefulBackpressure
-//   ⚪ [@AC-4,US-2] TC-8: verifyRecovery_afterEventStorm_expectNormalOperation
-//   ⚪ [@AC-1,US-4] TC-12: verifyMultiThread_bySubUnsubStress_expectNoCorruption
-//   ⚪ [@AC-2,US-4] TC-13: verifyMultiThread_bySubscribeWhilePosting_expectConsistent
-//   ⚪ [@AC-3,US-4] TC-14: verifyMultiThread_byNewSubscriberDuringCallback_expectActivatedNext
+//   🟢 [@AC-1,US-2] TC-5: verifyCascading_byLinearChain_expectAllDelivered – ✅ GREEN
+//   🟢 [@AC-2,US-2] TC-6: verifyCascading_byExponentialAmplification_expectLimited – ✅ GREEN
+//   🟢 [@AC-3,US-2] TC-7: verifyCascading_byMayBlockOption_expectGracefulBackpressure – ✅ GREEN
+//   🟢 [@AC-4,US-2] TC-8: verifyRecovery_afterEventStorm_expectNormalOperation – ✅ GREEN
+//   🟢 [@AC-1,US-4] TC-12: verifyMultiThread_bySubUnsubStress_expectNoCorruption – ✅ GREEN
+//   🟢 [@AC-2,US-4] TC-13: verifyMultiThread_bySubscribeWhilePosting_expectConsistent – ✅ GREEN (BUG #5 fixed)
+//   🟢 [@AC-3,US-4] TC-14: verifyMultiThread_byNewSubscriberDuringCallback_expectActivatedNext – ✅ GREEN
 //   ⚪ [@AC-4,US-4] TC-15: verifyMultiThread_bySustainedStress_expectNoLeaksOrDegradation – LONG-RUNNING
 //
 //=================================================================================================
@@ -899,14 +899,12 @@
 //   Total Test Cases: 18
 //   By Priority: 🥇 HIGH=7, 🥈 MEDIUM=8, 🥉 LOW=3
 //   By User Story: US-1=4, US-2=4, US-3=3, US-4=4, US-5=3
-//   Implementation Status: All ⚪ TODO/PLANNED (design phase complete)
+//   Implementation Status: 14/18 🟢 GREEN, 4/18 ⚪ TODO
 //
 //   NEXT STEPS (CaTDD Phase 3):
-//     1. Human approval of design (Checkpoint 2)
-//     2. Begin TDD Red→Green cycle with TC-9 (highest priority, deadlock prevention)
-//     3. Implement Fast-Fail Six tests first (if applicable)
-//     4. Progress through P1 HIGH priority tests
-//     5. Gate check before proceeding to P2 MEDIUM tests
+//     1. Complete remaining P2 tests (TC-15 sustained stress)
+//     2. Progress to P3 LOW priority tests (US-5 recovery)
+//     3. Final refactoring and documentation (Phase 4)
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>END OF TODO/IMPLEMENTATION TRACKING SECTION===============================================
@@ -2602,30 +2600,27 @@ TEST(UTConlesEventRobustnessMultiThread, verifyMultiThread_bySubscribeWhilePosti
 // TC-14: Dynamic Subscription During Callback
 //==================================================================================================
 /**
- * @brief TC-14: Verify dynamic subscription from within event callbacks
- *
- * Priority: P3-Quality (Robustness)
- * Status: ⚪TODO
- *
- * Test Objective:
- *   Validate that the deadlock fix (two-phase callback execution) allows callbacks to
- *   safely modify subscription state without causing deadlock or system instability.
- *
- * Test Scenario:
- *   1. Primary subscriber receives event
- *   2. Primary callback subscribes Secondary handler (dynamic subscription)
- *   3. Secondary callback subscribes Tertiary handler (cascading subscription)
- *   4. Subsequent events delivered to all active subscribers
- *
- * Expected Results:
- *   - All subscription operations succeed
- *   - No deadlock occurs
- *   - Newly subscribed handlers receive SUBSEQUENT events (not current event)
- *   - Test completes successfully
- *
- * BUG VALIDATION:
- *   This test would DEADLOCK with the old implementation (mutex held during callback).
- *   With the fix (two-phase execution), callbacks can safely call IOC_subEVT/IOC_unsubEVT.
+ * [@AC-3,US-4]
+ * TC-14:
+ *   @[Name]: verifyMultiThread_byNewSubscriberDuringCallback_expectActivatedNext
+ *   @[Purpose]: Verify new subscribers added during callback activated correctly
+ *   @[Steps]:
+ *     SETUP:
+ *       1) Subscribe consumer A
+ *       2) A's callback subscribes consumer B
+ *     BEHAVIOR:
+ *       3) Post first event (triggers A, A subscribes B)
+ *       4) Post second event
+ *     VERIFY:
+ *       5) Verify A receives both events
+ *       6) Verify B receives only second event (subscribed after first)
+ *       7) Verify no deadlock occurs during dynamic subscription
+ *     CLEANUP:
+ *       8) Unsubscribe A and B
+ *   @[Expect]:
+ *     - Dynamic subscription works correctly
+ *     - New subscriber activated next cycle
+ *     - No deadlock (validates two-phase callback fix)
  */
 
 struct Tc14Context {
@@ -2687,7 +2682,7 @@ static IOC_Result_T tc14CbPrimary(IOC_EvtDesc_pT pEvtDesc, void* pPrivData) {
     return IOC_RESULT_SUCCESS;
 }
 
-TEST(UTConlesEventRobustnessMultiThread, verifyDynamicSubscription_inCallback_expectNoDeadlock) {
+TEST(UTConlesEventRobustnessMultiThread, verifyMultiThread_byNewSubscriberDuringCallback_expectActivatedNext) {
     //===SETUP===
     Tc14Context Ctx;
 
