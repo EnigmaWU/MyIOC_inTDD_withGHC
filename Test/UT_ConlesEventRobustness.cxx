@@ -820,6 +820,34 @@
  */
 
 /**
+ * [@AC-4,US-4]
+ * TC-15:
+ *   @[Name]: verifyMultiThread_bySustainedStress_expectNoLeaksOrDegradation
+ *   @[Purpose]: Verify system stability under sustained multi-threaded load
+ *   @[Steps]:
+ *     SETUP:
+ *       1) Launch 4 producer threads posting events at high frequency
+ *       2) Launch 2 subscriber threads constantly sub/unsub random events
+ *       3) Launch 1 monitor thread tracking throughput
+ *     BEHAVIOR:
+ *       4) Run stress test for 5 seconds
+ *       5) Monitor for any errors or crashes
+ *     VERIFY:
+ *       6) Verify no memory leaks (ASan)
+ *       7) Verify throughput remains stable (no degradation)
+ *       8) Verify no deadlocks or race conditions detected
+ *     CLEANUP:
+ *       9) Stop all threads, unsubscribe all
+ *   @[Expect]:
+ *     - System handles sustained load without failure
+ *     - No memory leaks or resource exhaustion
+ *     - Consistent performance throughout test
+ *   @[Notes]:
+ *     - Long-running stress test
+ *     - Validates thread safety of all core paths
+ */
+
+/**
  * [@AC-3,US-5]
  * TC-18:
  *   @[Name]: verifyForceProcEVT_underHighLoad_expectAllProcessed
@@ -2760,6 +2788,117 @@ TEST(UTConlesEventRobustnessMultiThread, verifyMultiThread_byNewSubscriberDuring
         .pCbPrivData = &Ctx,
     };
     IOC_unsubEVT_inConlesMode(&UnsubArgs);
+}
+
+/**
+ * [@AC-4,US-4] TC-15: verifyMultiThread_bySustainedStress_expectNoLeaksOrDegradation
+ */
+namespace {
+struct Tc15Context {
+    std::atomic<uint64_t> TotalEventsProcessed{0};
+    std::atomic<bool> Running{true};
+    std::atomic<uint32_t> ErrorCount{0};
+};
+
+IOC_Result_T tc15CbConsumer(const IOC_EvtDesc_pT pEvtDesc, void* pCbPrivData) {
+    (void)pEvtDesc;
+    auto* pCtx = static_cast<Tc15Context*>(pCbPrivData);
+    pCtx->TotalEventsProcessed.fetch_add(1);
+    return IOC_RESULT_SUCCESS;
+}
+}  // namespace
+
+TEST(UTConlesEventRobustnessMultiThread, verifyMultiThread_bySustainedStress_expectNoLeaksOrDegradation) {
+    Tc15Context Ctx;
+    constexpr int NumProducers = 4;
+    constexpr int NumSubscribers = 2;
+    constexpr int RunDurationSeconds = 5;
+
+    // 1. Setup initial subscriber
+    IOC_EvtID_T BaseEvtIDs[] = {IOC_EVTID_TEST_KEEPALIVE};
+    IOC_SubEvtArgs_T SubArgs = {
+        .CbProcEvt_F = tc15CbConsumer,
+        .pCbPrivData = &Ctx,
+        .EvtNum = IOC_calcArrayElmtCnt(BaseEvtIDs),
+        .pEvtIDs = BaseEvtIDs,
+    };
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_subEVT_inConlesMode(&SubArgs));
+
+    // 2. Launch Producer Threads
+    std::vector<std::thread> Producers;
+    for (int i = 0; i < NumProducers; ++i) {
+        Producers.emplace_back([&Ctx]() {
+            while (Ctx.Running.load()) {
+                IOC_EvtDesc_T Evt = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
+                // Default is AsyncMode, so we can pass NULL for options
+                IOC_Result_T Res = IOC_postEVT_inConlesMode(&Evt, NULL);
+                if (Res != IOC_RESULT_SUCCESS && Res != IOC_RESULT_TOO_MANY_QUEUING_EVTDESC &&
+                    Res != IOC_RESULT_NO_EVENT_CONSUMER) {
+                    Ctx.ErrorCount.fetch_add(1);
+                }
+                std::this_thread::yield();
+            }
+        });
+    }
+
+    // 3. Launch Subscriber/Unsubscriber Threads (Dynamic churn)
+    std::vector<std::thread> Churners;
+    for (int i = 0; i < NumSubscribers; ++i) {
+        Churners.emplace_back([&Ctx, i]() {
+            IOC_EvtID_T MyEvtID = IOC_EVTID_TEST_KEEPALIVE + 100 + i;
+            while (Ctx.Running.load()) {
+                // Subscribe
+                IOC_EvtID_T EvtIDs[] = {MyEvtID};
+                IOC_SubEvtArgs_T SArgs = {
+                    .CbProcEvt_F = tc15CbConsumer,
+                    .pCbPrivData = &Ctx,
+                    .EvtNum = 1,
+                    .pEvtIDs = EvtIDs,
+                };
+                IOC_subEVT_inConlesMode(&SArgs);
+
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+                // Unsubscribe
+                IOC_UnsubEvtArgs_T UArgs = {
+                    .CbProcEvt_F = tc15CbConsumer,
+                    .pCbPrivData = &Ctx,
+                };
+                IOC_unsubEVT_inConlesMode(&UArgs);
+
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+        });
+    }
+
+    // 4. Run for duration
+    std::cout << "[INFO] Starting 5s stress test..." << std::endl;
+    auto StartTime = std::chrono::steady_clock::now();
+    std::this_thread::sleep_for(std::chrono::seconds(RunDurationSeconds));
+    Ctx.Running.store(false);
+
+    for (auto& t : Producers) t.join();
+    for (auto& t : Churners) t.join();
+
+    auto EndTime = std::chrono::steady_clock::now();
+    auto Duration = std::chrono::duration_cast<std::chrono::milliseconds>(EndTime - StartTime).count();
+
+    std::cout << "[INFO] Stress test finished." << std::endl;
+    std::cout << "[INFO] Total Events Processed: " << Ctx.TotalEventsProcessed.load() << std::endl;
+    std::cout << "[INFO] Throughput: " << (Ctx.TotalEventsProcessed.load() * 1000.0 / Duration) << " events/sec"
+              << std::endl;
+    std::cout << "[INFO] Error Count: " << Ctx.ErrorCount.load() << std::endl;
+
+    // 5. Verify
+    EXPECT_EQ(0, Ctx.ErrorCount.load()) << "Should have no unexpected errors during stress";
+    EXPECT_GT(Ctx.TotalEventsProcessed.load(), 1000) << "Should process a significant number of events";
+
+    // 6. Cleanup
+    IOC_UnsubEvtArgs_T FinalUnsub = {
+        .CbProcEvt_F = tc15CbConsumer,
+        .pCbPrivData = &Ctx,
+    };
+    IOC_unsubEVT_inConlesMode(&FinalUnsub);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

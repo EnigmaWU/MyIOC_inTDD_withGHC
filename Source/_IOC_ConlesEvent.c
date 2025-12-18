@@ -41,6 +41,7 @@
 #include "_IOC_ConlesEvent.h"
 
 #include <stdatomic.h>
+#include <stdbool.h>
 #include <unistd.h>
 
 #include "_IOC_EvtDescQueue.h"
@@ -115,6 +116,9 @@ typedef struct {
         pthread_mutex_t Mutex;
         IOC_LinkState_T Main;
         IOC_LinkSubState_T Sub;
+        bool IsInCbProc;
+        bool IsInSub;
+        bool IsInUnsub;
     } State;
 } _ClsEvtLinkObj_T, *_ClsEvtLinkObj_pT;
 #if 0
@@ -166,73 +170,41 @@ static void __IOC_ClsEvt_callbackProcEvtOverSuberList(_ClsEvtLinkObj_pT pEvtLink
 //       |-> EVT::Conles
 static void __IOC_ClsEvt_transferLinkObjStateByBehavior(_ClsEvtLinkObj_pT pLinkObj, _ClsEvtLinkObjBehavior_T Behavior) {
     pthread_mutex_lock(&pLinkObj->State.Mutex);
-    IOC_LinkState_T MainState = pLinkObj->State.Main;
 
     switch (Behavior) {
-        case Behavior_enterCbProcEvt: {
-            if (MainState == IOC_LinkStateReady) {
-                pLinkObj->State.Main = IOC_LinkStateBusyCbProcEvt;
-            } else {
-                _IOC_LogBug("Invalid State(Main=%d) to enterCbProcEvt, MUST in State(Main=%d)", MainState,
-                            IOC_LinkStateReady);
-            }
-        } break;
-
-        case Behavior_leaveCbProcEvt: {
-            if (MainState == IOC_LinkStateBusyCbProcEvt) {
-                pLinkObj->State.Main = IOC_LinkStateReady;
-            } else {
-                _IOC_LogBug("Invalid State(Main=%d) to leaveCbProcEvt, MUST in State(Main=%d)", MainState,
-                            IOC_LinkStateBusyCbProcEvt);
-            }
-        } break;
-
-        case Behavior_enterSubEvt: {
-            if (MainState == IOC_LinkStateReady) {
-                pLinkObj->State.Main = IOC_LinkStateBusySubEvt;
-            } else if (MainState == IOC_LinkStateBusyCbProcEvt) {
-                // Allow subbing during callback, keep BusyCbProcEvt state for deadlock detection
-            } else {
-                _IOC_LogBug("Invalid State(Main=%d) to enterSubEvt, MUST in State(Main=%d) or BusyCbProcEvt", MainState,
-                            IOC_LinkStateReady);
-            }
-        } break;
-
-        case Behavior_leaveSubEvt: {
-            if (MainState == IOC_LinkStateBusySubEvt) {
-                pLinkObj->State.Main = IOC_LinkStateReady;
-            } else if (MainState == IOC_LinkStateBusyCbProcEvt) {
-                // Stay in BusyCbProcEvt
-            } else {
-                _IOC_LogBug("Invalid State(Main=%d) to leaveSubEvt, MUST in State(Main=%d) or BusyCbProcEvt", MainState,
-                            IOC_LinkStateBusySubEvt);
-            }
-        } break;
-
-        case Behavior_enterUnsubEvt: {
-            if (MainState == IOC_LinkStateReady) {
-                pLinkObj->State.Main = IOC_LinkStateBusyUnsubEvt;
-            } else if (MainState == IOC_LinkStateBusyCbProcEvt) {
-                // Allow unsubbing during callback, keep BusyCbProcEvt state
-            } else {
-                _IOC_LogBug("Invalid State(Main=%d) to enterUnsubEvt, MUST in State(Main=%d) or BusyCbProcEvt",
-                            MainState, IOC_LinkStateReady);
-            }
-        } break;
-
-        case Behavior_leaveUnsubEvt: {
-            if (MainState == IOC_LinkStateBusyUnsubEvt) {
-                pLinkObj->State.Main = IOC_LinkStateReady;
-            } else if (MainState == IOC_LinkStateBusyCbProcEvt) {
-                // Stay in BusyCbProcEvt
-            } else {
-                _IOC_LogBug("Invalid State(Main=%d) to leaveUnsubEvt, MUST in State(Main=%d) or BusyCbProcEvt",
-                            MainState, IOC_LinkStateBusyUnsubEvt);
-            }
-        } break;
-
+        case Behavior_enterCbProcEvt:
+            pLinkObj->State.IsInCbProc = true;
+            break;
+        case Behavior_leaveCbProcEvt:
+            pLinkObj->State.IsInCbProc = false;
+            break;
+        case Behavior_enterSubEvt:
+            pLinkObj->State.IsInSub = true;
+            break;
+        case Behavior_leaveSubEvt:
+            pLinkObj->State.IsInSub = false;
+            break;
+        case Behavior_enterUnsubEvt:
+            pLinkObj->State.IsInUnsub = true;
+            break;
+        case Behavior_leaveUnsubEvt:
+            pLinkObj->State.IsInUnsub = false;
+            break;
         default:
             _IOC_LogBug("Invalid Behavior(%d)", Behavior);
+            break;
+    }
+
+    // Update Main state based on priority: CbProc > Sub > Unsub > Ready
+    // CbProc has highest priority because it's used for deadlock detection (TC-9)
+    if (pLinkObj->State.IsInCbProc) {
+        pLinkObj->State.Main = IOC_LinkStateBusyCbProcEvt;
+    } else if (pLinkObj->State.IsInSub) {
+        pLinkObj->State.Main = IOC_LinkStateBusySubEvt;
+    } else if (pLinkObj->State.IsInUnsub) {
+        pLinkObj->State.Main = IOC_LinkStateBusyUnsubEvt;
+    } else {
+        pLinkObj->State.Main = IOC_LinkStateReady;
     }
 
     pthread_mutex_unlock(&pLinkObj->State.Mutex);
