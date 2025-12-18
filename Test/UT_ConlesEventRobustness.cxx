@@ -2598,5 +2598,176 @@ TEST(UTConlesEventRobustnessMultiThread, verifyMultiThread_bySubscribeWhilePosti
     EXPECT_EQ(EventsBeforeCleanup, TotalEventsAfterCleanup) << "No new events should be delivered after cleanup";
 }
 
+//==================================================================================================
+// TC-14: Dynamic Subscription During Callback
+//==================================================================================================
+/**
+ * @brief TC-14: Verify dynamic subscription from within event callbacks
+ *
+ * Priority: P3-Quality (Robustness)
+ * Status: ⚪TODO
+ *
+ * Test Objective:
+ *   Validate that the deadlock fix (two-phase callback execution) allows callbacks to
+ *   safely modify subscription state without causing deadlock or system instability.
+ *
+ * Test Scenario:
+ *   1. Primary subscriber receives event
+ *   2. Primary callback subscribes Secondary handler (dynamic subscription)
+ *   3. Secondary callback subscribes Tertiary handler (cascading subscription)
+ *   4. Subsequent events delivered to all active subscribers
+ *
+ * Expected Results:
+ *   - All subscription operations succeed
+ *   - No deadlock occurs
+ *   - Newly subscribed handlers receive SUBSEQUENT events (not current event)
+ *   - Test completes successfully
+ *
+ * BUG VALIDATION:
+ *   This test would DEADLOCK with the old implementation (mutex held during callback).
+ *   With the fix (two-phase execution), callbacks can safely call IOC_subEVT/IOC_unsubEVT.
+ */
+
+struct Tc14Context {
+    std::atomic<uint32_t> PrimaryCallbackCount{0};
+    std::atomic<uint32_t> SecondaryCallbackCount{0};
+    std::atomic<uint32_t> TertiaryCallbackCount{0};
+    std::atomic<bool> SecondarySubscribed{false};
+    std::atomic<bool> TertiarySubscribed{false};
+};
+
+// Tertiary callback (subscribed by secondary)
+static IOC_Result_T tc14CbTertiary(IOC_EvtDesc_pT pEvtDesc, void* pPrivData) {
+    Tc14Context* pCtx = (Tc14Context*)pPrivData;
+    pCtx->TertiaryCallbackCount.fetch_add(1);
+    return IOC_RESULT_SUCCESS;
+}
+
+// Secondary callback (subscribed by primary)
+static IOC_Result_T tc14CbSecondary(IOC_EvtDesc_pT pEvtDesc, void* pPrivData) {
+    Tc14Context* pCtx = (Tc14Context*)pPrivData;
+    pCtx->SecondaryCallbackCount.fetch_add(1);
+
+    // Subscribe tertiary handler from within callback
+    if (!pCtx->TertiarySubscribed.load()) {
+        IOC_SubEvtArgs_T SubArgs = {
+            .CbProcEvt_F = tc14CbTertiary,
+            .pCbPrivData = pPrivData,
+            .EvtNum = 0,  // Subscribe to all
+            .pEvtIDs = nullptr,
+        };
+
+        IOC_Result_T Result = IOC_subEVT_inConlesMode(&SubArgs);
+        if (Result == IOC_RESULT_SUCCESS) {
+            pCtx->TertiarySubscribed.store(true);
+        }
+    }
+    return IOC_RESULT_SUCCESS;
+}
+
+// Primary callback (initial subscriber)
+static IOC_Result_T tc14CbPrimary(IOC_EvtDesc_pT pEvtDesc, void* pPrivData) {
+    Tc14Context* pCtx = (Tc14Context*)pPrivData;
+    pCtx->PrimaryCallbackCount.fetch_add(1);
+
+    // Subscribe secondary handler from within callback
+    if (!pCtx->SecondarySubscribed.load()) {
+        IOC_SubEvtArgs_T SubArgs = {
+            .CbProcEvt_F = tc14CbSecondary,
+            .pCbPrivData = pPrivData,
+            .EvtNum = 0,  // Subscribe to all
+            .pEvtIDs = nullptr,
+        };
+
+        IOC_Result_T Result = IOC_subEVT_inConlesMode(&SubArgs);
+        if (Result == IOC_RESULT_SUCCESS) {
+            pCtx->SecondarySubscribed.store(true);
+        }
+    }
+    return IOC_RESULT_SUCCESS;
+}
+
+TEST(UTConlesEventRobustnessMultiThread, verifyDynamicSubscription_inCallback_expectNoDeadlock) {
+    //===SETUP===
+    Tc14Context Ctx;
+
+    // Subscribe primary handler
+    IOC_SubEvtArgs_T SubArgs = {
+        .CbProcEvt_F = tc14CbPrimary,
+        .pCbPrivData = &Ctx,
+        .EvtNum = 0,  // Subscribe to all
+        .pEvtIDs = nullptr,
+    };
+
+    IOC_Result_T Result = IOC_subEVT_inConlesMode(&SubArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Setup: Primary subscription should succeed";
+
+    //===BEHAVIOR===
+    // Post multiple events to trigger callback chain
+    // Event 1: Primary receives, subscribes Secondary
+    // Event 2: Primary + Secondary receive, Secondary subscribes Tertiary
+    // Event 3+: All three receive
+    constexpr uint32_t NumEvents = 5;
+
+    IOC_Option_defineASyncNonBlock(Option);
+
+    for (uint32_t i = 0; i < NumEvents; i++) {
+        IOC_EvtDesc_T EvtDesc = {
+            .EvtID = IOC_EVTID_TEST_KEEPALIVE,
+        };
+
+        Result = IOC_postEVT_inConlesMode(&EvtDesc, &Option);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Post event " << i << " should succeed";
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));  // Allow callbacks to execute
+    }
+
+    // Allow time for all callbacks to complete
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    //===VERIFY===
+    printf("[INFO] TC-14 Final counts: Primary=%u, Secondary=%u, Tertiary=%u\n", Ctx.PrimaryCallbackCount.load(),
+           Ctx.SecondaryCallbackCount.load(), Ctx.TertiaryCallbackCount.load());
+
+    // Key Verification Point 1: Test completed without deadlock
+    VERIFY_KEYPOINT_TRUE(true, "CRITICAL: Test completed - no deadlock when subscribing from callback");
+
+    // Key Verification Point 2: Primary received all events
+    VERIFY_KEYPOINT_EQ(Ctx.PrimaryCallbackCount.load(), NumEvents,
+                       "Primary MUST receive all events (subscribed from start)");
+
+    // Key Verification Point 3: Secondary received events after subscription
+    VERIFY_KEYPOINT_GT(Ctx.SecondaryCallbackCount.load(), 0u,
+                       "Secondary MUST receive events after dynamic subscription");
+    VERIFY_KEYPOINT_LT(Ctx.SecondaryCallbackCount.load(), NumEvents,
+                       "Secondary receives FEWER than all (subscribed during event 1)");
+
+    // Key Verification Point 4: Tertiary received events after subscription
+    VERIFY_KEYPOINT_GT(Ctx.TertiaryCallbackCount.load(), 0u, "Tertiary MUST receive events after dynamic subscription");
+
+    //===CLEANUP===
+    if (Ctx.TertiarySubscribed.load()) {
+        IOC_UnsubEvtArgs_T UnsubArgs = {
+            .CbProcEvt_F = tc14CbTertiary,
+            .pCbPrivData = &Ctx,
+        };
+        IOC_unsubEVT_inConlesMode(&UnsubArgs);
+    }
+
+    if (Ctx.SecondarySubscribed.load()) {
+        IOC_UnsubEvtArgs_T UnsubArgs = {
+            .CbProcEvt_F = tc14CbSecondary,
+            .pCbPrivData = &Ctx,
+        };
+        IOC_unsubEVT_inConlesMode(&UnsubArgs);
+    }
+
+    IOC_UnsubEvtArgs_T UnsubArgs = {
+        .CbProcEvt_F = tc14CbPrimary,
+        .pCbPrivData = &Ctx,
+    };
+    IOC_unsubEVT_inConlesMode(&UnsubArgs);
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>END OF TEST IMPLEMENTATION================================================================
