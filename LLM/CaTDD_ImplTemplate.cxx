@@ -402,25 +402,28 @@
  */
 //=== TEMPLATE: Single test ===
 TEST(UT_NameOfCategory, verifyBehaviorX_byDoA_expectSomething) {
-    // SETUP
+    //===>>> SETUP <<<===
+    printf("🔧 SETUP: verifyBehaviorX_byDoA_expectSomething\n");
     // ...
 
-    // BEHAVIOR
+    //===>>> BEHAVIOR <<<===
     printf("🎯 BEHAVIOR: verifyBehaviorX_byDoA_expectSomething\n");
 
-    // VERIFY (≤ 3 key assertions)
+    //===>>> VERIFY <<<===
+    printf("✅ VERIFY: verifyBehaviorX_byDoA_expectSomething\n");
     // ASSERT_...; (use VERIFY_KEYPOINT_xyz redefined macros from GTest's ASSERT_xyz)
 
-    // CLEANUP
+    //===>>> CLEANUP <<<===
+    printf("🧹 CLEANUP: verifyBehaviorX_byDoA_expectSomething\n");
 }
 
 //=== TEMPLATE: Another sample ===
 TEST(UT_NameOfCategory, verifyBehaviorY_byDoB_expectSomething) {
-    // SETUP
+    //===>>> SETUP <<<===
     // ...
     printf("🎯 BEHAVIOR: verifyBehaviorY_byDoB_expectSomething\n");
-    // VERIFY
-    // CLEANUP
+    //===>>> VERIFY <<<===
+    //===>>> CLEANUP <<<===
 }
 
 //=== TEMPLATE: Fixture style ===
