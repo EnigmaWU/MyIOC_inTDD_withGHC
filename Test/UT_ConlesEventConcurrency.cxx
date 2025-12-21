@@ -679,6 +679,194 @@ TEST(UTConlesEventConcurrency, verifyRecovery_afterBurst_expectNormalLatency) {
     IOC_unsubEVT_inConlesMode(&UA);
 }
 
+// =================================================================================================
+// EXTREME STRESS TESTS - 10x intensity to find bugs under extreme conditions
+// =================================================================================================
+
+/**
+ * [@AC-1,US-1] EXTREME STRESS VERSION
+ * TC-6:
+ *   @[Name]: verifyMultiThread_byExtremeSubUnsubStress_expectNoCorruption
+ *   @[Purpose]: Find race conditions with 100x more operations
+ *   @[Steps]:
+ *     1) 🔧 SETUP: Launch 100 threads, each with unique context
+ *     2) 🎯 BEHAVIOR: Each thread performs 10,000 sub/unsub cycles (1M total ops)
+ *     3) ✅ VERIFY: All operations succeed without corruption or crash
+ *     4) 🧹 CLEANUP: Threads join
+ *   @[Expect]: No corruption even under extreme stress.
+ */
+TEST(UTConlesEventConcurrency, verifyMultiThread_byExtremeSubUnsubStress_expectNoCorruption) {
+    //===>>> SETUP <<<===
+    printf("🔧 SETUP: verifyMultiThread_byExtremeSubUnsubStress_expectNoCorruption\n");
+    constexpr uint32_t NumThreads = 100;
+    constexpr uint32_t CyclesPerThread = 10000;
+    constexpr uint32_t MaxConcurrentSubs = 50;  // Backpressure control for extreme concurrency
+    constexpr uint32_t TotalExpectedOps = NumThreads * CyclesPerThread;
+    std::vector<Tc1Context> Contexts(NumThreads);
+    std::atomic<uint32_t> ActiveSubscribers{0};
+
+    auto StressWorker = [&ActiveSubscribers](Tc1Context& Ctx) {
+        for (uint32_t i = 0; i < CyclesPerThread; ++i) {
+            // Wait until we have room to subscribe (backpressure control)
+            while (ActiveSubscribers.load() >= MaxConcurrentSubs) {
+                std::this_thread::yield();
+            }
+
+            ActiveSubscribers.fetch_add(1);
+            IOC_SubEvtArgs_T SubArgs = {
+                .CbProcEvt_F = tc1CbProcEvt,
+                .pCbPrivData = &Ctx,
+                .EvtNum = 0,
+                .pEvtIDs = nullptr,
+            };
+            if (IOC_subEVT_inConlesMode(&SubArgs) == IOC_RESULT_SUCCESS) {
+                Ctx.SuccessfulSubscribes.fetch_add(1);
+                // No yield - maximize contention
+                IOC_UnsubEvtArgs_T UnsubArgs = {.CbProcEvt_F = tc1CbProcEvt, .pCbPrivData = &Ctx};
+                if (IOC_unsubEVT_inConlesMode(&UnsubArgs) == IOC_RESULT_SUCCESS) {
+                    Ctx.SuccessfulUnsubscribes.fetch_add(1);
+                } else {
+                    Ctx.FailedOperations.fetch_add(1);
+                }
+            } else {
+                Ctx.FailedOperations.fetch_add(1);
+            }
+            ActiveSubscribers.fetch_sub(1);
+        }
+    };
+
+    //===>>> BEHAVIOR <<<===
+    printf("🎯 BEHAVIOR: verifyMultiThread_byExtremeSubUnsubStress_expectNoCorruption (This may take 30-60s)\n");
+    auto StartTime = std::chrono::steady_clock::now();
+    std::vector<std::thread> Threads;
+    for (uint32_t i = 0; i < NumThreads; ++i) {
+        Threads.emplace_back(StressWorker, std::ref(Contexts[i]));
+    }
+    for (auto& t : Threads) t.join();
+    auto Duration =
+        std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - StartTime).count();
+
+    //===>>> VERIFY <<<===
+    printf("✅ VERIFY: verifyMultiThread_byExtremeSubUnsubStress_expectNoCorruption (took %lds)\n", Duration);
+    uint32_t TotalSubs = 0, TotalUnsubs = 0, TotalFails = 0;
+    for (const auto& Ctx : Contexts) {
+        TotalSubs += Ctx.SuccessfulSubscribes.load();
+        TotalUnsubs += Ctx.SuccessfulUnsubscribes.load();
+        TotalFails += Ctx.FailedOperations.load();
+    }
+    VERIFY_KEYPOINT_EQ(TotalFails, 0u, "No operations should fail");
+    VERIFY_KEYPOINT_EQ(TotalSubs, TotalExpectedOps, "All subscribes should succeed");
+    VERIFY_KEYPOINT_EQ(TotalUnsubs, TotalExpectedOps, "All unsubscribes should succeed");
+    printf("💪 EXTREME STRESS PASSED: %u ops in %lds (%u ops/sec)\n", TotalExpectedOps * 2, Duration,
+           Duration > 0 ? (TotalExpectedOps * 2 / Duration) : 0);
+
+    //===>>> CLEANUP <<<===
+    printf("🧹 CLEANUP: verifyMultiThread_byExtremeSubUnsubStress_expectNoCorruption\n");
+}
+
+/**
+ * [@AC-2,US-1] EXTREME STRESS VERSION
+ * TC-7:
+ *   @[Name]: verifyMultiThread_bySustainedChaos_expectStability
+ *   @[Purpose]: Find bugs with 60-second sustained chaos (random ops)
+ *   @[Steps]:
+ *     1) 🔧 SETUP: Create 20 poster threads and 10 churner threads
+ *     2) 🎯 BEHAVIOR: Run for 60 seconds with minimal delays
+ *     3) ✅ VERIFY: System remains stable, no crashes
+ *     4) 🧹 CLEANUP: Join all threads
+ *   @[Expect]: System survives 60s chaos without crash.
+ */
+TEST(UTConlesEventConcurrency, verifyMultiThread_bySustainedChaos_expectStability) {
+    //===>>> SETUP <<<===
+    printf("🔧 SETUP: verifyMultiThread_bySustainedChaos_expectStability\n");
+    constexpr uint32_t NumPosters = 20;
+    constexpr uint32_t NumChurners = 10;
+    constexpr uint32_t TestDurationSec = 60;
+
+    struct ChaosCtx {
+        std::atomic<uint64_t> PostCount{0};
+        std::atomic<uint64_t> SubCount{0};
+        std::atomic<uint64_t> UnsubCount{0};
+        std::atomic<uint64_t> EventsReceived{0};
+        std::atomic<uint32_t> Errors{0};
+        std::atomic<bool> Running{true};
+    } Ctx;
+
+    auto cb = [](const IOC_EvtDesc_pT, void* pData) -> IOC_Result_T {
+        static_cast<ChaosCtx*>(pData)->EventsReceived.fetch_add(1);
+        return IOC_RESULT_SUCCESS;
+    };
+
+    //===>>> BEHAVIOR <<<===
+    printf("🎯 BEHAVIOR: verifyMultiThread_bySustainedChaos_expectStability (60 seconds of chaos)\n");
+    auto StartTime = std::chrono::steady_clock::now();
+    std::vector<std::thread> Workers;
+
+    // Poster threads - blast events as fast as possible
+    for (uint32_t i = 0; i < NumPosters; ++i) {
+        Workers.emplace_back([&Ctx]() {
+            while (Ctx.Running.load()) {
+                IOC_EvtDesc_T Evt = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
+                IOC_Result_T Res = IOC_postEVT_inConlesMode(&Evt, nullptr);
+                if (Res == IOC_RESULT_SUCCESS || Res == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC ||
+                    Res == IOC_RESULT_NO_EVENT_CONSUMER) {
+                    Ctx.PostCount.fetch_add(1);
+                } else {
+                    Ctx.Errors.fetch_add(1);
+                }
+                // No yield - maximum chaos
+            }
+        });
+    }
+
+    // Churner threads - rapidly sub/unsub
+    for (uint32_t i = 0; i < NumChurners; ++i) {
+        Workers.emplace_back([&Ctx, cb]() {
+            while (Ctx.Running.load()) {
+                IOC_SubEvtArgs_T SArgs = {.CbProcEvt_F = cb, .pCbPrivData = &Ctx, .EvtNum = 0};
+                if (IOC_subEVT_inConlesMode(&SArgs) == IOC_RESULT_SUCCESS) {
+                    Ctx.SubCount.fetch_add(1);
+                }
+                std::this_thread::sleep_for(std::chrono::microseconds(100));  // Tiny delay
+                IOC_UnsubEvtArgs_T UArgs = {.CbProcEvt_F = cb, .pCbPrivData = &Ctx};
+                if (IOC_unsubEVT_inConlesMode(&UArgs) == IOC_RESULT_SUCCESS) {
+                    Ctx.UnsubCount.fetch_add(1);
+                }
+                std::this_thread::sleep_for(std::chrono::microseconds(100));
+            }
+        });
+    }
+
+    // Print progress every 10 seconds
+    for (uint32_t elapsed = 0; elapsed < TestDurationSec; elapsed += 10) {
+        std::this_thread::sleep_for(std::chrono::seconds(10));
+        printf("  ⏱️  %us: Posts=%llu Events=%llu Subs=%llu Unsubs=%llu Errors=%u\n", elapsed + 10,
+               (unsigned long long)Ctx.PostCount.load(), (unsigned long long)Ctx.EventsReceived.load(),
+               (unsigned long long)Ctx.SubCount.load(), (unsigned long long)Ctx.UnsubCount.load(), Ctx.Errors.load());
+    }
+
+    Ctx.Running.store(false);
+    for (auto& t : Workers) t.join();
+    auto Duration =
+        std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - StartTime).count();
+
+    //===>>> VERIFY <<<===
+    printf("✅ VERIFY: verifyMultiThread_bySustainedChaos_expectStability (took %lds)\n", Duration);
+    VERIFY_KEYPOINT_EQ(Ctx.Errors.load(), 0u, "No unexpected errors during chaos");
+    VERIFY_KEYPOINT_GT(Ctx.PostCount.load(), 100000u, "Should post many events");
+    printf("💪 SUSTAINED CHAOS PASSED: Posts=%llu Events=%llu Subs=%llu Unsubs=%llu in %llds\n",
+           (unsigned long long)Ctx.PostCount.load(), (unsigned long long)Ctx.EventsReceived.load(),
+           (unsigned long long)Ctx.SubCount.load(), (unsigned long long)Ctx.UnsubCount.load(), (long long)Duration);
+
+    //===>>> CLEANUP <<<===
+    printf("🧹 CLEANUP: verifyMultiThread_bySustainedChaos_expectStability\n");
+    // Cleanup any remaining subscriptions
+    for (uint32_t i = 0; i < NumChurners; ++i) {
+        IOC_UnsubEvtArgs_T UArgs = {.CbProcEvt_F = cb, .pCbPrivData = &Ctx};
+        IOC_unsubEVT_inConlesMode(&UArgs);
+    }
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>END OF TEST IMPLEMENTATION================================================================
 

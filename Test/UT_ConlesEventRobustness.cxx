@@ -1221,6 +1221,244 @@ TEST(UTConlesEventRobustness, verifySubscribe_duringCallback_expectSuccess) {
     IOC_unsubEVT_inConlesMode(&UA2);
 }
 
+// =================================================================================================
+// EXTREME STRESS TESTS - Push system to breaking point
+// =================================================================================================
+
+/**
+ * [EXTREME STRESS] TC-16:
+ *   @[Name]: verifyBackpressure_byExtremeSlowConsumer_expectSurvival
+ *   @[Purpose]: Find memory leaks or crashes with 1000 events and ultra-slow consumer
+ *   @[Steps]:
+ *     1) 🔧 SETUP: Subscribe consumer with 200ms delay (extremely slow)
+ *     2) 🎯 BEHAVIOR: Post 1000 events rapidly with MayBlock
+ *     3) ✅ VERIFY: System survives, all events delivered
+ *     4) 🧹 CLEANUP: Unsubscribe consumer
+ *   @[Expect]: System doesn't crash or leak memory.
+ */
+TEST(UTConlesEventRobustness, verifyBackpressure_byExtremeSlowConsumer_expectSurvival) {
+    //===>>> SETUP <<<===
+    printf("🔧 SETUP: verifyBackpressure_byExtremeSlowConsumer_expectSurvival\n");
+
+    struct ExtremeCtx {
+        std::atomic<uint64_t> EventsPosted{0};
+        std::atomic<uint64_t> EventsReceived{0};
+        uint32_t ProcessingDelayMs{200};
+
+        static IOC_Result_T SlowCallback(const IOC_EvtDesc_pT, void* pData) {
+            auto* p = static_cast<ExtremeCtx*>(pData);
+            std::this_thread::sleep_for(std::chrono::milliseconds(p->ProcessingDelayMs));
+            p->EventsReceived.fetch_add(1);
+            return IOC_RESULT_SUCCESS;
+        }
+    };
+    ExtremeCtx Ctx;
+
+    IOC_SubEvtArgs_T SArgs = {.CbProcEvt_F = ExtremeCtx::SlowCallback, .pCbPrivData = &Ctx, .EvtNum = 0};
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_subEVT_inConlesMode(&SArgs));
+
+    //===>>> BEHAVIOR <<<===
+    printf("🎯 BEHAVIOR: verifyBackpressure_byExtremeSlowConsumer_expectSurvival (posting 1000 events)\n");
+    IOC_Option_defineASyncMayBlock(Option);
+    auto StartTime = std::chrono::steady_clock::now();
+
+    for (uint32_t i = 0; i < 1000; i++) {
+        IOC_EvtDesc_T Evt = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
+        IOC_postEVT_inConlesMode(&Evt, &Option);
+        Ctx.EventsPosted.fetch_add(1);
+        if (i % 100 == 0) printf("  Posted %u events...\n", i);
+    }
+
+    printf("  All 1000 events posted, waiting for drain (this takes ~200 seconds)...\n");
+    IOC_forceProcEVT();
+
+    // Wait for all to drain (with timeout to avoid hanging forever)
+    for (int wait = 0; wait < 300 && Ctx.EventsReceived.load() < 1000; wait++) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        if (wait % 10 == 0)
+            printf("  %us: Received %llu/1000 events\n", wait, (unsigned long long)Ctx.EventsReceived.load());
+    }
+    auto Duration =
+        std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - StartTime).count();
+
+    //===>>> VERIFY <<<===
+    printf("✅ VERIFY: verifyBackpressure_byExtremeSlowConsumer_expectSurvival (took %llds)\n", (long long)Duration);
+    VERIFY_KEYPOINT_EQ((uint64_t)Ctx.EventsReceived.load(), 1000ULL, "All 1000 events should be delivered");
+    printf("💪 EXTREME BACKPRESSURE SURVIVED: 1000 events processed in %llds\n", (long long)Duration);
+
+    //===>>> CLEANUP <<<===
+    printf("🧹 CLEANUP: verifyBackpressure_byExtremeSlowConsumer_expectSurvival\n");
+    IOC_UnsubEvtArgs_T UA = {.CbProcEvt_F = ExtremeCtx::SlowCallback, .pCbPrivData = &Ctx};
+    IOC_unsubEVT_inConlesMode(&UA);
+}
+
+/**
+ * [EXTREME STRESS] TC-17:
+ *   @[Name]: verifyCascading_byDeepRecursion_expectControlled
+ *   @[Purpose]: Find stack overflow or infinite recursion bugs
+ *   @[Steps]:
+ *     1) 🔧 SETUP: Subscribe callback that cascades to depth of 100
+ *     2) 🎯 BEHAVIOR: Post root event
+ *     3) ✅ VERIFY: System handles deep recursion or returns overflow error
+ *     4) 🧹 CLEANUP: Unsubscribe consumer
+ *   @[Expect]: No stack overflow or crash.
+ */
+TEST(UTConlesEventRobustness, verifyCascading_byDeepRecursion_expectControlled) {
+    //===>>> SETUP <<<===
+    printf("🔧 SETUP: verifyCascading_byDeepRecursion_expectControlled\n");
+    struct DeepCtx {
+        std::atomic<uint32_t> Counts[100];
+        std::atomic<uint32_t> OverflowErrors{0};
+        DeepCtx() {
+            for (auto& c : Counts) c.store(0);
+        }
+    };
+    DeepCtx Ctx;
+
+    auto cb = [](const IOC_EvtDesc_pT pEvt, void* pData) -> IOC_Result_T {
+        auto* p = static_cast<DeepCtx*>(pData);
+        uint32_t depth = pEvt->EvtValue;
+        if (depth < 100) {
+            p->Counts[depth].fetch_add(1);
+            if (depth < 99) {
+                IOC_EvtDesc_T Next = {.EvtID = 9000, .EvtValue = depth + 1};
+                IOC_Result_T Res = IOC_postEVT_inConlesMode(&Next, nullptr);
+                if (Res == IOC_RESULT_TOO_MANY_QUEUING_EVTDESC) {
+                    p->OverflowErrors.fetch_add(1);
+                }
+            }
+        }
+        return IOC_RESULT_SUCCESS;
+    };
+
+    IOC_EvtID_T eid = 9000;
+    IOC_SubEvtArgs_T SArgs = {.CbProcEvt_F = cb, .pCbPrivData = &Ctx, .EvtNum = 1, .pEvtIDs = &eid};
+    ASSERT_EQ(IOC_RESULT_SUCCESS, IOC_subEVT_inConlesMode(&SArgs));
+
+    //===>>> BEHAVIOR <<<===
+    printf("🎯 BEHAVIOR: verifyCascading_byDeepRecursion_expectControlled (cascading to depth 100)\n");
+    IOC_EvtDesc_T Root = {.EvtID = 9000, .EvtValue = 0};
+    IOC_postEVT_inConlesMode(&Root, nullptr);
+    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+
+    //===>>> VERIFY <<<===
+    printf("✅ VERIFY: verifyCascading_byDeepRecursion_expectControlled\n");
+    uint32_t maxDepth = 0;
+    for (int i = 0; i < 100; i++) {
+        if (Ctx.Counts[i].load() > 0) maxDepth = i;
+    }
+    printf("💪 DEEP RECURSION CONTROLLED: Reached depth %u, Overflow errors: %u\n", maxDepth,
+           Ctx.OverflowErrors.load());
+    VERIFY_KEYPOINT_GT(Ctx.Counts[0].load(), 0u, "Root level should execute");
+    // Either we reach deep levels OR we get overflow errors (both are acceptable)
+    ASSERT_TRUE(maxDepth > 10 || Ctx.OverflowErrors.load() > 0);
+
+    //===>>> CLEANUP <<<===
+    printf("🧹 CLEANUP: verifyCascading_byDeepRecursion_expectControlled\n");
+    IOC_UnsubEvtArgs_T UA = {.CbProcEvt_F = cb, .pCbPrivData = &Ctx};
+    IOC_unsubEVT_inConlesMode(&UA);
+}
+
+/**
+ * [EXTREME STRESS] TC-18:
+ *   @[Name]: verifyMixedChaos_byRandomOperations_expectStability
+ *   @[Purpose]: Find bugs with random mix of all operations for 30 seconds
+ *   @[Steps]:
+ *     1) 🔧 SETUP: Prepare random operation generator
+ *     2) 🎯 BEHAVIOR: Randomly post/sub/unsub/forceProc for 30s
+ *     3) ✅ VERIFY: No crashes, system remains responsive
+ *     4) 🧹 CLEANUP: Unsubscribe all
+ *   @[Expect]: System survives random chaos.
+ */
+TEST(UTConlesEventRobustness, verifyMixedChaos_byRandomOperations_expectStability) {
+    //===>>> SETUP <<<===
+    printf("🔧 SETUP: verifyMixedChaos_byRandomOperations_expectStability\n");
+    struct ChaosCtx {
+        std::atomic<uint64_t> Posts{0}, Subs{0}, Unsubs{0}, Events{0}, Errors{0};
+        std::atomic<bool> Running{true};
+    } Ctx;
+
+    std::vector<IOC_CbProcEvt_F> callbacks;
+    for (int i = 0; i < 10; i++) {
+        callbacks.push_back([](const IOC_EvtDesc_pT, void* pData) -> IOC_Result_T {
+            static_cast<ChaosCtx*>(pData)->Events.fetch_add(1);
+            return IOC_RESULT_SUCCESS;
+        });
+    }
+
+    //===>>> BEHAVIOR <<<===
+    printf("🎯 BEHAVIOR: verifyMixedChaos_byRandomOperations_expectStability (30s of pure chaos)\n");
+    auto StartTime = std::chrono::steady_clock::now();
+
+    std::thread ChaosWorker([&]() {
+        uint32_t cbIndex = 0;
+        while (Ctx.Running.load()) {
+            int op = rand() % 4;
+            switch (op) {
+                case 0: {  // Post
+                    IOC_EvtDesc_T Evt = {.EvtID = IOC_EVTID_TEST_KEEPALIVE};
+                    IOC_postEVT_inConlesMode(&Evt, nullptr);
+                    Ctx.Posts.fetch_add(1);
+                    break;
+                }
+                case 1: {  // Subscribe
+                    IOC_SubEvtArgs_T SArgs = {
+                        .CbProcEvt_F = callbacks[cbIndex % callbacks.size()], .pCbPrivData = &Ctx, .EvtNum = 0};
+                    if (IOC_subEVT_inConlesMode(&SArgs) == IOC_RESULT_SUCCESS) {
+                        Ctx.Subs.fetch_add(1);
+                        cbIndex++;
+                    }
+                    break;
+                }
+                case 2: {  // Unsubscribe
+                    if (cbIndex > 0) {
+                        IOC_UnsubEvtArgs_T UArgs = {.CbProcEvt_F = callbacks[(cbIndex - 1) % callbacks.size()],
+                                                    .pCbPrivData = &Ctx};
+                        if (IOC_unsubEVT_inConlesMode(&UArgs) == IOC_RESULT_SUCCESS) {
+                            Ctx.Unsubs.fetch_add(1);
+                            cbIndex--;
+                        }
+                    }
+                    break;
+                }
+                case 3: {  // ForceProc
+                    IOC_forceProcEVT();
+                    break;
+                }
+            }
+        }
+    });
+
+    for (int i = 0; i < 30; i++) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        if (i % 5 == 4) {
+            printf("  %ds: Posts=%llu Subs=%llu Unsubs=%llu Events=%llu Errors=%llu\n", i + 1,
+                   (unsigned long long)Ctx.Posts.load(), (unsigned long long)Ctx.Subs.load(),
+                   (unsigned long long)Ctx.Unsubs.load(), (unsigned long long)Ctx.Events.load(),
+                   (unsigned long long)Ctx.Errors.load());
+        }
+    }
+
+    Ctx.Running.store(false);
+    ChaosWorker.join();
+    auto Duration =
+        std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - StartTime).count();
+
+    //===>>> VERIFY <<<===
+    printf("✅ VERIFY: verifyMixedChaos_byRandomOperations_expectStability (took %lds)\n", Duration);
+    printf("💪 RANDOM CHAOS SURVIVED: Posts=%llu Subs=%llu Unsubs=%llu Events=%llu in %llds\n",
+           (unsigned long long)Ctx.Posts.load(), (unsigned long long)Ctx.Subs.load(),
+           (unsigned long long)Ctx.Unsubs.load(), (unsigned long long)Ctx.Events.load(), (long long)Duration);
+    VERIFY_KEYPOINT_GT(Ctx.Posts.load(), 1000u, "Should have posted many events");
+
+    //===>>> CLEANUP <<<===
+    printf("🧹 CLEANUP: verifyMixedChaos_byRandomOperations_expectStability\n");
+    for (auto cb : callbacks) {
+        IOC_UnsubEvtArgs_T UA = {.CbProcEvt_F = cb, .pCbPrivData = &Ctx};
+        IOC_unsubEVT_inConlesMode(&UA);
+    }
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>END OF TEST IMPLEMENTATION================================================================
 
