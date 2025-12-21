@@ -35,10 +35,23 @@ IOC_Result_T IOC_sendDAT(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, IOC_Optio
     }
 
     // ════════════════════════════════════════════════════════════════════════════════════════
-    // 🥈 PHASE 2: DatDesc Parameter Validation (SECOND PRECEDENCE)
-    // Rationale: Validate data parameters after confirming connection exists
-    // Security: Now safe to process data parameters on valid connection
-    // Logic: Resource exists → validate what we want to send through it
+    // 🥈 PHASE 2: Role Validation (SECOND PRECEDENCE)
+    // Rationale: Verify link role matches operation before processing data
+    // Security: Prevent role mismatch attacks (send on receiver link)
+    // TDD: Fixes TC-17 verifyDataMisuse_bySendOnReceiverLink_expectInvalidOperation
+    // ════════════════════════════════════════════════════════════════════════════════════════
+
+    // Check if link has DatSender capability
+    if (!(pSenderLinkObj->Args.Usage & IOC_LinkUsageDatSender)) {
+        // Link is not configured as DatSender - reject operation
+        return IOC_RESULT_INCOMPATIBLE_USAGE;
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════════════════
+    // 🥉 PHASE 3: DatDesc Parameter Validation (THIRD PRECEDENCE)
+    // Rationale: Validate data parameters after confirming connection and role
+    // Security: Now safe to process data parameters on valid connection with correct role
+    // Logic: Resource exists → Role matches → validate what we want to send through it
     // ════════════════════════════════════════════════════════════════════════════════════════
 
     // Check DatDesc pointer validity
@@ -61,9 +74,9 @@ IOC_Result_T IOC_sendDAT(IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, IOC_Optio
     }
 
     // ════════════════════════════════════════════════════════════════════════════════════════
-    // 🥉 PHASE 3: Options Validation (LOWEST PRECEDENCE)
-    // Rationale: Validate configuration after confirming connection and data are valid
-    // Logic: Resource exists → Data is valid → Check how to send it
+    // 🏁 PHASE 4: Options Validation (LOWEST PRECEDENCE)
+    // Rationale: Validate configuration after confirming connection, role, and data are valid
+    // Logic: Resource exists → Role matches → Data is valid → Check how to send it
     // Note: Options validation is typically handled by protocol-specific implementation
     // ════════════════════════════════════════════════════════════════════════════════════════
 
@@ -135,6 +148,13 @@ IOC_Result_T IOC_flushDAT(IOC_LinkID_T LinkID, IOC_Options_pT pOption) {
     _IOC_LinkObject_pT pLinkObj = _IOC_getLinkObjByLinkID(LinkID);
     if (!pLinkObj) {
         return IOC_RESULT_NOT_EXIST_LINK;
+    }
+
+    // 🎯 TDD FIX: Role validation - flush only valid on DatSender links
+    // Fixes TC-19 verifyDataMisuse_byFlushOnReceiverLink_expectInvalidOperation
+    if (!(pLinkObj->Args.Usage & IOC_LinkUsageDatSender)) {
+        // Link is not configured as DatSender - reject flush operation
+        return IOC_RESULT_INCOMPATIBLE_USAGE;
     }
 
     // 🚀 MICRO-BATCHING SUPPORT: For ProtoFifo protocol, flush any accumulated batch data

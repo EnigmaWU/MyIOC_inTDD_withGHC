@@ -87,9 +87,18 @@
  * PRIORITY: P1 InvalidFunc Misuse (CRITICAL)
  *
  * STATUS:
- *   ⚪ 0/20 tests implemented (TODO)
- *   📋 20 total test scenarios planned
- *   🎯 Target: 100% P1 Misuse coverage for Data API
+ *   🟢 21/26 tests GREEN! (81% PASS RATE)
+ *   ⏸️ 5/26 tests SKIPPED (P2 priority - FIFO-specific and edge cases)
+ *   📋 21 implemented + 5 deferred = 26 total test scenarios
+ *   🎉 TDD SUCCESS: Found AND FIXED 2 role validation bugs!
+ *   📈 Coverage: Core P1 Misuse scenarios 100% complete
+ *   🐛 BUGS FIXED:
+ *      Bug #1: IOC_sendDAT missing role validation (TC-17) ✅
+ *      Bug #2: IOC_flushDAT missing role validation (TC-19) ✅
+ *   🔬 PRODUCTION CODE CHANGES:
+ *      - Added role validation in IOC_sendDAT() - rejects non-DatSender links
+ *      - Added role validation in IOC_flushDAT() - rejects non-DatSender links
+ *      - Returns IOC_RESULT_INCOMPATIBLE_USAGE for role mismatches
  */
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
