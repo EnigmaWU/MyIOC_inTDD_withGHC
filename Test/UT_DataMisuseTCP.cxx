@@ -49,6 +49,110 @@
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF TEST DESIGN======================================================================
+
+/**************************************************************************************************
+ * 📋 TEST CASE DESIGN ASPECTS/CATEGORIES
+ *
+ * DESIGN PRINCIPLE: IMPROVE VALUE • AVOID LOSS • BALANCE SKILL vs COST
+ *
+ * PRIORITY FRAMEWORK:
+ *   P1 🥇 FUNCTIONAL:     Must complete before P2 (ValidFunc + InvalidFunc)
+ *   P2 🥈 DESIGN-ORIENTED: Test after P1 (State, Capability, Concurrency)
+ *   P3 🥉 QUALITY-ORIENTED: Test for quality attributes (Performance, Robust, etc.)
+ *   P4 🎯 ADDONS:          Optional (Demo, Examples)
+ *
+ * DEFAULT TEST ORDER:
+ *   P1: Typical → Edge → Misuse → Fault
+ *   P2: State → Capability → Concurrency
+ *   P3: Performance → Robust → Compatibility → Configuration
+ *   P4: Demo/Example
+ *
+ * CONTEXT-SPECIFIC ADJUSTMENTS:
+ *   - New Public API: Complete P1 thoroughly before P2
+ *   - Stateful/FSM: Promote State to early P2 (after Typical+Edge)
+ *   - High Reliability: Promote Fault & Robust
+ *   - Performance SLOs: Promote Performance to P2 level
+ *   - Highly Concurrent: Promote Concurrency to first in P2
+ *
+ * RISK-DRIVEN ADJUSTMENT:
+ *   Score = Impact (1-3) × Likelihood (1-3) × Uncertainty (1-3)
+ *   If Score ≥ 18: Promote category to earlier priority
+ *
+ *===================================================================================================
+ * PRIORITY-1: FUNCTIONAL TESTING (ValidFunc + InvalidFunc)
+ *===================================================================================================
+ *
+ * ValidFunc - Verifies correct behavior with valid inputs/states.
+ *
+ *   ⭐ TYPICAL: Core workflows and "happy paths". (MUST HAVE)
+ *      - Purpose: Verify main usage scenarios.
+ *      - Examples: Basic registration, standard event flow, normal command execution.
+ *
+ *   🔲 EDGE: Edge cases, limits, and mode variations. (HIGH PRIORITY)
+ *      - Purpose: Test parameter limits and edge values.
+ *      - Examples: Min/max values, null/empty inputs, Block/NonBlock/Timeout modes.
+ *
+ * InvalidFunc - Verifies graceful failure with invalid inputs or states.
+ *
+ *   🚫 MISUSE: Incorrect API usage patterns. (ERROR PREVENTION)
+ *      - Purpose: Ensure proper error handling for API abuse.
+ *      - Examples: Wrong call sequence, invalid parameters, double-init.
+ *
+ *   ⚠️ FAULT: Error handling and recovery. (RELIABILITY)
+ *      - Purpose: Test system behavior under error conditions.
+ *      - Examples: Network failures, disk full, process crash recovery.
+ *
+ *===================================================================================================
+ * PRIORITY-2: DESIGN-ORIENTED TESTING (Architecture Validation)
+ *===================================================================================================
+ *
+ *   🔄 STATE: Lifecycle transitions and state machine validation. (KEY FOR STATEFUL COMPONENTS)
+ *      - Purpose: Verify FSM correctness.
+ *      - Examples: Init→Ready→Running→Stopped.
+ *
+ *   🏆 CAPABILITY: Maximum capacity and system limits. (FOR CAPACITY PLANNING)
+ *      - Purpose: Test architectural limits.
+ *      - Examples: Max connections, queue limits.
+ *
+ *   🚀 CONCURRENCY: Thread safety and synchronization. (FOR COMPLEX SYSTEMS)
+ *      - Purpose: Validate concurrent access and find race conditions.
+ *      - Examples: Race conditions, deadlocks, parallel access.
+ *
+ *===================================================================================================
+ * PRIORITY-3: QUALITY-ORIENTED TESTING (Non-Functional Requirements)
+ *===================================================================================================
+ *
+ *   ⚡ PERFORMANCE: Speed, throughput, and resource usage. (FOR SLO VALIDATION)
+ *      - Purpose: Measure and validate performance characteristics.
+ *      - Examples: Latency benchmarks, memory leak detection.
+ *
+ *   🛡️ ROBUST: Stress, repetition, and long-running stability. (FOR PRODUCTION READINESS)
+ *      - Purpose: Verify stability under sustained load.
+ *      - Examples: 1000x repetition, 24h soak tests.
+ *
+ *   🔄 COMPATIBILITY: Cross-platform and version testing. (FOR MULTI-PLATFORM PRODUCTS)
+ *      - Purpose: Ensure consistent behavior across environments.
+ *      - Examples: Windows/Linux/macOS, API version compatibility.
+ *
+ *   🎛️ CONFIGURATION: Different settings and environments. (FOR CONFIGURABLE SYSTEMS)
+ *      - Purpose: Test various configuration scenarios.
+ *      - Examples: Debug/release modes, feature flags.
+ *
+ *===================================================================================================
+ * PRIORITY-4: OTHER-ADDONS TESTING (Documentation & Tutorials)
+ *===================================================================================================
+ *
+ *   🎨 DEMO/EXAMPLE: End-to-end feature demonstrations. (FOR DOCUMENTATION)
+ *      - Purpose: Illustrate usage patterns and best practices.
+ *      - Examples: Tutorial code, complete workflows.
+ *
+ * SELECTION STRATEGY:
+ *   🥇 P1 (Functional): MUST be completed before moving to P2.
+ *   🥈 P2 (Design): Test after P1 if the component has significant design complexity (state, concurrency).
+ *   🥉 P3 (Quality): Test when quality attributes (performance, robustness) are critical.
+ *   🎯 P4 (Addons): Optional, for documentation and examples.
+ *************************************************************************************************/
+
 /**
  * COVERAGE MATRIX (P1 InvalidFunc Misuse):
  * ┌──────────────────────────┬─────────────────────────┬────────────────────────────┐
@@ -283,6 +387,10 @@ TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byNullDatDescOnSend_expectInvalidPara
 
 /**
  * TC-2: verifyDataMisuseTCP_byNullDatDescOnRecv_expectInvalidParam
+ * @[Purpose]: Validate NULL pDatDesc to IOC_recvDAT returns INVALID_PARAM
+ * @[Brief]: Call IOC_recvDAT with NULL DatDesc on valid TCP connection
+ * @[Steps]: Call IOC_recvDAT with NULL pDatDesc → Verify INVALID_PARAM returned
+ * @[Expect]: IOC_RESULT_INVALID_PARAM (or NOT_EXIST_LINK if LinkID checked first)
  */
 TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byNullDatDescOnRecv_expectInvalidParam) {
     printf("🔴 RED: verifyDataMisuseTCP_byNullDatDescOnRecv_expectInvalidParam\n");
@@ -334,6 +442,10 @@ TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byNullOptionOnFlush_expectDefaultBeha
 
 /**
  * TC-4: verifyDataMisuseTCP_byInvalidLinkIDOnSend_expectNotExistLink
+ * @[Purpose]: Validate IOC_ID_INVALID to IOC_sendDAT returns NOT_EXIST_LINK
+ * @[Brief]: Call IOC_sendDAT with IOC_ID_INVALID over TCP
+ * @[Steps]: Call IOC_sendDAT with IOC_ID_INVALID → Verify NOT_EXIST_LINK
+ * @[Expect]: IOC_RESULT_NOT_EXIST_LINK
  */
 TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byInvalidLinkIDOnSend_expectNotExistLink) {
     printf("🔴 RED: verifyDataMisuseTCP_byInvalidLinkIDOnSend_expectNotExistLink\n");
@@ -351,6 +463,10 @@ TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byInvalidLinkIDOnSend_expectNotExistL
 
 /**
  * TC-5: verifyDataMisuseTCP_byInvalidLinkIDOnRecv_expectNotExistLink
+ * @[Purpose]: Validate IOC_ID_INVALID to IOC_recvDAT returns NOT_EXIST_LINK
+ * @[Brief]: Call IOC_recvDAT with IOC_ID_INVALID over TCP
+ * @[Steps]: Call IOC_recvDAT with IOC_ID_INVALID → Verify NOT_EXIST_LINK
+ * @[Expect]: IOC_RESULT_NOT_EXIST_LINK
  */
 TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byInvalidLinkIDOnRecv_expectNotExistLink) {
     printf("🔴 RED: verifyDataMisuseTCP_byInvalidLinkIDOnRecv_expectNotExistLink\n");
@@ -365,6 +481,10 @@ TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byInvalidLinkIDOnRecv_expectNotExistL
 
 /**
  * TC-6: verifyDataMisuseTCP_byInvalidLinkIDOnFlush_expectNotExistLink
+ * @[Purpose]: Validate IOC_ID_INVALID to IOC_flushDAT returns NOT_EXIST_LINK
+ * @[Brief]: Call IOC_flushDAT with IOC_ID_INVALID over TCP
+ * @[Steps]: Call IOC_flushDAT with IOC_ID_INVALID → Verify NOT_EXIST_LINK
+ * @[Expect]: IOC_RESULT_NOT_EXIST_LINK
  */
 TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byInvalidLinkIDOnFlush_expectNotExistLink) {
     printf("🔴 RED: verifyDataMisuseTCP_byInvalidLinkIDOnFlush_expectNotExistLink\n");
@@ -376,6 +496,10 @@ TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byInvalidLinkIDOnFlush_expectNotExist
 
 /**
  * TC-7: verifyDataMisuseTCP_byNonExistentLinkIDOnSend_expectNotExistLink
+ * @[Purpose]: Validate random non-existent LinkID to IOC_sendDAT returns NOT_EXIST_LINK
+ * @[Brief]: Call IOC_sendDAT with valid-looking but non-existent LinkID over TCP
+ * @[Steps]: Call IOC_sendDAT with random non-existent LinkID → Verify NOT_EXIST_LINK
+ * @[Expect]: IOC_RESULT_NOT_EXIST_LINK
  */
 TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byNonExistentLinkIDOnSend_expectNotExistLink) {
     printf("🔴 RED: verifyDataMisuseTCP_byNonExistentLinkIDOnSend_expectNotExistLink\n");
@@ -394,6 +518,10 @@ TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byNonExistentLinkIDOnSend_expectNotEx
 
 /**
  * TC-8: verifyDataMisuseTCP_byNonExistentLinkIDOnRecv_expectNotExistLink
+ * @[Purpose]: Validate random non-existent LinkID to IOC_recvDAT returns NOT_EXIST_LINK
+ * @[Brief]: Call IOC_recvDAT with valid-looking but non-existent LinkID over TCP
+ * @[Steps]: Call IOC_recvDAT with random non-existent LinkID → Verify NOT_EXIST_LINK
+ * @[Expect]: IOC_RESULT_NOT_EXIST_LINK
  */
 TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byNonExistentLinkIDOnRecv_expectNotExistLink) {
     printf("🔴 RED: verifyDataMisuseTCP_byNonExistentLinkIDOnRecv_expectNotExistLink\n");
@@ -409,6 +537,10 @@ TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byNonExistentLinkIDOnRecv_expectNotEx
 
 /**
  * TC-9: verifyDataMisuseTCP_byNonExistentLinkIDOnFlush_expectNotExistLink
+ * @[Purpose]: Validate random non-existent LinkID to IOC_flushDAT returns NOT_EXIST_LINK
+ * @[Brief]: Call IOC_flushDAT with valid-looking but non-existent LinkID over TCP
+ * @[Steps]: Call IOC_flushDAT with random non-existent LinkID → Verify NOT_EXIST_LINK
+ * @[Expect]: IOC_RESULT_NOT_EXIST_LINK
  */
 TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byNonExistentLinkIDOnFlush_expectNotExistLink) {
     printf("🔴 RED: verifyDataMisuseTCP_byNonExistentLinkIDOnFlush_expectNotExistLink\n");
@@ -428,6 +560,10 @@ TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byNonExistentLinkIDOnFlush_expectNotE
 
 /**
  * TC-10: verifyDataMisuseTCP_bySendOnClosedLink_expectNotExistLink
+ * @[Purpose]: Validate IOC_sendDAT on closed TCP link returns NOT_EXIST_LINK
+ * @[Brief]: Setup TCP connection, close it, then attempt send
+ * @[Steps]: Setup TCP link → Close it → Try IOC_sendDAT → Verify NOT_EXIST_LINK
+ * @[Expect]: IOC_RESULT_NOT_EXIST_LINK
  */
 TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_bySendOnClosedLink_expectNotExistLink) {
     printf("🔴 RED: verifyDataMisuseTCP_bySendOnClosedLink_expectNotExistLink\n");
@@ -470,6 +606,10 @@ TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_bySendOnClosedLink_expectNotExistLink
 
 /**
  * TC-11: verifyDataMisuseTCP_byRecvOnClosedLink_expectNotExistLink
+ * @[Purpose]: Validate IOC_recvDAT on closed TCP link returns NOT_EXIST_LINK
+ * @[Brief]: Setup TCP connection as receiver, close it, then attempt recv
+ * @[Steps]: Setup TCP receiver link → Close it → Try IOC_recvDAT → Verify NOT_EXIST_LINK
+ * @[Expect]: IOC_RESULT_NOT_EXIST_LINK
  */
 TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byRecvOnClosedLink_expectNotExistLink) {
     printf("🔴 RED: verifyDataMisuseTCP_byRecvOnClosedLink_expectNotExistLink\n");
@@ -508,6 +648,10 @@ TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byRecvOnClosedLink_expectNotExistLink
 
 /**
  * TC-12: verifyDataMisuseTCP_byFlushOnClosedLink_expectNotExistLink
+ * @[Purpose]: Validate IOC_flushDAT on closed TCP link returns NOT_EXIST_LINK
+ * @[Brief]: Setup TCP connection, close it, then attempt flush
+ * @[Steps]: Setup TCP link → Close it → Try IOC_flushDAT → Verify NOT_EXIST_LINK
+ * @[Expect]: IOC_RESULT_NOT_EXIST_LINK
  */
 TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byFlushOnClosedLink_expectNotExistLink) {
     printf("🔴 RED: verifyDataMisuseTCP_byFlushOnClosedLink_expectNotExistLink\n");
@@ -543,6 +687,10 @@ TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byFlushOnClosedLink_expectNotExistLin
 
 /**
  * TC-13: verifyDataMisuseTCP_bySendBeforeConnection_expectNotExistLink
+ * @[Purpose]: Validate IOC_sendDAT before TCP connection established returns NOT_EXIST_LINK
+ * @[Brief]: Try to send data without prior TCP connect/accept
+ * @[Steps]: Call IOC_sendDAT without establishing TCP connection → Verify NOT_EXIST_LINK
+ * @[Expect]: IOC_RESULT_NOT_EXIST_LINK
  */
 TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_bySendBeforeConnection_expectNotExistLink) {
     printf("🔴 RED: verifyDataMisuseTCP_bySendBeforeConnection_expectNotExistLink\n");
@@ -563,6 +711,10 @@ TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_bySendBeforeConnection_expectNotExist
 
 /**
  * TC-14: verifyDataMisuseTCP_byRecvBeforeConnection_expectNotExistLink
+ * @[Purpose]: Validate IOC_recvDAT before TCP connection established returns NOT_EXIST_LINK
+ * @[Brief]: Try to receive data without prior TCP connect/accept
+ * @[Steps]: Call IOC_recvDAT without establishing TCP connection → Verify NOT_EXIST_LINK
+ * @[Expect]: IOC_RESULT_NOT_EXIST_LINK
  */
 TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byRecvBeforeConnection_expectNotExistLink) {
     printf("🔴 RED: verifyDataMisuseTCP_byRecvBeforeConnection_expectNotExistLink\n");
@@ -578,6 +730,10 @@ TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byRecvBeforeConnection_expectNotExist
 
 /**
  * TC-15: verifyDataMisuseTCP_bySendAfterServiceOffline_expectLinkBroken
+ * @[Purpose]: Validate IOC_sendDAT after TCP service offline returns error
+ * @[Brief]: Establish TCP connection, take service offline, then attempt send
+ * @[Steps]: Setup TCP connection → Offline service → Try IOC_sendDAT → Verify error
+ * @[Expect]: IOC_RESULT_LINK_BROKEN, NOT_EXIST_LINK, or NOT_SUPPORT (TCP-specific)
  */
 TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_bySendAfterServiceOffline_expectLinkBroken) {
     printf("🔴 RED: verifyDataMisuseTCP_bySendAfterServiceOffline_expectLinkBroken\n");
@@ -620,6 +776,10 @@ TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_bySendAfterServiceOffline_expectLinkB
 
 /**
  * TC-16: verifyDataMisuseTCP_byDoubleCloseLink_expectGracefulHandling
+ * @[Purpose]: Validate double IOC_closeLink on TCP doesn't corrupt system
+ * @[Brief]: Close same TCP link twice, expect graceful error on second close
+ * @[Steps]: Setup TCP connection → Close link once (success) → Close again → Verify error without crash
+ * @[Expect]: Second close returns error (NOT_EXIST_LINK), system remains stable
  */
 TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byDoubleCloseLink_expectGracefulHandling) {
     printf("🔴 RED: verifyDataMisuseTCP_byDoubleCloseLink_expectGracefulHandling\n");
@@ -661,6 +821,10 @@ TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byDoubleCloseLink_expectGracefulHandl
 
 /**
  * TC-17: verifyDataMisuseTCP_bySendOnReceiverLink_expectIncompatibleUsage
+ * @[Purpose]: Validate IOC_sendDAT rejected on TCP DatReceiver link
+ * @[Brief]: Connect as DatReceiver over TCP, attempt IOC_sendDAT
+ * @[Steps]: Setup TCP DatReceiver link → Try IOC_sendDAT → Verify INCOMPATIBLE_USAGE
+ * @[Expect]: IOC_RESULT_INCOMPATIBLE_USAGE (role validation rejection)
  */
 TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_bySendOnReceiverLink_expectIncompatibleUsage) {
     printf("🔴 RED: verifyDataMisuseTCP_bySendOnReceiverLink_expectIncompatibleUsage\n");
@@ -704,6 +868,10 @@ TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_bySendOnReceiverLink_expectIncompatib
 
 /**
  * TC-18: verifyDataMisuseTCP_byRecvOnSenderLink_expectIncompatibleUsage
+ * @[Purpose]: Validate manual IOC_recvDAT on TCP DatSender link returns error
+ * @[Brief]: Connect as DatSender over TCP (no callback), attempt manual recv
+ * @[Steps]: Setup TCP DatSender link → Try manual IOC_recvDAT → Verify error
+ * @[Expect]: IOC_RESULT_INCOMPATIBLE_USAGE or NOT_SUPPORT (manual recv not supported on TCP)
  */
 TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byRecvOnSenderLink_expectIncompatibleUsage) {
     printf("🔴 RED: verifyDataMisuseTCP_byRecvOnSenderLink_expectIncompatibleUsage\n");
@@ -744,6 +912,10 @@ TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byRecvOnSenderLink_expectIncompatible
 
 /**
  * TC-19: verifyDataMisuseTCP_byFlushOnReceiverLink_expectIncompatibleUsage
+ * @[Purpose]: Validate IOC_flushDAT rejected on TCP DatReceiver link
+ * @[Brief]: Connect as DatReceiver over TCP, attempt IOC_flushDAT
+ * @[Steps]: Setup TCP DatReceiver link → Try IOC_flushDAT → Verify INCOMPATIBLE_USAGE
+ * @[Expect]: IOC_RESULT_INCOMPATIBLE_USAGE (role validation rejection)
  */
 TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byFlushOnReceiverLink_expectIncompatibleUsage) {
     printf("🔴 RED: verifyDataMisuseTCP_byFlushOnReceiverLink_expectIncompatibleUsage\n");
@@ -785,6 +957,10 @@ TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byFlushOnReceiverLink_expectIncompati
 
 /**
  * TC-20: verifyDataMisuseTCP_byMalformedDatDesc_expectInvalidParam
+ * @[Purpose]: Validate uninitialized/malformed DatDesc is rejected over TCP
+ * @[Brief]: Create garbage DatDesc without initialization, attempt TCP send
+ * @[Steps]: Setup TCP connection → Create malformed DatDesc → Try IOC_sendDAT → Verify error
+ * @[Expect]: IOC_RESULT_INVALID_PARAM or similar error (not SUCCESS, not crash)
  */
 TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byMalformedDatDesc_expectInvalidParam) {
     printf("🔴 RED: verifyDataMisuseTCP_byMalformedDatDesc_expectInvalidParam\n");
@@ -824,6 +1000,10 @@ TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byMalformedDatDesc_expectInvalidParam
 
 /**
  * TC-21: verifyDataMisuseTCP_byNullPayloadNonZeroSize_expectInvalidParam
+ * @[Purpose]: Validate NULL payload with size > 0 is rejected over TCP
+ * @[Brief]: Create DatDesc with NULL data pointer but non-zero size, attempt TCP send
+ * @[Steps]: Setup TCP connection → Create DatDesc (NULL data, size=1024) → Try IOC_sendDAT → Verify INVALID_PARAM
+ * @[Expect]: IOC_RESULT_INVALID_PARAM (inconsistent descriptor state)
  */
 TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byNullPayloadNonZeroSize_expectInvalidParam) {
     printf("🔴 RED: verifyDataMisuseTCP_byNullPayloadNonZeroSize_expectInvalidParam\n");
@@ -868,6 +1048,10 @@ TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byNullPayloadNonZeroSize_expectInvali
 
 /**
  * TC-22: verifyDataMisuseTCP_byInvalidPortInService_expectConfigError
+ * @[Purpose]: Validate TCP service with port 0 is rejected
+ * @[Brief]: Try to online TCP service with invalid port 0
+ * @[Steps]: Call IOC_onlineService with port 0 → Verify configuration error
+ * @[Expect]: IOC_RESULT_INVALID_PARAM or similar configuration error (not SUCCESS)
  */
 TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byInvalidPortInService_expectConfigError) {
     printf("🔴 RED: verifyDataMisuseTCP_byInvalidPortInService_expectConfigError\n");
@@ -889,6 +1073,10 @@ TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byInvalidPortInService_expectConfigEr
 
 /**
  * TC-23: verifyDataMisuseTCP_byNullHostInService_expectConfigError
+ * @[Purpose]: Validate TCP service with NULL host is rejected
+ * @[Brief]: Try to online TCP service with NULL host address
+ * @[Steps]: Call IOC_onlineService with NULL host → Verify configuration error
+ * @[Expect]: IOC_RESULT_INVALID_PARAM or similar configuration error (not SUCCESS)
  */
 TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byNullHostInService_expectConfigError) {
     printf("🔴 RED: verifyDataMisuseTCP_byNullHostInService_expectConfigError\n");
@@ -910,6 +1098,10 @@ TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byNullHostInService_expectConfigError
 
 /**
  * TC-24: verifyDataMisuseTCP_byWrongPortInConnect_expectConnectionError
+ * @[Purpose]: Validate connecting to wrong TCP port fails gracefully
+ * @[Brief]: Setup TCP service on port X, try to connect to different port Y
+ * @[Steps]: Online service on port 21092 → Try connect to port 21093 → Verify connection error
+ * @[Expect]: Connection failure (timeout or connection refused, not SUCCESS)
  */
 TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byWrongPortInConnect_expectConnectionError) {
     printf("🔴 RED: verifyDataMisuseTCP_byWrongPortInConnect_expectConnectionError\n");
@@ -943,3 +1135,201 @@ TEST(UT_DataMisuseTCP, verifyDataMisuseTCP_byWrongPortInConnect_expectConnection
 }
 
 //======>END OF UNIT TESTING IMPLEMENTATION========================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF TODO/IMPLEMENTATION TRACKING SECTION============================================
+// 🔴 IMPLEMENTATION STATUS TRACKING - Organized by Priority and Category
+//
+// PURPOSE:
+//   Track test implementation progress using TDD Red→Green methodology.
+//   Maintain visibility of what's done, in progress, and planned.
+//
+// STATUS LEGEND:
+//   ⚪ TODO/PLANNED:      Designed but not implemented yet.
+//   🔴 RED/FAILING:       Test written, but production code is missing or incorrect.
+//   🟢 GREEN/PASSED:      Test written and passing.
+//   ⚠️  ISSUES:           Known problem needing attention.
+//   🚫 BLOCKED:          Cannot proceed due to a dependency.
+//
+// PRIORITY LEVELS:
+//   P1 🥇 FUNCTIONAL:     Must complete before P2 (ValidFunc + InvalidFunc).
+//   P2 🥈 DESIGN-ORIENTED: Test after P1 (State, Capability, Concurrency).
+//   P3 🥉 QUALITY-ORIENTED: Test for quality attributes (Performance, Robust, etc.).
+//   P4 🎯 ADDONS:          Optional (Demo, Examples).
+//
+// WORKFLOW:
+//   1. Complete all P1 tests (this is the gate before P2).
+//   2. Move to P2 tests based on design complexity.
+//   3. Add P3 tests for specific quality requirements.
+//   4. Add P4 tests for documentation purposes.
+//   5. Mark status as you go: ⚪ TODO → 🔴 RED → 🟢 GREEN.
+//
+//===================================================================================================
+// P1 🥇 FUNCTIONAL TESTING – InvalidFunc (Misuse) - TCP Protocol
+//===================================================================================================
+//
+//   🟢 [@AC-1,US-1] TC-1: verifyDataMisuseTCP_byNullDatDescOnSend_expectInvalidParam
+//        - Description: Validate NULL pDatDesc to IOC_sendDAT returns INVALID_PARAM.
+//        - Category: Misuse (InvalidFunc) - Null Pointer Handling
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-1,US-1] TC-2: verifyDataMisuseTCP_byNullDatDescOnRecv_expectInvalidParam
+//        - Description: Validate NULL pDatDesc to IOC_recvDAT returns INVALID_PARAM.
+//        - Category: Misuse (InvalidFunc) - Null Pointer Handling
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-1,US-1] TC-3: verifyDataMisuseTCP_byNullOptionOnFlush_expectDefaultBehavior
+//        - Description: Validate NULL pOption to IOC_flushDAT uses defaults.
+//        - Category: Misuse (InvalidFunc) - Null Pointer Handling
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-1,US-2] TC-4: verifyDataMisuseTCP_byInvalidLinkIDOnSend_expectNotExistLink
+//        - Description: Validate IOC_ID_INVALID to IOC_sendDAT returns NOT_EXIST_LINK.
+//        - Category: Misuse (InvalidFunc) - Invalid LinkID Handling
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-1,US-2] TC-5: verifyDataMisuseTCP_byInvalidLinkIDOnRecv_expectNotExistLink
+//        - Description: Validate IOC_ID_INVALID to IOC_recvDAT returns NOT_EXIST_LINK.
+//        - Category: Misuse (InvalidFunc) - Invalid LinkID Handling
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-1,US-2] TC-6: verifyDataMisuseTCP_byInvalidLinkIDOnFlush_expectNotExistLink
+//        - Description: Validate IOC_ID_INVALID to IOC_flushDAT returns NOT_EXIST_LINK.
+//        - Category: Misuse (InvalidFunc) - Invalid LinkID Handling
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-2,US-2] TC-7: verifyDataMisuseTCP_byNonExistentLinkIDOnSend_expectNotExistLink
+//        - Description: Validate random non-existent LinkID returns NOT_EXIST_LINK.
+//        - Category: Misuse (InvalidFunc) - Invalid LinkID Handling
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-2,US-2] TC-8: verifyDataMisuseTCP_byNonExistentLinkIDOnRecv_expectNotExistLink
+//        - Description: Validate random non-existent LinkID returns NOT_EXIST_LINK.
+//        - Category: Misuse (InvalidFunc) - Invalid LinkID Handling
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-2,US-2] TC-9: verifyDataMisuseTCP_byNonExistentLinkIDOnFlush_expectNotExistLink
+//        - Description: Validate random non-existent LinkID returns NOT_EXIST_LINK.
+//        - Category: Misuse (InvalidFunc) - Invalid LinkID Handling
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-1,US-3] TC-10: verifyDataMisuseTCP_bySendOnClosedLink_expectNotExistLink
+//        - Description: Validate IOC_sendDAT on closed link returns NOT_EXIST_LINK.
+//        - Category: Misuse (InvalidFunc) - State Violation Detection
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-1,US-3] TC-11: verifyDataMisuseTCP_byRecvOnClosedLink_expectNotExistLink
+//        - Description: Validate IOC_recvDAT on closed link returns NOT_EXIST_LINK.
+//        - Category: Misuse (InvalidFunc) - State Violation Detection
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-1,US-3] TC-12: verifyDataMisuseTCP_byFlushOnClosedLink_expectNotExistLink
+//        - Description: Validate IOC_flushDAT on closed link returns NOT_EXIST_LINK.
+//        - Category: Misuse (InvalidFunc) - State Violation Detection
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-2,US-3] TC-13: verifyDataMisuseTCP_bySendBeforeConnection_expectNotExistLink
+//        - Description: Validate IOC_sendDAT before connection established.
+//        - Category: Misuse (InvalidFunc) - State Violation Detection
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-2,US-3] TC-14: verifyDataMisuseTCP_byRecvBeforeConnection_expectNotExistLink
+//        - Description: Validate IOC_recvDAT before connection established.
+//        - Category: Misuse (InvalidFunc) - State Violation Detection
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-3,US-3] TC-15: verifyDataMisuseTCP_bySendAfterServiceOffline_expectLinkBroken
+//        - Description: Validate IOC_sendDAT after service taken offline.
+//        - Category: Misuse (InvalidFunc) - State Violation Detection
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//        - Notes: TCP returns NOT_SUPPORT (acceptable protocol difference).
+//
+//   🟢 [@AC-4,US-3] TC-16: verifyDataMisuseTCP_byDoubleCloseLink_expectGracefulHandling
+//        - Description: Validate double IOC_closeLink doesn't corrupt system.
+//        - Category: Misuse (InvalidFunc) - State Violation Detection
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-1,US-4] TC-17: verifyDataMisuseTCP_bySendOnReceiverLink_expectIncompatibleUsage
+//        - Description: Validate IOC_sendDAT rejected on DatReceiver link.
+//        - Category: Misuse (InvalidFunc) - Role Mismatch Detection
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//        - Notes: Role validation working correctly (already fixed in Phase 1A).
+//
+//   🟢 [@AC-2,US-4] TC-18: verifyDataMisuseTCP_byRecvOnSenderLink_expectIncompatibleUsage
+//        - Description: Validate manual IOC_recvDAT rejected on DatSender link.
+//        - Category: Misuse (InvalidFunc) - Role Mismatch Detection
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//        - Notes: TCP returns NOT_SUPPORT (manual recv not implemented for TCP).
+//
+//   🟢 [@AC-3,US-4] TC-19: verifyDataMisuseTCP_byFlushOnReceiverLink_expectIncompatibleUsage
+//        - Description: Validate IOC_flushDAT rejected on DatReceiver link.
+//        - Category: Misuse (InvalidFunc) - Role Mismatch Detection
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//        - Notes: Role validation working correctly (already fixed in Phase 1A).
+//
+//   🟢 [@AC-1,US-5] TC-20: verifyDataMisuseTCP_byMalformedDatDesc_expectInvalidParam
+//        - Description: Validate malformed DatDesc rejected.
+//        - Category: Misuse (InvalidFunc) - DatDesc Corruption Detection
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-2,US-5] TC-21: verifyDataMisuseTCP_byNullPayloadNonZeroSize_expectInvalidParam
+//        - Description: Validate DatDesc with NULL payload + size > 0 rejected.
+//        - Category: Misuse (InvalidFunc) - DatDesc Corruption Detection
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-1,US-6] TC-22: verifyDataMisuseTCP_byInvalidPortInService_expectConfigError
+//        - Description: Validate port 0 in service setup rejected.
+//        - Category: Misuse (InvalidFunc) - TCP-Specific Misuse
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-2,US-6] TC-23: verifyDataMisuseTCP_byNullHostInService_expectConfigError
+//        - Description: Validate NULL host address rejected.
+//        - Category: Misuse (InvalidFunc) - TCP-Specific Misuse
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-3,US-6] TC-24: verifyDataMisuseTCP_byWrongPortInConnect_expectConnectionError
+//        - Description: Validate connecting to wrong port fails gracefully.
+//        - Category: Misuse (InvalidFunc) - TCP-Specific Misuse
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+// 🚪 GATE P1 (TCP Misuse): 24/24 tests ALL GREEN ✅✅✅ - Phase 1B COMPLETE!
+//
+//===================================================================================================
+// ✅ SUMMARY
+//===================================================================================================
+//   🟢 P1 TCP Misuse: 24/24 GREEN (100% pass rate)
+//   📊 Overall: 24/24 implemented (100% coverage)
+//   🎯 Next: Proceed to Phase 2A - UT_DataFault.cxx (FIFO fault tolerance)
+//   🎉 Zero bugs found (role validation already fixed in Phase 1A)
+//   📝 TCP Protocol Findings:
+//      - TC-15: Returns NOT_SUPPORT after service offline (acceptable)
+//      - TC-18: Returns NOT_SUPPORT for manual recv (expected - feature not supported)
+//      - All role validation working correctly (INCOMPATIBLE_USAGE for mismatches)
+//      - All other behaviors match FIFO implementation perfectly
+//
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>END OF TODO/IMPLEMENTATION TRACKING SECTION===============================================

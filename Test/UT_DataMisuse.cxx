@@ -48,6 +48,110 @@
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF TEST DESIGN======================================================================
+
+/**************************************************************************************************
+ * 📋 TEST CASE DESIGN ASPECTS/CATEGORIES
+ *
+ * DESIGN PRINCIPLE: IMPROVE VALUE • AVOID LOSS • BALANCE SKILL vs COST
+ *
+ * PRIORITY FRAMEWORK:
+ *   P1 🥇 FUNCTIONAL:     Must complete before P2 (ValidFunc + InvalidFunc)
+ *   P2 🥈 DESIGN-ORIENTED: Test after P1 (State, Capability, Concurrency)
+ *   P3 🥉 QUALITY-ORIENTED: Test for quality attributes (Performance, Robust, etc.)
+ *   P4 🎯 ADDONS:          Optional (Demo, Examples)
+ *
+ * DEFAULT TEST ORDER:
+ *   P1: Typical → Edge → Misuse → Fault
+ *   P2: State → Capability → Concurrency
+ *   P3: Performance → Robust → Compatibility → Configuration
+ *   P4: Demo/Example
+ *
+ * CONTEXT-SPECIFIC ADJUSTMENTS:
+ *   - New Public API: Complete P1 thoroughly before P2
+ *   - Stateful/FSM: Promote State to early P2 (after Typical+Edge)
+ *   - High Reliability: Promote Fault & Robust
+ *   - Performance SLOs: Promote Performance to P2 level
+ *   - Highly Concurrent: Promote Concurrency to first in P2
+ *
+ * RISK-DRIVEN ADJUSTMENT:
+ *   Score = Impact (1-3) × Likelihood (1-3) × Uncertainty (1-3)
+ *   If Score ≥ 18: Promote category to earlier priority
+ *
+ *===================================================================================================
+ * PRIORITY-1: FUNCTIONAL TESTING (ValidFunc + InvalidFunc)
+ *===================================================================================================
+ *
+ * ValidFunc - Verifies correct behavior with valid inputs/states.
+ *
+ *   ⭐ TYPICAL: Core workflows and "happy paths". (MUST HAVE)
+ *      - Purpose: Verify main usage scenarios.
+ *      - Examples: Basic registration, standard event flow, normal command execution.
+ *
+ *   🔲 EDGE: Edge cases, limits, and mode variations. (HIGH PRIORITY)
+ *      - Purpose: Test parameter limits and edge values.
+ *      - Examples: Min/max values, null/empty inputs, Block/NonBlock/Timeout modes.
+ *
+ * InvalidFunc - Verifies graceful failure with invalid inputs or states.
+ *
+ *   🚫 MISUSE: Incorrect API usage patterns. (ERROR PREVENTION)
+ *      - Purpose: Ensure proper error handling for API abuse.
+ *      - Examples: Wrong call sequence, invalid parameters, double-init.
+ *
+ *   ⚠️ FAULT: Error handling and recovery. (RELIABILITY)
+ *      - Purpose: Test system behavior under error conditions.
+ *      - Examples: Network failures, disk full, process crash recovery.
+ *
+ *===================================================================================================
+ * PRIORITY-2: DESIGN-ORIENTED TESTING (Architecture Validation)
+ *===================================================================================================
+ *
+ *   🔄 STATE: Lifecycle transitions and state machine validation. (KEY FOR STATEFUL COMPONENTS)
+ *      - Purpose: Verify FSM correctness.
+ *      - Examples: Init→Ready→Running→Stopped.
+ *
+ *   🏆 CAPABILITY: Maximum capacity and system limits. (FOR CAPACITY PLANNING)
+ *      - Purpose: Test architectural limits.
+ *      - Examples: Max connections, queue limits.
+ *
+ *   🚀 CONCURRENCY: Thread safety and synchronization. (FOR COMPLEX SYSTEMS)
+ *      - Purpose: Validate concurrent access and find race conditions.
+ *      - Examples: Race conditions, deadlocks, parallel access.
+ *
+ *===================================================================================================
+ * PRIORITY-3: QUALITY-ORIENTED TESTING (Non-Functional Requirements)
+ *===================================================================================================
+ *
+ *   ⚡ PERFORMANCE: Speed, throughput, and resource usage. (FOR SLO VALIDATION)
+ *      - Purpose: Measure and validate performance characteristics.
+ *      - Examples: Latency benchmarks, memory leak detection.
+ *
+ *   🛡️ ROBUST: Stress, repetition, and long-running stability. (FOR PRODUCTION READINESS)
+ *      - Purpose: Verify stability under sustained load.
+ *      - Examples: 1000x repetition, 24h soak tests.
+ *
+ *   🔄 COMPATIBILITY: Cross-platform and version testing. (FOR MULTI-PLATFORM PRODUCTS)
+ *      - Purpose: Ensure consistent behavior across environments.
+ *      - Examples: Windows/Linux/macOS, API version compatibility.
+ *
+ *   🎛️ CONFIGURATION: Different settings and environments. (FOR CONFIGURABLE SYSTEMS)
+ *      - Purpose: Test various configuration scenarios.
+ *      - Examples: Debug/release modes, feature flags.
+ *
+ *===================================================================================================
+ * PRIORITY-4: OTHER-ADDONS TESTING (Documentation & Tutorials)
+ *===================================================================================================
+ *
+ *   🎨 DEMO/EXAMPLE: End-to-end feature demonstrations. (FOR DOCUMENTATION)
+ *      - Purpose: Illustrate usage patterns and best practices.
+ *      - Examples: Tutorial code, complete workflows.
+ *
+ * SELECTION STRATEGY:
+ *   🥇 P1 (Functional): MUST be completed before moving to P2.
+ *   🥈 P2 (Design): Test after P1 if the component has significant design complexity (state, concurrency).
+ *   🥉 P3 (Quality): Test when quality attributes (performance, robustness) are critical.
+ *   🎯 P4 (Addons): Optional, for documentation and examples.
+ *************************************************************************************************/
+
 /**
  * COVERAGE MATRIX (P1 InvalidFunc Misuse):
  * ┌──────────────────────────┬─────────────────────────┬────────────────────────────┐
@@ -495,6 +599,10 @@ TEST(UT_DataMisuse, verifyDataMisuse_byNonExistentLinkIDOnSend_expectNotExistLin
 
 /**
  * TC-8: verifyDataMisuse_byNonExistentLinkIDOnRecv_expectNotExistLink
+ * @[Purpose]: Validate IOC_recvDAT with non-existent LinkID returns NOT_EXIST_LINK
+ * @[Brief]: Call IOC_recvDAT with random valid-looking but non-existent LinkID
+ * @[Steps]: Call IOC_recvDAT with random non-existent LinkID → Verify NOT_EXIST_LINK
+ * @[Expect]: IOC_RESULT_NOT_EXIST_LINK
  */
 TEST(UT_DataMisuse, verifyDataMisuse_byNonExistentLinkIDOnRecv_expectNotExistLink) {
     printf("🔴 RED: verifyDataMisuse_byNonExistentLinkIDOnRecv_expectNotExistLink\n");
@@ -510,6 +618,10 @@ TEST(UT_DataMisuse, verifyDataMisuse_byNonExistentLinkIDOnRecv_expectNotExistLin
 
 /**
  * TC-9: verifyDataMisuse_byNonExistentLinkIDOnFlush_expectNotExistLink
+ * @[Purpose]: Validate IOC_flushDAT with non-existent LinkID returns NOT_EXIST_LINK
+ * @[Brief]: Call IOC_flushDAT with random valid-looking but non-existent LinkID
+ * @[Steps]: Call IOC_flushDAT with random non-existent LinkID → Verify NOT_EXIST_LINK
+ * @[Expect]: IOC_RESULT_NOT_EXIST_LINK
  */
 TEST(UT_DataMisuse, verifyDataMisuse_byNonExistentLinkIDOnFlush_expectNotExistLink) {
     printf("🔴 RED: verifyDataMisuse_byNonExistentLinkIDOnFlush_expectNotExistLink\n");
@@ -579,6 +691,10 @@ TEST(UT_DataMisuse, verifyDataMisuse_bySendOnClosedLink_expectNotExistLink) {
 
 /**
  * TC-11: verifyDataMisuse_byRecvOnClosedLink_expectNotExistLink
+ * @[Purpose]: Validate IOC_recvDAT on closed link returns NOT_EXIST_LINK
+ * @[Brief]: Setup link, close it, then attempt IOC_recvDAT
+ * @[Steps]: Setup link → Close it → Try IOC_recvDAT → Verify NOT_EXIST_LINK
+ * @[Expect]: IOC_RESULT_NOT_EXIST_LINK
  */
 TEST(UT_DataMisuse, verifyDataMisuse_byRecvOnClosedLink_expectNotExistLink) {
     printf("🔴 RED: verifyDataMisuse_byRecvOnClosedLink_expectNotExistLink\n");
@@ -623,6 +739,10 @@ TEST(UT_DataMisuse, verifyDataMisuse_byRecvOnClosedLink_expectNotExistLink) {
 
 /**
  * TC-12: verifyDataMisuse_byFlushOnClosedLink_expectNotExistLink
+ * @[Purpose]: Validate IOC_flushDAT on closed link returns NOT_EXIST_LINK
+ * @[Brief]: Setup link, close it, then attempt IOC_flushDAT
+ * @[Steps]: Setup link → Close it → Try IOC_flushDAT → Verify NOT_EXIST_LINK
+ * @[Expect]: IOC_RESULT_NOT_EXIST_LINK
  */
 TEST(UT_DataMisuse, verifyDataMisuse_byFlushOnClosedLink_expectNotExistLink) {
     printf("🔴 RED: verifyDataMisuse_byFlushOnClosedLink_expectNotExistLink\n");
@@ -664,6 +784,10 @@ TEST(UT_DataMisuse, verifyDataMisuse_byFlushOnClosedLink_expectNotExistLink) {
 
 /**
  * TC-13: verifyDataMisuse_bySendBeforeConnection_expectNotExistLink
+ * @[Purpose]: Validate IOC_sendDAT before connection established returns NOT_EXIST_LINK
+ * @[Brief]: Try to send data without prior connect/accept
+ * @[Steps]: Call IOC_sendDAT without establishing connection → Verify NOT_EXIST_LINK
+ * @[Expect]: IOC_RESULT_NOT_EXIST_LINK
  */
 TEST(UT_DataMisuse, verifyDataMisuse_bySendBeforeConnection_expectNotExistLink) {
     printf("🔴 RED: verifyDataMisuse_bySendBeforeConnection_expectNotExistLink\n");
@@ -684,6 +808,10 @@ TEST(UT_DataMisuse, verifyDataMisuse_bySendBeforeConnection_expectNotExistLink) 
 
 /**
  * TC-14: verifyDataMisuse_byRecvBeforeConnection_expectNotExistLink
+ * @[Purpose]: Validate IOC_recvDAT before connection established returns NOT_EXIST_LINK
+ * @[Brief]: Try to receive data without prior connect/accept
+ * @[Steps]: Call IOC_recvDAT without establishing connection → Verify NOT_EXIST_LINK
+ * @[Expect]: IOC_RESULT_NOT_EXIST_LINK
  */
 TEST(UT_DataMisuse, verifyDataMisuse_byRecvBeforeConnection_expectNotExistLink) {
     printf("🔴 RED: verifyDataMisuse_byRecvBeforeConnection_expectNotExistLink\n");
@@ -699,6 +827,10 @@ TEST(UT_DataMisuse, verifyDataMisuse_byRecvBeforeConnection_expectNotExistLink) 
 
 /**
  * TC-15: verifyDataMisuse_bySendAfterServiceOffline_expectLinkBroken
+ * @[Purpose]: Validate IOC_sendDAT after service offline returns LINK_BROKEN or NOT_EXIST_LINK
+ * @[Brief]: Establish connection, take service offline, then attempt send
+ * @[Steps]: Setup connection → Offline service → Try IOC_sendDAT → Verify error
+ * @[Expect]: IOC_RESULT_LINK_BROKEN or IOC_RESULT_NOT_EXIST_LINK
  */
 TEST(UT_DataMisuse, verifyDataMisuse_bySendAfterServiceOffline_expectLinkBroken) {
     printf("🔴 RED: verifyDataMisuse_bySendAfterServiceOffline_expectLinkBroken\n");
@@ -748,6 +880,10 @@ TEST(UT_DataMisuse, verifyDataMisuse_bySendAfterServiceOffline_expectLinkBroken)
 
 /**
  * TC-16: verifyDataMisuse_byDoubleCloseLink_expectGracefulHandling
+ * @[Purpose]: Validate double IOC_closeLink doesn't corrupt system
+ * @[Brief]: Close same link twice, expect graceful error on second close
+ * @[Steps]: Setup connection → Close link once (success) → Close again → Verify error without crash
+ * @[Expect]: Second close returns error (NOT_EXIST_LINK), system remains stable
  */
 TEST(UT_DataMisuse, verifyDataMisuse_byDoubleCloseLink_expectGracefulHandling) {
     printf("🔴 RED: verifyDataMisuse_byDoubleCloseLink_expectGracefulHandling\n");
@@ -841,6 +977,10 @@ TEST(UT_DataMisuse, verifyDataMisuse_bySendOnReceiverLink_expectInvalidOperation
 
 /**
  * TC-18: verifyDataMisuse_byRecvOnSenderLink_expectInvalidOperation
+ * @[Purpose]: Validate manual IOC_recvDAT on DatSender link returns error
+ * @[Brief]: Connect as DatSender (no callback), attempt manual recv
+ * @[Steps]: Setup DatSender link → Try manual IOC_recvDAT → Verify INCOMPATIBLE_USAGE
+ * @[Expect]: IOC_RESULT_INCOMPATIBLE_USAGE (role validation rejection)
  */
 TEST(UT_DataMisuse, verifyDataMisuse_byRecvOnSenderLink_expectInvalidOperation) {
     printf("🔴 RED: verifyDataMisuse_byRecvOnSenderLink_expectInvalidOperation\n");
@@ -928,6 +1068,10 @@ TEST(UT_DataMisuse, verifyDataMisuse_byFlushOnReceiverLink_expectInvalidOperatio
 
 /**
  * TC-20: verifyDataMisuse_byMalformedDatDesc_expectInvalidParam
+ * @[Purpose]: Validate uninitialized/malformed DatDesc is rejected
+ * @[Brief]: Create garbage DatDesc without initialization, attempt send
+ * @[Steps]: Setup connection → Create malformed DatDesc → Try IOC_sendDAT → Verify error
+ * @[Expect]: IOC_RESULT_INVALID_PARAM or similar error (not SUCCESS, not crash)
  */
 TEST(UT_DataMisuse, verifyDataMisuse_byMalformedDatDesc_expectInvalidParam) {
     printf("🔴 RED: verifyDataMisuse_byMalformedDatDesc_expectInvalidParam\n");
@@ -970,6 +1114,10 @@ TEST(UT_DataMisuse, verifyDataMisuse_byMalformedDatDesc_expectInvalidParam) {
 
 /**
  * TC-21: verifyDataMisuse_byNullPayloadNonZeroSize_expectInvalidParam
+ * @[Purpose]: Validate NULL payload with size > 0 is rejected
+ * @[Brief]: Create DatDesc with NULL data pointer but non-zero size
+ * @[Steps]: Setup connection → Create DatDesc (NULL data, size=1024) → Try IOC_sendDAT → Verify INVALID_PARAM
+ * @[Expect]: IOC_RESULT_INVALID_PARAM (inconsistent descriptor state)
  */
 TEST(UT_DataMisuse, verifyDataMisuse_byNullPayloadNonZeroSize_expectInvalidParam) {
     printf("🔴 RED: verifyDataMisuse_byNullPayloadNonZeroSize_expectInvalidParam\n");
@@ -1036,3 +1184,215 @@ TEST(UT_DataMisuse, verifyDataMisuse_byFIFOPermissionChangedToReadOnly_expectAcc
 }
 
 //======>END OF UNIT TESTING IMPLEMENTATION========================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF TODO/IMPLEMENTATION TRACKING SECTION============================================
+// 🔴 IMPLEMENTATION STATUS TRACKING - Organized by Priority and Category
+//
+// PURPOSE:
+//   Track test implementation progress using TDD Red→Green methodology.
+//   Maintain visibility of what's done, in progress, and planned.
+//
+// STATUS LEGEND:
+//   ⚪ TODO/PLANNED:      Designed but not implemented yet.
+//   🔴 RED/FAILING:       Test written, but production code is missing or incorrect.
+//   🟢 GREEN/PASSED:      Test written and passing.
+//   ⚠️  ISSUES:           Known problem needing attention.
+//   🚫 BLOCKED:          Cannot proceed due to a dependency.
+//
+// PRIORITY LEVELS:
+//   P1 🥇 FUNCTIONAL:     Must complete before P2 (ValidFunc + InvalidFunc).
+//   P2 🥈 DESIGN-ORIENTED: Test after P1 (State, Capability, Concurrency).
+//   P3 🥉 QUALITY-ORIENTED: Test for quality attributes (Performance, Robust, etc.).
+//   P4 🎯 ADDONS:          Optional (Demo, Examples).
+//
+// WORKFLOW:
+//   1. Complete all P1 tests (this is the gate before P2).
+//   2. Move to P2 tests based on design complexity.
+//   3. Add P3 tests for specific quality requirements.
+//   4. Add P4 tests for documentation purposes.
+//   5. Mark status as you go: ⚪ TODO → 🔴 RED → 🟢 GREEN.
+//
+//===================================================================================================
+// P1 🥇 FUNCTIONAL TESTING – InvalidFunc (Misuse)
+//===================================================================================================
+//
+//   🟢 [@AC-1,US-1] TC-1: verifyDataMisuse_byNullDatDescOnSend_expectInvalidParam
+//        - Description: Validate NULL pDatDesc to IOC_sendDAT returns INVALID_PARAM.
+//        - Category: Misuse (InvalidFunc) - Null Pointer Handling
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-1,US-1] TC-2: verifyDataMisuse_byNullDatDescOnRecv_expectInvalidParam
+//        - Description: Validate NULL pDatDesc to IOC_recvDAT returns INVALID_PARAM.
+//        - Category: Misuse (InvalidFunc) - Null Pointer Handling
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-1,US-1] TC-3: verifyDataMisuse_byNullOptionOnFlush_expectDefaultBehavior
+//        - Description: Validate NULL pOption to IOC_flushDAT uses defaults.
+//        - Category: Misuse (InvalidFunc) - Null Pointer Handling
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-1,US-2] TC-4: verifyDataMisuse_byInvalidLinkIDOnSend_expectNotExistLink
+//        - Description: Validate IOC_ID_INVALID to IOC_sendDAT returns NOT_EXIST_LINK.
+//        - Category: Misuse (InvalidFunc) - Invalid LinkID Handling
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-1,US-2] TC-5: verifyDataMisuse_byInvalidLinkIDOnRecv_expectNotExistLink
+//        - Description: Validate IOC_ID_INVALID to IOC_recvDAT returns NOT_EXIST_LINK.
+//        - Category: Misuse (InvalidFunc) - Invalid LinkID Handling
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-1,US-2] TC-6: verifyDataMisuse_byInvalidLinkIDOnFlush_expectNotExistLink
+//        - Description: Validate IOC_ID_INVALID to IOC_flushDAT returns NOT_EXIST_LINK.
+//        - Category: Misuse (InvalidFunc) - Invalid LinkID Handling
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-2,US-2] TC-7: verifyDataMisuse_byNonExistentLinkIDOnSend_expectNotExistLink
+//        - Description: Validate random non-existent LinkID returns NOT_EXIST_LINK.
+//        - Category: Misuse (InvalidFunc) - Invalid LinkID Handling
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-2,US-2] TC-8: verifyDataMisuse_byNonExistentLinkIDOnRecv_expectNotExistLink
+//        - Description: Validate random non-existent LinkID returns NOT_EXIST_LINK.
+//        - Category: Misuse (InvalidFunc) - Invalid LinkID Handling
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-2,US-2] TC-9: verifyDataMisuse_byNonExistentLinkIDOnFlush_expectNotExistLink
+//        - Description: Validate random non-existent LinkID returns NOT_EXIST_LINK.
+//        - Category: Misuse (InvalidFunc) - Invalid LinkID Handling
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-1,US-3] TC-10: verifyDataMisuse_bySendOnClosedLink_expectNotExistLink
+//        - Description: Validate IOC_sendDAT on closed link returns NOT_EXIST_LINK.
+//        - Category: Misuse (InvalidFunc) - State Violation Detection
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-1,US-3] TC-11: verifyDataMisuse_byRecvOnClosedLink_expectNotExistLink
+//        - Description: Validate IOC_recvDAT on closed link returns NOT_EXIST_LINK.
+//        - Category: Misuse (InvalidFunc) - State Violation Detection
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-1,US-3] TC-12: verifyDataMisuse_byFlushOnClosedLink_expectNotExistLink
+//        - Description: Validate IOC_flushDAT on closed link returns NOT_EXIST_LINK.
+//        - Category: Misuse (InvalidFunc) - State Violation Detection
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-2,US-3] TC-13: verifyDataMisuse_bySendBeforeConnection_expectNotExistLink
+//        - Description: Validate IOC_sendDAT before connection established.
+//        - Category: Misuse (InvalidFunc) - State Violation Detection
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-2,US-3] TC-14: verifyDataMisuse_byRecvBeforeConnection_expectNotExistLink
+//        - Description: Validate IOC_recvDAT before connection established.
+//        - Category: Misuse (InvalidFunc) - State Violation Detection
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-3,US-3] TC-15: verifyDataMisuse_bySendAfterServiceOffline_expectLinkBroken
+//        - Description: Validate IOC_sendDAT after service taken offline.
+//        - Category: Misuse (InvalidFunc) - State Violation Detection
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-4,US-3] TC-16: verifyDataMisuse_byDoubleCloseLink_expectGracefulHandling
+//        - Description: Validate double IOC_closeLink doesn't corrupt system.
+//        - Category: Misuse (InvalidFunc) - State Violation Detection
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-1,US-4] TC-17: verifyDataMisuse_bySendOnReceiverLink_expectInvalidOperation
+//        - Description: Validate IOC_sendDAT rejected on DatReceiver link.
+//        - Category: Misuse (InvalidFunc) - Role Mismatch Detection
+//        - Status: PASSED/GREEN ✅ (BUG FOUND AND FIXED!)
+//        - Completed: 2025-12-21
+//        - Notes: Found missing role validation in IOC_sendDAT, added fix.
+//
+//   🟢 [@AC-2,US-4] TC-18: verifyDataMisuse_byRecvOnSenderLink_expectInvalidOperation
+//        - Description: Validate manual IOC_recvDAT rejected on DatSender link.
+//        - Category: Misuse (InvalidFunc) - Role Mismatch Detection
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-3,US-4] TC-19: verifyDataMisuse_byFlushOnReceiverLink_expectInvalidOperation
+//        - Description: Validate IOC_flushDAT rejected on DatReceiver link.
+//        - Category: Misuse (InvalidFunc) - Role Mismatch Detection
+//        - Status: PASSED/GREEN ✅ (BUG FOUND AND FIXED!)
+//        - Completed: 2025-12-21
+//        - Notes: Found missing role validation in IOC_flushDAT, added fix.
+//
+//   🟢 [@AC-1,US-5] TC-20: verifyDataMisuse_byMalformedDatDesc_expectInvalidParam
+//        - Description: Validate malformed DatDesc rejected.
+//        - Category: Misuse (InvalidFunc) - DatDesc Corruption Detection
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+//   🟢 [@AC-2,US-5] TC-21: verifyDataMisuse_byNullPayloadNonZeroSize_expectInvalidParam
+//        - Description: Validate DatDesc with NULL payload + size > 0 rejected.
+//        - Category: Misuse (InvalidFunc) - DatDesc Corruption Detection
+//        - Status: PASSED/GREEN ✅
+//        - Completed: 2025-12-21
+//
+// 🚪 GATE P1 (Core Misuse): 21/21 tests GREEN ✅ - Ready to proceed to P2!
+//
+//===================================================================================================
+// P2 🥈 DESIGN-ORIENTED TESTING – FIFO-Specific Edge Cases (DEFERRED)
+//===================================================================================================
+//
+//   ⚪ [@AC-3,US-5] TC-22: verifyDataMisuse_byReusingDatDescWithoutReinit_expectUndefinedBehavior
+//        - Description: Test DatDesc reused without re-initialization.
+//        - Category: Edge (FIFO-specific)
+//        - Status: TODO/PLANNED
+//        - Priority: P2 (defer after core P1 complete)
+//
+//   ⚪ [@AC-4,US-5] TC-23: verifyDataMisuse_byInvalidRecvDatDescConfig_expectInvalidParam
+//        - Description: Test invalid recv DatDesc configuration.
+//        - Category: Edge (FIFO-specific)
+//        - Status: TODO/PLANNED
+//        - Priority: P2 (defer after core P1 complete)
+//
+//   ⚪ [@AC-1,US-6] TC-24: verifyDataMisuse_byFIFOFileDeletedDuringOperation_expectLinkBroken
+//        - Description: Test FIFO file deleted manually during operation.
+//        - Category: Fault (FIFO-specific)
+//        - Status: TODO/PLANNED
+//        - Priority: P2 (FIFO-specific, defer)
+//
+//   ⚪ [@AC-2,US-6] TC-25: verifyDataMisuse_byInvalidFIFOPath_expectConfigurationError
+//        - Description: Test invalid/corrupted FIFO path in service setup.
+//        - Category: Misuse (FIFO-specific)
+//        - Status: TODO/PLANNED
+//        - Priority: P2 (FIFO-specific, defer)
+//
+//   ⚪ [@AC-3,US-6] TC-26: verifyDataMisuse_byFIFOPermissionChangedToReadOnly_expectAccessError
+//        - Description: Test FIFO permissions changed to read-only.
+//        - Category: Fault (FIFO-specific)
+//        - Status: TODO/PLANNED
+//        - Priority: P2 (FIFO-specific, defer)
+//
+// 🚪 GATE P2: 5 tests deferred (FIFO-specific edge cases, implement after TCP variant complete)
+//
+//===================================================================================================
+// ✅ SUMMARY
+//===================================================================================================
+//   🟢 P1 Core Misuse: 21/21 GREEN (100% core coverage)
+//   ⏸️ P2 FIFO Edge Cases: 5/5 DEFERRED (implement after TCP tests complete)
+//   📊 Overall: 21/26 implemented (81% total coverage)
+//   🎯 Next: Proceed to Phase 1B - UT_DataMisuseTCP.cxx
+//   🐛 Production Bugs Found: 2 (both FIXED)
+//      - IOC_sendDAT missing role validation ✅
+//      - IOC_flushDAT missing role validation ✅
+//
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>END OF TODO/IMPLEMENTATION TRACKING SECTION===============================================
