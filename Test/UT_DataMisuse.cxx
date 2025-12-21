@@ -535,6 +535,7 @@ TEST(UT_DataMisuse, verifyDataMisuse_byInvalidLinkIDOnSend_expectNotExistLink) {
     const char* testData = "test";
     datDesc.Payload.pData = (void*)testData;
     datDesc.Payload.PtrDataSize = 4;
+    datDesc.Payload.PtrDataLen = 4;
 
     IOC_Result_T result = IOC_sendDAT(IOC_ID_INVALID, &datDesc, NULL);
 
@@ -589,6 +590,7 @@ TEST(UT_DataMisuse, verifyDataMisuse_byNonExistentLinkIDOnSend_expectNotExistLin
     const char* testData = "test";
     datDesc.Payload.pData = (void*)testData;
     datDesc.Payload.PtrDataSize = 4;
+    datDesc.Payload.PtrDataLen = 4;
 
     IOC_LinkID_T nonExistentLinkID = 999999;  // Valid-looking but doesn't exist
     IOC_Result_T result = IOC_sendDAT(nonExistentLinkID, &datDesc, NULL);
@@ -679,6 +681,7 @@ TEST(UT_DataMisuse, verifyDataMisuse_bySendOnClosedLink_expectNotExistLink) {
     const char* testData = "test";
     datDesc.Payload.pData = (void*)testData;
     datDesc.Payload.PtrDataSize = 4;
+    datDesc.Payload.PtrDataLen = 4;
 
     result = IOC_sendDAT(linkID, &datDesc, NULL);
 
@@ -798,6 +801,7 @@ TEST(UT_DataMisuse, verifyDataMisuse_bySendBeforeConnection_expectNotExistLink) 
     const char* testData = "test";
     datDesc.Payload.pData = (void*)testData;
     datDesc.Payload.PtrDataSize = 4;
+    datDesc.Payload.PtrDataLen = 4;
 
     IOC_LinkID_T fakeLinkID = 12345;  // Never connected
     IOC_Result_T result = IOC_sendDAT(fakeLinkID, &datDesc, NULL);
@@ -867,6 +871,7 @@ TEST(UT_DataMisuse, verifyDataMisuse_bySendAfterServiceOffline_expectLinkBroken)
     const char* testData = "test";
     datDesc.Payload.pData = (void*)testData;
     datDesc.Payload.PtrDataSize = 4;
+    datDesc.Payload.PtrDataLen = 4;
 
     result = IOC_sendDAT(linkID, &datDesc, NULL);
 
@@ -964,6 +969,7 @@ TEST(UT_DataMisuse, verifyDataMisuse_bySendOnReceiverLink_expectInvalidOperation
     const char* testData = "test";
     datDesc.Payload.pData = (void*)testData;
     datDesc.Payload.PtrDataSize = 4;
+    datDesc.Payload.PtrDataLen = 4;
 
     result = IOC_sendDAT(linkID, &datDesc, NULL);
 
@@ -1149,6 +1155,7 @@ TEST(UT_DataMisuse, verifyDataMisuse_byNullPayloadNonZeroSize_expectInvalidParam
     IOC_initDatDesc(&badDesc);
     badDesc.Payload.pData = NULL;       // NULL pointer
     badDesc.Payload.PtrDataSize = 100;  // But claim 100 bytes
+    badDesc.Payload.PtrDataLen = 100;   // Claim 100 bytes length too
 
     result = IOC_sendDAT(linkID, &badDesc, NULL);
 

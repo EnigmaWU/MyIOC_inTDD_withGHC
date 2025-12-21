@@ -26,7 +26,7 @@ extern "C" {
 #include "_IOC_Logging.h"
 #include "_IOC_Types.h"
 
-#define _MAX_IOC_SRV_OBJ_NUM 2
+#define _MAX_IOC_SRV_OBJ_NUM 32
 #define _MAX_IOC_CLI_OBJ_NUM_PER_SRV 3
 
 // 🎯 TDD GREEN: ConlesEvent SubState bridge function for DAT operations

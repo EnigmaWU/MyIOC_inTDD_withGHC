@@ -522,6 +522,7 @@ TEST(UT_DataTypical, verifyDatSenderTransmission_bySendCommonData_expectCallback
     IOC_initDatDesc(&DatDesc);
     DatDesc.Payload.pData = TestData;
     DatDesc.Payload.PtrDataSize = TargetSize;
+    DatDesc.Payload.PtrDataLen = TargetSize;
 
     // Send data using IOC_sendDAT
     Result = IOC_sendDAT(DatSenderLinkID, &DatDesc, NULL);
@@ -670,6 +671,7 @@ TEST(UT_DataTypical, verifyDatSenderTransmission_byBinaryDataRange_expectCallbac
         IOC_initDatDesc(&DatDesc);
         DatDesc.Payload.pData = BinaryData;
         DatDesc.Payload.PtrDataSize = CurrentSize;
+        DatDesc.Payload.PtrDataLen = CurrentSize;
         // Default attributes ensure NODROP guarantee as specified in AC-2
 
         // Send binary data using IOC_sendDAT
@@ -823,6 +825,7 @@ TEST(UT_DataTypical, verifyDatPollingReceive_byManualRetrieve_expectCompleteData
     IOC_initDatDesc(&DatDesc);
     DatDesc.Payload.pData = TestData;
     DatDesc.Payload.PtrDataSize = TargetSize;
+    DatDesc.Payload.PtrDataLen = TargetSize;
 
     // Send data using IOC_sendDAT
     Result = IOC_sendDAT(DatSenderLinkID, &DatDesc, NULL);
@@ -840,6 +843,7 @@ TEST(UT_DataTypical, verifyDatPollingReceive_byManualRetrieve_expectCompleteData
     char *ReceivedData = (char *)malloc(TargetSize);
     ReceivedDatDesc.Payload.pData = ReceivedData;
     ReceivedDatDesc.Payload.PtrDataSize = TargetSize;
+    ReceivedDatDesc.Payload.PtrDataLen = 0;
 
     // Setup options for blocking polling
     IOC_Option_defineSyncMayBlock(RecvOptions);
@@ -974,6 +978,7 @@ TEST(UT_DataTypical, verifyDatMultipleDataTypes_byTransmitDifferentTypes_expectA
     IOC_initDatDesc(&StringDatDesc);
     StringDatDesc.Payload.pData = (void *)TestString;
     StringDatDesc.Payload.PtrDataSize = strlen(TestString);
+    StringDatDesc.Payload.PtrDataLen = strlen(TestString);
 
     Result = IOC_sendDAT(DatSenderLinkID, &StringDatDesc, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
@@ -988,6 +993,7 @@ TEST(UT_DataTypical, verifyDatMultipleDataTypes_byTransmitDifferentTypes_expectA
     IOC_initDatDesc(&StructDatDesc);
     StructDatDesc.Payload.pData = &TestStruct;
     StructDatDesc.Payload.PtrDataSize = sizeof(IOC_EvtDesc_T);
+    StructDatDesc.Payload.PtrDataLen = sizeof(IOC_EvtDesc_T);
 
     Result = IOC_sendDAT(DatSenderLinkID, &StructDatDesc, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
@@ -1004,6 +1010,7 @@ TEST(UT_DataTypical, verifyDatMultipleDataTypes_byTransmitDifferentTypes_expectA
     IOC_initDatDesc(&BinaryDatDesc);
     BinaryDatDesc.Payload.pData = BinaryData;
     BinaryDatDesc.Payload.PtrDataSize = BinarySize;
+    BinaryDatDesc.Payload.PtrDataLen = BinarySize;
 
     Result = IOC_sendDAT(DatSenderLinkID, &BinaryDatDesc, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
@@ -1137,6 +1144,7 @@ TEST(UT_DataTypical, verifyDatCompleteWorkflow_byExecuteTypicalSequence_expectFu
         IOC_initDatDesc(&ChunkDatDesc);
         ChunkDatDesc.Payload.pData = (void *)DataChunks[i];
         ChunkDatDesc.Payload.PtrDataSize = strlen(DataChunks[i]);
+        ChunkDatDesc.Payload.PtrDataLen = strlen(DataChunks[i]);
 
         Result = IOC_sendDAT(DatSenderLinkID, &ChunkDatDesc, NULL);
         ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // Workflow Step-3 Verification
@@ -1369,6 +1377,7 @@ TEST(UT_DataTypical, verifyDatSenderService_bySendToConnectedReceiver_expectCall
     IOC_initDatDesc(&DatDesc);
     DatDesc.Payload.pData = (void *)TestData;
     DatDesc.Payload.PtrDataSize = TestDataSize;
+    DatDesc.Payload.PtrDataLen = TestDataSize;
 
     Result = IOC_sendDAT(DatSenderLinkID, &DatDesc, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint: Send success
@@ -1514,6 +1523,7 @@ TEST(UT_DataTypical, verifyDatSenderService_bySendToPollingReceiver_expectPollin
     IOC_initDatDesc(&DatDesc);
     DatDesc.Payload.pData = TestData;
     DatDesc.Payload.PtrDataSize = TestDataSize;
+    DatDesc.Payload.PtrDataLen = TestDataSize;
 
     Result = IOC_sendDAT(DatSenderLinkID, &DatDesc, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // VerifyPoint: Send success
@@ -1530,6 +1540,7 @@ TEST(UT_DataTypical, verifyDatSenderService_bySendToPollingReceiver_expectPollin
     char *ReceivedData = (char *)malloc(TestDataSize);
     ReceivedDatDesc.Payload.pData = ReceivedData;
     ReceivedDatDesc.Payload.PtrDataSize = TestDataSize;
+    ReceivedDatDesc.Payload.PtrDataLen = 0;
 
     // Setup options for blocking polling
     IOC_Option_defineSyncMayBlock(RecvOptions);
