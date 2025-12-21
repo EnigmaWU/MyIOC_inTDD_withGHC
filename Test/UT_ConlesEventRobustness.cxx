@@ -1006,7 +1006,7 @@ TEST(UTConlesEventRobustness, verifySyncMode_afterCallback_expectSuccess) {
 TEST(UTConlesEventRobustness, verifyStability_withMaxSubscribers) {
     //===>>> SETUP <<<===
     printf("🔧 SETUP: verifyStability_withMaxSubscribers\n");
-    constexpr int MaxSub = 16;
+    constexpr int MaxSub = 128;  // Updated to match production limit in _IOC_ConlesEvent.c
     struct DummyCtx {
         int id;
     } Contexts[MaxSub + 1];
