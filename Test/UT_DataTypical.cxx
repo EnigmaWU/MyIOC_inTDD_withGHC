@@ -983,6 +983,7 @@ TEST(UT_DataTypical, verifyDatMultipleDataTypes_byTransmitDifferentTypes_expectA
     Result = IOC_sendDAT(DatSenderLinkID, &StringDatDesc, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
     IOC_flushDAT(DatSenderLinkID, NULL);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));  // Allow callback to process
 
     // Test 2: Struct data transmission
     IOC_EvtDesc_T TestStruct = {.MsgDesc = {.SeqID = 12345, .TimeStamp = {.tv_sec = 987654321, .tv_nsec = 0}},
@@ -998,6 +999,7 @@ TEST(UT_DataTypical, verifyDatMultipleDataTypes_byTransmitDifferentTypes_expectA
     Result = IOC_sendDAT(DatSenderLinkID, &StructDatDesc, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
     IOC_flushDAT(DatSenderLinkID, NULL);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));  // Allow callback to process
 
     // Test 3: Binary array data transmission
     const int BinarySize = 1024;  // 1KB binary data
@@ -1015,6 +1017,7 @@ TEST(UT_DataTypical, verifyDatMultipleDataTypes_byTransmitDifferentTypes_expectA
     Result = IOC_sendDAT(DatSenderLinkID, &BinaryDatDesc, NULL);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
     IOC_flushDAT(DatSenderLinkID, NULL);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));  // Allow final callback to process
 
     //===VERIFY===
     // KeyVerifyPoint-1: All transmissions should succeed
@@ -1149,9 +1152,13 @@ TEST(UT_DataTypical, verifyDatCompleteWorkflow_byExecuteTypicalSequence_expectFu
         Result = IOC_sendDAT(DatSenderLinkID, &ChunkDatDesc, NULL);
         ASSERT_EQ(IOC_RESULT_SUCCESS, Result);  // Workflow Step-3 Verification
         IOC_flushDAT(DatSenderLinkID, NULL);
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));  // Allow callback to process
 
         printf("Workflow Step-3.%d: Data chunk %d transmission - SUCCESS\n", i + 1, i + 1);
     }
+
+    // Additional wait to ensure all callbacks are processed
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     // Step 4: Verify data reception and processing (typical data handling)
     ASSERT_EQ(NumChunks, WorkflowPrivData.ReceivedDataCnt);  // Workflow Step-4 Verification
