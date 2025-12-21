@@ -1549,19 +1549,394 @@ TEST(UT_DataFaultTCP, verifyDataFault_byRecoveryFromTransientFailure_expectResum
 
     printf("   ✓ Cleanup complete\n");
 }
-//======>END OF: [@AC-1,US-3]======================================================================
+//======>END OF: [@AC-3,US-4]======================================================================
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF: [@AC-1,US-5]====================================================================
+/**
+ * @[Name]: verifyDataFault_bySocketErrorDuringTCPWrite_expectIOError
+ * @[Purpose]: Validate socket error handling during TCP write operations
+ * @[Brief]: Force socket-level error by closing underlying socket, verify IOC detects and reports
+ * @[Steps]:
+ *   1) Establish TCP connection for data transmission
+ *   2) Fill send buffer to trigger actual socket write
+ *   3) Force socket-level error (close receiver abruptly)
+ *   4) Attempt send/flush and verify IO error or link broken
+ * @[Expect]: IOC_RESULT_LINK_BROKEN when socket fails
+ */
 TEST(UT_DataFaultTCP, verifyDataFault_bySocketErrorDuringTCPWrite_expectIOError) {
-    GTEST_SKIP() << "TCP-specific socket error test - deferred for specialized low-level TCP testing";
-}
+    printf("🔴 RED: verifyDataFault_bySocketErrorDuringTCPWrite_expectIOError\n");
 
+    //===>>> SETUP <<<===
+    printf("🔧 SETUP: Create TCP connection for socket error test\n");
+
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_SrvID_T ReceiverSrvID = IOC_ID_INVALID;
+    IOC_LinkID_T ReceiverLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T SenderLinkID = IOC_ID_INVALID;
+
+    // Setup DatReceiver service (TCP)
+    IOC_SrvURI_T ReceiverSrvURI = {
+        .pProtocol = IOC_SRV_PROTO_TCP,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "0/test/data/fault/tcp/socket_error",
+    };
+
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = ReceiverSrvURI,
+        .UsageCapabilites = IOC_LinkUsageDatReceiver,
+    };
+
+    Result = IOC_onlineService(&ReceiverSrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    printf("   ✓ Receiver service online\n");
+
+    // Connect sender
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = ReceiverSrvURI,
+        .Usage = IOC_LinkUsageDatSender,
+    };
+
+    std::thread SenderThread([&] {
+        IOC_Result_T ThreadResult = IOC_connectService(&SenderLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ThreadResult);
+    });
+
+    Result = IOC_acceptClient(ReceiverSrvID, &ReceiverLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    SenderThread.join();
+    printf("   ✓ TCP connection established\n");
+
+    //===>>> BEHAVIOR <<<===
+    printf("🎯 BEHAVIOR: Trigger socket error during TCP write\n");
+
+    // Prepare large data to ensure socket write
+    const int ChunkSize = 65536;  // 64KB to force socket-level write
+    char *TestData = new char[ChunkSize];
+    memset(TestData, 0xAB, ChunkSize);
+
+    IOC_DatDesc_T SendDesc = {0};
+    IOC_initDatDesc(&SendDesc);
+    SendDesc.Payload.pData = TestData;
+    SendDesc.Payload.PtrDataSize = ChunkSize;
+    SendDesc.Payload.PtrDataLen = ChunkSize;
+
+    // Send one chunk successfully
+    Result = IOC_sendDAT(SenderLinkID, &SendDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    printf("   ✓ Initial send succeeded\n");
+
+    // Abruptly close receiver to trigger socket error
+    Result = IOC_closeLink(ReceiverLinkID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    ReceiverLinkID = IOC_ID_INVALID;
+    printf("   ✓ Receiver closed abruptly\n");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // Attempt to flush - should detect broken socket
+    Result = IOC_flushDAT(SenderLinkID, NULL);
+    printf("   ✓ Flush after socket error: %d\n", Result);
+
+    //===>>> VERIFY <<<===
+    printf("✅ VERIFY: Socket error detected\n");
+
+    //@KeyVerifyPoint-1: Flush should detect socket-level error
+    VERIFY_KEYPOINT_TRUE(Result == IOC_RESULT_LINK_BROKEN || Result == IOC_RESULT_SUCCESS,
+                         "Flush should return LINK_BROKEN when socket fails or SUCCESS if no buffered data");
+
+    // Attempt another send - should definitely fail
+    Result = IOC_sendDAT(SenderLinkID, &SendDesc, NULL);
+
+    //@KeyVerifyPoint-2: Subsequent operations should fail
+    VERIFY_KEYPOINT_TRUE(Result == IOC_RESULT_LINK_BROKEN, "Send after socket error should return LINK_BROKEN");
+
+    printf("   ✅ Socket error properly detected and reported\n");
+
+    //===>>> CLEANUP <<<===
+    printf("🧹 CLEANUP\n");
+
+    delete[] TestData;
+
+    if (SenderLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(SenderLinkID);
+    }
+    if (ReceiverSrvID != IOC_ID_INVALID) {
+        IOC_offlineService(ReceiverSrvID);
+    }
+
+    printf("   ✓ Cleanup complete\n");
+}
+//======>END OF: [@AC-1,US-5]======================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF: [@AC-2,US-5]====================================================================
+/**
+ * @[Name]: verifyDataFault_byConnectionResetByPeer_expectLinkBroken
+ * @[Purpose]: Validate connection reset (ECONNRESET) error handling
+ * @[Brief]: Simulate peer reset scenario, verify IOC detects connection reset gracefully
+ * @[Steps]:
+ *   1) Establish TCP connection between sender and receiver
+ *   2) Close receiver abruptly without graceful shutdown
+ *   3) Attempt send operation on sender side
+ *   4) Verify LINK_BROKEN returned (connection reset detected)
+ * @[Expect]: IOC_RESULT_LINK_BROKEN when connection reset occurs
+ */
 TEST(UT_DataFaultTCP, verifyDataFault_byConnectionResetByPeer_expectLinkBroken) {
-    GTEST_SKIP() << "TCP-specific ECONNRESET test - deferred for specialized low-level TCP testing";
-}
+    printf("🔴 RED: verifyDataFault_byConnectionResetByPeer_expectLinkBroken\n");
 
-TEST(UT_DataFaultTCP, verifyDataFault_byTCPRetransmissionStress_expectGracefulHandling) {
-    GTEST_SKIP() << "TCP-specific retransmission stress test - deferred for specialized performance testing";
+    //===>>> SETUP <<<===
+    printf("🔧 SETUP: Create TCP connection for reset test\n");
+
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_SrvID_T ReceiverSrvID = IOC_ID_INVALID;
+    IOC_LinkID_T ReceiverLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T SenderLinkID = IOC_ID_INVALID;
+
+    // Setup DatReceiver service (TCP)
+    IOC_SrvURI_T ReceiverSrvURI = {
+        .pProtocol = IOC_SRV_PROTO_TCP,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "0/test/data/fault/tcp/connection_reset",
+    };
+
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = ReceiverSrvURI,
+        .UsageCapabilites = IOC_LinkUsageDatReceiver,
+    };
+
+    Result = IOC_onlineService(&ReceiverSrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    printf("   ✓ Receiver service online\n");
+
+    // Connect sender
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = ReceiverSrvURI,
+        .Usage = IOC_LinkUsageDatSender,
+    };
+
+    std::thread SenderThread([&] {
+        IOC_Result_T ThreadResult = IOC_connectService(&SenderLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ThreadResult);
+    });
+
+    Result = IOC_acceptClient(ReceiverSrvID, &ReceiverLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    SenderThread.join();
+    printf("   ✓ TCP connection established\n");
+
+    //===>>> BEHAVIOR <<<===
+    printf("🎯 BEHAVIOR: Simulate connection reset by peer\n");
+
+    // Verify initial connection works
+    const int ChunkSize = 1024;
+    char TestData[ChunkSize];
+    memset(TestData, 0xCC, ChunkSize);
+
+    IOC_DatDesc_T SendDesc = {0};
+    IOC_initDatDesc(&SendDesc);
+    SendDesc.Payload.pData = TestData;
+    SendDesc.Payload.PtrDataSize = ChunkSize;
+    SendDesc.Payload.PtrDataLen = ChunkSize;
+
+    Result = IOC_sendDAT(SenderLinkID, &SendDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    printf("   ✓ Initial send successful\n");
+
+    // Simulate connection reset: close receiver without graceful shutdown
+    Result = IOC_closeLink(ReceiverLinkID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    ReceiverLinkID = IOC_ID_INVALID;
+
+    // Offline entire service to ensure connection is reset
+    Result = IOC_offlineService(ReceiverSrvID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    ReceiverSrvID = IOC_ID_INVALID;
+    printf("   ✓ Receiver service offline (connection reset)\n");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Attempt send - should detect connection reset
+    Result = IOC_sendDAT(SenderLinkID, &SendDesc, NULL);
+    printf("   ✓ Send after reset: %d\n", Result);
+
+    //===>>> VERIFY <<<===
+    printf("✅ VERIFY: Connection reset detected\n");
+
+    //@KeyVerifyPoint-1: Send should detect connection reset
+    VERIFY_KEYPOINT_TRUE(Result == IOC_RESULT_LINK_BROKEN, "Send after connection reset should return LINK_BROKEN");
+
+    // Verify flush also detects the issue
+    Result = IOC_flushDAT(SenderLinkID, NULL);
+
+    //@KeyVerifyPoint-2: Flush should also report link broken
+    VERIFY_KEYPOINT_TRUE(Result == IOC_RESULT_LINK_BROKEN || Result == IOC_RESULT_SUCCESS,
+                         "Flush after connection reset should return LINK_BROKEN or succeed (no data)");
+
+    printf("   ✅ Connection reset properly handled\n");
+
+    //===>>> CLEANUP <<<===
+    printf("🧹 CLEANUP\n");
+
+    if (SenderLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(SenderLinkID);
+    }
+
+    printf("   ✓ Cleanup complete\n");
 }
+//======>END OF: [@AC-2,US-5]======================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF: [@AC-3,US-5]====================================================================
+/**
+ * @[Name]: verifyDataFault_byTCPRetransmissionStress_expectGracefulHandling
+ * @[Purpose]: Validate resilience under TCP retransmission stress conditions
+ * @[Brief]: Send rapid bursts to trigger retransmission, verify graceful handling without crashes
+ * @[Steps]:
+ *   1) Establish TCP connection with receiver
+ *   2) Send rapid bursts of data to stress TCP layer
+ *   3) Monitor for any crashes or hangs
+ *   4) Verify system remains stable and operations complete
+ * @[Expect]: All sends eventually succeed or gracefully return errors, no crashes
+ */
+TEST(UT_DataFaultTCP, verifyDataFault_byTCPRetransmissionStress_expectGracefulHandling) {
+    printf("🔴 RED: verifyDataFault_byTCPRetransmissionStress_expectGracefulHandling\n");
+
+    //===>>> SETUP <<<===
+    printf("🔧 SETUP: Create TCP connection for retransmission stress test\n");
+
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_SrvID_T ReceiverSrvID = IOC_ID_INVALID;
+    IOC_LinkID_T ReceiverLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T SenderLinkID = IOC_ID_INVALID;
+
+    // Setup DatReceiver service (TCP)
+    IOC_SrvURI_T ReceiverSrvURI = {
+        .pProtocol = IOC_SRV_PROTO_TCP,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "0/test/data/fault/tcp/retransmission",
+    };
+
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = ReceiverSrvURI,
+        .UsageCapabilites = IOC_LinkUsageDatReceiver,
+    };
+
+    Result = IOC_onlineService(&ReceiverSrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    printf("   ✓ Receiver service online\n");
+
+    // Connect sender
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = ReceiverSrvURI,
+        .Usage = IOC_LinkUsageDatSender,
+    };
+
+    std::thread SenderThread([&] {
+        IOC_Result_T ThreadResult = IOC_connectService(&SenderLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ThreadResult);
+    });
+
+    Result = IOC_acceptClient(ReceiverSrvID, &ReceiverLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    SenderThread.join();
+    printf("   ✓ TCP connection established\n");
+
+    //===>>> BEHAVIOR <<<===
+    printf("🎯 BEHAVIOR: Stress TCP layer with rapid data bursts\n");
+
+    const int ChunkSize = 8192;  // 8KB chunks
+    const int BurstCount = 50;   // 50 rapid sends
+    char TestData[ChunkSize];
+    memset(TestData, 0xDD, ChunkSize);
+
+    int SuccessCount = 0;
+    int BufferFullCount = 0;
+    int ErrorCount = 0;
+
+    // Setup slow receiver to stress TCP retransmission
+    std::atomic<bool> ReceiverActive{true};
+    std::atomic<int> ReceivedCount{0};
+
+    std::thread ReceiverThread([&] {
+        while (ReceiverActive) {
+            IOC_DatDesc_T RecvDesc = {0};
+            IOC_Result_T RecvResult = IOC_recvDAT(ReceiverLinkID, &RecvDesc, NULL);
+            if (RecvResult == IOC_RESULT_SUCCESS) {
+                ReceivedCount++;
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Slow processing
+            } else if (RecvResult == IOC_RESULT_NO_DATA) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            } else {
+                break;  // Error
+            }
+        }
+    });
+
+    // Send rapid bursts
+    for (int i = 0; i < BurstCount; i++) {
+        IOC_DatDesc_T SendDesc = {0};
+        IOC_initDatDesc(&SendDesc);
+        SendDesc.Payload.pData = TestData;
+        SendDesc.Payload.PtrDataSize = ChunkSize;
+        SendDesc.Payload.PtrDataLen = ChunkSize;
+
+        Result = IOC_sendDAT(SenderLinkID, &SendDesc, NULL);
+        if (Result == IOC_RESULT_SUCCESS) {
+            SuccessCount++;
+        } else if (Result == IOC_RESULT_BUFFER_FULL) {
+            BufferFullCount++;
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));  // Brief pause
+        } else {
+            ErrorCount++;
+        }
+
+        // Flush periodically to trigger TCP writes
+        if (i % 10 == 0) {
+            IOC_flushDAT(SenderLinkID, NULL);
+        }
+    }
+
+    // Final flush
+    Result = IOC_flushDAT(SenderLinkID, NULL);
+    printf("   ✓ Burst complete: %d success, %d buffer_full, %d errors\n", SuccessCount, BufferFullCount, ErrorCount);
+
+    // Wait for receiver to catch up
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    ReceiverActive = false;
+    ReceiverThread.join();
+
+    //===>>> VERIFY <<<===
+    printf("✅ VERIFY: TCP retransmission stress handled gracefully\n");
+
+    //@KeyVerifyPoint-1: Most operations should succeed or gracefully fail
+    VERIFY_KEYPOINT_TRUE(SuccessCount + BufferFullCount >= BurstCount * 0.8,
+                         "At least 80% of sends should succeed or return BUFFER_FULL");
+
+    //@KeyVerifyPoint-2: System should remain stable (no crashes)
+    VERIFY_KEYPOINT_TRUE(ErrorCount < BurstCount * 0.2, "Error count should be low (< 20% of total sends)");
+
+    //@KeyVerifyPoint-3: Receiver should receive significant portion
+    VERIFY_KEYPOINT_TRUE(ReceivedCount.load() > 0, "Receiver should receive at least some data");
+
+    printf("   ✅ Received %d chunks, system stable\n", ReceivedCount.load());
+
+    //===>>> CLEANUP <<<===
+    printf("🧹 CLEANUP\n");
+
+    if (SenderLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(SenderLinkID);
+    }
+    if (ReceiverLinkID != IOC_ID_INVALID) {
+        IOC_closeLink(ReceiverLinkID);
+    }
+    if (ReceiverSrvID != IOC_ID_INVALID) {
+        IOC_offlineService(ReceiverSrvID);
+    }
+
+    printf("   ✓ Cleanup complete\n");
+}
+//======>END OF: [@AC-3,US-5]======================================================================
 
 //======>END OF UNIT TESTING IMPLEMENTATION========================================================
 
@@ -1663,35 +2038,35 @@ TEST(UT_DataFaultTCP, verifyDataFault_byTCPRetransmissionStress_expectGracefulHa
 //        - Status: COMPLETED (lines 1490-1550)
 //        - Implementation: Full CaTDD formatting, TCP protocol, PtrDataLen fixed
 //
-//   ⏭️  [@AC-1,US-5] TC-18: verifyDataFault_bySocketErrorDuringTCPWrite_expectIOError
+//   ✅ [@AC-1,US-5] TC-18: verifyDataFault_bySocketErrorDuringTCPWrite_expectIOError
 //        - Description: Validate socket error handling during TCP write.
 //        - Category: Fault (InvalidFunc) - TCP-Specific Faults
-//        - Status: STRATEGICALLY SKIPPED (line 1554)
-//        - Reason: TCP-specific socket-level testing deferred to specialized low-level tests
+//        - Status: COMPLETED (lines 1552-1686)
+//        - Implementation: Full CaTDD formatting, forces socket-level error, verifies detection
 //
-//   ⏭️  [@AC-2,US-5] TC-19: verifyDataFault_byConnectionResetByPeer_expectLinkBroken
+//   ✅ [@AC-2,US-5] TC-19: verifyDataFault_byConnectionResetByPeer_expectLinkBroken
 //        - Description: Validate connection reset error handling.
 //        - Category: Fault (InvalidFunc) - TCP-Specific Faults
-//        - Status: STRATEGICALLY SKIPPED (line 1558)
-//        - Reason: ECONNRESET testing deferred to specialized low-level tests
+//        - Status: COMPLETED (lines 1688-1820)
+//        - Implementation: Full CaTDD formatting, simulates ECONNRESET, verifies graceful handling
 //
-//   ⏭️  [@AC-3,US-5] TC-20: verifyDataFault_byTCPRetransmissionStress_expectGracefulHandling
+//   ✅ [@AC-3,US-5] TC-20: verifyDataFault_byTCPRetransmissionStress_expectGracefulHandling
 //        - Description: Validate resilience under TCP retransmission stress.
 //        - Category: Fault (InvalidFunc) - TCP-Specific Faults
-//        - Status: STRATEGICALLY SKIPPED (line 1562)
-//        - Reason: Performance stress testing deferred to specialized performance tests
+//        - Status: COMPLETED (lines 1822-2005)
+//        - Implementation: Full CaTDD formatting, rapid bursts with slow receiver, stability check
 //
-// 🚪 GATE P1 (Fault Testing TCP): ✅ 11/20 IMPLEMENTED, 6 STRATEGICALLY SKIPPED, 3 DEFERRED
+// 🚪 GATE P1 (Fault Testing TCP): ✅ 14/20 IMPLEMENTED, 6 STRATEGICALLY SKIPPED
 //
 //===================================================================================================
 // ✅ COMPLETION SUMMARY
 //===================================================================================================
-//   ✅ P1 Fault Tests (TCP): 11/20 implemented (55% coverage matching FIFO's 14/20 = 70% ratio)
+//   ✅ P1 Fault Tests (TCP): 14/20 implemented (70% coverage, matching FIFO variant)
 //   📊 Breakdown:
 //      - ✅ TC-1 to TC-3: Resource exhaustion (3 tests) - COMPLETED
 //      - ⏭️  TC-4 to TC-9: Timeout precision (6 tests) - SKIPPED (overlap with UT_DataEdge)
 //      - ✅ TC-10 to TC-17: Link failure + recovery (8 tests) - COMPLETED
-//      - ⏭️  TC-18 to TC-20: TCP-specific low-level (3 tests) - DEFERRED
+//      - ✅ TC-18 to TC-20: TCP-specific faults (3 tests) - COMPLETED
 //   ⏱️  Total implementation time: ~3 hours (mirrored FIFO patterns)
 //   🎯 Implementation Strategy:
 //      - ✅ Copied working tests from UT_DataFault.cxx
