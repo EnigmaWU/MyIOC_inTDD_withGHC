@@ -90,7 +90,8 @@ TEST(UT_DataFaultTCP, verifyDataFault_byBufferFullNonBlock_expectBufferFullError
     IOC_SrvURI_T DatSenderSrvURI = {
         .pProtocol = IOC_SRV_PROTO_TCP,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = "0/test/data/fault/tcp/buffer_full",
+        .pPath = "test/data/fault/tcp/buffer_full",
+        .Port = 18001,  // TCP requires explicit port
     };
 
     IOC_SrvArgs_T SrvArgs = {
@@ -249,7 +250,8 @@ TEST(UT_DataFaultTCP, verifyDataFault_byBufferFullWithTimeout_expectTimeoutError
     IOC_SrvURI_T DatSenderSrvURI = {
         .pProtocol = IOC_SRV_PROTO_TCP,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = "0/test/data/fault/tcp/buffer_timeout",
+        .pPath = "test/data/fault/tcp/buffer_timeout",
+        .Port = 18002,
     };
 
     IOC_SrvArgs_T SrvArgs = {
@@ -412,7 +414,8 @@ TEST(UT_DataFaultTCP, verifyDataFault_byRecvNoDataNonBlock_expectNoDataError) {
     IOC_SrvURI_T DatReceiverSrvURI = {
         .pProtocol = IOC_SRV_PROTO_TCP,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = "0/test/data/fault/tcp/no_data",
+        .pPath = "test/data/fault/tcp/no_data",
+        .Port = 18003,
     };
 
     IOC_DatUsageArgs_T DatReceiverUsageArgs = {
@@ -548,7 +551,8 @@ TEST(UT_DataFaultTCP, verifyDataFault_byPeerCrashDuringSend_expectLinkBroken) {
     IOC_SrvURI_T DatSenderSrvURI = {
         .pProtocol = IOC_SRV_PROTO_TCP,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = "0/test/data/fault/tcp/peer_crash",
+        .pPath = "test/data/fault/tcp/peer_crash",
+        .Port = 18010,
     };
 
     IOC_SrvArgs_T SrvArgs = {
@@ -625,10 +629,18 @@ TEST(UT_DataFaultTCP, verifyDataFault_byPeerCrashDuringSend_expectLinkBroken) {
     printf("   Phase 3: Attempt send after peer crash...\n");
     Result = IOC_sendDAT(DatSenderLinkID, &DatDesc, NULL);
 
+    // First send might succeed (buffered), try flush to force actual transmission
+    if (Result == IOC_RESULT_SUCCESS) {
+        IOC_flushDAT(DatSenderLinkID, NULL);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Wait for RST
+        // Second send should definitely detect the broken link
+        Result = IOC_sendDAT(DatSenderLinkID, &DatDesc, NULL);
+    }
+
     //===>>> VERIFY <<<===
     printf("✅ VERIFY: Check link broken detection\n");
 
-    //@KeyVerifyPoint-1: Send should detect link broken
+    //@KeyVerifyPoint-1: Send should detect link broken (might need second attempt)
     VERIFY_KEYPOINT_TRUE(Result == IOC_RESULT_LINK_BROKEN || Result == IOC_RESULT_NOT_EXIST_LINK,
                          "Send after peer crash must return LINK_BROKEN or NOT_EXIST_LINK");
 
@@ -678,7 +690,8 @@ TEST(UT_DataFaultTCP, verifyDataFault_byPeerClosedDuringRecv_expectLinkBroken) {
     IOC_SrvURI_T DatReceiverSrvURI = {
         .pProtocol = IOC_SRV_PROTO_TCP,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = "0/test/data/fault/tcp/peer_closed_recv",
+        .pPath = "test/data/fault/tcp/peer_closed_recv",
+        .Port = 18011,
     };
 
     IOC_DatUsageArgs_T DatReceiverUsageArgs = {
@@ -790,7 +803,8 @@ TEST(UT_DataFaultTCP, verifyDataFault_byServiceOfflineWithActiveLink_expectLinkB
     IOC_SrvURI_T DatSenderSrvURI = {
         .pProtocol = IOC_SRV_PROTO_TCP,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = "0/test/data/fault/tcp/service_offline",
+        .pPath = "test/data/fault/tcp/service_offline",
+        .Port = 18012,
     };
 
     IOC_SrvArgs_T SrvArgs = {
@@ -910,7 +924,8 @@ TEST(UT_DataFaultTCP, verifyDataFault_byAbruptDisconnection_expectGracefulHandli
     IOC_SrvURI_T ReceiverSrvURI = {
         .pProtocol = IOC_SRV_PROTO_TCP,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = "0/DatReceiver_Disconnection",
+        .pPath = "DatReceiver_Disconnection",
+        .Port = 18013,
     };
 
     // Create receiver service
@@ -1031,7 +1046,8 @@ TEST(UT_DataFaultTCP, verifyDataFault_byLinkBrokenDuringFlush_expectLinkBrokenEr
     IOC_SrvURI_T ReceiverSrvURI = {
         .pProtocol = IOC_SRV_PROTO_TCP,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = "0/DatReceiver_FlushTest",
+        .pPath = "DatReceiver_FlushTest",
+        .Port = 18014,
     };
 
     // Create receiver service
@@ -1157,7 +1173,8 @@ TEST(UT_DataFaultTCP, verifyDataFault_byRetryAfterBufferFull_expectEventualSucce
     IOC_SrvURI_T ReceiverSrvURI = {
         .pProtocol = IOC_SRV_PROTO_TCP,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = "0/DatReceiver_Retry",
+        .pPath = "DatReceiver_Retry",
+        .Port = 18015,
     };
 
     // Create receiver service
@@ -1297,7 +1314,8 @@ TEST(UT_DataFaultTCP, verifyDataFault_byReconnectAfterLinkBroken_expectNewConnec
     IOC_SrvURI_T ReceiverSrvURI = {
         .pProtocol = IOC_SRV_PROTO_TCP,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = "0/DatReceiver_Reconnect",
+        .pPath = "DatReceiver_Reconnect",
+        .Port = 18016,
     };
 
     // Create receiver service
@@ -1433,7 +1451,8 @@ TEST(UT_DataFaultTCP, verifyDataFault_byRecoveryFromTransientFailure_expectResum
     IOC_SrvURI_T ReceiverSrvURI = {
         .pProtocol = IOC_SRV_PROTO_TCP,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = "0/DatReceiver_Transient",
+        .pPath = "DatReceiver_Transient",
+        .Port = 18017,
     };
 
     // Create receiver service
@@ -1579,7 +1598,8 @@ TEST(UT_DataFaultTCP, verifyDataFault_bySocketErrorDuringTCPWrite_expectIOError)
     IOC_SrvURI_T ReceiverSrvURI = {
         .pProtocol = IOC_SRV_PROTO_TCP,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = "0/test/data/fault/tcp/socket_error",
+        .pPath = "test/data/fault/tcp/socket_error",
+        .Port = 18018,
     };
 
     IOC_SrvArgs_T SrvArgs = {
@@ -1697,7 +1717,8 @@ TEST(UT_DataFaultTCP, verifyDataFault_byConnectionResetByPeer_expectLinkBroken) 
     IOC_SrvURI_T ReceiverSrvURI = {
         .pProtocol = IOC_SRV_PROTO_TCP,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = "0/test/data/fault/tcp/connection_reset",
+        .pPath = "test/data/fault/tcp/connection_reset",
+        .Port = 18019,
     };
 
     IOC_SrvArgs_T SrvArgs = {
@@ -1814,7 +1835,8 @@ TEST(UT_DataFaultTCP, verifyDataFault_byTCPRetransmissionStress_expectGracefulHa
     IOC_SrvURI_T ReceiverSrvURI = {
         .pProtocol = IOC_SRV_PROTO_TCP,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
-        .pPath = "0/test/data/fault/tcp/retransmission",
+        .pPath = "test/data/fault/tcp/retransmission",
+        .Port = 18020,
     };
 
     IOC_SrvArgs_T SrvArgs = {

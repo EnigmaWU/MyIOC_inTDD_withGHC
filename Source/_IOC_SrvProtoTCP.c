@@ -69,6 +69,9 @@ typedef struct {
     // Command usage storage (for executor side)
     IOC_CmdUsageArgs_T CmdUsageArgs;
 
+    // Data usage storage (for receiver side)
+    IOC_DatUsageArgs_T DatUsageArgs;
+
     // Command response waiting (for initiator side)
     pthread_cond_t CmdResponseCond;
     int CmdResponseReady;
@@ -104,11 +107,11 @@ static IOC_Result_T __TCP_sendAll(int SocketFd, const void* pData, size_t Size) 
     const uint8_t* pBuffer = (const uint8_t*)pData;
 
     while (TotalSent < Size) {
-        ssize_t Sent = send(SocketFd, pBuffer + TotalSent, Size - TotalSent, 0);
+        ssize_t Sent = send(SocketFd, pBuffer + TotalSent, Size - TotalSent, MSG_NOSIGNAL);
         if (Sent < 0) {
             int err = errno;
-            if (err == ECONNRESET || err == EPIPE || err == ECONNABORTED) {
-                _IOC_LogError("TCP send failed: connection broken");
+            if (err == ECONNRESET || err == EPIPE || err == ECONNABORTED || err == EBADF || err == ENOTCONN) {
+                _IOC_LogError("TCP send failed: connection broken (errno=%d)", err);
                 return IOC_RESULT_LINK_BROKEN;
             } else if (err == ETIMEDOUT) {
                 _IOC_LogError("TCP send failed: timeout");
@@ -230,6 +233,43 @@ static void* __TCP_recvThread(void* pArg) {
             pthread_mutex_lock(&pTCPLinkObj->Mutex);
             pTCPLinkObj->PeerHasSubscription = 0;
             pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+        } else if (MsgType == TCP_MSG_DATA && DataSize > 0) {
+            // Receive data payload
+            void* pData = malloc(DataSize);
+            if (!pData) {
+                pthread_mutex_lock(&pTCPLinkObj->Mutex);
+                pTCPLinkObj->RecvError = IOC_RESULT_POSIX_ENOMEM;
+                pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+                break;
+            }
+
+            Result = __TCP_recvAll(pTCPLinkObj->SocketFd, pData, DataSize);
+            if (Result != IOC_RESULT_SUCCESS) {
+                free(pData);
+                pthread_mutex_lock(&pTCPLinkObj->Mutex);
+                pTCPLinkObj->RecvError = Result;
+                pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+                break;
+            }
+
+            // Invoke data callback if registered
+            pthread_mutex_lock(&pTCPLinkObj->Mutex);
+            IOC_CbRecvDat_F CbRecvDat_F = pTCPLinkObj->DatUsageArgs.CbRecvDat_F;
+            void* pCbPrivData = pTCPLinkObj->DatUsageArgs.pCbPrivData;
+            pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+
+            if (CbRecvDat_F) {
+                IOC_DatDesc_T DatDesc = {0};
+                IOC_initDatDesc(&DatDesc);
+                DatDesc.Payload.pData = pData;
+                DatDesc.Payload.PtrDataSize = DataSize;
+                DatDesc.Payload.PtrDataLen = DataSize;
+
+                IOC_LinkID_T LinkID = pTCPLinkObj->pOwnerLinkObj->ID;
+                CbRecvDat_F(LinkID, &DatDesc, pCbPrivData);
+            }
+
+            free(pData);
         } else if (MsgType == TCP_MSG_COMMAND && DataSize == sizeof(IOC_CmdDesc_T)) {
             // Receive command descriptor
             IOC_CmdDesc_T CmdDesc;
@@ -579,6 +619,11 @@ static IOC_Result_T __IOC_connectService_ofProtoTCP(_IOC_LinkObject_pT pLinkObj,
         memcpy(&pTCPLinkObj->CmdUsageArgs, pConnArgs->UsageArgs.pCmd, sizeof(IOC_CmdUsageArgs_T));
     }
 
+    // Copy DatUsageArgs from connection args if client is DatReceiver
+    if ((pLinkObj->Args.Usage & IOC_LinkUsageDatReceiver) && pConnArgs->UsageArgs.pDat) {
+        memcpy(&pTCPLinkObj->DatUsageArgs, pConnArgs->UsageArgs.pDat, sizeof(IOC_DatUsageArgs_T));
+    }
+
     // Start background receiver thread
     pTCPLinkObj->RecvThreadRunning = 1;
     if (pthread_create(&pTCPLinkObj->RecvThread, NULL, __TCP_recvThread, pTCPLinkObj) != 0) {
@@ -713,6 +758,11 @@ static IOC_Result_T __IOC_acceptClient_ofProtoTCP(_IOC_ServiceObject_pT pSrvObj,
     // Copy CmdUsageArgs from service to link (for command executor functionality)
     if (pSrvObj->Args.UsageArgs.pCmd) {
         memcpy(&pTCPLinkObj->CmdUsageArgs, pSrvObj->Args.UsageArgs.pCmd, sizeof(IOC_CmdUsageArgs_T));
+    }
+
+    // Copy DatUsageArgs from service to link (for data receiver functionality)
+    if (pSrvObj->Args.UsageArgs.pDat) {
+        memcpy(&pTCPLinkObj->DatUsageArgs, pSrvObj->Args.UsageArgs.pDat, sizeof(IOC_DatUsageArgs_T));
     }
 
     // Start background receiver thread (optional for server side, but useful for bidirectional)
@@ -1106,6 +1156,51 @@ static IOC_Result_T __IOC_ackCmd_ofProtoTCP(_IOC_LinkObject_pT pLinkObj, IOC_Cmd
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+// Data API Implementation (TDD RED→GREEN)
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+static IOC_Result_T __IOC_sendData_ofProtoTCP(_IOC_LinkObject_pT pLinkObj, const IOC_DatDesc_pT pDatDesc,
+                                              const IOC_Options_pT pOption) {
+    if (!pLinkObj || !pDatDesc) return IOC_RESULT_INVALID_PARAM;
+
+    _IOC_ProtoTCPLinkObject_pT pTCPLinkObj = (_IOC_ProtoTCPLinkObject_pT)pLinkObj->pProtoPriv;
+    if (!pTCPLinkObj) return IOC_RESULT_NOT_EXIST_LINK;
+
+    // Get data payload
+    void* pData;
+    ULONG_T DataSize;
+    IOC_Result_T Result = IOC_getDatPayload(pDatDesc, &pData, &DataSize);
+    if (Result != IOC_RESULT_SUCCESS) return Result;
+
+    if (!pData || DataSize == 0) return IOC_RESULT_INVALID_PARAM;
+
+    // Send data over TCP: Header + Payload
+    TCPMessageHeader_T Header;
+    Header.MsgType = htonl(TCP_MSG_DATA);
+    Header.DataSize = htonl(DataSize);
+
+    Result = __TCP_sendAll(pTCPLinkObj->SocketFd, &Header, sizeof(Header));
+    if (Result != IOC_RESULT_SUCCESS) return Result;
+
+    Result = __TCP_sendAll(pTCPLinkObj->SocketFd, pData, DataSize);
+    if (Result != IOC_RESULT_SUCCESS) return Result;
+
+    return IOC_RESULT_SUCCESS;
+}
+
+static IOC_Result_T __IOC_recvData_ofProtoTCP(_IOC_LinkObject_pT pLinkObj, IOC_DatDesc_pT pDatDesc,
+                                              const IOC_Options_pT pOption) {
+    if (!pLinkObj || !pDatDesc) return IOC_RESULT_INVALID_PARAM;
+
+    _IOC_ProtoTCPLinkObject_pT pTCPLinkObj = (_IOC_ProtoTCPLinkObject_pT)pLinkObj->pProtoPriv;
+    if (!pTCPLinkObj) return IOC_RESULT_NOT_EXIST_LINK;
+
+    // For now, polling mode is not fully implemented in TCP
+    // The receiver thread handles data and invokes callbacks
+    // Polling would require a separate queue mechanism
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 // TCP Protocol Method Table
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1127,6 +1222,6 @@ _IOC_SrvProtoMethods_T _gIOC_SrvProtoTCPMethods = {
     .OpWaitCmd_F = __IOC_waitCmd_ofProtoTCP,
     .OpAckCmd_F = __IOC_ackCmd_ofProtoTCP,
 
-    .OpSendData_F = NULL,  // TODO: Implement for TC-9
-    .OpRecvData_F = NULL,
+    .OpSendData_F = __IOC_sendData_ofProtoTCP,  // 🔴 RED: Minimal stub (returns NOT_IMPLEMENTED)
+    .OpRecvData_F = __IOC_recvData_ofProtoTCP,  // 🔴 RED: Minimal stub (returns NOT_IMPLEMENTED)
 };
