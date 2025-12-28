@@ -615,29 +615,265 @@ TEST_F(UT_DataStateTCP, DISABLED_verifyStateDuringTCPKeepAlive_byIdleConnection_
 //======>END OF TEST IMPLEMENTATIONS===============================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF STATUS SUMMARY===================================================================
-/**************************************************************************************************
- * 📊 TEST EXECUTION SUMMARY - UT_DataStateTCP
- *
- * ⚪ CURRENT STATUS: Framework created, awaiting implementation (0/18 tests)
- *
- * 📋 CATEGORY BREAKDOWN:
- *    CAT-1: TCP Connection Establishment × Data State ......... ⚪ 0/3 (PLANNED)
- *    CAT-2: Data Sender State × TCP Transmission .............. ⚪ 0/3 (PLANNED)
- *    CAT-3: Data Receiver State × TCP Reception ............... ⚪ 0/3 (PLANNED)
- *    CAT-4: Bidirectional State × TCP Full-Duplex ............. ⚪ 0/3 (PLANNED)
- *    CAT-5: TCP Connection Recovery × Data State .............. ⚪ 0/3 (PLANNED)
- *    CAT-6: TCP Layer Transparency × Data State ............... ⚪ 0/3 (PLANNED)
- *
- * 🎯 NEXT STEPS:
- *    1. Implement test infrastructure (TcpDataStateTracker, state monitoring utilities)
- *    2. Start with CAT-1 (connection establishment scenarios)
- *    3. Progress through categories systematically
- *    4. Validate against README_ArchDesign-State.md state machine specification
- *
- * 📅 CREATION DATE: 2025-12-28
- * 📝 DESIGN BASIS: README_ArchDesign-State.md "Data State Machine" section
- * 🔗 COMPLEMENTS: UT_DataStateUS1-7.cxx (protocol-agnostic state testing)
- * 🧪 TEST FRAMEWORK: GoogleTest + IOC_getLinkState() API
- *************************************************************************************************/
-//======>END OF STATUS SUMMARY=====================================================================
+//======>BEGIN OF TODO/IMPLEMENTATION TRACKING SECTION============================================
+// 🔴 IMPLEMENTATION STATUS TRACKING - Organized by Priority and Category
+//
+// PURPOSE:
+//   Track test implementation progress using TDD Red→Green methodology.
+//   Maintain visibility of what's done, in progress, and planned.
+//
+// STATUS LEGEND:
+//   ⚪ TODO/PLANNED:      Designed but not implemented yet.
+//   🔴 RED/FAILING:       Test written, but production code is missing or incorrect.
+//   🟢 GREEN/PASSED:      Test written and passing.
+//   ⚠️  ISSUES:           Known problem needing attention.
+//   🚫 BLOCKED:          Cannot proceed due to a dependency.
+//
+// PRIORITY LEVELS:
+//   P1 🥇 FUNCTIONAL:     Already complete (57/57 GREEN) - See UT_Data[Typical|Edge|Misuse|Fault]TCP.cxx
+//   P2 🥈 DESIGN-ORIENTED: THIS FILE (State testing) - Start after P1 complete
+//   P3 🥉 QUALITY-ORIENTED: Future (Performance, Robust, etc.)
+//   P4 🎯 ADDONS:          Optional (Demo, Examples)
+//
+// WORKFLOW:
+//   1. ✅ P1 Complete (57/57 tests GREEN) - Gate passed
+//   2. 🎯 P2 In Progress (0/18 tests) - State testing (THIS FILE)
+//   3. ⚪ P3 Planned - Quality attributes (Capability, Concurrency, Performance)
+//   4. ⚪ P4 Optional - Demo/Examples
+//
+//===================================================================================================
+// P2 🥈 DESIGN-ORIENTED TESTING – State (TCP-Specific Integration)
+//===================================================================================================
+//
+// 🚪 GATE P2 ENTRY: P1 Functional Testing COMPLETE ✅
+//    - UT_DataTypicalTCP: 7/7 GREEN
+//    - UT_DataEdgeTCP: 12/12 GREEN (TCP polling timeout bug fixed)
+//    - UT_DataMisuseTCP: 24/24 GREEN
+//    - UT_DataFaultTCP: 14/14 PASSED, 6/6 SKIPPED (strategic)
+//    - Total: 57/57 P1 tests passing
+//
+//===================================================================================================
+// 📋 [CAT-1]: TCP CONNECTION ESTABLISHMENT × DATA STATE (0/3 PLANNED) ⚪
+//===================================================================================================
+// Purpose: Verify data state behavior during TCP connection setup phase
+// Dependencies: IOC_getLinkState() API, IOC_getLinkConnState() API
+// Estimated Total Effort: 4-6 hours
+//
+//   ⚪ [@CAT-1] TC-1: verifyDataStateBeforeConnection_byCheckingInitialStates_expectNotReady
+//        - Description: Verify data sender/receiver states before TCP connection established
+//        - Category: State (Connection Lifecycle)
+//        - Key Verification: Data operations fail with NOT_EXIST_LINK before connect
+//        - Depends on: None (infrastructure test)
+//        - Estimated effort: 1-2 hours (includes test infrastructure setup)
+//        - Priority: HIGH (validates baseline assumptions)
+//
+//   ⚪ [@CAT-1] TC-2: verifyDataStateDuringConnection_byMonitoringEstablishment_expectTransitionToReady
+//        - Description: Verify data state transitions during TCP SYN→ESTABLISHED phase
+//        - Category: State (Connection Lifecycle)
+//        - Key Verification: States transition to DatSenderReady/DatReceiverReady after ESTABLISHED
+//        - Depends on: TC-1 (baseline verification)
+//        - Estimated effort: 2 hours (state monitoring during async connection)
+//        - Priority: HIGH (core state transition validation)
+//
+//   ⚪ [@CAT-1] TC-3: verifyDataStateAfterConnectionFailure_byRefusedConnection_expectNoStateChange
+//        - Description: Verify data states remain invalid when TCP connection fails
+//        - Category: State (Error Handling)
+//        - Key Verification: Failed connection doesn't create invalid states
+//        - Depends on: TC-1, TC-2 (normal flow established)
+//        - Estimated effort: 1-2 hours (connection failure scenarios)
+//        - Priority: MEDIUM (error path validation)
+//
+//===================================================================================================
+// 📋 [CAT-2]: DATA SENDER STATE × TCP TRANSMISSION (0/3 PLANNED) ⚪
+//===================================================================================================
+// Purpose: Verify data sender state behavior during TCP data transmission
+// Dependencies: CAT-1 complete, sendDAT implementation validated (P1 complete)
+// Estimated Total Effort: 5-7 hours
+//
+//   ⚪ [@CAT-2] TC-4: verifySenderStateTransition_bySimpleSendDAT_expectReadyToBusyToReady
+//        - Description: Verify sender state transitions during normal IOC_sendDAT() over TCP
+//        - Category: State (Sender Operations)
+//        - Key Verification: Ready → BusySendDat → Ready transition cycle
+//        - Depends on: CAT-1 complete (connection established)
+//        - Estimated effort: 2 hours (sender state monitoring)
+//        - Priority: HIGH (core sender state validation)
+//
+//   ⚪ [@CAT-2] TC-5: verifySenderStateDuringFlowControl_byBufferFull_expectBusyState
+//        - Description: Verify sender state when TCP send buffer full (flow control engaged)
+//        - Category: State (Flow Control)
+//        - Key Verification: DatSenderBusySendDat persists until buffer available
+//        - Depends on: TC-4 (normal sender state validated)
+//        - Estimated effort: 2-3 hours (flow control simulation)
+//        - Priority: MEDIUM (TCP-specific behavior)
+//
+//   ⚪ [@CAT-2] TC-6: verifySenderStateOnConnectionLoss_byMidTransmissionReset_expectErrorState
+//        - Description: Verify sender state when TCP connection reset during transmission
+//        - Category: State (Error Recovery)
+//        - Key Verification: State transitions to error/disconnected on connection loss
+//        - Depends on: TC-4, TC-5 (normal flow validated)
+//        - Estimated effort: 2 hours (connection reset simulation)
+//        - Priority: MEDIUM (error handling validation)
+//
+//===================================================================================================
+// 📋 [CAT-3]: DATA RECEIVER STATE × TCP RECEPTION (0/3 PLANNED) ⚪
+//===================================================================================================
+// Purpose: Verify data receiver state behavior during TCP data reception
+// Dependencies: CAT-1 complete, recvDAT implementation validated (P1 complete)
+// Estimated Total Effort: 5-7 hours
+//
+//   ⚪ [@CAT-3] TC-7: verifyReceiverCallbackState_byTCPDataArrival_expectBusyCbRecvDat
+//        - Description: Verify receiver state during callback-based reception over TCP
+//        - Category: State (Receiver Operations - Callback)
+//        - Key Verification: Ready → BusyCbRecvDat → Ready during callback execution
+//        - Depends on: CAT-1 complete (connection established)
+//        - Estimated effort: 2 hours (callback state monitoring)
+//        - Priority: HIGH (callback mode state validation)
+//
+//   ⚪ [@CAT-3] TC-8: verifyReceiverPollingState_byTCPrecvDAT_expectBusyRecvDat
+//        - Description: Verify receiver state during polling-based reception over TCP
+//        - Category: State (Receiver Operations - Polling)
+//        - Key Verification: Ready → BusyRecvDat → Ready during recvDAT waiting
+//        - Depends on: TC-7 (callback mode validated)
+//        - Estimated effort: 2 hours (polling state monitoring)
+//        - Priority: HIGH (polling mode state validation)
+//
+//   ⚪ [@CAT-3] TC-9: verifyReceiverStateOnConnectionLoss_byMidReceptionReset_expectErrorState
+//        - Description: Verify receiver state when TCP connection reset during reception
+//        - Category: State (Error Recovery)
+//        - Key Verification: State transitions to error/disconnected on connection loss
+//        - Depends on: TC-7, TC-8 (normal flow validated)
+//        - Estimated effort: 2-3 hours (connection reset during recv)
+//        - Priority: MEDIUM (error handling validation)
+//
+//===================================================================================================
+// 📋 [CAT-4]: BIDIRECTIONAL STATE × TCP FULL-DUPLEX (0/3 PLANNED) ⚪
+//===================================================================================================
+// Purpose: Verify concurrent sender/receiver state independence over single TCP connection
+// Dependencies: CAT-2 and CAT-3 complete (sender/receiver states validated independently)
+// Estimated Total Effort: 6-8 hours
+//
+//   ⚪ [@CAT-4] TC-10: verifyBidirectionalStateIndependence_byConcurrentSendRecv_expectIndependentStates
+//        - Description: Verify sender/receiver states operate independently over same TCP link
+//        - Category: State (Bidirectional Independence)
+//        - Key Verification: Sender/receiver state changes don't interfere
+//        - Depends on: CAT-2, CAT-3 complete (unidirectional validated)
+//        - Estimated effort: 2-3 hours (concurrent state monitoring)
+//        - Priority: HIGH (validates state machine independence)
+//
+//   ⚪ [@CAT-4] TC-11: verifyBidirectionalStateConsistency_byFullDuplexStream_expectValidTransitions
+//        - Description: Verify state consistency during continuous bidirectional streaming
+//        - Category: State (Full-Duplex Operations)
+//        - Key Verification: Both state machines cycle correctly under continuous load
+//        - Depends on: TC-10 (independence validated)
+//        - Estimated effort: 2-3 hours (sustained bidirectional testing)
+//        - Priority: MEDIUM (validates sustained operation)
+//
+//   ⚪ [@CAT-4] TC-12: verifyBidirectionalErrorHandling_byOneSideFailure_expectIndependentRecovery
+//        - Description: Verify sender/receiver error handling independence
+//        - Category: State (Error Isolation)
+//        - Key Verification: One-side error doesn't corrupt other side's state
+//        - Depends on: TC-10, TC-11 (normal bidirectional validated)
+//        - Estimated effort: 2 hours (asymmetric error injection)
+//        - Priority: MEDIUM (error isolation validation)
+//
+//===================================================================================================
+// 📋 [CAT-5]: TCP CONNECTION RECOVERY × DATA STATE (0/3 PLANNED) ⚪
+//===================================================================================================
+// Purpose: Verify data state behavior during TCP reconnection scenarios
+// Dependencies: CAT-1, CAT-2, CAT-3 complete (normal state behavior validated)
+// Estimated Total Effort: 5-7 hours
+//
+//   ⚪ [@CAT-5] TC-13: verifyStateAfterReconnection_byCloseAndReconnect_expectFreshStates
+//        - Description: Verify data states are properly reset/reinitialized after reconnection
+//        - Category: State (Reconnection Lifecycle)
+//        - Key Verification: New connection has clean initial states (no stale state)
+//        - Depends on: CAT-1 complete (connection lifecycle validated)
+//        - Estimated effort: 2 hours (reconnection state verification)
+//        - Priority: HIGH (validates state cleanup)
+//
+//   ⚪ [@CAT-5] TC-14: verifyStateTransitionDuringReconnection_byMonitoringPhases_expectValidSequence
+//        - Description: Verify state transitions are valid during reconnection process
+//        - Category: State (FSM Validation)
+//        - Key Verification: Disconnect → reconnect follows valid FSM rules
+//        - Depends on: TC-13 (reconnection basics validated)
+//        - Estimated effort: 2-3 hours (state transition monitoring)
+//        - Priority: MEDIUM (FSM correctness validation)
+//
+//   ⚪ [@CAT-5] TC-15: verifyReconnectionWithPendingData_byBufferedDataHandling_expectDataIntegrity
+//        - Description: Verify data integrity and state correctness when reconnecting with pending data
+//        - Category: State (Data Recovery)
+//        - Key Verification: NODROP guarantee maintained, states consistent with policy
+//        - Depends on: TC-13, TC-14 (reconnection flow validated)
+//        - Estimated effort: 2 hours (pending data scenarios)
+//        - Priority: MEDIUM (validates NODROP guarantee)
+//
+//===================================================================================================
+// 📋 [CAT-6]: TCP LAYER TRANSPARENCY × DATA STATE (0/3 PLANNED) ⚪
+//===================================================================================================
+// Purpose: Verify data states remain stable during TCP-layer events (retransmit, window updates)
+// Dependencies: CAT-2, CAT-3 complete (normal transmission states validated)
+// Estimated Total Effort: 6-9 hours (complex TCP-layer simulation)
+//
+//   ⚪ [@CAT-6] TC-16: verifyStateStabilityDuringRetransmission_byPacketLoss_expectNoStateChange
+//        - Description: Verify TCP retransmissions don't affect data state
+//        - Category: State (Layer Abstraction)
+//        - Key Verification: Retransmit transparent to data state machine
+//        - Depends on: CAT-2 complete (sender state validated)
+//        - Estimated effort: 3 hours (packet loss simulation)
+//        - Priority: LOW (validates abstraction layer)
+//        - Note: May require network simulation tools (tc, netem)
+//
+//   ⚪ [@CAT-6] TC-17: verifyStateIndependenceFromWindowUpdates_byFlowControlEvents_expectStableStates
+//        - Description: Verify TCP window updates don't directly affect data state
+//        - Category: State (Layer Abstraction)
+//        - Key Verification: TCP window changes abstracted from data state
+//        - Depends on: CAT-2 complete (flow control validated)
+//        - Estimated effort: 2-3 hours (window manipulation)
+//        - Priority: LOW (validates abstraction layer)
+//
+//   ⚪ [@CAT-6] TC-18: verifyStateDuringTCPKeepAlive_byIdleConnection_expectStableReadyStates
+//        - Description: Verify data states remain stable during TCP keep-alive probes
+//        - Category: State (Idle Connection)
+//        - Key Verification: Keep-alive doesn't trigger spurious state changes
+//        - Depends on: CAT-1 complete (idle connection validated)
+//        - Estimated effort: 2 hours (keep-alive monitoring)
+//        - Priority: LOW (validates idle stability)
+//
+// 🚪 GATE P2 EXIT: All 18 TCP-specific state tests GREEN
+//    - Validates: Data state machine correctness over TCP protocol
+//    - Unlocks: P3 Quality Testing (Capability, Concurrency, Performance)
+//
+//===================================================================================================
+// ✅ PROGRESS SUMMARY
+//===================================================================================================
+//
+// 📊 CURRENT STATUS: Framework created, awaiting implementation (0/18 tests)
+//
+// 📋 CATEGORY BREAKDOWN:
+//    CAT-1: TCP Connection Establishment × Data State ......... ⚪ 0/3 (PLANNED)
+//    CAT-2: Data Sender State × TCP Transmission .............. ⚪ 0/3 (PLANNED)
+//    CAT-3: Data Receiver State × TCP Reception ............... ⚪ 0/3 (PLANNED)
+//    CAT-4: Bidirectional State × TCP Full-Duplex ............. ⚪ 0/3 (PLANNED)
+//    CAT-5: TCP Connection Recovery × Data State .............. ⚪ 0/3 (PLANNED)
+//    CAT-6: TCP Layer Transparency × Data State ............... ⚪ 0/3 (PLANNED)
+//
+// 🎯 RECOMMENDED IMPLEMENTATION ORDER:
+//    Phase 1 (Core States):     CAT-1 → CAT-2 → CAT-3 (9 tests, ~14-20 hours)
+//    Phase 2 (Integration):     CAT-4 → CAT-5 (6 tests, ~11-15 hours)
+//    Phase 3 (Advanced):        CAT-6 (3 tests, ~6-9 hours, optional for P2)
+//
+// 🎯 NEXT IMMEDIATE STEPS:
+//    1. Implement test infrastructure (TcpDataStateTracker helper class)
+//    2. Start with CAT-1 TC-1 (baseline state verification)
+//    3. Enable state query APIs (IOC_getLinkState, IOC_getLinkConnState)
+//    4. Validate against README_ArchDesign-State.md state machine specification
+//
+// 📅 CREATION DATE: 2025-12-28
+// 📝 DESIGN BASIS: README_ArchDesign-State.md "Data State Machine" section (lines 1397-1600)
+// 🔗 COMPLEMENTS: UT_DataStateUS1-7.cxx (protocol-agnostic state testing)
+// 🧪 TEST FRAMEWORK: GoogleTest + IOC_getLinkState() API + AddressSanitizer
+// 📐 STATE MACHINE: 5 substates (DatSenderReady, DatSenderBusySendDat, DatReceiverReady,
+//                                DatReceiverBusyRecvDat, DatReceiverBusyCbRecvDat)
+//
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>END OF TODO/IMPLEMENTATION TRACKING SECTION===============================================
