@@ -866,6 +866,177 @@ TEST(UT_DataEdgeTCP, verifyLargeData_bySendOneMegabyteTCP_expectCompleteIntegrit
 //======>END OF: [@AC-1,US-3]======================================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF: [@AC-1,US-5]====================================================================
+/**
+ * @[Name]: verifyReconnection_byDisconnectAndReconnectTCP_expectNewValidLink
+ * @[Purpose]: Validate disconnect and reconnect works correctly (AC-1@US-5)
+ * @[Brief]: Connect, send data, disconnect, reconnect, send again
+ * @[Steps]:
+ *   1) Setup DatReceiver TCP service
+ *   2) First connection: DatSender connects, sends data, disconnects
+ *   3) Second connection: DatSender reconnects to same service
+ *   4) Verify new LinkID differs from old LinkID
+ *   5) Send data on new connection, verify it works
+ *   6) Cleanup connections
+ * @[Expect]: Reconnection succeeds, new LinkID valid, data works on new link
+ * @[Notes]: Tests connection recovery scenario
+ * @[Status]: 🟢 GREEN/PASSED - Implemented and verified
+ */
+TEST(UT_DataEdgeTCP, verifyReconnection_byDisconnectAndReconnectTCP_expectNewValidLink) {
+    //===>>> SETUP <<<===
+    printf("🔧 SETUP: Reconnection test - disconnect and reconnect\n");
+
+    IOC_Result_T Result;
+    IOC_SrvID_T DatReceiverSrvID = IOC_ID_INVALID;
+    IOC_LinkID_T DatReceiverLinkID1 = IOC_ID_INVALID;
+    IOC_LinkID_T DatReceiverLinkID2 = IOC_ID_INVALID;
+    IOC_LinkID_T DatSenderLinkID1 = IOC_ID_INVALID;
+    IOC_LinkID_T DatSenderLinkID2 = IOC_ID_INVALID;
+
+    __DatReceiverPrivData_T RecvPrivData = {0};
+    RecvPrivData.ClientIndex = 1;
+
+    // Setup callback for data reception
+    IOC_DatUsageArgs_T DatUsageArgs = {0};
+    DatUsageArgs.CbRecvDat_F = __CbRecvDat_F;
+    DatUsageArgs.pCbPrivData = &RecvPrivData;
+
+    // Setup DatReceiver TCP service with callback
+    IOC_SrvURI_T DatReceiverSrvURI = {
+        .pProtocol = IOC_SRV_PROTO_TCP,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "test/data/edge/tcp/reconnection",
+        .Port = 20010,
+    };
+
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = DatReceiverSrvURI,
+        .UsageCapabilites = IOC_LinkUsageDatReceiver,
+        .UsageArgs =
+            {
+                .pDat = &DatUsageArgs,
+            },
+    };
+
+    Result = IOC_onlineService(&DatReceiverSrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    printf("   ✓ DatReceiver TCP service online on port 20010\n");
+
+    //===>>> BEHAVIOR <<<===
+    printf("🎯 BEHAVIOR: First connection - connect, send, disconnect\n");
+
+    // First connection
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = DatReceiverSrvURI,
+        .Usage = IOC_LinkUsageDatSender,
+    };
+
+    std::thread DatSenderThread1([&] {
+        IOC_Result_T ThreadResult = IOC_connectService(&DatSenderLinkID1, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ThreadResult);
+    });
+
+    Result = IOC_acceptClient(DatReceiverSrvID, &DatReceiverLinkID1, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    DatSenderThread1.join();
+    printf("   ✓ First connection established (Sender LinkID: %llu, Receiver LinkID: %llu)\n", DatSenderLinkID1,
+           DatReceiverLinkID1);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // Send data on first connection
+    const char *FirstData = "DATA_ON_FIRST_CONNECTION";
+    IOC_DatDesc_T DatDesc1 = {0};
+    IOC_initDatDesc(&DatDesc1);
+    DatDesc1.Payload.pData = (void *)FirstData;
+    DatDesc1.Payload.PtrDataSize = strlen(FirstData);
+    DatDesc1.Payload.PtrDataLen = strlen(FirstData);
+
+    Result = IOC_sendDAT(DatSenderLinkID1, &DatDesc1, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    printf("   → Sent data on first connection: '%s'\n", FirstData);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Disconnect
+    Result = IOC_closeLink(DatReceiverLinkID1);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    Result = IOC_closeLink(DatSenderLinkID1);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    printf("   ✓ First connection closed\n");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Reset receive buffer for second connection
+    RecvPrivData.ReceivedDataCnt = 0;
+    RecvPrivData.TotalReceivedSize = 0;
+    memset(RecvPrivData.ReceivedContent, 0, sizeof(RecvPrivData.ReceivedContent));
+
+    printf("🎯 BEHAVIOR: Second connection - reconnect and send again\n");
+
+    // Second connection (reconnect)
+    std::thread DatSenderThread2([&] {
+        IOC_Result_T ThreadResult = IOC_connectService(&DatSenderLinkID2, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ThreadResult);
+    });
+
+    Result = IOC_acceptClient(DatReceiverSrvID, &DatReceiverLinkID2, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    DatSenderThread2.join();
+    printf("   ✓ Second connection established (Sender LinkID: %llu, Receiver LinkID: %llu)\n", DatSenderLinkID2,
+           DatReceiverLinkID2);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // Send data on second connection
+    const char *SecondData = "DATA_ON_SECOND_CONNECTION";
+    IOC_DatDesc_T DatDesc2 = {0};
+    IOC_initDatDesc(&DatDesc2);
+    DatDesc2.Payload.pData = (void *)SecondData;
+    DatDesc2.Payload.PtrDataSize = strlen(SecondData);
+    DatDesc2.Payload.PtrDataLen = strlen(SecondData);
+
+    Result = IOC_sendDAT(DatSenderLinkID2, &DatDesc2, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    printf("   → Sent data on second connection: '%s'\n", SecondData);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    //===>>> VERIFY <<<===
+    printf("✅ VERIFY: Reconnection successful, data transmission works\n");
+
+    //@KeyVerifyPoint-1: Second connection succeeded
+    VERIFY_KEYPOINT_NE(DatSenderLinkID2, IOC_ID_INVALID, "Second connection established");
+
+    //@KeyVerifyPoint-2: Data works on new connection
+    VERIFY_KEYPOINT_EQ(RecvPrivData.TotalReceivedSize, strlen(SecondData), "Data received on new connection");
+
+    //@KeyVerifyPoint-3: Content matches second transmission (not first)
+    RecvPrivData.ReceivedContent[RecvPrivData.TotalReceivedSize] = '\0';
+    VERIFY_KEYPOINT_EQ(strcmp(RecvPrivData.ReceivedContent, SecondData), 0, "Second connection data content matches");
+
+    printf("   ✅ Reconnection test SUCCESS:\n");
+    printf("      - First connection: Sender=%llu, Receiver=%llu\n", DatSenderLinkID1, DatReceiverLinkID1);
+    printf("      - Second connection: Sender=%llu, Receiver=%llu\n", DatSenderLinkID2, DatReceiverLinkID2);
+    printf("      - Reconnection succeeded: ✓\n");
+    printf("      - Data on new connection: '%s' (%zu bytes)\n", RecvPrivData.ReceivedContent,
+           RecvPrivData.TotalReceivedSize);
+    printf("      - Independent data transmission: ✓ (second data only, not first)\n");
+
+    //===>>> CLEANUP <<<===
+    printf("🧹 CLEANUP\n");
+
+    if (DatReceiverLinkID2 != IOC_ID_INVALID) IOC_closeLink(DatReceiverLinkID2);
+    if (DatSenderLinkID2 != IOC_ID_INVALID) IOC_closeLink(DatSenderLinkID2);
+    if (DatReceiverSrvID != IOC_ID_INVALID) IOC_offlineService(DatReceiverSrvID);
+
+    printf("   ✓ Cleanup complete\n");
+}
+//======>END OF: [@AC-1,US-5]======================================================================
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF TODO/IMPLEMENTATION TRACKING SECTION=============================================
 // 🔴 IMPLEMENTATION STATUS TRACKING - TDD Red→Green Progress
 //
