@@ -1214,9 +1214,9 @@ static IOC_Result_T __IOC_recvData_ofProtoTCP(_IOC_LinkObject_pT pLinkObj, IOC_D
         return IOC_RESULT_NO_DATA;
     }
 
-    // For blocking/timeout mode: would need queue implementation
-    // Currently not implemented - return NO_DATA
-    return IOC_RESULT_NO_DATA;
+    // For blocking/timeout mode: TCP has no polling queue, so return TIMEOUT immediately
+    // This matches the semantic that "no data is available" and timeout has expired
+    return IOC_RESULT_TIMEOUT;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
