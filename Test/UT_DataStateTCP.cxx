@@ -365,7 +365,15 @@ class UT_DataStateTCP : public ::testing::Test {
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 /**
- * ⚪ TC-1: verifyDataStateBeforeConnection_byCheckingInitialStates_expectNotReady
+ * ⚪ TC-1: Verify data states before TCP connection established
+ *  @[Name]: verifyDataStateBeforeConnection_byCheckingInitialStates_expectNotReady
+ *  @[Steps]:
+ *    1) 🔧 SETUP: Create service/client DAT configuration, do not connect
+ *    2) 🎯 BEHAVIOR: Query data states via IOC_getLinkState() before connectService()
+ *    3) ✅ VERIFY: Data operations fail with NOT_EXIST_LINK, states indicate not ready
+ *    4) 🧹 CLEANUP: Clean up service/client resources
+ *  @[Expect]: Before connection, data states should not be queryable or indicate link not ready
+ *  @[Notes]: Baseline test validating initial state assumptions before connection
  */
 TEST_F(UT_DataStateTCP, DISABLED_verifyDataStateBeforeConnection_byCheckingInitialStates_expectNotReady) {
     printf("\n╔═══════════════════════════════════════════════════════════════════════════════╗\n");
@@ -381,7 +389,15 @@ TEST_F(UT_DataStateTCP, DISABLED_verifyDataStateBeforeConnection_byCheckingIniti
 }
 
 /**
- * ⚪ TC-2: verifyDataStateDuringConnection_byMonitoringEstablishment_expectTransitionToReady
+ * ⚪ TC-2: Verify data state transitions during TCP connection establishment
+ *  @[Name]: verifyDataStateDuringConnection_byMonitoringEstablishment_expectTransitionToReady
+ *  @[Steps]:
+ *    1) 🔧 SETUP: Create service and client for TCP DAT, service online
+ *    2) 🎯 BEHAVIOR: Call connectService(), monitor states during SYN → ESTABLISHED
+ *    3) ✅ VERIFY: After ESTABLISHED, states transition to DatSenderReady/DatReceiverReady
+ *    4) 🧹 CLEANUP: Close connection, offline service
+ *  @[Expect]: State transitions from not-ready → Ready after TCP connection established
+ *  @[Notes]: Requires async state monitoring during connection establishment phase
  */
 TEST_F(UT_DataStateTCP, DISABLED_verifyDataStateDuringConnection_byMonitoringEstablishment_expectTransitionToReady) {
     printf("\n╔═══════════════════════════════════════════════════════════════════════════════╗\n");
@@ -397,7 +413,15 @@ TEST_F(UT_DataStateTCP, DISABLED_verifyDataStateDuringConnection_byMonitoringEst
 }
 
 /**
- * ⚪ TC-3: verifyDataStateAfterConnectionFailure_byRefusedConnection_expectNoStateChange
+ * ⚪ TC-3: Verify data states remain invalid after connection failure
+ *  @[Name]: verifyDataStateAfterConnectionFailure_byRefusedConnection_expectNoStateChange
+ *  @[Steps]:
+ *    1) 🔧 SETUP: Configure client to connect to non-existent/refused endpoint
+ *    2) 🎯 BEHAVIOR: Attempt connectService(), expect connection failure
+ *    3) ✅ VERIFY: Connection fails with error, data states not initialized (invalid LinkID)
+ *    4) 🧹 CLEANUP: Clean up failed connection attempt resources
+ *  @[Expect]: Failed connection should not create valid data states
+ *  @[Notes]: Validates error path - no state corruption from failed connections
  */
 TEST_F(UT_DataStateTCP, DISABLED_verifyDataStateAfterConnectionFailure_byRefusedConnection_expectNoStateChange) {
     printf("\n╔═══════════════════════════════════════════════════════════════════════════════╗\n");
@@ -417,7 +441,15 @@ TEST_F(UT_DataStateTCP, DISABLED_verifyDataStateAfterConnectionFailure_byRefused
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 /**
- * ⚪ TC-4: verifySenderStateTransition_bySimpleSendDAT_expectReadyToBusyToReady
+ * ⚪ TC-4: Verify sender state transitions during normal sendDAT operation
+ *  @[Name]: verifySenderStateTransition_bySimpleSendDAT_expectReadyToBusyToReady
+ *  @[Steps]:
+ *    1) 🔧 SETUP: Establish TCP connection with DatSender usage
+ *    2) 🎯 BEHAVIOR: Call IOC_sendDAT() with data chunk, monitor sender state
+ *    3) ✅ VERIFY: State cycles Ready → BusySendDat → Ready
+ *    4) 🧹 CLEANUP: Close connection, verify state cleanup
+ *  @[Expect]: Sender substate correctly reflects send operation lifecycle over TCP
+ *  @[Notes]: Core sender state validation, foundation for flow control tests
  */
 TEST_F(UT_DataStateTCP, DISABLED_verifySenderStateTransition_bySimpleSendDAT_expectReadyToBusyToReady) {
     printf("\n╔═══════════════════════════════════════════════════════════════════════════════╗\n");
@@ -429,7 +461,15 @@ TEST_F(UT_DataStateTCP, DISABLED_verifySenderStateTransition_bySimpleSendDAT_exp
 }
 
 /**
- * ⚪ TC-5: verifySenderStateDuringFlowControl_byBufferFull_expectBusyState
+ * ⚪ TC-5: Verify sender state during TCP flow control (buffer full)
+ *  @[Name]: verifySenderStateDuringFlowControl_byBufferFull_expectBusyState
+ *  @[Steps]:
+ *    1) 🔧 SETUP: Establish connection, configure small send buffer or slow receiver
+ *    2) 🎯 BEHAVIOR: Send large data to fill TCP buffer, trigger flow control
+ *    3) ✅ VERIFY: Sender remains DatSenderBusySendDat until buffer drains, then returns Ready
+ *    4) 🧹 CLEANUP: Drain buffer, close connection
+ *  @[Expect]: Sender state reflects TCP backpressure via persistent Busy state
+ *  @[Notes]: Validates NODROP guarantee - sender waits for buffer availability
  */
 TEST_F(UT_DataStateTCP, DISABLED_verifySenderStateDuringFlowControl_byBufferFull_expectBusyState) {
     printf("\n╔═══════════════════════════════════════════════════════════════════════════════╗\n");
@@ -441,7 +481,15 @@ TEST_F(UT_DataStateTCP, DISABLED_verifySenderStateDuringFlowControl_byBufferFull
 }
 
 /**
- * ⚪ TC-6: verifySenderStateOnConnectionLoss_byMidTransmissionReset_expectErrorState
+ * ⚪ TC-6: Verify sender state when TCP connection reset during transmission
+ *  @[Name]: verifySenderStateOnConnectionLoss_byMidTransmissionReset_expectErrorState
+ *  @[Steps]:
+ *    1) 🔧 SETUP: Establish connection, start large data send operation
+ *    2) 🎯 BEHAVIOR: Reset TCP connection mid-transfer (simulate ECONNRESET)
+ *    3) ✅ VERIFY: Sender state transitions to error/disconnected, send fails appropriately
+ *    4) 🧹 CLEANUP: Handle error state, clean up resources
+ *  @[Expect]: Connection loss properly reflected in sender state transition to error
+ *  @[Notes]: TCP-specific error handling - validates error propagation to state machine
  */
 TEST_F(UT_DataStateTCP, DISABLED_verifySenderStateOnConnectionLoss_byMidTransmissionReset_expectErrorState) {
     printf("\n╔═══════════════════════════════════════════════════════════════════════════════╗\n");
@@ -457,7 +505,15 @@ TEST_F(UT_DataStateTCP, DISABLED_verifySenderStateOnConnectionLoss_byMidTransmis
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 /**
- * ⚪ TC-7: verifyReceiverCallbackState_byTCPDataArrival_expectBusyCbRecvDat
+ * ⚪ TC-7: Verify receiver state during callback-based reception over TCP
+ *  @[Name]: verifyReceiverCallbackState_byTCPDataArrival_expectBusyCbRecvDat
+ *  @[Steps]:
+ *    1) 🔧 SETUP: Establish connection, configure receiver with callback (CbRecvDat_F)
+ *    2) 🎯 BEHAVIOR: Send data via TCP, trigger callback, monitor receiver state during callback
+ *    3) ✅ VERIFY: State transitions Ready → BusyCbRecvDat (during callback) → Ready
+ *    4) 🧹 CLEANUP: Verify callback completed, close connection
+ *  @[Expect]: Receiver callback state properly tracked during TCP data arrival and processing
+ *  @[Notes]: Requires state monitoring within callback execution context
  */
 TEST_F(UT_DataStateTCP, DISABLED_verifyReceiverCallbackState_byTCPDataArrival_expectBusyCbRecvDat) {
     printf("\n╔═══════════════════════════════════════════════════════════════════════════════╗\n");
@@ -469,7 +525,15 @@ TEST_F(UT_DataStateTCP, DISABLED_verifyReceiverCallbackState_byTCPDataArrival_ex
 }
 
 /**
- * ⚪ TC-8: verifyReceiverPollingState_byTCPrecvDAT_expectBusyRecvDat
+ * ⚪ TC-8: Verify receiver state during polling-based reception over TCP
+ *  @[Name]: verifyReceiverPollingState_byTCPrecvDAT_expectBusyRecvDat
+ *  @[Steps]:
+ *    1) 🔧 SETUP: Establish connection, configure receiver for polling mode
+ *    2) 🎯 BEHAVIOR: Call IOC_recvDAT() to wait for data, send data via TCP
+ *    3) ✅ VERIFY: State transitions Ready → BusyRecvDat (during wait) → Ready (after receive)
+ *    4) 🧹 CLEANUP: Verify data received correctly, close connection
+ *  @[Expect]: Receiver polling state properly tracked during IOC_recvDAT() waiting period
+ *  @[Notes]: Validates polling mode state behavior, complements callback test (TC-7)
  */
 TEST_F(UT_DataStateTCP, DISABLED_verifyReceiverPollingState_byTCPrecvDAT_expectBusyRecvDat) {
     printf("\n╔═══════════════════════════════════════════════════════════════════════════════╗\n");
@@ -481,7 +545,15 @@ TEST_F(UT_DataStateTCP, DISABLED_verifyReceiverPollingState_byTCPrecvDAT_expectB
 }
 
 /**
- * ⚪ TC-9: verifyReceiverStateOnConnectionLoss_byMidReceptionReset_expectErrorState
+ * ⚪ TC-9: Verify receiver state when TCP connection reset during reception
+ *  @[Name]: verifyReceiverStateOnConnectionLoss_byMidReceptionReset_expectErrorState
+ *  @[Steps]:
+ *    1) 🔧 SETUP: Establish connection, start large data receive operation
+ *    2) 🎯 BEHAVIOR: Reset TCP connection mid-receive (simulate ECONNRESET)
+ *    3) ✅ VERIFY: Receiver state transitions to error/disconnected, receive fails appropriately
+ *    4) 🧹 CLEANUP: Handle error state, clean up resources
+ *  @[Expect]: Connection loss properly reflected in receiver state transition to error
+ *  @[Notes]: TCP-specific error handling for receiver path, mirrors TC-6 for sender
  */
 TEST_F(UT_DataStateTCP, DISABLED_verifyReceiverStateOnConnectionLoss_byMidReceptionReset_expectErrorState) {
     printf("\n╔═══════════════════════════════════════════════════════════════════════════════╗\n");
@@ -497,7 +569,15 @@ TEST_F(UT_DataStateTCP, DISABLED_verifyReceiverStateOnConnectionLoss_byMidRecept
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 /**
- * ⚪ TC-10: verifyBidirectionalStateIndependence_byConcurrentSendRecv_expectIndependentStates
+ * ⚪ TC-10: Verify sender/receiver states operate independently over same TCP link
+ *  @[Name]: verifyBidirectionalStateIndependence_byConcurrentSendRecv_expectIndependentStates
+ *  @[Steps]:
+ *    1) 🔧 SETUP: Establish connection with both DatSender and DatReceiver usage (bidirectional)
+ *    2) 🎯 BEHAVIOR: Simultaneously send and receive data, monitor both state machines
+ *    3) ✅ VERIFY: Sender state changes don't affect receiver, receiver changes don't affect sender
+ *    4) 🧹 CLEANUP: Complete both operations, close connection
+ *  @[Expect]: Independent state machines for sender/receiver maintain isolation
+ *  @[Notes]: Core bidirectional test - validates state machine independence design
  */
 TEST_F(UT_DataStateTCP, DISABLED_verifyBidirectionalStateIndependence_byConcurrentSendRecv_expectIndependentStates) {
     printf("\n╔═══════════════════════════════════════════════════════════════════════════════╗\n");
@@ -509,7 +589,15 @@ TEST_F(UT_DataStateTCP, DISABLED_verifyBidirectionalStateIndependence_byConcurre
 }
 
 /**
- * ⚪ TC-11: verifyBidirectionalStateConsistency_byFullDuplexStream_expectValidTransitions
+ * ⚪ TC-11: Verify state consistency during continuous bidirectional streaming
+ *  @[Name]: verifyBidirectionalStateConsistency_byFullDuplexStream_expectValidTransitions
+ *  @[Steps]:
+ *    1) 🔧 SETUP: Establish bidirectional connection, prepare sustained data streams
+ *    2) 🎯 BEHAVIOR: Stream data continuously in both directions, monitor state transitions
+ *    3) ✅ VERIFY: Both state machines cycle correctly (Ready ↔ Busy) under continuous load
+ *    4) 🧹 CLEANUP: Stop streaming, verify no state corruption, close connection
+ *  @[Expect]: States remain valid and consistent during sustained full-duplex operation
+ *  @[Notes]: Stress test for bidirectional state management, validates no corruption under load
  */
 TEST_F(UT_DataStateTCP, DISABLED_verifyBidirectionalStateConsistency_byFullDuplexStream_expectValidTransitions) {
     printf("\n╔═══════════════════════════════════════════════════════════════════════════════╗\n");
@@ -521,7 +609,15 @@ TEST_F(UT_DataStateTCP, DISABLED_verifyBidirectionalStateConsistency_byFullDuple
 }
 
 /**
- * ⚪ TC-12: verifyBidirectionalErrorHandling_byOneSideFailure_expectIndependentRecovery
+ * ⚪ TC-12: Verify sender/receiver error handling independence
+ *  @[Name]: verifyBidirectionalErrorHandling_byOneSideFailure_expectIndependentRecovery
+ *  @[Steps]:
+ *    1) 🔧 SETUP: Establish bidirectional connection, both sides operational
+ *    2) 🎯 BEHAVIOR: Trigger error on one side (e.g., send fails), continue other side
+ *    3) ✅ VERIFY: One-side error doesn't corrupt other side's state, other side continues working
+ *    4) 🧹 CLEANUP: Recover from error state, verify both sides can resume
+ *  @[Expect]: Error isolation between sender/receiver state machines
+ *  @[Notes]: Validates asymmetric error handling - one side failure doesn't kill other side
  */
 TEST_F(UT_DataStateTCP, DISABLED_verifyBidirectionalErrorHandling_byOneSideFailure_expectIndependentRecovery) {
     printf("\n╔═══════════════════════════════════════════════════════════════════════════════╗\n");
@@ -537,7 +633,15 @@ TEST_F(UT_DataStateTCP, DISABLED_verifyBidirectionalErrorHandling_byOneSideFailu
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 /**
- * ⚪ TC-13: verifyStateAfterReconnection_byCloseAndReconnect_expectFreshStates
+ * ⚪ TC-13: Verify data states properly reset after reconnection
+ *  @[Name]: verifyStateAfterReconnection_byCloseAndReconnect_expectFreshStates
+ *  @[Steps]:
+ *    1) 🔧 SETUP: Establish connection, perform some data operations to dirty states
+ *    2) 🎯 BEHAVIOR: Close connection, reconnect to same service, query states
+ *    3) ✅ VERIFY: New connection has clean initial states (DatSenderReady/DatReceiverReady)
+ *    4) 🧹 CLEANUP: Close reconnected connection
+ *  @[Expect]: Reconnected link starts with fresh states, no stale state from old connection
+ *  @[Notes]: Validates state cleanup on disconnect - critical for connection reuse
  */
 TEST_F(UT_DataStateTCP, DISABLED_verifyStateAfterReconnection_byCloseAndReconnect_expectFreshStates) {
     printf("\n╔═══════════════════════════════════════════════════════════════════════════════╗\n");
@@ -549,7 +653,15 @@ TEST_F(UT_DataStateTCP, DISABLED_verifyStateAfterReconnection_byCloseAndReconnec
 }
 
 /**
- * ⚪ TC-14: verifyStateTransitionDuringReconnection_byMonitoringPhases_expectValidSequence
+ * ⚪ TC-14: Verify state transitions are valid during reconnection process
+ *  @[Name]: verifyStateTransitionDuringReconnection_byMonitoringPhases_expectValidSequence
+ *  @[Steps]:
+ *    1) 🔧 SETUP: Establish connection with operational data states
+ *    2) 🎯 BEHAVIOR: Monitor states during disconnect → reconnect sequence
+ *    3) ✅ VERIFY: State transitions follow valid FSM rules (no invalid intermediate states)
+ *    4) 🧹 CLEANUP: Complete reconnection, close connection
+ *  @[Expect]: Disconnect triggers proper cleanup, reconnection initializes states in correct order
+ *  @[Notes]: FSM validation test - ensures state machine correctness during lifecycle transitions
  */
 TEST_F(UT_DataStateTCP, DISABLED_verifyStateTransitionDuringReconnection_byMonitoringPhases_expectValidSequence) {
     printf("\n╔═══════════════════════════════════════════════════════════════════════════════╗\n");
@@ -561,7 +673,15 @@ TEST_F(UT_DataStateTCP, DISABLED_verifyStateTransitionDuringReconnection_byMonit
 }
 
 /**
- * ⚪ TC-15: verifyReconnectionWithPendingData_byBufferedDataHandling_expectDataIntegrity
+ * ⚪ TC-15: Verify data integrity and state correctness with pending data during reconnection
+ *  @[Name]: verifyReconnectionWithPendingData_byBufferedDataHandling_expectDataIntegrity
+ *  @[Steps]:
+ *    1) 🔧 SETUP: Establish connection, buffer some data (not yet fully transmitted)
+ *    2) 🎯 BEHAVIOR: Disconnect with pending data, reconnect, observe data/state handling
+ *    3) ✅ VERIFY: Pending data handled per NODROP policy, states consistent with data outcome
+ *    4) 🧹 CLEANUP: Verify data integrity, close connection
+ *  @[Expect]: NODROP guarantee maintained across reconnection, states reflect data handling policy
+ *  @[Notes]: Critical for NODROP validation - pending data must not corrupt states or be lost
  */
 TEST_F(UT_DataStateTCP, DISABLED_verifyReconnectionWithPendingData_byBufferedDataHandling_expectDataIntegrity) {
     printf("\n╔═══════════════════════════════════════════════════════════════════════════════╗\n");
@@ -577,7 +697,15 @@ TEST_F(UT_DataStateTCP, DISABLED_verifyReconnectionWithPendingData_byBufferedDat
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 /**
- * ⚪ TC-16: verifyStateStabilityDuringRetransmission_byPacketLoss_expectNoStateChange
+ * ⚪ TC-16: Verify TCP retransmissions don't affect data state
+ *  @[Name]: verifyStateStabilityDuringRetransmission_byPacketLoss_expectNoStateChange
+ *  @[Steps]:
+ *    1) 🔧 SETUP: Establish connection, configure packet loss simulation (tc/netem)
+ *    2) 🎯 BEHAVIOR: Send data triggering TCP retransmit, monitor data states continuously
+ *    3) ✅ VERIFY: Retransmission transparent to data state (no spurious transitions)
+ *    4) 🧹 CLEANUP: Remove packet loss, verify data integrity, close connection
+ *  @[Expect]: TCP retransmit is abstracted - data state reflects application-layer view only
+ *  @[Notes]: Requires network simulation tools, validates layer abstraction design
  */
 TEST_F(UT_DataStateTCP, DISABLED_verifyStateStabilityDuringRetransmission_byPacketLoss_expectNoStateChange) {
     printf("\n╔═══════════════════════════════════════════════════════════════════════════════╗\n");
@@ -589,7 +717,15 @@ TEST_F(UT_DataStateTCP, DISABLED_verifyStateStabilityDuringRetransmission_byPack
 }
 
 /**
- * ⚪ TC-17: verifyStateIndependenceFromWindowUpdates_byFlowControlEvents_expectStableStates
+ * ⚪ TC-17: Verify TCP window updates don't directly affect data state
+ *  @[Name]: verifyStateIndependenceFromWindowUpdates_byFlowControlEvents_expectStableStates
+ *  @[Steps]:
+ *    1) 🔧 SETUP: Establish connection, monitor TCP window via setsockopt/getsockopt
+ *    2) 🎯 BEHAVIOR: Manipulate TCP window size, observe data state behavior
+ *    3) ✅ VERIFY: Window updates don't cause unexpected data state transitions
+ *    4) 🧹 CLEANUP: Restore default window settings, close connection
+ *  @[Expect]: TCP window management abstracted - data state reflects buffer availability, not TCP window
+ *  @[Notes]: Validates abstraction layer - flow control handled transparently by IOC
  */
 TEST_F(UT_DataStateTCP, DISABLED_verifyStateIndependenceFromWindowUpdates_byFlowControlEvents_expectStableStates) {
     printf("\n╔═══════════════════════════════════════════════════════════════════════════════╗\n");
@@ -601,7 +737,15 @@ TEST_F(UT_DataStateTCP, DISABLED_verifyStateIndependenceFromWindowUpdates_byFlow
 }
 
 /**
- * ⚪ TC-18: verifyStateDuringTCPKeepAlive_byIdleConnection_expectStableReadyStates
+ * ⚪ TC-18: Verify data states remain stable during TCP keep-alive probes
+ *  @[Name]: verifyStateDuringTCPKeepAlive_byIdleConnection_expectStableReadyStates
+ *  @[Steps]:
+ *    1) 🔧 SETUP: Establish connection, enable TCP keep-alive (SO_KEEPALIVE)
+ *    2) 🎯 BEHAVIOR: Leave connection idle, monitor states during keep-alive probe activity
+ *    3) ✅ VERIFY: Keep-alive probes don't trigger spurious data state transitions
+ *    4) 🧹 CLEANUP: Verify idle connection maintained Ready states, close connection
+ *  @[Expect]: TCP keep-alive transparent - idle connection maintains DatSenderReady/DatReceiverReady
+ *  @[Notes]: Validates idle stability - keep-alive is TCP-layer concern, invisible to data states
  */
 TEST_F(UT_DataStateTCP, DISABLED_verifyStateDuringTCPKeepAlive_byIdleConnection_expectStableReadyStates) {
     printf("\n╔═══════════════════════════════════════════════════════════════════════════════╗\n");
