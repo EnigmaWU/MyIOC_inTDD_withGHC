@@ -365,7 +365,7 @@ class UT_DataStateTCP : public ::testing::Test {
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 /**
- * ⚪ TC-1: Verify data states before TCP connection established
+ * � TC-1: Verify data states before TCP connection established
  *  @[Name]: verifyDataStateBeforeConnection_byCheckingInitialStates_expectNotReady
  *  @[Steps]:
  *    1) 🔧 SETUP: Create service/client DAT configuration, do not connect
@@ -375,21 +375,89 @@ class UT_DataStateTCP : public ::testing::Test {
  *  @[Expect]: Before connection, data states should not be queryable or indicate link not ready
  *  @[Notes]: Baseline test validating initial state assumptions before connection
  */
-TEST_F(UT_DataStateTCP, DISABLED_verifyDataStateBeforeConnection_byCheckingInitialStates_expectNotReady) {
+TEST_F(UT_DataStateTCP, verifyDataStateBeforeConnection_byCheckingInitialStates_expectNotReady) {
     printf("\n╔═══════════════════════════════════════════════════════════════════════════════╗\n");
     printf("║ TC-1: Verify Data States Before TCP Connection                               ║\n");
     printf("╚═══════════════════════════════════════════════════════════════════════════════╝\n");
 
-    // TODO: Implement test case
-    // 1. Create service/client configuration for DAT
-    // 2. Query data states BEFORE calling connectService()
-    // 3. Verify states indicate link not ready / operations fail with NOT_EXIST_LINK
+    //===>>> SETUP <<<===
+    printf("🔧 SETUP: Create service for DAT receiver (TCP)\n");
 
-    GTEST_SKIP() << "⚪ TC-1: Implementation pending - framework design needed";
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_SrvID_T DatReceiverSrvID = IOC_ID_INVALID;
+    IOC_LinkID_T InvalidLinkID = IOC_ID_INVALID;
+
+    // Setup TCP service URI for DatReceiver
+    IOC_SrvURI_T DatReceiverSrvURI = {
+        .pProtocol = IOC_SRV_PROTO_TCP,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "test/data/state/tcp/before_connection",
+        .Port = 17001,
+    };
+
+    // Service configuration: DatReceiver capability (service receives data from clients)
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = DatReceiverSrvURI,
+        .UsageCapabilites = IOC_LinkUsageDatReceiver,
+        .UsageArgs = {.pDat = NULL},  // No callback, will use polling
+    };
+
+    Result = IOC_onlineService(&DatReceiverSrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Failed to online DAT service";
+    ASSERT_NE(IOC_ID_INVALID, DatReceiverSrvID) << "Service ID should be valid";
+
+    printf("   ✓ Service online at tcp://%s:%u (SrvID=%llu)\n", DatReceiverSrvURI.pHost, DatReceiverSrvURI.Port,
+           DatReceiverSrvID);
+
+    // Client configuration: DatSender usage (client sends data to service)
+    // Note: Do NOT call connectService() yet - testing pre-connection state
+
+    //===>>> BEHAVIOR <<<===
+    printf("🎯 BEHAVIOR: Attempt operations on non-existent link\n");
+
+    //@KeyVerifyPoint-1: IOC_sendDAT should fail with invalid LinkID
+    const ULONG_T TestDataSize = 100;
+    char *TestData = (char *)malloc(TestDataSize);
+    memset(TestData, 0xAB, TestDataSize);
+
+    IOC_DatDesc_T DatDesc = {0};
+    IOC_initDatDesc(&DatDesc);
+    DatDesc.Payload.pData = TestData;
+    DatDesc.Payload.PtrDataSize = TestDataSize;
+    DatDesc.Payload.PtrDataLen = TestDataSize;
+
+    Result = IOC_sendDAT(InvalidLinkID, &DatDesc, NULL);  // Invalid LinkID
+    printf("   - IOC_sendDAT(InvalidLinkID) = %d (%s)\n", Result, IOC_getResultStr(Result));
+
+    //===>>> VERIFY <<<===
+    printf("✅ VERIFY: Operations fail correctly with invalid LinkID\n");
+
+    //@KeyVerifyPoint-1: sendDAT should fail with NOT_EXIST_LINK (LinkID invalid)
+    ASSERT_EQ(IOC_RESULT_NOT_EXIST_LINK, Result) << "sendDAT should return NOT_EXIST_LINK for invalid LinkID";
+    printf("   ✓ KeyVerifyPoint-1: sendDAT correctly returns NOT_EXIST_LINK\n");
+
+    //@KeyVerifyPoint-2: Attempting to query state on invalid LinkID should also fail
+    IOC_LinkState_T LinkState;
+    IOC_LinkSubState_T LinkSubState;
+    Result = IOC_getLinkState(InvalidLinkID, &LinkState, &LinkSubState);
+    printf("   - IOC_getLinkState(InvalidLinkID) = %d (%s)\n", Result, IOC_getResultStr(Result));
+
+    ASSERT_NE(IOC_RESULT_SUCCESS, Result) << "getLinkState should fail for invalid LinkID";
+    printf("   ✓ KeyVerifyPoint-2: getLinkState correctly rejects invalid LinkID\n");
+
+    //===>>> CLEANUP <<<===
+    printf("🧹 CLEANUP: Release resources\n");
+
+    free(TestData);
+
+    Result = IOC_offlineService(DatReceiverSrvID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Failed to offline service";
+
+    printf("   ✓ Service offline, test complete\n");
 }
 
 /**
- * ⚪ TC-2: Verify data state transitions during TCP connection establishment
+ * � TC-2: Verify data state transitions during TCP connection establishment
  *  @[Name]: verifyDataStateDuringConnection_byMonitoringEstablishment_expectTransitionToReady
  *  @[Steps]:
  *    1) 🔧 SETUP: Create service and client for TCP DAT, service online
@@ -399,17 +467,97 @@ TEST_F(UT_DataStateTCP, DISABLED_verifyDataStateBeforeConnection_byCheckingIniti
  *  @[Expect]: State transitions from not-ready → Ready after TCP connection established
  *  @[Notes]: Requires async state monitoring during connection establishment phase
  */
-TEST_F(UT_DataStateTCP, DISABLED_verifyDataStateDuringConnection_byMonitoringEstablishment_expectTransitionToReady) {
+TEST_F(UT_DataStateTCP, verifyDataStateDuringConnection_byMonitoringEstablishment_expectTransitionToReady) {
     printf("\n╔═══════════════════════════════════════════════════════════════════════════════╗\n");
     printf("║ TC-2: Verify Data State Transitions During TCP Connection                    ║\n");
     printf("╚═══════════════════════════════════════════════════════════════════════════════╝\n");
 
-    // TODO: Implement test case
-    // 1. Start TCP connection establishment
-    // 2. Monitor states during SYN → ESTABLISHED phase
-    // 3. Verify transition to DatSenderReady/DatReceiverReady after connection
+    //===>>> SETUP <<<===
+    printf("🔧 SETUP: Online TCP service for DatReceiver\n");
 
-    GTEST_SKIP() << "⚪ TC-2: Implementation pending - state monitoring infrastructure needed";
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_SrvID_T DatReceiverSrvID = IOC_ID_INVALID;
+    IOC_LinkID_T DatReceiverLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T DatSenderLinkID = IOC_ID_INVALID;
+
+    // Setup TCP service URI for DatReceiver
+    IOC_SrvURI_T DatReceiverSrvURI = {
+        .pProtocol = IOC_SRV_PROTO_TCP,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "test/data/state/tcp/during_connection",
+        .Port = 17002,
+    };
+
+    // Service configuration: DatReceiver capability
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = DatReceiverSrvURI,
+        .UsageCapabilites = IOC_LinkUsageDatReceiver,
+        .UsageArgs = {.pDat = NULL},  // No callback
+    };
+
+    Result = IOC_onlineService(&DatReceiverSrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    printf("   ✓ Service online at tcp://%s:%u (SrvID=%llu)\n", DatReceiverSrvURI.pHost, DatReceiverSrvURI.Port,
+           DatReceiverSrvID);
+
+    //===>>> BEHAVIOR <<<===
+    printf("🎯 BEHAVIOR: Establish TCP connection and monitor states\n");
+
+    // Client connection arguments: DatSender usage
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = DatReceiverSrvURI,
+        .Usage = IOC_LinkUsageDatSender,
+    };
+
+    // Connect service in background thread (non-blocking connect)
+    std::thread DatSenderThread([&] {
+        IOC_Result_T ThreadResult = IOC_connectService(&DatSenderLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ThreadResult);
+    });
+
+    // Accept connection on service side
+    Result = IOC_acceptClient(DatReceiverSrvID, &DatReceiverLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    DatSenderThread.join();
+    printf("   ✓ TCP connection established\n");
+
+    //===>>> VERIFY <<<===
+    printf("✅ VERIFY: Check data states after connection established\n");
+
+    // KeyVerifyPoint-1: Verify DatSender side is in Ready state
+    IOC_LinkState_T SenderMainState;
+    IOC_LinkSubState_T SenderSubState;
+    Result = IOC_getLinkState(DatSenderLinkID, &SenderMainState, &SenderSubState);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    printf("   - DatSender: MainState=%d, SubState=%d\n", SenderMainState, SenderSubState);
+
+    ASSERT_EQ(IOC_LinkStateReady, SenderMainState) << "DatSender main state should be Ready after connection";
+    ASSERT_EQ(IOC_LinkSubStateDatSenderReady, SenderSubState)
+        << "DatSender substate should be DatSenderReady after connection";
+    printf("   ✓ KeyVerifyPoint-1: DatSender in Ready state (DatSenderReady)\n");
+
+    // KeyVerifyPoint-2: Verify DatReceiver side is in Ready state
+    IOC_LinkState_T ReceiverMainState;
+    IOC_LinkSubState_T ReceiverSubState;
+    Result = IOC_getLinkState(DatReceiverLinkID, &ReceiverMainState, &ReceiverSubState);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    printf("   - DatReceiver: MainState=%d, SubState=%d\n", ReceiverMainState, ReceiverSubState);
+
+    ASSERT_EQ(IOC_LinkStateReady, ReceiverMainState) << "DatReceiver main state should be Ready after connection";
+    ASSERT_EQ(IOC_LinkSubStateDatReceiverReady, ReceiverSubState)
+        << "DatReceiver substate should be DatReceiverReady after connection";
+    printf("   ✓ KeyVerifyPoint-2: DatReceiver in Ready state (DatReceiverReady)\n");
+
+    //===>>> CLEANUP <<<===
+    printf("🧹 CLEANUP: Close connections and offline service\n");
+
+    if (DatSenderLinkID != IOC_ID_INVALID) IOC_closeLink(DatSenderLinkID);
+    if (DatReceiverLinkID != IOC_ID_INVALID) IOC_closeLink(DatReceiverLinkID);
+
+    Result = IOC_offlineService(DatReceiverSrvID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    printf("   ✓ Cleanup complete\n");
 }
 
 /**
