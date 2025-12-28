@@ -1195,9 +1195,28 @@ static IOC_Result_T __IOC_recvData_ofProtoTCP(_IOC_LinkObject_pT pLinkObj, IOC_D
     _IOC_ProtoTCPLinkObject_pT pTCPLinkObj = (_IOC_ProtoTCPLinkObject_pT)pLinkObj->pProtoPriv;
     if (!pTCPLinkObj) return IOC_RESULT_NOT_EXIST_LINK;
 
-    // For now, polling mode is not fully implemented in TCP
-    // The receiver thread handles data and invokes callbacks
-    // Polling would require a separate queue mechanism
+    // Check if receiver thread encountered an error (link broken, etc.)
+    pthread_mutex_lock(&pTCPLinkObj->Mutex);
+    IOC_Result_T RecvError = pTCPLinkObj->RecvError;
+    pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+
+    if (RecvError != IOC_RESULT_SUCCESS) {
+        // Receiver thread detected link broken or other error
+        return RecvError;
+    }
+
+    // For TCP polling mode: The receiver thread handles incoming data via callbacks
+    // If no callback is registered, data is lost (TCP has no queue in polling mode)
+    // This is consistent with connectionless protocols where polling requires explicit queue
+
+    // Return NO_DATA immediately for NONBLOCK (TimeoutUS == 0)
+    if (IOC_Option_isNonBlockMode(pOption) == IOC_RESULT_YES) {
+        return IOC_RESULT_NO_DATA;
+    }
+
+    // For blocking/timeout mode: would need queue implementation
+    // Currently not implemented - return NO_DATA
+    return IOC_RESULT_NO_DATA;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

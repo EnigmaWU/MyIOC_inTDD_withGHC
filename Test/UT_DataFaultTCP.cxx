@@ -754,7 +754,8 @@ TEST(UT_DataFaultTCP, verifyDataFault_byPeerClosedDuringRecv_expectLinkBroken) {
     //===>>> VERIFY <<<===
     printf("✅ VERIFY: Check link broken detection on receiver\n");
 
-    //@KeyVerifyPoint-1: Recv should detect link broken or timeout
+    //@KeyVerifyPoint-1: Recv should detect link broken, timeout, or NO_DATA (polling mode)
+    // Note: NO_DATA is valid since TCP polling mode returns NO_DATA when no callback registered
     VERIFY_KEYPOINT_TRUE(Result == IOC_RESULT_LINK_BROKEN || Result == IOC_RESULT_NOT_EXIST_LINK ||
                              Result == IOC_RESULT_TIMEOUT || Result == IOC_RESULT_NO_DATA,
                          "Recv after sender close must detect error condition");
@@ -981,21 +982,31 @@ TEST(UT_DataFaultTCP, verifyDataFault_byAbruptDisconnection_expectGracefulHandli
     ReceiverLinkID = IOC_ID_INVALID;
     printf("   ✓ Receiver link abruptly closed (simulating disconnection)\n");
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));  // Detection time
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));  // Wait for TCP FIN/RST
 
-    // Try to send more data from sender side
+    // Try to send more data from sender side (multiple attempts to detect TCP buffering)
     IOC_DatDesc_T SendDesc2 = {0};
     IOC_initDatDesc(&SendDesc2);
     SendDesc2.Payload.pData = TestData;
     SendDesc2.Payload.PtrDataSize = ChunkSize;
     SendDesc2.Payload.PtrDataLen = ChunkSize;
 
-    Result = IOC_sendDAT(SenderLinkID, &SendDesc2, NULL);
+    // TCP may buffer multiple sends before detecting disconnection
+    // Try up to 5 sends or until error detected
+    int SendAttempts = 0;
+    for (SendAttempts = 1; SendAttempts <= 5; SendAttempts++) {
+        Result = IOC_sendDAT(SenderLinkID, &SendDesc2, NULL);
+        if (Result != IOC_RESULT_SUCCESS) {
+            printf("   Send attempt %d detected error: %d\n", SendAttempts, Result);
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));  // Brief delay between sends
+    }
 
     //===>>> VERIFY <<<===
     printf("✅ VERIFY: Check abrupt disconnection detection\n");
 
-    //@KeyVerifyPoint-1: Sender should detect link broken after abrupt close
+    //@KeyVerifyPoint-1: Sender should detect link broken after abrupt close (within 5 sends)
     VERIFY_KEYPOINT_TRUE(Result == IOC_RESULT_LINK_BROKEN || Result == IOC_RESULT_NOT_EXIST_LINK,
                          "Sender must detect link broken after abrupt disconnection");
 
@@ -1831,7 +1842,22 @@ TEST(UT_DataFaultTCP, verifyDataFault_byTCPRetransmissionStress_expectGracefulHa
     IOC_LinkID_T ReceiverLinkID = IOC_ID_INVALID;
     IOC_LinkID_T SenderLinkID = IOC_ID_INVALID;
 
-    // Setup DatReceiver service (TCP)
+    // Setup receiver with callback to count received data
+    std::atomic<int> ReceivedCount{0};
+
+    auto RecvDataCallback = [](IOC_LinkID_T LinkID, IOC_DatDesc_pT pDatDesc, void *pCbPriv) -> IOC_Result_T {
+        auto *pCount = (std::atomic<int> *)pCbPriv;
+        pCount->fetch_add(1);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Slow processing to stress TCP
+        return IOC_RESULT_SUCCESS;
+    };
+
+    IOC_DatUsageArgs_T ReceiverUsageArgs = {
+        .CbRecvDat_F = RecvDataCallback,
+        .pCbPrivData = &ReceivedCount,
+    };
+
+    // Setup DatReceiver service with callback (TCP)
     IOC_SrvURI_T ReceiverSrvURI = {
         .pProtocol = IOC_SRV_PROTO_TCP,
         .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
@@ -1842,11 +1868,12 @@ TEST(UT_DataFaultTCP, verifyDataFault_byTCPRetransmissionStress_expectGracefulHa
     IOC_SrvArgs_T SrvArgs = {
         .SrvURI = ReceiverSrvURI,
         .UsageCapabilites = IOC_LinkUsageDatReceiver,
+        .UsageArgs = {.pDat = &ReceiverUsageArgs},  // Set callback from start
     };
 
     Result = IOC_onlineService(&ReceiverSrvID, &SrvArgs);
     ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
-    printf("   ✓ Receiver service online\n");
+    printf("   ✓ Receiver service online with callback\n");
 
     // Connect sender
     IOC_ConnArgs_T ConnArgs = {
@@ -1876,25 +1903,6 @@ TEST(UT_DataFaultTCP, verifyDataFault_byTCPRetransmissionStress_expectGracefulHa
     int BufferFullCount = 0;
     int ErrorCount = 0;
 
-    // Setup slow receiver to stress TCP retransmission
-    std::atomic<bool> ReceiverActive{true};
-    std::atomic<int> ReceivedCount{0};
-
-    std::thread ReceiverThread([&] {
-        while (ReceiverActive) {
-            IOC_DatDesc_T RecvDesc = {0};
-            IOC_Result_T RecvResult = IOC_recvDAT(ReceiverLinkID, &RecvDesc, NULL);
-            if (RecvResult == IOC_RESULT_SUCCESS) {
-                ReceivedCount++;
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Slow processing
-            } else if (RecvResult == IOC_RESULT_NO_DATA) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(5));
-            } else {
-                break;  // Error
-            }
-        }
-    });
-
     // Send rapid bursts
     for (int i = 0; i < BurstCount; i++) {
         IOC_DatDesc_T SendDesc = {0};
@@ -1923,10 +1931,8 @@ TEST(UT_DataFaultTCP, verifyDataFault_byTCPRetransmissionStress_expectGracefulHa
     Result = IOC_flushDAT(SenderLinkID, NULL);
     printf("   ✓ Burst complete: %d success, %d buffer_full, %d errors\n", SuccessCount, BufferFullCount, ErrorCount);
 
-    // Wait for receiver to catch up
+    // Wait for receiver callback to process all data
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-    ReceiverActive = false;
-    ReceiverThread.join();
 
     //===>>> VERIFY <<<===
     printf("✅ VERIFY: TCP retransmission stress handled gracefully\n");
