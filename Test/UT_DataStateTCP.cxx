@@ -561,7 +561,7 @@ TEST_F(UT_DataStateTCP, verifyDataStateDuringConnection_byMonitoringEstablishmen
 }
 
 /**
- * ⚪ TC-3: Verify data states remain invalid after connection failure
+ * 🟢 TC-3: Verify data states remain invalid after connection failure
  *  @[Name]: verifyDataStateAfterConnectionFailure_byRefusedConnection_expectNoStateChange
  *  @[Steps]:
  *    1) 🔧 SETUP: Configure client to connect to non-existent/refused endpoint
@@ -571,17 +571,60 @@ TEST_F(UT_DataStateTCP, verifyDataStateDuringConnection_byMonitoringEstablishmen
  *  @[Expect]: Failed connection should not create valid data states
  *  @[Notes]: Validates error path - no state corruption from failed connections
  */
-TEST_F(UT_DataStateTCP, DISABLED_verifyDataStateAfterConnectionFailure_byRefusedConnection_expectNoStateChange) {
+TEST_F(UT_DataStateTCP, verifyDataStateAfterConnectionFailure_byRefusedConnection_expectNoStateChange) {
     printf("\n╔═══════════════════════════════════════════════════════════════════════════════╗\n");
     printf("║ TC-3: Verify Data States After Connection Failure                            ║\n");
     printf("╚═══════════════════════════════════════════════════════════════════════════════╝\n");
 
-    // TODO: Implement test case
-    // 1. Attempt connection to refused endpoint
-    // 2. Verify connection fails
-    // 3. Verify data states are not initialized (invalid LinkID)
+    //===>>> SETUP <<<===
+    printf("🔧 SETUP: Configure connection to non-existent TCP endpoint\n");
 
-    GTEST_SKIP() << "⚪ TC-3: Implementation pending - connection failure scenarios needed";
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_LinkID_T FailedLinkID = IOC_ID_INVALID;
+
+    // Setup connection to a port with NO service listening (should fail)
+    IOC_SrvURI_T NonExistentSrvURI = {
+        .pProtocol = IOC_SRV_PROTO_TCP,
+        .pHost = "127.0.0.1",  // Use IP instead of localprocess for real TCP
+        .pPath = "test/data/state/tcp/refused",
+        .Port = 19999,  // Port with no service listening
+    };
+
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = NonExistentSrvURI,
+        .Usage = IOC_LinkUsageDatSender,
+    };
+
+    printf("   ✓ Target: tcp://127.0.0.1:19999 (no service listening)\n");
+
+    //===>>> BEHAVIOR <<<===
+    printf("🎯 BEHAVIOR: Attempt connection to non-existent service\n");
+
+    // Attempt connection - should fail
+    Result = IOC_connectService(&FailedLinkID, &ConnArgs, NULL);
+    printf("   - IOC_connectService() returned: %d (%s)\n", Result, IOC_getResultStr(Result));
+
+    //===>>> VERIFY <<<===
+    printf("✅ VERIFY: Connection failure handled correctly\n");
+
+    // KeyVerifyPoint-1: Connection should fail
+    ASSERT_NE(IOC_RESULT_SUCCESS, Result) << "Connection to non-existent service should fail";
+    printf("   ✓ KeyVerifyPoint-1: Connection correctly failed (result=%s)\n", IOC_getResultStr(Result));
+
+    // KeyVerifyPoint-2: LinkID should remain invalid after failed connection
+    ASSERT_EQ(IOC_ID_INVALID, FailedLinkID) << "Failed connection should not create valid LinkID";
+    printf("   ✓ KeyVerifyPoint-2: LinkID remains INVALID after failed connection\n");
+
+    // KeyVerifyPoint-3: Attempting getLinkState on invalid LinkID should fail
+    IOC_LinkState_T LinkState;
+    IOC_LinkSubState_T LinkSubState;
+    Result = IOC_getLinkState(FailedLinkID, &LinkState, &LinkSubState);
+    ASSERT_NE(IOC_RESULT_SUCCESS, Result) << "getLinkState should fail for invalid LinkID from failed connection";
+    printf("   ✓ KeyVerifyPoint-3: getLinkState correctly rejects invalid LinkID\n");
+
+    //===>>> CLEANUP <<<===
+    printf("🧹 CLEANUP: No resources to clean (connection never established)\n");
+    printf("   ✓ Cleanup complete\n");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
@@ -589,7 +632,7 @@ TEST_F(UT_DataStateTCP, DISABLED_verifyDataStateAfterConnectionFailure_byRefused
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 /**
- * ⚪ TC-4: Verify sender state transitions during normal sendDAT operation
+ * 🟢 TC-4: Verify sender state transitions during normal sendDAT operation
  *  @[Name]: verifySenderStateTransition_bySimpleSendDAT_expectReadyToBusyToReady
  *  @[Steps]:
  *    1) 🔧 SETUP: Establish TCP connection with DatSender usage
@@ -599,13 +642,105 @@ TEST_F(UT_DataStateTCP, DISABLED_verifyDataStateAfterConnectionFailure_byRefused
  *  @[Expect]: Sender substate correctly reflects send operation lifecycle over TCP
  *  @[Notes]: Core sender state validation, foundation for flow control tests
  */
-TEST_F(UT_DataStateTCP, DISABLED_verifySenderStateTransition_bySimpleSendDAT_expectReadyToBusyToReady) {
+TEST_F(UT_DataStateTCP, verifySenderStateTransition_bySimpleSendDAT_expectReadyToBusyToReady) {
     printf("\n╔═══════════════════════════════════════════════════════════════════════════════╗\n");
     printf("║ TC-4: Verify Sender State Transitions During sendDAT                         ║\n");
     printf("╚═══════════════════════════════════════════════════════════════════════════════╝\n");
 
-    // TODO: Implement test case
-    GTEST_SKIP() << "⚪ TC-4: Implementation pending";
+    //===>>> SETUP <<<===
+    printf("🔧 SETUP: Establish TCP connection for DatSender\n");
+
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_SrvID_T DatReceiverSrvID = IOC_ID_INVALID;
+    IOC_LinkID_T DatReceiverLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T DatSenderLinkID = IOC_ID_INVALID;
+
+    // Setup TCP service for DatReceiver
+    IOC_SrvURI_T DatReceiverSrvURI = {
+        .pProtocol = IOC_SRV_PROTO_TCP,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "test/data/state/tcp/sender_transition",
+        .Port = 17004,
+    };
+
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = DatReceiverSrvURI,
+        .UsageCapabilites = IOC_LinkUsageDatReceiver,
+        .UsageArgs = {.pDat = NULL},
+    };
+
+    Result = IOC_onlineService(&DatReceiverSrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    // Connect DatSender
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = DatReceiverSrvURI,
+        .Usage = IOC_LinkUsageDatSender,
+    };
+
+    std::thread DatSenderThread([&] {
+        IOC_Result_T ThreadResult = IOC_connectService(&DatSenderLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ThreadResult);
+    });
+
+    Result = IOC_acceptClient(DatReceiverSrvID, &DatReceiverLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    DatSenderThread.join();
+    printf("   ✓ TCP connection established\n");
+
+    // Verify initial state: DatSenderReady
+    IOC_LinkState_T InitialMainState;
+    IOC_LinkSubState_T InitialSubState;
+    Result = IOC_getLinkState(DatSenderLinkID, &InitialMainState, &InitialSubState);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    ASSERT_EQ(IOC_LinkSubStateDatSenderReady, InitialSubState);
+    printf("   ✓ Initial state: DatSenderReady\n");
+
+    //===>>> BEHAVIOR <<<===
+    printf("🎯 BEHAVIOR: Send data and monitor state transition\n");
+
+    // Prepare data to send
+    const ULONG_T DataSize = 1024;  // 1KB
+    char *TestData = (char *)malloc(DataSize);
+    memset(TestData, 0xCD, DataSize);
+
+    IOC_DatDesc_T DatDesc = {0};
+    IOC_initDatDesc(&DatDesc);
+    DatDesc.Payload.pData = TestData;
+    DatDesc.Payload.PtrDataSize = DataSize;
+    DatDesc.Payload.PtrDataLen = DataSize;
+
+    // Send data (should complete quickly for 1KB)
+    Result = IOC_sendDAT(DatSenderLinkID, &DatDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    printf("   ✓ Data sent successfully (1KB)\n");
+
+    //===>>> VERIFY <<<===
+    printf("✅ VERIFY: State transitions correctly\n");
+
+    // KeyVerifyPoint-1: After send completes, state should return to Ready
+    IOC_LinkState_T FinalMainState;
+    IOC_LinkSubState_T FinalSubState;
+    Result = IOC_getLinkState(DatSenderLinkID, &FinalMainState, &FinalSubState);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    printf("   - Final state: MainState=%d, SubState=%d\n", FinalMainState, FinalSubState);
+
+    ASSERT_EQ(IOC_LinkStateReady, FinalMainState) << "Sender main state should be Ready after send completes";
+    ASSERT_EQ(IOC_LinkSubStateDatSenderReady, FinalSubState)
+        << "Sender substate should return to DatSenderReady after send";
+    printf("   ✓ KeyVerifyPoint-1: Sender returned to Ready state after send\n");
+
+    //===>>> CLEANUP <<<===
+    printf("🧹 CLEANUP: Close connections and offline service\n");
+
+    free(TestData);
+    if (DatSenderLinkID != IOC_ID_INVALID) IOC_closeLink(DatSenderLinkID);
+    if (DatReceiverLinkID != IOC_ID_INVALID) IOC_closeLink(DatReceiverLinkID);
+
+    Result = IOC_offlineService(DatReceiverSrvID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    printf("   ✓ Cleanup complete\n");
 }
 
 /**
@@ -688,8 +823,129 @@ TEST_F(UT_DataStateTCP, DISABLED_verifyReceiverPollingState_byTCPrecvDAT_expectB
     printf("║ TC-8: Verify Receiver Polling State During recvDAT                           ║\n");
     printf("╚═══════════════════════════════════════════════════════════════════════════════╝\n");
 
-    // TODO: Implement test case
-    GTEST_SKIP() << "⚪ TC-8: Implementation pending";
+    //===>>> SETUP <<<===
+    printf("🔧 SETUP: Establish TCP connection for polling mode reception\n");
+
+    IOC_Result_T Result = IOC_RESULT_BUG;
+    IOC_SrvID_T DatReceiverSrvID = IOC_ID_INVALID;
+    IOC_LinkID_T DatReceiverLinkID = IOC_ID_INVALID;
+    IOC_LinkID_T DatSenderLinkID = IOC_ID_INVALID;
+
+    // Setup TCP service for DatReceiver (no callback = polling mode)
+    IOC_SrvURI_T DatReceiverSrvURI = {
+        .pProtocol = IOC_SRV_PROTO_TCP,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "test/data/state/tcp/receiver_polling",
+        .Port = 17008,
+    };
+
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = DatReceiverSrvURI,
+        .UsageCapabilites = IOC_LinkUsageDatReceiver,
+        .UsageArgs = {.pDat = NULL},  // NULL = polling mode
+    };
+
+    Result = IOC_onlineService(&DatReceiverSrvID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    // Connect DatSender
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = DatReceiverSrvURI,
+        .Usage = IOC_LinkUsageDatSender,
+    };
+
+    std::thread DatSenderThread([&] {
+        IOC_Result_T ThreadResult = IOC_connectService(&DatSenderLinkID, &ConnArgs, NULL);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ThreadResult);
+    });
+
+    Result = IOC_acceptClient(DatReceiverSrvID, &DatReceiverLinkID, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    DatSenderThread.join();
+    printf("   ✓ TCP connection established\n");
+
+    // Verify initial state: DatReceiverReady
+    IOC_LinkState_T InitialMainState;
+    IOC_LinkSubState_T InitialSubState;
+    Result = IOC_getLinkState(DatReceiverLinkID, &InitialMainState, &InitialSubState);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    ASSERT_EQ(IOC_LinkSubStateDatReceiverReady, InitialSubState);
+    printf("   ✓ Initial state: DatReceiverReady\n");
+
+    //===>>> BEHAVIOR <<<===
+    printf("🎯 BEHAVIOR: Send data and receive via polling\n");
+
+    // Prepare data to send
+    const ULONG_T DataSize = 512;  // 512 bytes
+    char *TestData = (char *)malloc(DataSize);
+    memset(TestData, 0xEF, DataSize);
+
+    IOC_DatDesc_T SendDesc = {0};
+    IOC_initDatDesc(&SendDesc);
+    SendDesc.Payload.pData = TestData;
+    SendDesc.Payload.PtrDataSize = DataSize;
+    SendDesc.Payload.PtrDataLen = DataSize;
+
+    // Send data from sender
+    Result = IOC_sendDAT(DatSenderLinkID, &SendDesc, NULL);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    printf("   ✓ Data sent (512 bytes)\n");
+
+    // Receive data via polling (blocking mode)
+    IOC_DatDesc_T RecvDesc = {0};
+    IOC_initDatDesc(&RecvDesc);
+
+    // Allocate buffer for received data
+    char *RecvBuffer = (char *)malloc(DataSize);
+    RecvDesc.Payload.pData = RecvBuffer;
+    RecvDesc.Payload.PtrDataSize = DataSize;
+
+    // Use MAYBLOCK option for blocking until data arrives
+    IOC_Option_defineSyncMayBlock(RecvOptions);
+
+    Result = IOC_recvDAT(DatReceiverLinkID, &RecvDesc, &RecvOptions);
+    if (Result != IOC_RESULT_SUCCESS) {
+        printf("   ! IOC_recvDAT failed with: %d (%s)\n", Result, IOC_getResultStr(Result));
+    }
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    printf("   ✓ Data received via polling\n");
+
+    //===>>> VERIFY <<<===
+    printf("✅ VERIFY: State transitions correctly\n");
+
+    // KeyVerifyPoint-1: After receive completes, state should be Ready
+    IOC_LinkState_T FinalMainState;
+    IOC_LinkSubState_T FinalSubState;
+    Result = IOC_getLinkState(DatReceiverLinkID, &FinalMainState, &FinalSubState);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    printf("   - Final state: MainState=%d, SubState=%d\n", FinalMainState, FinalSubState);
+
+    ASSERT_EQ(IOC_LinkStateReady, FinalMainState) << "Receiver main state should be Ready after receive completes";
+    ASSERT_EQ(IOC_LinkSubStateDatReceiverReady, FinalSubState)
+        << "Receiver substate should return to DatReceiverReady after receive";
+    printf("   ✓ KeyVerifyPoint-1: Receiver returned to Ready state after receive\n");
+
+    // KeyVerifyPoint-2: Verify data integrity
+    void *pRecvData;
+    ULONG_T RecvDataSize;
+    Result = IOC_getDatPayload(&RecvDesc, &pRecvData, &RecvDataSize);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+    ASSERT_EQ(DataSize, RecvDataSize) << "Received data size should match sent size";
+    ASSERT_EQ(0, memcmp(TestData, pRecvData, DataSize)) << "Received data should match sent data";
+    printf("   ✓ KeyVerifyPoint-2: Data integrity verified\n");
+
+    //===>>> CLEANUP <<<===
+    printf("🧹 CLEANUP: Close connections and offline service\n");
+
+    free(TestData);
+    free(RecvBuffer);
+    if (DatSenderLinkID != IOC_ID_INVALID) IOC_closeLink(DatSenderLinkID);
+    if (DatReceiverLinkID != IOC_ID_INVALID) IOC_closeLink(DatReceiverLinkID);
+
+    Result = IOC_offlineService(DatReceiverSrvID);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    printf("   ✓ Cleanup complete\n");
 }
 
 /**
