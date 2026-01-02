@@ -166,7 +166,7 @@
  *************************************************************************************************/
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF USER STORY=======================================================================
+//======>BEGIN OF USER STORY DESIGN================================================================
 /**
  * DESIGN PRINCIPLES: Define clear coverage strategy and scope
  *
@@ -217,10 +217,10 @@
  *        I want to receive commands via callback mechanism,
  *        So that I can process requests immediately without polling overhead.
  */
-//======>END OF USER STORY=========================================================================
+//======>END OF USER STORY DESIGN==================================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//=======>BEGIN OF ACCEPTANCE CRITERIA=============================================================
+//======>BEGIN OF ACCEPTANCE CRITERIA DESIGN=======================================================
 /**
  * ACCEPTANCE CRITERIA define WHAT should be tested (make User Stories testable)
  *
@@ -287,10 +287,10 @@
  *         THEN each command is processed by callback with correct handler,
  *          AND results match expected output for each command type.
  */
-//=======>END OF ACCEPTANCE CRITERIA================================================================
+//=======>END OF ACCEPTANCE CRITERIA DESIGN========================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//======>BEGIN OF TEST CASES=======================================================================
+//======>BEGIN OF TEST CASES DESIGN================================================================
 /**
  * TEST CASES define HOW to verify each Acceptance Criterion
  *
@@ -383,7 +383,7 @@
  *      @[Brief]: Call wait API with timeout=0, verify immediate return
  *      @[Status]: PLANNED/TODO - Part of fast-fail six
  */
-//======>END OF TEST CASES=========================================================================
+//======>END OF TEST CASES DESIGN==================================================================
 //======>END OF UNIT TESTING DESIGN================================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -443,6 +443,8 @@ TEST_F(UT_NameofCategoryFixture, verifyBehaviorX_byDoA_expectSomething) {
     // VERIFY
     // CLEANUP
 }
+
+//======>END OF UNIT TESTING IMPLEMENTATION=======================================================
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF TODO/IMPLEMENTATION TRACKING SECTION============================================
