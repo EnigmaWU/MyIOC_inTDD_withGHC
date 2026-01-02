@@ -91,11 +91,194 @@ typedef struct {
 
     // Peer subscription tracking (for producer side)
     int PeerHasSubscription;
+
+    // 📦 DATA POLLING SUPPORT: Buffer for storing data when no callback is registered
+    // This enables polling-based data reception via IOC_recvDAT without callback
+    struct {
+        char* pDataBuffer;                 // Circular buffer for received data
+        size_t BufferSize;                 // Total buffer size (allocated)
+        size_t DataStart;                  // Start position of valid data (read pointer)
+        size_t DataEnd;                    // End position of valid data (write pointer)
+        size_t AvailableData;              // Amount of valid data in buffer
+        pthread_cond_t DataAvailableCond;  // Condition variable for blocking reads
+        bool IsPollingMode;                // True if receiver is in polling mode (no callback)
+    } PollingBuffer;
 } _IOC_ProtoTCPLinkObject_T, *_IOC_ProtoTCPLinkObject_pT;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // TCP Protocol Method Implementations
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * @brief Initialize polling buffer for data reception
+ */
+static IOC_Result_T __IOC_initPollingBuffer_ofProtoTCP(_IOC_ProtoTCPLinkObject_pT pTCPLinkObj) {
+    if (!pTCPLinkObj) return IOC_RESULT_INVALID_PARAM;
+
+    // Allocate circular buffer (64KB default size)
+    const size_t BufferSize = 64 * 1024;
+    pTCPLinkObj->PollingBuffer.pDataBuffer = (char*)malloc(BufferSize);
+    if (!pTCPLinkObj->PollingBuffer.pDataBuffer) {
+        return IOC_RESULT_POSIX_ENOMEM;
+    }
+
+    pTCPLinkObj->PollingBuffer.BufferSize = BufferSize;
+    pTCPLinkObj->PollingBuffer.DataStart = 0;
+    pTCPLinkObj->PollingBuffer.DataEnd = 0;
+    pTCPLinkObj->PollingBuffer.AvailableData = 0;
+    pTCPLinkObj->PollingBuffer.IsPollingMode = false;
+    pthread_cond_init(&pTCPLinkObj->PollingBuffer.DataAvailableCond, NULL);
+
+    return IOC_RESULT_SUCCESS;
+}
+
+/**
+ * @brief Cleanup polling buffer
+ */
+static void __IOC_cleanupPollingBuffer_ofProtoTCP(_IOC_ProtoTCPLinkObject_pT pTCPLinkObj) {
+    if (!pTCPLinkObj) return;
+
+    if (pTCPLinkObj->PollingBuffer.pDataBuffer) {
+        free(pTCPLinkObj->PollingBuffer.pDataBuffer);
+        pTCPLinkObj->PollingBuffer.pDataBuffer = NULL;
+    }
+    pthread_cond_destroy(&pTCPLinkObj->PollingBuffer.DataAvailableCond);
+}
+
+/**
+ * @brief Write data to polling buffer (called by receiver thread)
+ */
+static IOC_Result_T __IOC_writeDataToPollingBuffer(_IOC_ProtoTCPLinkObject_pT pTCPLinkObj, const void* pData,
+                                                   size_t DataSize) {
+    if (!pTCPLinkObj || !pData || DataSize == 0) {
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
+    pthread_mutex_lock(&pTCPLinkObj->Mutex);
+
+    // Check if buffer has enough space
+    size_t FreeSpace = pTCPLinkObj->PollingBuffer.BufferSize - pTCPLinkObj->PollingBuffer.AvailableData;
+    if (DataSize > FreeSpace) {
+        pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+        _IOC_LogWarn("Polling buffer full, dropping %zu bytes", DataSize);
+        return IOC_RESULT_BUFFER_FULL;
+    }
+
+    // Write data to circular buffer
+    const char* pSrc = (const char*)pData;
+    size_t BytesToWrite = DataSize;
+    size_t WritePos = pTCPLinkObj->PollingBuffer.DataEnd;
+
+    while (BytesToWrite > 0) {
+        size_t ChunkSize = BytesToWrite;
+        if (WritePos + ChunkSize > pTCPLinkObj->PollingBuffer.BufferSize) {
+            ChunkSize = pTCPLinkObj->PollingBuffer.BufferSize - WritePos;
+        }
+
+        memcpy(&pTCPLinkObj->PollingBuffer.pDataBuffer[WritePos], pSrc, ChunkSize);
+        pSrc += ChunkSize;
+        BytesToWrite -= ChunkSize;
+        WritePos = (WritePos + ChunkSize) % pTCPLinkObj->PollingBuffer.BufferSize;
+    }
+
+    pTCPLinkObj->PollingBuffer.DataEnd = WritePos;
+    pTCPLinkObj->PollingBuffer.AvailableData += DataSize;
+
+    // Signal waiting readers
+    pthread_cond_signal(&pTCPLinkObj->PollingBuffer.DataAvailableCond);
+
+    pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+
+    _IOC_LogDebug("Wrote %zu bytes to polling buffer (available: %zu)", DataSize,
+                  pTCPLinkObj->PollingBuffer.AvailableData);
+
+    return IOC_RESULT_SUCCESS;
+}
+
+/**
+ * @brief Read data from polling buffer with timeout
+ */
+static IOC_Result_T __IOC_readDataFromPollingBuffer(_IOC_ProtoTCPLinkObject_pT pTCPLinkObj, void* pBuffer,
+                                                    size_t BufferSize, size_t* pBytesRead, long long TimeoutUS) {
+    if (!pTCPLinkObj || !pBuffer || !pBytesRead) {
+        return IOC_RESULT_INVALID_PARAM;
+    }
+
+    *pBytesRead = 0;
+
+    pthread_mutex_lock(&pTCPLinkObj->Mutex);
+
+    // Wait for data with timeout
+    if (pTCPLinkObj->PollingBuffer.AvailableData == 0) {
+        if (TimeoutUS == 0) {
+            // Non-blocking mode
+            pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+            return IOC_RESULT_NO_DATA;
+        } else if (TimeoutUS < 0) {
+            // Infinite blocking
+            while (pTCPLinkObj->PollingBuffer.AvailableData == 0 && pTCPLinkObj->RecvError == IOC_RESULT_SUCCESS) {
+                pthread_cond_wait(&pTCPLinkObj->PollingBuffer.DataAvailableCond, &pTCPLinkObj->Mutex);
+            }
+        } else {
+            // Timed blocking
+            struct timespec AbsTimeout;
+            clock_gettime(CLOCK_REALTIME, &AbsTimeout);
+            AbsTimeout.tv_sec += TimeoutUS / 1000000;
+            AbsTimeout.tv_nsec += (TimeoutUS % 1000000) * 1000;
+            if (AbsTimeout.tv_nsec >= 1000000000) {
+                AbsTimeout.tv_sec++;
+                AbsTimeout.tv_nsec -= 1000000000;
+            }
+
+            while (pTCPLinkObj->PollingBuffer.AvailableData == 0 && pTCPLinkObj->RecvError == IOC_RESULT_SUCCESS) {
+                int WaitResult = pthread_cond_timedwait(&pTCPLinkObj->PollingBuffer.DataAvailableCond,
+                                                        &pTCPLinkObj->Mutex, &AbsTimeout);
+                if (WaitResult == ETIMEDOUT) {
+                    pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+                    return IOC_RESULT_TIMEOUT;
+                }
+            }
+        }
+    }
+
+    // Check if receiver thread encountered an error
+    if (pTCPLinkObj->RecvError != IOC_RESULT_SUCCESS) {
+        IOC_Result_T Error = pTCPLinkObj->RecvError;
+        pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+        return Error;
+    }
+
+    // Read data from circular buffer
+    size_t BytesToRead =
+        (pTCPLinkObj->PollingBuffer.AvailableData < BufferSize) ? pTCPLinkObj->PollingBuffer.AvailableData : BufferSize;
+
+    char* pDest = (char*)pBuffer;
+    size_t ReadPos = pTCPLinkObj->PollingBuffer.DataStart;
+    size_t Remaining = BytesToRead;
+
+    while (Remaining > 0) {
+        size_t ChunkSize = Remaining;
+        if (ReadPos + ChunkSize > pTCPLinkObj->PollingBuffer.BufferSize) {
+            ChunkSize = pTCPLinkObj->PollingBuffer.BufferSize - ReadPos;
+        }
+
+        memcpy(pDest, &pTCPLinkObj->PollingBuffer.pDataBuffer[ReadPos], ChunkSize);
+        pDest += ChunkSize;
+        Remaining -= ChunkSize;
+        ReadPos = (ReadPos + ChunkSize) % pTCPLinkObj->PollingBuffer.BufferSize;
+    }
+
+    pTCPLinkObj->PollingBuffer.DataStart = ReadPos;
+    pTCPLinkObj->PollingBuffer.AvailableData -= BytesToRead;
+    *pBytesRead = BytesToRead;
+
+    pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+
+    _IOC_LogDebug("Read %zu bytes from polling buffer (remaining: %zu)", BytesToRead,
+                  pTCPLinkObj->PollingBuffer.AvailableData);
+
+    return IOC_RESULT_SUCCESS;
+}
 
 /**
  * @brief Send data over TCP socket (helper)
@@ -252,13 +435,15 @@ static void* __TCP_recvThread(void* pArg) {
                 break;
             }
 
-            // Invoke data callback if registered
+            // Check if callback is registered
             pthread_mutex_lock(&pTCPLinkObj->Mutex);
             IOC_CbRecvDat_F CbRecvDat_F = pTCPLinkObj->DatUsageArgs.CbRecvDat_F;
             void* pCbPrivData = pTCPLinkObj->DatUsageArgs.pCbPrivData;
+            bool IsPollingMode = pTCPLinkObj->PollingBuffer.IsPollingMode;
             pthread_mutex_unlock(&pTCPLinkObj->Mutex);
 
             if (CbRecvDat_F) {
+                // Invoke data callback
                 IOC_DatDesc_T DatDesc = {0};
                 IOC_initDatDesc(&DatDesc);
                 DatDesc.Payload.pData = pData;
@@ -267,6 +452,9 @@ static void* __TCP_recvThread(void* pArg) {
 
                 IOC_LinkID_T LinkID = pTCPLinkObj->pOwnerLinkObj->ID;
                 CbRecvDat_F(LinkID, &DatDesc, pCbPrivData);
+            } else if (IsPollingMode) {
+                // Write to polling buffer
+                __IOC_writeDataToPollingBuffer(pTCPLinkObj, pData, DataSize);
             }
 
             free(pData);
@@ -510,6 +698,15 @@ static IOC_Result_T __IOC_connectService_ofProtoTCP(_IOC_LinkObject_pT pLinkObj,
     pTCPLinkObj->IncomingCmdTail = 0;
     pTCPLinkObj->IncomingCmdCount = 0;
 
+    // Initialize polling buffer
+    if (__IOC_initPollingBuffer_ofProtoTCP(pTCPLinkObj) != IOC_RESULT_SUCCESS) {
+        pthread_mutex_destroy(&pTCPLinkObj->Mutex);
+        pthread_cond_destroy(&pTCPLinkObj->CmdResponseCond);
+        pthread_cond_destroy(&pTCPLinkObj->IncomingCmdCond);
+        free(pTCPLinkObj);
+        return IOC_RESULT_POSIX_ENOMEM;
+    }
+
     // Create socket
     int SocketFd = socket(AF_INET, SOCK_STREAM, 0);
     if (SocketFd < 0) {
@@ -619,9 +816,23 @@ static IOC_Result_T __IOC_connectService_ofProtoTCP(_IOC_LinkObject_pT pLinkObj,
         memcpy(&pTCPLinkObj->CmdUsageArgs, pConnArgs->UsageArgs.pCmd, sizeof(IOC_CmdUsageArgs_T));
     }
 
-    // Copy DatUsageArgs from connection args if client is DatReceiver
-    if ((pLinkObj->Args.Usage & IOC_LinkUsageDatReceiver) && pConnArgs->UsageArgs.pDat) {
-        memcpy(&pTCPLinkObj->DatUsageArgs, pConnArgs->UsageArgs.pDat, sizeof(IOC_DatUsageArgs_T));
+    // Setup DatUsageArgs if client is DatReceiver
+    if (pLinkObj->Args.Usage & IOC_LinkUsageDatReceiver) {
+        if (pConnArgs->UsageArgs.pDat) {
+            // Copy provided DAT usage args
+            memcpy(&pTCPLinkObj->DatUsageArgs, pConnArgs->UsageArgs.pDat, sizeof(IOC_DatUsageArgs_T));
+        } else {
+            // Initialize with default (no callback)
+            memset(&pTCPLinkObj->DatUsageArgs, 0, sizeof(IOC_DatUsageArgs_T));
+        }
+
+        // Enable polling mode if no callback is provided
+        if (pTCPLinkObj->DatUsageArgs.CbRecvDat_F == NULL) {
+            pthread_mutex_lock(&pTCPLinkObj->Mutex);
+            pTCPLinkObj->PollingBuffer.IsPollingMode = true;
+            pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+            _IOC_LogDebug("Enabled polling mode for TCP link (no callback provided)");
+        }
     }
 
     // Start background receiver thread
@@ -660,6 +871,15 @@ static IOC_Result_T __IOC_acceptClient_ofProtoTCP(_IOC_ServiceObject_pT pSrvObj,
     pTCPLinkObj->IncomingCmdHead = 0;
     pTCPLinkObj->IncomingCmdTail = 0;
     pTCPLinkObj->IncomingCmdCount = 0;
+
+    // Initialize polling buffer
+    if (__IOC_initPollingBuffer_ofProtoTCP(pTCPLinkObj) != IOC_RESULT_SUCCESS) {
+        pthread_mutex_destroy(&pTCPLinkObj->Mutex);
+        pthread_cond_destroy(&pTCPLinkObj->CmdResponseCond);
+        pthread_cond_destroy(&pTCPLinkObj->IncomingCmdCond);
+        free(pTCPLinkObj);
+        return IOC_RESULT_POSIX_ENOMEM;
+    }
 
     // 🎯 TDD FIX Bug #6: Apply timeout to accept() using select()
     int ClientFd = -1;
@@ -760,9 +980,23 @@ static IOC_Result_T __IOC_acceptClient_ofProtoTCP(_IOC_ServiceObject_pT pSrvObj,
         memcpy(&pTCPLinkObj->CmdUsageArgs, pSrvObj->Args.UsageArgs.pCmd, sizeof(IOC_CmdUsageArgs_T));
     }
 
-    // Copy DatUsageArgs from service to link (for data receiver functionality)
-    if (pSrvObj->Args.UsageArgs.pDat) {
-        memcpy(&pTCPLinkObj->DatUsageArgs, pSrvObj->Args.UsageArgs.pDat, sizeof(IOC_DatUsageArgs_T));
+    // Setup DatUsageArgs for data receiver functionality
+    if (pSrvObj->Args.UsageCapabilites & IOC_LinkUsageDatReceiver) {
+        if (pSrvObj->Args.UsageArgs.pDat) {
+            // Copy provided DAT usage args
+            memcpy(&pTCPLinkObj->DatUsageArgs, pSrvObj->Args.UsageArgs.pDat, sizeof(IOC_DatUsageArgs_T));
+        } else {
+            // Initialize with default (no callback)
+            memset(&pTCPLinkObj->DatUsageArgs, 0, sizeof(IOC_DatUsageArgs_T));
+        }
+
+        // Enable polling mode if no callback is provided
+        if (pTCPLinkObj->DatUsageArgs.CbRecvDat_F == NULL) {
+            pthread_mutex_lock(&pTCPLinkObj->Mutex);
+            pTCPLinkObj->PollingBuffer.IsPollingMode = true;
+            pthread_mutex_unlock(&pTCPLinkObj->Mutex);
+            _IOC_LogDebug("Enabled polling mode for TCP link (no callback provided)");
+        }
     }
 
     // Start background receiver thread (optional for server side, but useful for bidirectional)
@@ -804,6 +1038,9 @@ static IOC_Result_T __IOC_closeLink_ofProtoTCP(_IOC_LinkObject_pT pLinkObj) {
         if (pTCPLinkObj->SubEvtArgs.pEvtIDs) {
             free(pTCPLinkObj->SubEvtArgs.pEvtIDs);
         }
+
+        // Cleanup polling buffer
+        __IOC_cleanupPollingBuffer_ofProtoTCP(pTCPLinkObj);
 
         pthread_mutex_destroy(&pTCPLinkObj->Mutex);
         pthread_cond_destroy(&pTCPLinkObj->CmdResponseCond);
@@ -1198,6 +1435,7 @@ static IOC_Result_T __IOC_recvData_ofProtoTCP(_IOC_LinkObject_pT pLinkObj, IOC_D
     // Check if receiver thread encountered an error (link broken, etc.)
     pthread_mutex_lock(&pTCPLinkObj->Mutex);
     IOC_Result_T RecvError = pTCPLinkObj->RecvError;
+    bool IsPollingMode = pTCPLinkObj->PollingBuffer.IsPollingMode;
     pthread_mutex_unlock(&pTCPLinkObj->Mutex);
 
     if (RecvError != IOC_RESULT_SUCCESS) {
@@ -1205,18 +1443,35 @@ static IOC_Result_T __IOC_recvData_ofProtoTCP(_IOC_LinkObject_pT pLinkObj, IOC_D
         return RecvError;
     }
 
-    // For TCP polling mode: The receiver thread handles incoming data via callbacks
-    // If no callback is registered, data is lost (TCP has no queue in polling mode)
-    // This is consistent with connectionless protocols where polling requires explicit queue
-
-    // Return NO_DATA immediately for NONBLOCK (TimeoutUS == 0)
-    if (IOC_Option_isNonBlockMode(pOption) == IOC_RESULT_YES) {
-        return IOC_RESULT_NO_DATA;
+    // If not in polling mode, data is only available via callback
+    if (!IsPollingMode) {
+        return IOC_RESULT_NOT_SUPPORT;
     }
 
-    // For blocking/timeout mode: TCP has no polling queue, so return TIMEOUT immediately
-    // This matches the semantic that "no data is available" and timeout has expired
-    return IOC_RESULT_TIMEOUT;
+    // Extract timeout value from options
+    long long TimeoutUS = -1;  // Default to infinite timeout (blocking)
+    if (pOption && (pOption->IDs & IOC_OPTID_TIMEOUT)) {
+        TimeoutUS = pOption->Payload.TimeoutUS;
+    }
+
+    // Read data from polling buffer with timeout
+    size_t BytesRead = 0;
+    IOC_Result_T Result = __IOC_readDataFromPollingBuffer(pTCPLinkObj, pDatDesc->Payload.pData,
+                                                          pDatDesc->Payload.PtrDataSize, &BytesRead, TimeoutUS);
+
+    if (Result == IOC_RESULT_SUCCESS) {
+        // Update the data descriptor with actual bytes read
+        pDatDesc->Payload.PtrDataSize = BytesRead;
+        pDatDesc->Payload.PtrDataLen = BytesRead;
+
+        _IOC_LogDebug("IOC_recvDAT: Received %zu bytes from TCP polling buffer on LinkID=%llu", BytesRead,
+                      pLinkObj->ID);
+    } else if (Result == IOC_RESULT_NO_DATA) {
+        // No data available in non-blocking mode
+        pDatDesc->Payload.PtrDataSize = 0;
+    }
+
+    return Result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
