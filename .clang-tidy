@@ -75,6 +75,7 @@ Checks: >
   -modernize-concat-nested-namespaces,
   -modernize-use-nodiscard,
   -modernize-avoid-c-arrays,
+  -modernize-use-using,
   -performance-move-const-arg,
   -readability-braces-around-statements,
   -readability-identifier-length,
