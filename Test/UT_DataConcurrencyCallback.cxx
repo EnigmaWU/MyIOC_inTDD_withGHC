@@ -299,33 +299,470 @@
 
 namespace {
 
-// Callback context for echo pattern (same-link send)
+//=================================================================================================
+// Callback Contexts
+//=================================================================================================
+
+// No-op callback context (FF-CB-1)
+struct NoOpCallbackContext {
+    std::atomic<uint32_t> CallbackCount{0};
+    std::atomic<bool> CallbackInvoked{false};
+};
+
+// Echo callback context (TC-CB1 - same link)
 struct EchoCallbackContext {
     IOC_LinkID_T LinkID;
     std::atomic<uint32_t> EchoCount{0};
-    std::atomic<uint32_t> DeadlockDetected{0};
+    std::atomic<uint32_t> ErrorCount{0};
+    std::atomic<bool> DeadlockDetected{false};
     std::atomic<bool> Running{true};
 };
 
-// Echo callback - sends reply on same link
-IOC_Result_T EchoCbRecvDat(const IOC_DatDesc_pT pDatDesc, void* pCbPrivData) {
+// Routing callback context (TC-CB2 - cross-link)
+struct RoutingCallbackContext {
+    IOC_LinkID_T SourceLinkID;
+    IOC_LinkID_T TargetLinkID;
+    std::atomic<uint32_t> RoutedCount{0};
+    std::atomic<uint32_t> ErrorCount{0};
+    std::atomic<bool> CircularDetected{false};
+};
+
+// Exception testing context (TC-CB5)
+struct ExceptionCallbackContext {
+    std::atomic<bool> ShouldThrow{false};
+    std::atomic<uint32_t> ExceptionCount{0};
+    std::atomic<uint32_t> SuccessCount{0};
+};
+
+// Slow callback context (TC-CB6)
+struct SlowCallbackContext {
+    std::chrono::milliseconds Delay{0};
+    std::atomic<uint32_t> CallbackCount{0};
+    std::atomic<uint32_t> TimeoutCount{0};
+};
+
+//=================================================================================================
+// Deadlock Detection Utility
+//=================================================================================================
+
+class DeadlockDetector {
+   public:
+    DeadlockDetector(std::chrono::seconds timeout, std::atomic<bool>* pFlag)
+        : TimeoutDuration(timeout), pDeadlockFlag(pFlag), Running(true) {
+        WatchdogThread = std::thread([this]() {
+            auto start = std::chrono::steady_clock::now();
+            while (Running.load()) {
+                auto elapsed = std::chrono::steady_clock::now() - start;
+                if (elapsed >= TimeoutDuration) {
+                    pDeadlockFlag->store(true);
+                    printf("⚠️  DEADLOCK DETECTED: Test exceeded %lld second timeout!\n", TimeoutDuration.count());
+                    break;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
+        });
+    }
+
+    ~DeadlockDetector() {
+        Running.store(false);
+        if (WatchdogThread.joinable()) {
+            WatchdogThread.join();
+        }
+    }
+
+    void Stop() { Running.store(false); }
+
+   private:
+    std::chrono::seconds TimeoutDuration;
+    std::atomic<bool>* pDeadlockFlag;
+    std::atomic<bool> Running;
+    std::thread WatchdogThread;
+};
+
+//=================================================================================================
+// Callback Functions
+//=================================================================================================
+
+// FF-CB-1: No-op callback (baseline)
+IOC_Result_T NoOpCbRecvDat(IOC_LinkID_T LinkID, const IOC_DatDesc_pT pDatDesc, void* pCbPrivData) {
+    auto* pCtx = static_cast<NoOpCallbackContext*>(pCbPrivData);
+    pCtx->CallbackCount.fetch_add(1);
+    pCtx->CallbackInvoked.store(true);
+    return IOC_RESULT_SUCCESS;
+}
+
+// TC-CB1: Echo callback - sends reply on SAME link
+IOC_Result_T EchoCbRecvDat(IOC_LinkID_T LinkID, const IOC_DatDesc_pT pDatDesc, void* pCbPrivData) {
     auto* pCtx = static_cast<EchoCallbackContext*>(pCbPrivData);
 
     // CRITICAL: Call IOC_sendDAT on SAME LinkID
     // This is the classic deadlock scenario if locks not ordered correctly
-    IOC_DatDesc_T Reply = *pDatDesc;  // Echo back same data
-    IOC_Result_T Result = IOC_sendDAT(pCtx->LinkID, &Reply, nullptr);
+    IOC_DatDesc_T Reply = *pDatDesc;                             // Echo back same data
+    IOC_Result_T Result = IOC_sendDAT(LinkID, &Reply, nullptr);  // Use LinkID from parameter
 
     if (Result == IOC_RESULT_SUCCESS) {
         pCtx->EchoCount.fetch_add(1);
     } else {
-        pCtx->DeadlockDetected.fetch_add(1);
+        pCtx->ErrorCount.fetch_add(1);
     }
 
     return IOC_RESULT_SUCCESS;
 }
 
+// TC-CB2: Routing callback - forwards to DIFFERENT link
+IOC_Result_T RoutingCbRecvDat(IOC_LinkID_T LinkID, const IOC_DatDesc_pT pDatDesc, void* pCbPrivData) {
+    auto* pCtx = static_cast<RoutingCallbackContext*>(pCbPrivData);
+
+    // Forward to target link
+    IOC_DatDesc_T Forward = *pDatDesc;
+    IOC_Result_T Result = IOC_sendDAT(pCtx->TargetLinkID, &Forward, nullptr);
+
+    if (Result == IOC_RESULT_SUCCESS) {
+        pCtx->RoutedCount.fetch_add(1);
+    } else {
+        pCtx->ErrorCount.fetch_add(1);
+    }
+
+    return IOC_RESULT_SUCCESS;
+}
+
+// TC-CB5: Exception-throwing callback
+IOC_Result_T ExceptionThrowingCbRecvDat(IOC_LinkID_T LinkID, const IOC_DatDesc_pT pDatDesc, void* pCbPrivData) {
+    auto* pCtx = static_cast<ExceptionCallbackContext*>(pCbPrivData);
+
+    if (pCtx->ShouldThrow.load()) {
+        pCtx->ExceptionCount.fetch_add(1);
+        throw std::runtime_error("Deliberate callback exception for testing");
+    }
+
+    pCtx->SuccessCount.fetch_add(1);
+    return IOC_RESULT_SUCCESS;
+}
+
+// TC-CB6: Slow callback with configurable delay
+IOC_Result_T SlowCbRecvDat(IOC_LinkID_T LinkID, const IOC_DatDesc_pT pDatDesc, void* pCbPrivData) {
+    auto* pCtx = static_cast<SlowCallbackContext*>(pCbPrivData);
+
+    std::this_thread::sleep_for(pCtx->Delay);
+    pCtx->CallbackCount.fetch_add(1);
+
+    return IOC_RESULT_SUCCESS;
+}
+
 }  // namespace
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//======>BEGIN OF: Fast-Fail Callback-Six Smoke Tests============================================
+
+/**
+ * @[Name]: FF_CB_1_CallbackNoOpBaseline
+ * @[Purpose]: Verify callback registration and invocation works
+ * @[Steps]:
+ *   1) 🔧 SETUP: Create data link with no-op callback
+ *   2) 🎯 BEHAVIOR: Send data to trigger callback
+ *   3) ✅ VERIFY: Callback invoked successfully
+ *   4) 🧹 CLEANUP: Close link
+ * @[Expect]: Callback called, returns success
+ */
+TEST(UT_DataConcurrencyCallback, FF_CB_1_CallbackNoOpBaseline) {
+    //===SETUP===
+    printf("🔧 SETUP: Fast-Fail CB-1 - No-op callback baseline\n");
+
+    // Context for no-op callback
+    NoOpCallbackContext Context;
+
+    // Setup DatUsageArgs with callback for DatReceiver service
+    IOC_DatUsageArgs_T DatArgs = {
+        .CbRecvDat_F = NoOpCbRecvDat,
+        .pCbPrivData = &Context,
+    };
+
+    // Create service with DatReceiver capability using correct IOC_SrvArgs_T
+    IOC_SrvURI_T SrvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "CB_NoOp_Service",
+        .Port = 0,
+    };
+
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = SrvURI,
+        .Flags = IOC_SRVFLAG_NONE,
+        .UsageCapabilites = IOC_LinkUsageDatReceiver,
+        .UsageArgs =
+            {
+                .pDat = &DatArgs,
+            },
+    };
+
+    IOC_SrvID_T SvcID = IOC_ID_INVALID;
+    IOC_Result_T Result = IOC_onlineService(&SvcID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Service online failed";
+    ASSERT_NE(IOC_ID_INVALID, SvcID) << "Invalid service ID";
+
+    // Create client as DatSender using correct IOC_ConnArgs_T
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = SrvURI,
+        .Usage = IOC_LinkUsageDatSender,
+    };
+
+    // CRITICAL: Start client connection in thread BEFORE acceptClient (avoid blocking)
+    IOC_LinkID_T LinkID = IOC_ID_INVALID;
+    std::thread ClientThread([&] {
+        IOC_Result_T ThreadResult = IOC_connectService(&LinkID, &ConnArgs, nullptr);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ThreadResult) << "Client connect failed";
+        ASSERT_NE(IOC_ID_INVALID, LinkID) << "Invalid link ID";
+    });
+
+    // Service accepts connection (blocks until client connects)
+    IOC_LinkID_T AcceptedLinkID = IOC_ID_INVALID;
+    Result = IOC_acceptClient(SvcID, &AcceptedLinkID, nullptr);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Accept client failed";
+    ASSERT_NE(IOC_ID_INVALID, AcceptedLinkID) << "Invalid accepted link ID";
+
+    ClientThread.join();  // Wait for client thread to complete
+
+    //===BEHAVIOR===
+    printf("🎯 BEHAVIOR: Send data to trigger no-op callback\n");
+
+    // Prepare data to send
+    char PayloadData[] = "Test payload for callback";
+    IOC_DatDesc_T DatDesc = {0};
+    IOC_initDatDesc(&DatDesc);
+    DatDesc.Payload.pData = PayloadData;
+    DatDesc.Payload.PtrDataSize = sizeof(PayloadData);
+    DatDesc.Payload.PtrDataLen = sizeof(PayloadData);
+
+    // Client sends data (should trigger service-side callback)
+    Result = IOC_sendDAT(LinkID, &DatDesc, nullptr);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "sendDAT failed";
+
+    // Give callback time to execute
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    //===VERIFY===
+    printf("✅ VERIFY: Callback was invoked\n");
+
+    //@KeyVerifyPoint-1: Callback was invoked at least once (baseline functionality)
+    VERIFY_KEYPOINT_TRUE(Context.CallbackInvoked.load(), "No-op callback must be invoked when data arrives");
+
+    //@KeyVerifyPoint-2: Callback count matches expected invocations
+    VERIFY_KEYPOINT_GE(Context.CallbackCount.load(), 1u, "Callback count must be at least 1 for single send");
+
+    printf("   Callback invoked: %u times\n", Context.CallbackCount.load());
+
+    //===CLEANUP===
+    printf("🧹 CLEANUP: Close link and offline service\n");
+
+    Result = IOC_closeLink(LinkID);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result) << "Client close link failed";
+
+    Result = IOC_closeLink(AcceptedLinkID);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result) << "Service close link failed";
+
+    Result = IOC_offlineService(SvcID);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result) << "Service offline failed";
+
+    printf("✅ FF-CB-1 COMPLETED: No-op callback baseline verified\n");
+}
+
+/**
+ * @[Name]: FF_CB_2_SimpleEchoNoDeadlock
+ * @[Purpose]: Minimal same-link echo without deadlock
+ * @[Steps]:
+ *   1) 🔧 SETUP: Create bidirectional link with echo callback
+ *   2) 🎯 BEHAVIOR: Send tiny message (triggers callback → echo)
+ *   3) ✅ VERIFY: Test completes within 5 seconds
+ *   4) 🧹 CLEANUP: Close link
+ * @[Expect]: No hang, test finishes quickly
+ */
+TEST(UT_DataConcurrencyCallback, FF_CB_2_SimpleEchoNoDeadlock) {
+    //===SETUP===
+    printf("🔧 SETUP: Fast-Fail CB-2 - Simple echo deadlock test\n");
+
+    // Echo callback context
+    EchoCallbackContext Context;
+    std::atomic<bool> DeadlockFlag{false};
+
+    // Start deadlock detector (5-second timeout)
+    DeadlockDetector Detector(std::chrono::seconds(5), &DeadlockFlag);
+
+    // Setup DatUsageArgs with echo callback for SERVICE (receives and echoes back)
+    IOC_DatUsageArgs_T SvcDatArgs = {
+        .CbRecvDat_F = EchoCbRecvDat,
+        .pCbPrivData = &Context,
+    };
+
+    // Create service with DatReceiver capability (service receives, client sends)
+    IOC_SrvURI_T SrvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO,
+        .pHost = IOC_SRV_HOST_LOCAL_PROCESS,
+        .pPath = "CB_Echo_Service",
+        .Port = 0,
+    };
+
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = SrvURI,
+        .Flags = IOC_SRVFLAG_NONE,
+        .UsageCapabilites = IOC_LinkUsageDatReceiver,  // Service receives
+        .UsageArgs =
+            {
+                .pDat = &SvcDatArgs,
+            },
+    };
+
+    IOC_SrvID_T SvcID = IOC_ID_INVALID;
+    IOC_Result_T Result = IOC_onlineService(&SvcID, &SrvArgs);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Service online failed";
+    ASSERT_NE(IOC_ID_INVALID, SvcID) << "Invalid service ID";
+
+    // Create client with DatSender capability
+    IOC_ConnArgs_T ConnArgs = {
+        .SrvURI = SrvURI,
+        .Usage = IOC_LinkUsageDatSender,  // Client sends
+    };
+
+    // CRITICAL: Start client connection in thread BEFORE acceptClient (avoid blocking)
+    IOC_LinkID_T LinkID = IOC_ID_INVALID;
+    std::thread ClientThread([&] {
+        IOC_Result_T ThreadResult = IOC_connectService(&LinkID, &ConnArgs, nullptr);
+        ASSERT_EQ(IOC_RESULT_SUCCESS, ThreadResult) << "Client connect failed";
+        ASSERT_NE(IOC_ID_INVALID, LinkID) << "Invalid link ID";
+        Context.LinkID = LinkID;  // Save for cleanup reference
+    });
+
+    // Service accepts connection (blocks until client connects)
+    IOC_LinkID_T SvcLinkID = IOC_ID_INVALID;
+    Result = IOC_acceptClient(SvcID, &SvcLinkID, nullptr);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Accept client failed";
+    ASSERT_NE(IOC_ID_INVALID, SvcLinkID) << "Invalid service link ID";
+
+    ClientThread.join();  // Wait for client thread
+
+    // Save SvcLinkID in context for callback to use for echo
+    Context.LinkID = SvcLinkID;  // Callback will echo on service's accepted link
+
+    //===BEHAVIOR===
+    printf("🎯 BEHAVIOR: Client sends data, service callback echoes on SAME LinkID\n");
+
+    // Client sends message to service (triggers service callback → echo back on same link)
+    char TestPayload[] = "ECHO_TEST";
+    IOC_DatDesc_T DatDesc = {0};
+    IOC_initDatDesc(&DatDesc);
+    DatDesc.Payload.pData = TestPayload;
+    DatDesc.Payload.PtrDataSize = sizeof(TestPayload);
+    DatDesc.Payload.PtrDataLen = sizeof(TestPayload);
+
+    Result = IOC_sendDAT(LinkID, &DatDesc, nullptr);
+    ASSERT_EQ(IOC_RESULT_SUCCESS, Result) << "Client send failed";
+
+    // Wait for callback to process and echo
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+    //===VERIFY===
+    printf("✅ VERIFY: No deadlock occurred\n");
+
+    // Stop deadlock detector
+    Detector.Stop();
+
+    //@KeyVerifyPoint-1: Test completed within 5-second timeout (no deadlock)
+    VERIFY_KEYPOINT_FALSE(DeadlockFlag.load(),
+                          "Echo callback on same link must NOT deadlock (critical concurrency requirement)");
+
+    //@KeyVerifyPoint-2: Echo callback attempted to send reply
+    uint32_t TotalAttempts = Context.EchoCount.load() + Context.ErrorCount.load();
+    VERIFY_KEYPOINT_GE(TotalAttempts, 1u, "Callback must attempt echo reply (success OR proper error, not hang)");
+
+    printf("   Echo successful: %u times\n", Context.EchoCount.load());
+    printf("   Echo errors: %u times\n", Context.ErrorCount.load());
+    printf("   Deadlock detected: %s\n", DeadlockFlag.load() ? "YES ❌" : "NO ✅");
+
+    //===CLEANUP===
+    printf("🧹 CLEANUP: Close links and offline service\n");
+
+    Context.Running.store(false);
+
+    Result = IOC_closeLink(LinkID);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    Result = IOC_closeLink(SvcLinkID);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    Result = IOC_offlineService(SvcID);
+    EXPECT_EQ(IOC_RESULT_SUCCESS, Result);
+
+    printf("✅ FF-CB-2 COMPLETED: Simple echo deadlock test passed\n");
+}
+
+/**
+ * @[Name]: FF_CB_3_CallbackExceptionHandled
+ * @[Purpose]: Verify exception in callback doesn't crash
+ * @[Steps]:
+ *   1) 🔧 SETUP: Create link with exception-throwing callback
+ *   2) 🎯 BEHAVIOR: Send data (triggers callback exception)
+ *   3) ✅ VERIFY: Process doesn't crash
+ *   4) ✅ VERIFY: IOC state remains valid
+ *   5) 🧹 CLEANUP: Close link
+ * @[Expect]: Exception caught, system stable
+ */
+TEST(UT_DataConcurrencyCallback, FF_CB_3_CallbackExceptionHandled) {
+    //===SETUP===
+    printf("🔧 SETUP: Fast-Fail CB-3 - Exception handling test\n");
+
+    GTEST_SKIP() << "⚪ TODO: Implement FF-CB-3 exception handling test";
+}
+
+/**
+ * @[Name]: FF_CB_4_CrossLinkSimpleRoute
+ * @[Purpose]: Verify cross-link routing works
+ * @[Steps]:
+ *   1) 🔧 SETUP: Create Link A and Link B
+ *   2) 🔧 SETUP: Link A callback forwards to Link B
+ *   3) 🎯 BEHAVIOR: Send to Link A
+ *   4) ✅ VERIFY: Link B receives forwarded data
+ *   5) 🧹 CLEANUP: Close both links
+ * @[Expect]: Routing works, no deadlock
+ */
+TEST(UT_DataConcurrencyCallback, FF_CB_4_CrossLinkSimpleRoute) {
+    //===SETUP===
+    printf("🔧 SETUP: Fast-Fail CB-4 - Cross-link routing test\n");
+
+    GTEST_SKIP() << "⚪ TODO: Implement FF-CB-4 cross-link routing test";
+}
+
+/**
+ * @[Name]: FF_CB_5_CallbackTimeoutSmoke
+ * @[Purpose]: Verify callback duration doesn't affect operation timeout
+ * @[Steps]:
+ *   1) 🔧 SETUP: Create link with fast callback (10ms)
+ *   2) 🎯 BEHAVIOR: Send with long timeout (1s)
+ *   3) ✅ VERIFY: Operation completes based on send, not callback
+ *   4) 🧹 CLEANUP: Close link
+ * @[Expect]: Timeout independent
+ */
+TEST(UT_DataConcurrencyCallback, FF_CB_5_CallbackTimeoutSmoke) {
+    //===SETUP===
+    printf("🔧 SETUP: Fast-Fail CB-5 - Callback timeout independence\n");
+
+    GTEST_SKIP() << "⚪ TODO: Implement FF-CB-5 timeout test";
+}
+
+/**
+ * @[Name]: FF_CB_6_CallbackConcurrencyBaseline
+ * @[Purpose]: Verify 2 callbacks can run concurrently
+ * @[Steps]:
+ *   1) 🔧 SETUP: Create 2 links with callbacks
+ *   2) 🎯 BEHAVIOR: Trigger both callbacks simultaneously
+ *   3) ✅ VERIFY: Both complete successfully
+ *   4) 🧹 CLEANUP: Close links
+ * @[Expect]: Concurrent callback execution safe
+ */
+TEST(UT_DataConcurrencyCallback, FF_CB_6_CallbackConcurrencyBaseline) {
+    //===SETUP===
+    printf("🔧 SETUP: Fast-Fail CB-6 - Concurrent callbacks test\n");
+
+    GTEST_SKIP() << "⚪ TODO: Implement FF-CB-6 concurrent callback test";
+}
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //======>BEGIN OF: [@AC-CB1,US-CB1] Echo Pattern Deadlock Test===================================
@@ -425,47 +862,53 @@ TEST(UT_DataConcurrencyCallback, verifyCallbackTimeout_bySlowCallbackFastSend_ex
 //===================================================================================================
 // 🎯 FAST-FAIL CALLBACK-SIX - Callback Smoke Tests (Run First)
 //===================================================================================================
-//   ⚪ FF-CB-1: Callback No-Op Baseline
+//   🔴 FF-CB-1: Callback No-Op Baseline
 //        - Description: Callback does nothing, just returns success
 //        - Category: Smoke Test
 //        - Estimated effort: 30 min
 //        - Depends on: None
 //        - Verification: Callback registered and invoked
+//        - Status: RED - Test skeleton created, needs implementation
 //
-//   ⚪ FF-CB-2: Simple Echo No Deadlock
+//   🔴 FF-CB-2: Simple Echo No Deadlock
 //        - Description: Callback sends tiny response on same LinkID, single thread
 //        - Category: Smoke Test (deadlock baseline)
 //        - Estimated effort: 1 hour
 //        - Depends on: FF-CB-1 GREEN
 //        - Verification: Test completes (no hang)
+//        - Status: RED - Test skeleton created, needs implementation
 //
-//   ⚪ FF-CB-3: Callback Exception Handled
+//   🔴 FF-CB-3: Callback Exception Handled
 //        - Description: Callback throws std::exception
 //        - Category: Smoke Test (exception boundary)
 //        - Estimated effort: 45 min
 //        - Depends on: FF-CB-1 GREEN
 //        - Verification: Process doesn't crash, IOC state valid
+//        - Status: RED - Test skeleton created, needs implementation
 //
-//   ⚪ FF-CB-4: Cross-Link Simple Route
+//   🔴 FF-CB-4: Cross-Link Simple Route
 //        - Description: Link A callback sends to Link B (not back to A)
 //        - Category: Smoke Test
 //        - Estimated effort: 1 hour
 //        - Depends on: FF-CB-1 GREEN
 //        - Verification: Cross-link send works, no deadlock
+//        - Status: RED - Test skeleton created, needs implementation
 //
-//   ⚪ FF-CB-5: Callback Timeout Smoke
+//   🔴 FF-CB-5: Callback Timeout Smoke
 //        - Description: Fast callback (10ms) vs slow send (1s timeout)
 //        - Category: Smoke Test
 //        - Estimated effort: 45 min
 //        - Depends on: FF-CB-1 GREEN
 //        - Verification: Timeout independent of callback duration
+//        - Status: RED - Test skeleton created, needs implementation
 //
-//   ⚪ FF-CB-6: Callback Concurrency Baseline
+//   🔴 FF-CB-6: Callback Concurrency Baseline
 //        - Description: 2 threads trigger callbacks simultaneously
 //        - Category: Smoke Test
 //        - Estimated effort: 1 hour
 //        - Depends on: FF-CB-1 GREEN
 //        - Verification: Callbacks serialize or run safely concurrent
+//        - Status: RED - Test skeleton created, needs implementation
 //
 // 🚪 GATE: Fast-Fail Callback-Six must be GREEN before main callback tests
 //
@@ -563,13 +1006,26 @@ TEST(UT_DataConcurrencyCallback, verifyCallbackTimeout_bySlowCallbackFastSend_ex
 //===================================================================================================
 // 📊 PROGRESS SUMMARY
 //===================================================================================================
-// Fast-Fail CB-Six:   0/6  GREEN (⚪⚪⚪⚪⚪⚪)
+// Fast-Fail CB-Six:   6/6  RED (🔴🔴🔴🔴🔴🔴) - Test skeletons created
 // CRITICAL Priority:  0/2  GREEN (⚪⚪)
 // IMPORTANT Priority: 0/3  GREEN (⚪⚪⚪)
 // NICE-TO-HAVE:       0/1  GREEN (⚪)
-// Total CB Tests:     0/12 GREEN
+// Total CB Tests:     6/12 RED, 0/12 GREEN
 //
-// Next Action: Implement Fast-Fail Callback-Six → TC-CB1 (MOST CRITICAL echo pattern)
+// Infrastructure Implemented:
+//   ✅ NoOpCallbackContext
+//   ✅ EchoCallbackContext
+//   ✅ RoutingCallbackContext
+//   ✅ ExceptionCallbackContext
+//   ✅ SlowCallbackContext
+//   ✅ DeadlockDetector class
+//   ✅ NoOpCbRecvDat callback
+//   ✅ EchoCbRecvDat callback
+//   ✅ RoutingCbRecvDat callback
+//   ✅ ExceptionThrowingCbRecvDat callback
+//   ✅ SlowCbRecvDat callback
+//
+// Next Action: Implement FF-CB-1 test body → Progress to GREEN
 //
 //===================================================================================================
 // 🛠️ CALLBACK IMPLEMENTATION ROADMAP (3-Week Plan)
