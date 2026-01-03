@@ -237,6 +237,18 @@ static bool __IOC_isBatchWindowExpired(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj)
 static void __IOC_closeBatchWindow(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj);
 static bool __IOC_shouldOpenBatchWindow(_IOC_ProtoFifoLinkObject_pT pFifoLinkObj, long callbackDurationMs);
 
+// Async callback dispatch helper
+typedef struct {
+    IOC_CbRecvDat_F Callback;
+    IOC_LinkID_T LinkID;
+    IOC_DatDesc_T DatDesc;
+    void* pPrivData;
+    struct timespec StartTime;
+    _IOC_ProtoFifoLinkObject_pT pFifoLink;
+} __AsyncCallbackContext_T;
+
+static void* __IOC_asyncCallbackThreadFunc(void* pArg);
+
 // External interface for IOC_flushDAT support
 IOC_Result_T __IOC_flushData_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, const IOC_Options_pT pOption);
 
@@ -1203,19 +1215,87 @@ static IOC_Result_T __IOC_sendData_ofProtoFifo(_IOC_LinkObject_pT pLinkObj, cons
 
             // Record callback start time
             struct timespec callbackStart, callbackEnd;
+            long callbackDurationMs = 0;  // Will be updated by sync/async paths
             clock_gettime(CLOCK_MONOTONIC, &callbackStart);
 
             pthread_mutex_lock(&pPeerFifoLinkObj->DatReceiver.CallbackBatch.BatchMutex);
             pPeerFifoLinkObj->DatReceiver.CallbackBatch.LastCallbackStart = callbackStart;
             pthread_mutex_unlock(&pPeerFifoLinkObj->DatReceiver.CallbackBatch.BatchMutex);
 
-            _IOC_LogDebug("📞 Executing receiver callback for %zu bytes (measuring timing)\n",
-                          pDatDesc->Payload.PtrDataSize);
-            CallbackResult = CbRecvDat_F(pPeerFifoLinkObj->pOwnerLinkObj->ID, pDatDesc, pCbPrivData);
+            // 🔄 ASYNC CALLBACK DISPATCH: Prevent circular deadlock in callback chains
+            // Problem: If callback calls IOC_sendDAT, and that triggers another callback that calls IOC_sendDAT back,
+            // we get a circular wait: Send1→Callback1→Send2→Callback2→Send1 (DEADLOCK!)
+            //
+            // Solution: Dispatch callbacks asynchronously in detached thread
+            // - IOC_sendDAT returns immediately (non-blocking)
+            // - Callback executes in parallel
+            // - Circular chains become concurrent (no deadlock)
+            //
+            // Trade-off: Callback may execute after IOC_sendDAT returns (async semantics)
+            // Benefit: System NEVER deadlocks on circular callback chains
 
-            // Record callback end time and calculate duration
+            _IOC_LogDebug("📞 Dispatching receiver callback asynchronously for %zu bytes\n",
+                          pDatDesc->Payload.PtrDataSize);
+
+            // Allocate context for async callback (freed by callback thread)
+            __AsyncCallbackContext_T* pAsyncCtx = (__AsyncCallbackContext_T*)malloc(sizeof(__AsyncCallbackContext_T));
+            if (!pAsyncCtx) {
+                // Fallback to sync if allocation fails
+                CallbackResult = CbRecvDat_F(pPeerFifoLinkObj->pOwnerLinkObj->ID, pDatDesc, pCbPrivData);
+            } else {
+                pAsyncCtx->Callback = CbRecvDat_F;
+                pAsyncCtx->LinkID = pPeerFifoLinkObj->pOwnerLinkObj->ID;
+                pAsyncCtx->DatDesc = *pDatDesc;  // Copy descriptor
+
+                // Deep copy data payload to ensure lifetime
+                if (pDatDesc->Payload.PtrDataSize > 0 && pDatDesc->Payload.pData) {
+                    void* pDataCopy = malloc(pDatDesc->Payload.PtrDataSize);
+                    if (pDataCopy) {
+                        memcpy(pDataCopy, pDatDesc->Payload.pData, pDatDesc->Payload.PtrDataSize);
+                        pAsyncCtx->DatDesc.Payload.pData = pDataCopy;
+                    } else {
+                        // Allocation failed, cleanup and fallback to sync
+                        free(pAsyncCtx);
+                        CallbackResult = CbRecvDat_F(pPeerFifoLinkObj->pOwnerLinkObj->ID, pDatDesc, pCbPrivData);
+                        goto after_callback;
+                    }
+                }
+
+                pAsyncCtx->pPrivData = pCbPrivData;
+                pAsyncCtx->StartTime = callbackStart;
+                pAsyncCtx->pFifoLink = pPeerFifoLinkObj;
+
+                // Spawn detached thread for callback execution
+                pthread_t CallbackThread;
+                pthread_attr_t Attr;
+                pthread_attr_init(&Attr);
+                pthread_attr_setdetachstate(&Attr, PTHREAD_CREATE_DETACHED);
+
+                int ThreadResult =
+                    pthread_create(&CallbackThread, &Attr, (void* (*)(void*))__IOC_asyncCallbackThreadFunc, pAsyncCtx);
+
+                pthread_attr_destroy(&Attr);
+
+                if (ThreadResult != 0) {
+                    // Thread creation failed, cleanup and fallback to sync
+                    free((void*)pAsyncCtx->DatDesc.Payload.pData);
+                    free(pAsyncCtx);
+                    CallbackResult = CbRecvDat_F(pPeerFifoLinkObj->pOwnerLinkObj->ID, pDatDesc, pCbPrivData);
+                } else {
+                    // Thread spawned successfully, assume success
+                    CallbackResult = IOC_RESULT_SUCCESS;
+                    // Mark callback timing as "async" (0ms since it's detached)
+                    clock_gettime(CLOCK_MONOTONIC, &callbackEnd);
+                    callbackDurationMs = 0;  // Async, no blocking
+                    goto after_callback;
+                }
+            }
+
+            // Sync fallback path: Record actual callback timing
             clock_gettime(CLOCK_MONOTONIC, &callbackEnd);
-            long callbackDurationMs = __IOC_getElapsedTimeMs(&callbackStart, &callbackEnd);
+            callbackDurationMs = __IOC_getElapsedTimeMs(&callbackStart, &callbackEnd);
+
+        after_callback:
 
             _IOC_LogDebug("✅ Receiver callback completed in %ld ms\n", callbackDurationMs);
 
@@ -1829,6 +1909,67 @@ static IOC_Result_T __IOC_flushCallbackBatch(_IOC_ProtoFifoLinkObject_pT pFifoLi
     }
 
     return IOC_RESULT_SUCCESS;
+}
+
+/**
+ * @brief Async callback thread function - executes callback in detached thread
+ * @param pArg Pointer to __AsyncCallbackContext_T
+ * @return NULL (detached thread)
+ *
+ * This function prevents circular deadlock by executing callbacks asynchronously.
+ * If a callback calls IOC_sendDAT, which triggers another callback that calls IOC_sendDAT
+ * back to the original sender, the async dispatch breaks the synchronous call chain.
+ */
+static void* __IOC_asyncCallbackThreadFunc(void* pArg) {
+    __AsyncCallbackContext_T* pCtx = (__AsyncCallbackContext_T*)pArg;
+    if (!pCtx) return NULL;
+
+    _IOC_LogDebug("🧵 Async callback thread started for LinkID=%llu\n", pCtx->LinkID);
+
+    // Execute the callback
+    IOC_Result_T CallbackResult = pCtx->Callback(pCtx->LinkID, &pCtx->DatDesc, pCtx->pPrivData);
+
+    // Record timing
+    struct timespec callbackEnd;
+    clock_gettime(CLOCK_MONOTONIC, &callbackEnd);
+    long callbackDurationMs = __IOC_getElapsedTimeMs(&pCtx->StartTime, &callbackEnd);
+
+    _IOC_LogDebug("✅ Async callback completed in %ld ms (result=0x%x)\n", callbackDurationMs, CallbackResult);
+
+    // Update callback batch timing
+    if (pCtx->pFifoLink) {
+        pthread_mutex_lock(&pCtx->pFifoLink->DatReceiver.CallbackBatch.BatchMutex);
+        pCtx->pFifoLink->DatReceiver.CallbackBatch.LastCallbackEnd = callbackEnd;
+        pCtx->pFifoLink->DatReceiver.CallbackBatch.IsInCallback = false;
+
+        // Check if should open batching window after callback
+        if (__IOC_shouldOpenBatchWindow(pCtx->pFifoLink, callbackDurationMs)) {
+            pCtx->pFifoLink->DatReceiver.CallbackBatch.IsBatchWindowOpen = true;
+            pCtx->pFifoLink->DatReceiver.CallbackBatch.BatchWindowStart = callbackEnd;
+            _IOC_LogDebug("🚀 Async callback was slow (%ld ms), opening batching window\n", callbackDurationMs);
+        }
+        pthread_mutex_unlock(&pCtx->pFifoLink->DatReceiver.CallbackBatch.BatchMutex);
+
+        // Flush any accumulated batch data
+        size_t batchedDataSize;
+        pthread_mutex_lock(&pCtx->pFifoLink->DatReceiver.CallbackBatch.BatchMutex);
+        batchedDataSize = pCtx->pFifoLink->DatReceiver.CallbackBatch.AccumulatedDataSize;
+        pthread_mutex_unlock(&pCtx->pFifoLink->DatReceiver.CallbackBatch.BatchMutex);
+
+        if (batchedDataSize > 0) {
+            _IOC_LogDebug("🔄 Flushing %zu bytes of batch data after async callback\n", batchedDataSize);
+            __IOC_flushCallbackBatch(pCtx->pFifoLink);
+        }
+    }
+
+    // Cleanup
+    if (pCtx->DatDesc.Payload.pData) {
+        free((void*)pCtx->DatDesc.Payload.pData);
+    }
+    free(pCtx);
+
+    _IOC_LogDebug("🧵 Async callback thread finished\n");
+    return NULL;
 }
 
 /**
