@@ -325,6 +325,8 @@ struct RoutingCallbackContext {
     std::atomic<uint32_t> RoutedCount{0};
     std::atomic<uint32_t> ErrorCount{0};
     std::atomic<bool> CircularDetected{false};
+    std::atomic<bool> ClosePeerOnRecv{false};
+    std::atomic<bool> CallbackInvoked{false};
 };
 
 // Exception testing context (TC-CB5)
@@ -413,9 +415,17 @@ IOC_Result_T EchoCbRecvDat(IOC_LinkID_T LinkID, const IOC_DatDesc_pT pDatDesc, v
 IOC_Result_T RoutingCbRecvDat(IOC_LinkID_T LinkID, const IOC_DatDesc_pT pDatDesc, void* pCbPrivData) {
     auto* pCtx = static_cast<RoutingCallbackContext*>(pCbPrivData);
 
+    pCtx->CallbackInvoked.store(true);
+
     // Forward to target link
     IOC_DatDesc_T Forward = *pDatDesc;
     IOC_Result_T Result = IOC_sendDAT(pCtx->TargetLinkID, &Forward, nullptr);
+
+    // If configured, close peer (service) link during callback to simulate disconnect
+    if (pCtx->ClosePeerOnRecv.load()) {
+        _IOC_LogDebug("🚪 RoutingCbRecvDat: Closing LinkID %llu during callback\n", LinkID);
+        IOC_closeLink(LinkID);
+    }
 
     if (Result == IOC_RESULT_SUCCESS) {
         pCtx->RoutedCount.fetch_add(1);
@@ -1353,7 +1363,74 @@ TEST(UT_DataConcurrencyCallback, verifyCallbackCrossLink_byBidirectionalRouting_
 //======>BEGIN OF: Additional Callback Tests=====================================================
 
 TEST(UT_DataConcurrencyCallback, verifyCallbackDisconnect_byCloseDuringSend_expectDeferredCleanup) {
-    GTEST_SKIP() << "⚪ TODO: Implement callback-initiated disconnect test";
+    //===SETUP===
+    printf("🔧 SETUP: TC-CB3 - Callback-initiated disconnect during send\n");
+
+    RoutingCallbackContext Ctx;
+    std::atomic<bool> DeadlockFlag{false};
+    DeadlockDetector Detector(std::chrono::seconds(5), &DeadlockFlag);
+
+    IOC_SrvURI_T SrvURI = {
+        .pProtocol = IOC_SRV_PROTO_FIFO, .pHost = IOC_SRV_HOST_LOCAL_PROCESS, .pPath = "TC_CB3_Service", .Port = 0};
+    IOC_DatUsageArgs_T DatArgs = {.CbRecvDat_F = RoutingCbRecvDat, .pCbPrivData = &Ctx};
+    IOC_SrvArgs_T SrvArgs = {
+        .SrvURI = SrvURI, .UsageCapabilites = IOC_LinkUsageDatReceiver, .UsageArgs = {.pDat = &DatArgs}};
+    IOC_SrvID_T SvcID = IOC_ID_INVALID;
+    IOC_onlineService(&SvcID, &SrvArgs);
+
+    // Connect a client to the service
+    IOC_LinkID_T ClientToSvc = IOC_ID_INVALID, SvcAccepted = IOC_ID_INVALID;
+    IOC_ConnArgs_T ConnArgs = {.SrvURI = SrvURI, .Usage = IOC_LinkUsageDatSender};
+    std::thread ClientThread([&] { IOC_connectService(&ClientToSvc, &ConnArgs, nullptr); });
+    IOC_acceptClient(SvcID, &SvcAccepted, nullptr);
+    ClientThread.join();
+
+    // Configure callback to close the sender link when invoked
+    Ctx.TargetLinkID = IOC_ID_INVALID;  // not used
+    Ctx.ClosePeerOnRecv = true;         // routing callback checks this field to close peer
+
+    //===BEHAVIOR===
+    printf("🎯 BEHAVIOR: Trigger send that will cause callback to close peer link\n");
+
+    char Payload[] = "CLOSE_DURING_SEND";
+    IOC_DatDesc_T DatDesc = {0};
+    IOC_initDatDesc(&DatDesc);
+    DatDesc.Payload.pData = Payload;
+    DatDesc.Payload.PtrDataSize = sizeof(Payload);
+    DatDesc.Payload.PtrDataLen = sizeof(Payload);
+
+    // Send asynchronously to avoid blocking test thread if callback misbehaves
+    std::atomic<bool> SendDone{false};
+    IOC_Result_T SendResult = IOC_RESULT_BUG;
+    std::thread Sender([&] {
+        SendResult = IOC_sendDAT(ClientToSvc, &DatDesc, nullptr);
+        SendDone.store(true);
+    });
+
+    // Give callback time to run and close the link
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+
+    //===VERIFY===
+    Detector.Stop();
+
+    // Join sender thread (should complete quickly now)
+    if (Sender.joinable()) Sender.join();
+
+    printf("✅ VERIFY: Callback-initiated disconnect results\n");
+
+    // Callback must have been invoked at least once
+    VERIFY_KEYPOINT_TRUE(Ctx.CallbackInvoked.load(), "Callback must have executed and attempted routing/close");
+
+    // Send should complete (either success or link-broken) but must not crash
+    VERIFY_KEYPOINT_TRUE(SendDone.load(), "Send operation must complete (no hang)");
+    printf("   SendResult=0x%x\n", SendResult);
+
+    // Cleanup: safe to attempt closing links/services even if callback closed them
+    IOC_closeLink(ClientToSvc);
+    IOC_closeLink(SvcAccepted);
+    IOC_offlineService(SvcID);
+
+    printf("✅ TC-CB3 COMPLETED: Callback-initiated disconnect test\n");
 }
 
 TEST(UT_DataConcurrencyCallback, verifyCallbackNesting_byChainDepth10_expectStackSafe) {

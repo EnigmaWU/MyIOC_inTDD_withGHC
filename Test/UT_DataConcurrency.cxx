@@ -734,12 +734,12 @@ struct P1ServiceReceiverContext {
 };
 
 // Callback function for Pattern-1 service (DatReceiver)
-IOC_Result_T P1_CbRecvDat(const IOC_DatDesc_pT pDatDesc, void* pCbPrivData) {
+IOC_Result_T P1_CbRecvDat(IOC_LinkID_T LinkID, const IOC_DatDesc_pT pDatDesc, void* pCbPrivData) {
     auto* pCtx = static_cast<P1ServiceReceiverContext*>(pCbPrivData);
 
     // Verify payload integrity
-    if (pDatDesc->PayloadSize >= sizeof(DataChunk)) {
-        const auto* pChunk = static_cast<const DataChunk*>(pDatDesc->pPayload);
+    if (pDatDesc->Payload.PtrDataSize >= sizeof(DataChunk)) {
+        const auto* pChunk = static_cast<const DataChunk*>(pDatDesc->Payload.pData);
         uint8_t ExpectedChecksum = ComputeChecksum(pChunk->Payload, pChunk->PayloadSize);
 
         if (pChunk->Checksum == ExpectedChecksum) {
@@ -763,11 +763,11 @@ struct P2ClientReceiverContext {
 };
 
 // Callback function for Pattern-2 client (DatReceiver)
-IOC_Result_T P2_CbRecvDat(const IOC_DatDesc_pT pDatDesc, void* pCbPrivData) {
+IOC_Result_T P2_CbRecvDat(IOC_LinkID_T LinkID, const IOC_DatDesc_pT pDatDesc, void* pCbPrivData) {
     auto* pCtx = static_cast<P2ClientReceiverContext*>(pCbPrivData);
 
-    if (pDatDesc->PayloadSize >= sizeof(DataChunk)) {
-        const auto* pChunk = static_cast<const DataChunk*>(pDatDesc->pPayload);
+    if (pDatDesc->Payload.PtrDataSize >= sizeof(DataChunk)) {
+        const auto* pChunk = static_cast<const DataChunk*>(pDatDesc->Payload.pData);
 
         std::lock_guard<std::mutex> Lock(pCtx->Mutex);
         pCtx->ReceivedChunks.push_back(*pChunk);
